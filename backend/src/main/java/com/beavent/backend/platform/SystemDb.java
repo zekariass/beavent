@@ -1,0 +1,19 @@
+package com.beavent.backend.platform;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import org.springframework.beans.factory.annotation.Qualifier;
+
+/**
+ * Selects the {@code beavent_system} database role (BYPASSRLS): cross-tenant workers and the audited admin backend
+ * only. Request handling uses the default (application role, RLS enforced). Qualifies {@code DataSource},
+ * {@code DSLContext}, {@code PlatformTransactionManager} and {@code TransactionTemplate} beans.
+ */
+@Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Qualifier
+public @interface SystemDb {}

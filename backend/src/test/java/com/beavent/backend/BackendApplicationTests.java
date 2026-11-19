@@ -2,27 +2,27 @@ package com.beavent.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.flyway.autoconfigure.FlywayDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
+@IntegrationTest
 class BackendApplicationTests {
 
     @Autowired
-    JdbcTemplate jdbc;
+    @FlywayDataSource
+    DataSource ownerDataSource;
 
     @Test
     void contextLoadsAndFlywayAppliesTheDatabaseBaseline() {
-        Integer applied = jdbc.queryForObject(
+        JdbcTemplate owner = new JdbcTemplate(ownerDataSource);
+        Integer applied = owner.queryForObject(
                 "select count(*) from flyway_schema_history where success and version is not null", Integer.class);
-        Integer migrationFiles = 24; // db/migration/V1_00 .. V1_99
-        assertThat(applied).isEqualTo(migrationFiles);
+        assertThat(applied).isEqualTo(24); // db/migration/V1_00 .. V1_99
 
-        Integer tables = jdbc.queryForObject("""
+        Integer tables = owner.queryForObject("""
                 select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
                  where c.relkind = 'r' and n.nspname in ('platform','ref','iam','tenant','team','catalog','crm','events',
                        'commerce','scheduling','retention','stock','payments','ledger','billing','fiscal','marketing',
@@ -31,7 +31,7 @@ class BackendApplicationTests {
         assertThat(tables).isEqualTo(266);
 
         String postgis =
-                jdbc.queryForObject("select extversion from pg_extension where extname = 'postgis'", String.class);
+                owner.queryForObject("select extversion from pg_extension where extname = 'postgis'", String.class);
         assertThat(postgis).startsWith("3.");
     }
 }

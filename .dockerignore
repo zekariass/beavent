@@ -3,6 +3,7 @@
 **/.turbo
 **/.expo
 **/build
+!backend/build/libs/beavent-api.jar
 **/.gradle
 **/dist
 **/coverage

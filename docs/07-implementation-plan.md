@@ -109,14 +109,15 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* every PR runs the full pipeline. (Verified locally: every CI command passes and the workflow passes actionlint; it runs on GitHub after the first push.)
 
-**0.5 Backend skeleton.**
-- Spring Boot + Spring Modulith; one module per domain (doc 03 §2.2) with public `api` and private `internal` packages.
-- Flyway runs `db/migration`; jOOQ code generation.
-- Three datasources (`beavent_app`, `beavent_identity`, `beavent_system`); a transaction interceptor sets `platform.set_request_context(user, org)`.
-- Problem+json errors with SQLSTATE mapping (23P01 → `SLOT_TAKEN`, bucket 23514 → `SOLD_OUT`); `Idempotency-Key` handling; `If-Match`/`version`; cursor pagination; correlation ids; OpenTelemetry.
-- Outbox relay → RabbitMQ; idempotent consumer base (`platform.processed_messages`); job scheduler.
+**0.5 Backend skeleton.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/platform` (25 backend tests).
+- Spring Boot + Spring Modulith; the `platform` module carries the cross-cutting pieces below, its public API in the base package and internals in sub-packages. Domain modules (one per schema, doc 03 §2.2) are added as their stages start; `ModularityTests` enforces boundaries.
+- Flyway runs `db/migration`; jOOQ classes are generated at build time from a throwaway PostGIS migrated with the same files (`com.beavent.db.<schema>`, outside the module root; explicit joins only).
+- Four pools: schema owner (Flyway only) and one per runtime role — `beavent_app` (primary, RLS), `beavent_identity` (`@IdentityDb`), `beavent_system` (`@SystemDb`). The app transaction manager calls `platform.set_request_context(user, org)` at the start of every transaction from `RequestContext`; no context means no tenant rows (fails closed). Local role logins are created by a Flyway callback in the `local` profile only; production logins come from infrastructure-as-code.
+- Problem+json errors with stable codes and SQLSTATE mapping (23P01 → `SLOT_TAKEN`, bucket 23514 → `SOLD_OUT`, 42501 → `FORBIDDEN`, …); `Idempotency` service (`Idempotency-Key`); `ETags` (If-Match) and `Cursors`; `X-Request-Id` + trace ids in logs (OpenTelemetry; OTLP export off until a collector exists); deny-by-default security until 0.7.
+- Transactional outbox (`Outbox.publish` in the caller's transaction) → relay (`FOR UPDATE SKIP LOCKED`, publisher confirms) → RabbitMQ topic exchange `beavent.events` (+ dead-letter exchange); `ProcessedMessages.runOnce` for idempotent consumers. Jobs use `@Scheduled` with `SKIP LOCKED` claims for now; a durable scheduler is added with the first time-based business job (Stage 2).
+- The backend image packages the jar built by Gradle (code generation needs Docker, so it can't run inside `docker build`).
 
-*Done when:* an integration test (Testcontainers + PostGIS) writes a row + outbox event under RLS and a consumer handles it exactly once.
+*Done when:* an integration test (Testcontainers + PostGIS) writes a row + outbox event under RLS and a consumer handles it exactly once. ✅ (`OutboxTests`, plus `RequestContextIsolationTests`, `IdempotencyTests`.)
 
 **0.6 API contract workflow.**
 - One OpenAPI 3.1 spec per module, bundled in CI.

@@ -33,7 +33,7 @@ docker compose up -d        # PostGIS :5433, Redis :6379, RabbitMQ :5672/:15672,
 
 npm run db:validate         # schema: throwaway PostGIS container → migrations → tests → race test
 npm run api:build           # backend: compile, format check, tests (Testcontainers; Flyway applies db/migration)
-cd backend && ./gradlew bootRun   # run the API against docker compose services
+cd backend && ./gradlew bootRun   # run the API (profile "local") against docker compose services
 
 npm run dev                 # all JS apps in dev mode (or: npm run dev -w @beavent/web)
 npm run lint                # lint all JS workspaces
@@ -48,7 +48,7 @@ cd mobile && npx expo start # run the mobile app
 ## Container images
 
 ```bash
-docker build -f backend/Dockerfile -t beavent-api .
+(cd backend && ./gradlew bootJar) && docker build -f backend/Dockerfile -t beavent-api .
 docker build -f docker/next-app.Dockerfile --build-arg APP=web -t beavent-web .   # APP = web | business | admin-console
 docker build -t beavent-chapa-stub tools/chapa-stub
 ```

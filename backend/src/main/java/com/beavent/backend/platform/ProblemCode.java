@@ -1,0 +1,48 @@
+package com.beavent.backend.platform;
+
+import java.net.URI;
+import java.util.Locale;
+import org.springframework.http.HttpStatus;
+
+/** Stable, client-visible error codes (problem+json {@code code} property and {@code type} URI). */
+public enum ProblemCode {
+    VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "The request is invalid."),
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Authentication is required."),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "You do not have access to this resource."),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "The resource was not found."),
+    CONFLICT(HttpStatus.CONFLICT, "The request conflicts with existing data."),
+    SLOT_TAKEN(HttpStatus.CONFLICT, "That time is no longer available."),
+    SOLD_OUT(HttpStatus.CONFLICT, "Not enough tickets are left."),
+    IMMUTABLE(HttpStatus.CONFLICT, "This record can no longer be changed."),
+    CONCURRENT_UPDATE(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please retry."),
+    IDEMPOTENCY_IN_PROGRESS(HttpStatus.CONFLICT, "A request with this Idempotency-Key is still being processed."),
+    PRECONDITION_FAILED(HttpStatus.PRECONDITION_FAILED, "The resource has changed since you last read it."),
+    IDEMPOTENCY_KEY_REUSED(
+            HttpStatus.UNPROCESSABLE_CONTENT, "This Idempotency-Key was already used with a different request."),
+    REFERENCE_NOT_FOUND(HttpStatus.UNPROCESSABLE_CONTENT, "The request refers to something that does not exist."),
+    CONSTRAINT_VIOLATION(HttpStatus.UNPROCESSABLE_CONTENT, "The request breaks a business rule."),
+    PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "This request requires an If-Match header."),
+    INTERNAL(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on our side.");
+
+    private final HttpStatus status;
+    private final String defaultDetail;
+
+    ProblemCode(HttpStatus status, String defaultDetail) {
+        this.status = status;
+        this.defaultDetail = defaultDetail;
+    }
+
+    public HttpStatus status() {
+        return status;
+    }
+
+    public String defaultDetail() {
+        return defaultDetail;
+    }
+
+    /** e.g. {@code urn:beavent:problem:slot-taken}. */
+    public URI type() {
+        return URI.create(
+                "urn:beavent:problem:" + name().toLowerCase(Locale.ROOT).replace('_', '-'));
+    }
+}
