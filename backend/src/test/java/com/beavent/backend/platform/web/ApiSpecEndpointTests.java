@@ -29,9 +29,10 @@ class ApiSpecEndpointTests {
     }
 
     @Test
-    void protectedEndpointsAreDeniedWithoutAToken() throws Exception {
+    void protectedEndpointsRequireAToken() throws Exception {
         mvc.perform(get("/v1/me").header(RequestIdFilter.HEADER, "test-req-1"))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(header().string(RequestIdFilter.HEADER, "test-req-1"));
     }
 

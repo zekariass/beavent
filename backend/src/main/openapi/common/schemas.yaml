@@ -96,12 +96,17 @@ Problem:
       type: integer
     detail:
       type: string
+    instance:
+      type: string
+      format: uri-reference
+      description: The request path that produced this problem.
     code:
       type: string
       enum:
         - VALIDATION_FAILED
         - UNAUTHENTICATED
         - FORBIDDEN
+        - STEP_UP_REQUIRED
         - NOT_FOUND
         - CONFLICT
         - SLOT_TAKEN

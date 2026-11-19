@@ -84,6 +84,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /v1/auth/password:
@@ -108,6 +110,8 @@ paths:
                 $ref: '#/components/schemas/AuthResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /v1/auth/oauth/{provider}:
@@ -141,6 +145,14 @@ paths:
                 $ref: '#/components/schemas/AuthResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: This provider is not enabled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /v1/auth/mfa/verify:
     post:
       tags:
@@ -163,6 +175,8 @@ paths:
                 $ref: '#/components/schemas/Tokens'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /v1/auth/refresh:
@@ -187,6 +201,8 @@ paths:
                 $ref: '#/components/schemas/Tokens'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/auth/logout:
     post:
       tags:
@@ -224,6 +240,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /.well-known/jwks.json:
@@ -281,6 +299,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/me/password:
     put:
       tags:
@@ -406,6 +426,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs:
     post:
       tags:
@@ -1327,12 +1349,17 @@ components:
           type: integer
         detail:
           type: string
+        instance:
+          type: string
+          format: uri-reference
+          description: The request path that produced this problem.
         code:
           type: string
           enum:
             - VALIDATION_FAILED
             - UNAUTHENTICATED
             - FORBIDDEN
+            - STEP_UP_REQUIRED
             - NOT_FOUND
             - CONFLICT
             - SLOT_TAKEN
@@ -2754,10 +2781,22 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Not allowed for this person, organization or permission.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     NoContent:
       description: Done.
     Conflict:
       description: Conflicts with existing data.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: Breaks a business rule.
       content:
         application/problem+json:
           schema:
@@ -2768,20 +2807,8 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    Forbidden:
-      description: Not allowed for this person, organization or permission.
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     PreconditionFailed:
       description: The resource changed since it was read (If-Match did not match).
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
-    Unprocessable:
-      description: Breaks a business rule.
       content:
         application/problem+json:
           schema:

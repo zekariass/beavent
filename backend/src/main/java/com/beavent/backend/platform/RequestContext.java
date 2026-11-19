@@ -53,4 +53,27 @@ public record RequestContext(UUID userId, UUID orgId) {
             return null;
         });
     }
+
+    /**
+     * Binds this context until the returned scope is closed (for filters/interceptors whose work does not fit a
+     * lambda). Always close it, e.g. with try-with-resources.
+     */
+    public Scope open() {
+        RequestContext previous = CURRENT.get();
+        CURRENT.set(this);
+        return () -> {
+            if (previous == null) {
+                CURRENT.remove();
+            } else {
+                CURRENT.set(previous);
+            }
+        };
+    }
+
+    /** Restores the previously bound context on close. */
+    @FunctionalInterface
+    public interface Scope extends AutoCloseable {
+        @Override
+        void close();
+    }
 }

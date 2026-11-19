@@ -14,7 +14,11 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest
+@SpringBootTest(
+        properties = {
+            // All test requests come from 127.0.0.1; per-phone limits stay as configured.
+            "beavent.auth.otp.per-ip-per-hour=100000"
+        })
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("local")
 public @interface IntegrationTest {}

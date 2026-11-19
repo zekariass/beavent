@@ -35,6 +35,9 @@ dependencies {
 	// Web & security
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+	// Argon2id password hashing (Spring Security's Argon2PasswordEncoder uses Bouncy Castle)
+	implementation 'org.bouncycastle:bcprov-jdk18on:1.87'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
@@ -68,6 +71,8 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	// Validates MockMvc responses against the OpenAPI contract
+	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:3.0.0'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -125,6 +130,8 @@ tasks.named('generateJooqClasses') {
 	flywayProperties.put('flyway.createSchemas', 'false')
 	usingJavaConfig {
 		database.withExcludes('flyway_schema_history')
+		// citext (emails, slugs, codes) as String; PostgreSQL casts varchar -> citext on assignment.
+		database.withForcedTypes(new org.jooq.meta.jaxb.ForcedType().withName('VARCHAR').withIncludeTypes('citext'))
 		// Explicit joins only: generated implicit-join paths clash where a table references two tables of the
 		// same name in different schemas (payments.payment_intents -> billing.invoices / commerce.invoices).
 		generate.withJavaTimeTypes(true).withPojos(false).withDaos(false).withRecords(true).withFluentSetters(true)

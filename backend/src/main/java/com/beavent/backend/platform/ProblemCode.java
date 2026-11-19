@@ -9,6 +9,7 @@ public enum ProblemCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "The request is invalid."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Authentication is required."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "You do not have access to this resource."),
+    STEP_UP_REQUIRED(HttpStatus.FORBIDDEN, "Please confirm it is you, then try again."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "The resource was not found."),
     CONFLICT(HttpStatus.CONFLICT, "The request conflicts with existing data."),
     SLOT_TAKEN(HttpStatus.CONFLICT, "That time is no longer available."),

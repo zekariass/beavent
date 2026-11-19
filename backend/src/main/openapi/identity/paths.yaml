@@ -45,6 +45,8 @@ otpVerify:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '429':
         $ref: ../common/responses.yaml#/TooManyRequests
 passwordLogin:
@@ -68,6 +70,8 @@ passwordLogin:
               $ref: ./schemas.yaml#/AuthResult
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '429':
         $ref: ../common/responses.yaml#/TooManyRequests
 oauthLogin:
@@ -98,6 +102,14 @@ oauthLogin:
               $ref: ./schemas.yaml#/AuthResult
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        description: This provider is not enabled.
+        content:
+          application/problem+json:
+            schema:
+              $ref: ../common/schemas.yaml#/Problem
 mfaVerify:
   post:
     tags: [Auth]
@@ -119,6 +131,8 @@ mfaVerify:
               $ref: ./schemas.yaml#/Tokens
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '429':
         $ref: ../common/responses.yaml#/TooManyRequests
 refresh:
@@ -142,6 +156,8 @@ refresh:
               $ref: ./schemas.yaml#/Tokens
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
 logout:
   post:
     tags: [Auth]
@@ -177,6 +193,8 @@ stepUp:
           application/json:
             schema:
               $ref: ./schemas.yaml#/Tokens
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
 jwks:
@@ -231,6 +249,8 @@ me:
         $ref: ../common/responses.yaml#/Unauthorized
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 mePassword:
   put:
     tags: [Me]
@@ -349,3 +369,5 @@ meConsents:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

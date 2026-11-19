@@ -722,8 +722,13 @@ export interface components {
             title: string;
             status: number;
             detail?: string;
+            /**
+             * Format: uri-reference
+             * @description The request path that produced this problem.
+             */
+            instance?: string;
             /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
             requestId?: string;
             /** @description Field-level validation errors. */
             errors?: {
@@ -1276,6 +1281,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Not allowed for this person, organization or permission. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Done. */
         NoContent: {
             headers: {
@@ -1292,6 +1306,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Breaks a business rule. */
+        Unprocessable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Not found (also returned when the resource belongs to another organization). */
         NotFound: {
             headers: {
@@ -1301,26 +1324,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Not allowed for this person, organization or permission. */
-        Forbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
         /** @description The resource changed since it was read (If-Match did not match). */
         PreconditionFailed: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
-        /** @description Breaks a business rule. */
-        Unprocessable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1392,6 +1397,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1418,6 +1424,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1446,6 +1453,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description This provider is not enabled. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     verifyMfa: {
@@ -1471,6 +1488,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1497,6 +1515,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     signOut: {
@@ -1538,6 +1557,7 @@ export interface operations {
                     "application/json": components["schemas"]["Tokens"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };
@@ -1608,6 +1628,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     changePassword: {
@@ -1738,6 +1759,7 @@ export interface operations {
             204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     createOrganization: {

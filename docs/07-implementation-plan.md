@@ -109,7 +109,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* every PR runs the full pipeline. (Verified locally: every CI command passes and the workflow passes actionlint; it runs on GitHub after the first push.)
 
-**0.5 Backend skeleton.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/platform` (25 backend tests).
+**0.5 Backend skeleton.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/platform` (24 backend tests).
 - Spring Boot + Spring Modulith; the `platform` module carries the cross-cutting pieces below, its public API in the base package and internals in sub-packages. Domain modules (one per schema, doc 03 §2.2) are added as their stages start; `ModularityTests` enforces boundaries.
 - Flyway runs `db/migration`; jOOQ classes are generated at build time from a throwaway PostGIS migrated with the same files (`com.beavent.db.<schema>`, outside the module root; explicit joins only).
 - Four pools: schema owner (Flyway only) and one per runtime role — `beavent_app` (primary, RLS), `beavent_identity` (`@IdentityDb`), `beavent_system` (`@SystemDb`). The app transaction manager calls `platform.set_request_context(user, org)` at the start of every transaction from `RequestContext`; no context means no tenant rows (fails closed). Local role logins are created by a Flyway callback in the `local` profile only; production logins come from infrastructure-as-code.
@@ -122,25 +122,27 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 **0.6 API contract workflow.** ✅ *Done* — `backend/src/main/openapi` (identity, tenancy, reference specs for steps 0.7–0.8), `packages/api-client`.
 - Spec-first OpenAPI 3.1, one folder per module (`common`, `identity`, `tenancy`, `reference`), linted with Redocly (`redocly.yaml`) and bundled to `packages/api-client/openapi.yaml`.
 - `packages/api-client`: generated types (`openapi-typescript`), typed fetch client (`openapi-fetch`) adding auth, language and `X-Request-Id`, React Query hooks (`openapi-react-query`), idempotency-key and problem helpers; used by web, business, admin-console and mobile (`src/lib/api.ts`).
-- Backend serves the bundle at `/v1/openapi.yaml`; a test keeps `ProblemCode` identical to the contract's error codes. Request/response validation against the spec is added with the first endpoints (0.7).
+- Backend serves the bundle at `/v1/openapi.yaml`; a test keeps `ProblemCode` identical to the contract's error codes. Request/response validation against the spec is added with the first endpoints (0.7: `swagger-request-validator-mockmvc` checks every request and response in the API tests).
 - CI job `api-contract`: lint + regenerate, fail if the committed client is stale, and on pull requests fail on breaking changes against the base branch (`oasdiff`).
 - Rule: every module starts with its spec, reviewed by backend, web and mobile.
 
 *Done when:* the auth + tenancy spec is merged and used by the app shells. ✅
 
-**0.7 Identity.**
-- Phone-first sign-up/in by SMS OTP through an SMS adapter (needs D4), with rate limits.
-- Optional password; Google/Apple sign-in.
-- Sessions with refresh rotation and reuse detection; JWT + JWKS.
-- MFA (TOTP) for owners and sensitive permissions, plus step-up OTP.
-- Consent capture; device registration; guest-order claiming.
+**0.7 Identity.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/identity` (42 backend tests in total).
+- Phone-first sign-in by one-time code: one `SIGN_IN` step for new and existing people (responses never reveal whether an account exists). Codes and phone numbers are stored only as HMACs; 5 attempts per code, 30 s resend window, per-phone and per-IP hourly limits in Redis (`429 RATE_LIMITED`). Codes go through the `SmsGateway` port; locally and in CI the `log` provider records them — a real provider needs D4.
+- Optional password (Argon2id, minimum 10 characters, lockout after 10 failures; unknown accounts take the same time and answer the same way). Setting or changing it needs the current password, a sign-in in the last 10 minutes or a step-up token, and signs out other sessions.
+- Google/Apple sign-in: ID tokens verified against the providers' keys (issuer, audience, nonce, signature); returns `404` until client ids are configured.
+- Sessions: ES256 access tokens (10 min; audience = client app; `sid` and `aal` claims), JWKS at `/.well-known/jwks.json` (key rotation via retired public keys), opaque refresh tokens stored as hashes with rotation; reusing an old refresh token revokes the whole session family. Sessions can be listed and revoked; logout revokes one or all.
+- MFA: authenticator app (TOTP, secret encrypted with AES-GCM, codes cannot be replayed); once enabled, sign-in returns `MFA_REQUIRED` and finishes with `/v1/auth/mfa/verify`. Step-up (`/v1/auth/step-up`, by code or authenticator) issues a 5-minute `STEP_UP` token; `Assurance.requireStepUp()` guards sensitive actions (`403 STEP_UP_REQUIRED`). Which permissions require it, and MFA for owners, is enforced in 0.8 where permissions exist.
+- Profile (`GET/PATCH /v1/me`, merge-patch), device registration (push tokens), consent capture against published legal document versions, audit entries for security events.
+- Moved: guest-order claiming needs orders and is built with checkout (step 6.4; the `CLAIM_GUEST_ORDERS` code purpose already exists).
 
-*Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests.
+*Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests. ✅ (`IdentityApiTests`, `IdTokenAndTotpTest`.)
 
 **0.8 Organizations and access.**
 - Onboarding API: kind, category, legal entity (TIN, VAT/TOT regime), first location (place, landmark, map pin), capabilities.
 - Members, invitations, role templates + custom roles, location scope.
-- Permission checks (`X-Org-Id` → membership → permission → RLS context).
+- Permission checks (org from the `/v1/orgs/{orgId}` path → membership → permission → RLS context), including MFA/step-up for sensitive permissions.
 - KYB case with document upload.
 
 *Done when:* API-level tests prove an org A token can never read or write org B data.
@@ -375,6 +377,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 - Reserve movements in bucket-id order.
 - Attendee questions (forms), promo and access codes, merchandise add-ons for pickup at the event.
 - Free orders without payment; Chapa payment with split.
+- Guest checkout by phone, and claiming guest orders after sign-in (verified by a one-time code to the same number; moved from 0.7).
 - Reservation-expiry job; per-organizer pre-event sales caps (§3).
 
 **6.5 Tickets and wallet.**
