@@ -2,7 +2,7 @@
 # (a throwaway PostGIS migrated with db/migration) and therefore cannot run inside a Docker build:
 #   (cd backend && ./gradlew bootJar)
 #   docker build -f backend/Dockerfile -t beavent-api .
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:24-jre
 RUN useradd --system --uid 10001 app
 WORKDIR /app
 COPY backend/build/libs/beavent-api.jar ./beavent-api.jar
