@@ -1,0 +1,3 @@
+# Internal staff console: never index.
+User-agent: *
+Disallow: /
