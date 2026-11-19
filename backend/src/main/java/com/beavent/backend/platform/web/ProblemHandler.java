@@ -56,9 +56,9 @@ public class ProblemHandler extends ResponseEntityExceptionHandler {
         ResponseEntity<Object> response = super.handleExceptionInternal(exception, body, headers, status, request);
         if (response != null && response.getBody() instanceof ProblemDetail detail) {
             if (detail.getProperties() == null || !detail.getProperties().containsKey("code")) {
-                detail.setProperty(
-                        "code",
-                        status.is4xxClientError() ? ProblemCode.VALIDATION_FAILED.name() : ProblemCode.INTERNAL.name());
+                ProblemCode code = status.is4xxClientError() ? ProblemCode.VALIDATION_FAILED : ProblemCode.INTERNAL;
+                detail.setProperty("code", code.name());
+                detail.setType(code.type());
             }
             detail.setProperty("requestId", MDC.get(RequestIdFilter.MDC_KEY));
         }

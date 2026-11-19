@@ -170,18 +170,42 @@ LegalEntityInput:
     isDefault:
       type: boolean
 LegalEntity:
-  allOf:
-    - $ref: '#/LegalEntityInput'
-    - type: object
-      required: [id, functionalCurrency, verificationStatus, isDefault]
-      properties:
-        id:
-          $ref: ../common/schemas.yaml#/Uuid
-        functionalCurrency:
-          $ref: ../common/schemas.yaml#/CurrencyCode
-        verificationStatus:
-          type: string
-          enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+  type: object
+  required: [id, countryCode, entityType, registeredName, taxRegime, functionalCurrency, verificationStatus, isDefault]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    countryCode:
+      $ref: ../common/schemas.yaml#/CountryCode
+    entityType:
+      type: string
+      enum: [SOLE_PROPRIETOR, PLC, SHARE_COMPANY, PARTNERSHIP, NGO, INDIVIDUAL, OTHER]
+    registeredName:
+      type: string
+      maxLength: 200
+    tradeLicenseNumber:
+      type: string
+      maxLength: 60
+    tin:
+      type: string
+      maxLength: 30
+      description: Taxpayer identification number.
+    vatNumber:
+      type: string
+      maxLength: 30
+      description: Required when taxRegime is VAT.
+    taxRegime:
+      type: string
+      enum: [VAT, TOT, PRESUMPTIVE, EXEMPT]
+    registeredAddress:
+      $ref: ../common/schemas.yaml#/Address
+    isDefault:
+      type: boolean
+    functionalCurrency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    verificationStatus:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
 LegalEntityList:
   type: object
   required: [items]
@@ -238,24 +262,52 @@ LocationInput:
       items:
         $ref: '#/OpeningHours'
 Location:
-  allOf:
-    - $ref: '#/LocationInput'
-    - type: object
-      required: [id, slug, currency, status, marketplaceListed, version]
-      properties:
-        id:
-          $ref: ../common/schemas.yaml#/Uuid
-        placeId:
-          $ref: ../common/schemas.yaml#/Uuid
-        currency:
-          $ref: ../common/schemas.yaml#/CurrencyCode
-        status:
-          type: string
-          enum: [ACTIVE, INACTIVE, ARCHIVED]
-        marketplaceListed:
-          type: boolean
-        version:
-          type: integer
+  type: object
+  required: [id, name, slug, legalEntityId, address, timezone, serviceMode, onlineBooking, hours, currency, status, marketplaceListed, version]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+      maxLength: 120
+    slug:
+      type: string
+      pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+    legalEntityId:
+      $ref: ../common/schemas.yaml#/Uuid
+    address:
+      $ref: ../common/schemas.yaml#/Address
+    timezone:
+      type: string
+      examples: [Africa/Addis_Ababa]
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+    serviceMode:
+      type: string
+      enum: [ON_PREMISES, MOBILE_ONLY, BOTH]
+      default: ON_PREMISES
+    onlineBooking:
+      type: boolean
+      default: true
+    hours:
+      type: array
+      items:
+        $ref: '#/OpeningHours'
+    placeId:
+      $ref: ../common/schemas.yaml#/Uuid
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+    marketplaceListed:
+      type: boolean
+    version:
+      type: integer
+      description: Same value as the ETag.
 LocationList:
   type: object
   required: [items, page]
@@ -479,16 +531,23 @@ VerificationCase:
     documents:
       type: array
       items:
-        allOf:
-          - $ref: '#/VerificationDocumentInput'
-          - type: object
-            required: [id, status]
-            properties:
-              id:
-                $ref: ../common/schemas.yaml#/Uuid
-              status:
-                type: string
-                enum: [SUBMITTED, ACCEPTED, REJECTED]
+        $ref: '#/VerificationDocument'
+VerificationDocument:
+  type: object
+  required: [id, docType, fileId, status]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    docType:
+      type: string
+    fileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    expiresOn:
+      type: string
+      format: date
+    status:
+      type: string
+      enum: [SUBMITTED, ACCEPTED, REJECTED]
 VerificationCaseList:
   type: object
   required: [items]

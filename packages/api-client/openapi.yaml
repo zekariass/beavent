@@ -459,6 +459,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}:
     get:
       tags:
@@ -519,6 +523,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '412':
           $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs/{orgId}/capabilities:
     put:
       tags:
@@ -823,6 +829,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs/{orgId}/roles/{roleId}:
     patch:
       tags:
@@ -859,6 +867,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
     delete:
       tags:
         - Team access
@@ -1016,6 +1026,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/invitations/{invitationId}:
     delete:
       tags:
@@ -1061,6 +1075,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1114,6 +1130,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs/{orgId}/verification-cases/{caseId}:
     get:
       tags:
@@ -2031,6 +2051,80 @@ components:
           maxLength: 20
         geo:
           $ref: '#/components/schemas/GeoPoint'
+    CurrencyCode:
+      type: string
+      pattern: ^[A-Z]{3}$
+      examples:
+        - ETB
+    LegalEntity:
+      type: object
+      required:
+        - id
+        - countryCode
+        - entityType
+        - registeredName
+        - taxRegime
+        - functionalCurrency
+        - verificationStatus
+        - isDefault
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        entityType:
+          type: string
+          enum:
+            - SOLE_PROPRIETOR
+            - PLC
+            - SHARE_COMPANY
+            - PARTNERSHIP
+            - NGO
+            - INDIVIDUAL
+            - OTHER
+        registeredName:
+          type: string
+          maxLength: 200
+        tradeLicenseNumber:
+          type: string
+          maxLength: 60
+        tin:
+          type: string
+          maxLength: 30
+          description: Taxpayer identification number.
+        vatNumber:
+          type: string
+          maxLength: 30
+          description: Required when taxRegime is VAT.
+        taxRegime:
+          type: string
+          enum:
+            - VAT
+            - TOT
+            - PRESUMPTIVE
+            - EXEMPT
+        registeredAddress:
+          $ref: '#/components/schemas/Address'
+        isDefault:
+          type: boolean
+        functionalCurrency:
+          $ref: '#/components/schemas/CurrencyCode'
+        verificationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+    LegalEntityList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalEntity'
     LegalEntityInput:
       type: object
       required:
@@ -2076,41 +2170,6 @@ components:
           $ref: '#/components/schemas/Address'
         isDefault:
           type: boolean
-    CurrencyCode:
-      type: string
-      pattern: ^[A-Z]{3}$
-      examples:
-        - ETB
-    LegalEntity:
-      allOf:
-        - $ref: '#/components/schemas/LegalEntityInput'
-        - type: object
-          required:
-            - id
-            - functionalCurrency
-            - verificationStatus
-            - isDefault
-          properties:
-            id:
-              $ref: '#/components/schemas/Uuid'
-            functionalCurrency:
-              $ref: '#/components/schemas/CurrencyCode'
-            verificationStatus:
-              type: string
-              enum:
-                - UNVERIFIED
-                - PENDING
-                - VERIFIED
-                - REJECTED
-    LegalEntityList:
-      type: object
-      required:
-        - items
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/LegalEntity'
     OpeningHours:
       type: object
       required:
@@ -2128,6 +2187,95 @@ components:
         closesAt:
           type: string
           pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+    Location:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - legalEntityId
+        - address
+        - timezone
+        - serviceMode
+        - onlineBooking
+        - hours
+        - currency
+        - status
+        - marketplaceListed
+        - version
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          maxLength: 120
+        slug:
+          type: string
+          pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        address:
+          $ref: '#/components/schemas/Address'
+        timezone:
+          type: string
+          examples:
+            - Africa/Addis_Ababa
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+          default: ON_PREMISES
+        onlineBooking:
+          type: boolean
+          default: true
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpeningHours'
+        placeId:
+          $ref: '#/components/schemas/Uuid'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - ARCHIVED
+        marketplaceListed:
+          type: boolean
+        version:
+          type: integer
+          description: Same value as the ETag.
+    PageInfo:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page.
+    LocationList:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     LocationInput:
       type: object
       required:
@@ -2169,56 +2317,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OpeningHours'
-    Location:
-      allOf:
-        - $ref: '#/components/schemas/LocationInput'
-        - type: object
-          required:
-            - id
-            - slug
-            - currency
-            - status
-            - marketplaceListed
-            - version
-          properties:
-            id:
-              $ref: '#/components/schemas/Uuid'
-            placeId:
-              $ref: '#/components/schemas/Uuid'
-            currency:
-              $ref: '#/components/schemas/CurrencyCode'
-            status:
-              type: string
-              enum:
-                - ACTIVE
-                - INACTIVE
-                - ARCHIVED
-            marketplaceListed:
-              type: boolean
-            version:
-              type: integer
-    PageInfo:
-      type: object
-      required:
-        - nextCursor
-      properties:
-        nextCursor:
-          type:
-            - string
-            - 'null'
-          description: Pass as `cursor` to get the next page; null on the last page.
-    LocationList:
-      type: object
-      required:
-        - items
-        - page
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Location'
-        page:
-          $ref: '#/components/schemas/PageInfo'
     Role:
       type: object
       required:
@@ -2425,31 +2523,29 @@ components:
         token:
           type: string
           description: From the invitation link sent by SMS or email.
-    VerificationDocumentInput:
+    VerificationDocument:
       type: object
       required:
+        - id
         - docType
         - fileId
+        - status
       properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
         docType:
           type: string
-          enum:
-            - TRADE_LICENSE
-            - TIN_CERTIFICATE
-            - VAT_CERTIFICATE
-            - NATIONAL_ID
-            - FAYDA_ID
-            - PASSPORT
-            - KEBELE_ID
-            - BANK_LETTER
-            - PROFESSIONAL_LICENSE
-            - VENUE_PERMIT
-            - MEMORANDUM_OF_ASSOCIATION
         fileId:
           $ref: '#/components/schemas/Uuid'
         expiresOn:
           type: string
           format: date
+        status:
+          type: string
+          enum:
+            - SUBMITTED
+            - ACCEPTED
+            - REJECTED
     VerificationCase:
       type: object
       required:
@@ -2481,21 +2577,7 @@ components:
         documents:
           type: array
           items:
-            allOf:
-              - $ref: '#/components/schemas/VerificationDocumentInput'
-              - type: object
-                required:
-                  - id
-                  - status
-                properties:
-                  id:
-                    $ref: '#/components/schemas/Uuid'
-                  status:
-                    type: string
-                    enum:
-                      - SUBMITTED
-                      - ACCEPTED
-                      - REJECTED
+            $ref: '#/components/schemas/VerificationDocument'
     VerificationCaseList:
       type: object
       required:
@@ -2505,6 +2587,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/VerificationCase'
+    VerificationDocumentInput:
+      type: object
+      required:
+        - docType
+        - fileId
+      properties:
+        docType:
+          type: string
+          enum:
+            - TRADE_LICENSE
+            - TIN_CERTIFICATE
+            - VAT_CERTIFICATE
+            - NATIONAL_ID
+            - FAYDA_ID
+            - PASSPORT
+            - KEBELE_ID
+            - BANK_LETTER
+            - PROFESSIONAL_LICENSE
+            - VENUE_PERMIT
+            - MEMORANDUM_OF_ASSOCIATION
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        expiresOn:
+          type: string
+          format: date
     VerificationCaseCreate:
       type: object
       required:

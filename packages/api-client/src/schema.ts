@@ -997,6 +997,30 @@ export interface components {
             postalCode?: string;
             geo?: components["schemas"]["GeoPoint"];
         };
+        /** @example ETB */
+        CurrencyCode: string;
+        LegalEntity: {
+            id: components["schemas"]["Uuid"];
+            countryCode: components["schemas"]["CountryCode"];
+            /** @enum {string} */
+            entityType: "SOLE_PROPRIETOR" | "PLC" | "SHARE_COMPANY" | "PARTNERSHIP" | "NGO" | "INDIVIDUAL" | "OTHER";
+            registeredName: string;
+            tradeLicenseNumber?: string;
+            /** @description Taxpayer identification number. */
+            tin?: string;
+            /** @description Required when taxRegime is VAT. */
+            vatNumber?: string;
+            /** @enum {string} */
+            taxRegime: "VAT" | "TOT" | "PRESUMPTIVE" | "EXEMPT";
+            registeredAddress?: components["schemas"]["Address"];
+            isDefault: boolean;
+            functionalCurrency: components["schemas"]["CurrencyCode"];
+            /** @enum {string} */
+            verificationStatus: "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
+        };
+        LegalEntityList: {
+            items: components["schemas"]["LegalEntity"][];
+        };
         LegalEntityInput: {
             countryCode: components["schemas"]["CountryCode"];
             /** @enum {string} */
@@ -1012,21 +1036,45 @@ export interface components {
             registeredAddress?: components["schemas"]["Address"];
             isDefault?: boolean;
         };
-        /** @example ETB */
-        CurrencyCode: string;
-        LegalEntity: components["schemas"]["LegalEntityInput"] & {
-            id: components["schemas"]["Uuid"];
-            functionalCurrency: components["schemas"]["CurrencyCode"];
-            /** @enum {string} */
-            verificationStatus: "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
-        };
-        LegalEntityList: {
-            items: components["schemas"]["LegalEntity"][];
-        };
         OpeningHours: {
             isoWeekday: number;
             opensAt: string;
             closesAt: string;
+        };
+        Location: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            slug: string;
+            legalEntityId: components["schemas"]["Uuid"];
+            address: components["schemas"]["Address"];
+            /** @example Africa/Addis_Ababa */
+            timezone: string;
+            phone?: components["schemas"]["PhoneE164"];
+            /** Format: email */
+            email?: string;
+            /**
+             * @default ON_PREMISES
+             * @enum {string}
+             */
+            serviceMode: "ON_PREMISES" | "MOBILE_ONLY" | "BOTH";
+            /** @default true */
+            onlineBooking: boolean;
+            hours: components["schemas"]["OpeningHours"][];
+            placeId?: components["schemas"]["Uuid"];
+            currency: components["schemas"]["CurrencyCode"];
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE" | "ARCHIVED";
+            marketplaceListed: boolean;
+            /** @description Same value as the ETag. */
+            version: number;
+        };
+        PageInfo: {
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
+        LocationList: {
+            items: components["schemas"]["Location"][];
+            page: components["schemas"]["PageInfo"];
         };
         LocationInput: {
             name: string;
@@ -1046,23 +1094,6 @@ export interface components {
             /** @default true */
             onlineBooking: boolean;
             hours?: components["schemas"]["OpeningHours"][];
-        };
-        Location: components["schemas"]["LocationInput"] & {
-            id: components["schemas"]["Uuid"];
-            placeId?: components["schemas"]["Uuid"];
-            currency: components["schemas"]["CurrencyCode"];
-            /** @enum {string} */
-            status: "ACTIVE" | "INACTIVE" | "ARCHIVED";
-            marketplaceListed: boolean;
-            version: number;
-        };
-        PageInfo: {
-            /** @description Pass as `cursor` to get the next page; null on the last page. */
-            nextCursor: string | null;
-        };
-        LocationList: {
-            items: components["schemas"]["Location"][];
-            page: components["schemas"]["PageInfo"];
         };
         Role: {
             id: components["schemas"]["Uuid"];
@@ -1137,12 +1168,14 @@ export interface components {
             /** @description From the invitation link sent by SMS or email. */
             token: string;
         };
-        VerificationDocumentInput: {
-            /** @enum {string} */
-            docType: "TRADE_LICENSE" | "TIN_CERTIFICATE" | "VAT_CERTIFICATE" | "NATIONAL_ID" | "FAYDA_ID" | "PASSPORT" | "KEBELE_ID" | "BANK_LETTER" | "PROFESSIONAL_LICENSE" | "VENUE_PERMIT" | "MEMORANDUM_OF_ASSOCIATION";
+        VerificationDocument: {
+            id: components["schemas"]["Uuid"];
+            docType: string;
             fileId: components["schemas"]["Uuid"];
             /** Format: date */
             expiresOn?: string;
+            /** @enum {string} */
+            status: "SUBMITTED" | "ACCEPTED" | "REJECTED";
         };
         VerificationCase: {
             id: components["schemas"]["Uuid"];
@@ -1152,14 +1185,17 @@ export interface components {
             decisionReason?: string;
             createdAt: components["schemas"]["Instant"];
             decidedAt?: components["schemas"]["Instant"];
-            documents: (components["schemas"]["VerificationDocumentInput"] & {
-                id: components["schemas"]["Uuid"];
-                /** @enum {string} */
-                status: "SUBMITTED" | "ACCEPTED" | "REJECTED";
-            })[];
+            documents: components["schemas"]["VerificationDocument"][];
         };
         VerificationCaseList: {
             items: components["schemas"]["VerificationCase"][];
+        };
+        VerificationDocumentInput: {
+            /** @enum {string} */
+            docType: "TRADE_LICENSE" | "TIN_CERTIFICATE" | "VAT_CERTIFICATE" | "NATIONAL_ID" | "FAYDA_ID" | "PASSPORT" | "KEBELE_ID" | "BANK_LETTER" | "PROFESSIONAL_LICENSE" | "VENUE_PERMIT" | "MEMORANDUM_OF_ASSOCIATION";
+            fileId: components["schemas"]["Uuid"];
+            /** Format: date */
+            expiresOn?: string;
         };
         VerificationCaseCreate: {
             /** @enum {string} */
@@ -1789,6 +1825,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getOrganization: {
@@ -1850,6 +1888,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     setCapabilities: {
@@ -2151,6 +2190,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     deleteRole: {
@@ -2202,6 +2242,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     listMembers: {
@@ -2337,6 +2378,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     revokeInvitation: {
@@ -2381,6 +2424,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
         };
@@ -2438,6 +2482,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     getVerificationCase: {

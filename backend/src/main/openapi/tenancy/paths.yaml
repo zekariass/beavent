@@ -1,3 +1,4 @@
+
 organizations:
   post:
     tags: [Organizations]
@@ -28,6 +29,10 @@ organizations:
         $ref: ../common/responses.yaml#/Forbidden
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
 organization:
   get:
     tags: [Organizations]
@@ -86,6 +91,8 @@ organization:
         $ref: ../common/responses.yaml#/NotFound
       '412':
         $ref: ../common/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 capabilities:
   put:
     tags: [Organizations]
@@ -380,6 +387,8 @@ roles:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 role:
   patch:
     tags: [Team access]
@@ -415,6 +424,8 @@ role:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
   delete:
     tags: [Team access]
     operationId: deleteRole
@@ -566,6 +577,10 @@ invitations:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
 invitation:
   delete:
     tags: [Team access]
@@ -609,6 +624,8 @@ invitationAccept:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
       '409':
@@ -660,6 +677,10 @@ verificationCases:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 verificationCase:
   get:
     tags: [Verification]

@@ -139,13 +139,15 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests. ✅ (`IdentityApiTests`, `IdTokenAndTotpTest`.)
 
-**0.8 Organizations and access.**
-- Onboarding API: kind, category, legal entity (TIN, VAT/TOT regime), first location (place, landmark, map pin), capabilities.
-- Members, invitations, role templates + custom roles, location scope.
-- Permission checks (org from the `/v1/orgs/{orgId}` path → membership → permission → RLS context), including MFA/step-up for sensitive permissions.
-- KYB case with document upload.
+**0.8 Organizations and access.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/tenancy`, `.../reference` (48 backend tests in total).
+- Onboarding API: create an organization (kind, business category, market, language; the creator becomes owner; slug from the name or chosen, reserved words refused), profile updates with `If-Match`, capabilities checked against the market's feature switches, legal entities (TIN, VAT/TOT regime, one default per country, currency from the country; changing verified details resets verification), locations with their premises place (landmark-first address following the country's address format, map pin, opening hours with split shifts).
+- Members, invitations by SMS (email through the `log` provider until Stage 8), system role templates plus custom roles, location scope (members limited to some locations see only those).
+- Access checks: org from the `/v1/orgs/{orgId}` path → active membership (system role) → `OrgAccess` permission check → database context narrowed to that org (RLS). Non-members get `404`, suspended organizations are read-only. Nobody can grant permissions they do not hold; granting sensitive permissions, changing a member's role, suspending or removing a member needs step-up; the owner's access cannot be changed (ownership transfer comes later).
+- Invitation links work only for the person who verified the invited phone number or email, once.
+- KYB/KYC: verification cases with documents (files must be the organization's `KYC`/`DOCUMENT` files); one open case per subject; owner identity only by the owner. Upload itself is step 0.9; decisions are made in the admin console (0.10).
+- Reference API: markets (languages, currencies, feature switches), languages, categories, administrative areas (public, cached 5 minutes) and the permission catalogue (signed in).
 
-*Done when:* API-level tests prove an org A token can never read or write org B data.
+*Done when:* API-level tests prove an org A token can never read or write org B data. ✅ (`TenancyApiTests`: B's ids and paths are `404`/`422` from A's workspace, including for a person who belongs to both.)
 
 **0.9 Files and media.**
 - Pre-signed uploads to S3-compatible storage; virus-scan hook; image variants.

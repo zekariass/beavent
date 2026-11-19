@@ -1,6 +1,5 @@
 package com.beavent.backend.identity.internal;
 
-import static com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -8,111 +7,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import com.beavent.backend.IntegrationTest;
-import com.beavent.backend.platform.SystemDb;
-import com.beavent.backend.platform.messaging.LoggingSmsGateway;
+import com.beavent.backend.ApiTestSupport;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /** Identity API end to end (MockMvc → real PostGIS/Redis), every response validated against the OpenAPI contract. */
-@IntegrationTest
-@AutoConfigureMockMvc
-class IdentityApiTests {
-
-    static final String CONTRACT = "openapi/beavent.yaml";
-
-    @Autowired
-    MockMvc mvc;
-
-    @Autowired
-    JsonMapper json;
-
-    @Autowired
-    LoggingSmsGateway sms;
+class IdentityApiTests extends ApiTestSupport {
 
     @Autowired
     Crypto crypto;
-
-    @Autowired
-    @SystemDb
-    DSLContext system;
-
-    record Call(int status, JsonNode body) {}
-
-    // --- helpers ---------------------------------------------------------------------------------------------
-
-    Call call(MockHttpServletRequestBuilder request, Object body, String token) throws Exception {
-        if (body != null) {
-            request.contentType(MediaType.APPLICATION_JSON)
-                    .content(body instanceof String raw ? raw : json.writeValueAsString(body));
-        }
-        if (token != null) {
-            request.header("Authorization", "Bearer " + token);
-        }
-        MvcResult result = mvc.perform(request).andReturn();
-        String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        try {
-            openApi().isValid(CONTRACT).match(result);
-        } catch (Exception | AssertionError e) {
-            throw new AssertionError(
-                    e.getMessage() + "\nResponse " + result.getResponse().getStatus() + ": " + content, e);
-        }
-        return new Call(result.getResponse().getStatus(), content.isEmpty() ? null : json.readTree(content));
-    }
-
-    static String newPhone() {
-        return "+2519" + String.format("%08d", ThreadLocalRandom.current().nextInt(100_000_000));
-    }
-
-    String lastCode(String phone) {
-        Matcher matcher = Pattern.compile("(\\d{6})").matcher(sms.lastMessageTo(phone));
-        assertThat(matcher.find()).isTrue();
-        return matcher.group(1);
-    }
-
-    String requestCode(String phone, String purpose, String token) throws Exception {
-        ageChallenges(phone);
-        Call challenge = call(
-                post("/v1/auth/otp/request"),
-                java.util.Map.of("phone", phone, "purpose", purpose, "clientApp", "MOBILE_APP", "language", "en"),
-                token);
-        assertThat(challenge.status()).isEqualTo(202);
-        return challenge.body().get("challengeId").asString();
-    }
-
-    Call signInWithOtp(String phone) throws Exception {
-        String challengeId = requestCode(phone, "SIGN_IN", null);
-        return call(
-                post("/v1/auth/otp/verify"),
-                java.util.Map.of(
-                        "challengeId",
-                        challengeId,
-                        "code",
-                        lastCode(phone),
-                        "device",
-                        java.util.Map.of(
-                                "installationId", "test-" + phone, "platform", "ANDROID", "appVersion", "1.0.0")),
-                null);
-    }
-
-    static JsonNode claims(JsonMapper json, String jwt) {
-        return json.readTree(new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[1]), StandardCharsets.UTF_8));
-    }
 
     // --- tests -----------------------------------------------------------------------------------------------
 
@@ -355,16 +263,6 @@ class IdentityApiTests {
         JsonNode claims = claims(json, stepUp.body().get("accessToken").asString());
         assertThat(claims.get("aal").asString()).isEqualTo("STEP_UP");
         assertThat(claims.get("exp").asLong() - claims.get("iat").asLong()).isLessThanOrEqualTo(300);
-    }
-
-    /** Moves earlier codes for this phone out of the 30 s resend window (tests sign in repeatedly). */
-    private void ageChallenges(String phone) {
-        system.update(com.beavent.db.iam.Tables.AUTH_CHALLENGES)
-                .set(
-                        com.beavent.db.iam.Tables.AUTH_CHALLENGES.CREATED_AT,
-                        java.time.OffsetDateTime.now().minusMinutes(1))
-                .where(com.beavent.db.iam.Tables.AUTH_CHALLENGES.DESTINATION_HASH.eq(crypto.destinationHash(phone)))
-                .execute();
     }
 
     @Test
