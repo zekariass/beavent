@@ -447,6 +447,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/locations/{locationId}/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Closures of a location in a date range */
+        get: operations["listClosures"];
+        put?: never;
+        /** Close a location for a period (e.g. renovation, staff training) */
+        post: operations["addClosure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a closure */
+        delete: operations["removeClosure"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/service-areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where a location serves customers at home */
+        get: operations["listServiceAreas"];
+        put?: never;
+        /** Add an at-home service area with travel fee and time */
+        post: operations["addServiceArea"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a service area */
+        put: operations["updateServiceArea"];
+        post?: never;
+        /** Remove a service area */
+        delete: operations["removeServiceArea"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -944,6 +1015,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/booking-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All booking policies (organization default, per location, per service) */
+        get: operations["listBookingPolicies"];
+        /** Create or replace the policy for a scope (organization, location, service, or both) */
+        put: operations["setBookingPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/booking-policies/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The policy that applies to a service at a location (most specific wins) */
+        get: operations["getEffectiveBookingPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/booking-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a location or service policy (the next broader one applies again) */
+        delete: operations["deleteBookingPolicy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -1318,6 +1441,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ref/public-holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public holidays of a country in a year */
+        get: operations["listPublicHolidays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ref/permissions": {
         parameters: {
             query?: never;
@@ -1681,6 +1821,8 @@ export interface components {
             /** @default true */
             onlineBooking: boolean;
             hours: components["schemas"]["OpeningHours"][];
+            /** @default true */
+            closedOnPublicHolidays: boolean;
             placeId?: components["schemas"]["Uuid"];
             currency: components["schemas"]["CurrencyCode"];
             /** @enum {string} */
@@ -1715,6 +1857,8 @@ export interface components {
             /** @default true */
             onlineBooking: boolean;
             hours?: components["schemas"]["OpeningHours"][];
+            /** @default true */
+            closedOnPublicHolidays: boolean;
         };
         Role: {
             id: components["schemas"]["Uuid"];
@@ -1785,6 +1929,47 @@ export interface components {
             roleId: components["schemas"]["Uuid"];
             locationIds?: components["schemas"]["Uuid"][];
         } | unknown | unknown;
+        Closure: {
+            id: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            reason?: string;
+        };
+        ClosureList: {
+            items: components["schemas"]["Closure"][];
+        };
+        ClosureInput: {
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            reason?: string;
+        };
+        ServiceArea: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            adminAreaId?: components["schemas"]["Uuid"];
+            center?: components["schemas"]["GeoPoint"];
+            radiusMeters?: number;
+            /** Format: int64 */
+            travelFeeMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            travelMinutes: number;
+            isActive: boolean;
+        };
+        ServiceAreaList: {
+            items: components["schemas"]["ServiceArea"][];
+        };
+        /** @description An administrative area (e.g. a sub-city), or a circle around a point. */
+        ServiceAreaInput: {
+            name: string;
+            adminAreaId?: components["schemas"]["Uuid"];
+            center?: components["schemas"]["GeoPoint"];
+            radiusMeters?: number;
+            /** Format: int64 */
+            travelFeeMinor: number;
+            travelMinutes: number;
+            isActive?: boolean;
+        };
         InvitationAccept: {
             /** @description From the invitation link sent by SMS or email. */
             token: string;
@@ -2242,6 +2427,70 @@ export interface components {
         Schedule: {
             days: components["schemas"]["WorkingDay"][];
         };
+        Deposit: {
+            /** @enum {string} */
+            mode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            /** @description Required for PERCENT. */
+            percent?: number;
+            /**
+             * Format: int64
+             * @description Required for FIXED (in the market's price currency).
+             */
+            fixedMinor?: number;
+            /**
+             * @default EVERYONE
+             * @enum {string}
+             */
+            appliesTo: "EVERYONE" | "NEW_CUSTOMERS" | "MARKETPLACE_CUSTOMERS" | "FLAGGED_CUSTOMERS";
+        };
+        BookingPolicy: {
+            id?: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            scope: "ORGANIZATION" | "LOCATION" | "SERVICE" | "SERVICE_AND_LOCATION" | "PLATFORM_DEFAULT";
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            minNoticeMinutes: number;
+            maxAdvanceDays: number;
+            slotIntervalMinutes: number;
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            deposit: components["schemas"]["Deposit"];
+            currency?: components["schemas"]["CurrencyCode"];
+            cancellationWindowMinutes: number;
+            lateCancelFeePercent: number;
+            noShowFeePercent: number;
+            policyText: components["schemas"]["LocalizedText"];
+        };
+        BookingPolicyList: {
+            items: components["schemas"]["BookingPolicy"][];
+        };
+        /** @description Leave locationId and serviceId out for the organization default. */
+        BookingPolicyInput: {
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            /** @default 60 */
+            minNoticeMinutes: number;
+            /** @default 90 */
+            maxAdvanceDays: number;
+            /**
+             * @default 15
+             * @enum {integer}
+             */
+            slotIntervalMinutes: 5 | 10 | 15 | 20 | 30 | 60;
+            /** @description Request-to-book; the business confirms each booking. */
+            requiresApproval?: boolean;
+            /** @default true */
+            allowPayAtVenue: boolean;
+            deposit?: components["schemas"]["Deposit"];
+            /**
+             * @description Free cancellation until this long before the start.
+             * @default 1440
+             */
+            cancellationWindowMinutes: number;
+            lateCancelFeePercent?: number;
+            noShowFeePercent?: number;
+            policyText?: components["schemas"]["LocalizedText"];
+        };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
          *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
@@ -2515,6 +2764,18 @@ export interface components {
         };
         AdminAreaList: {
             items: components["schemas"]["AdminArea"][];
+        };
+        PublicHoliday: {
+            /** Format: date */
+            date: string;
+            name: components["schemas"]["LocalizedText"];
+            /** @description Absent = nationwide. */
+            adminAreaId?: components["schemas"]["Uuid"];
+            /** @description Moon-sighting holidays are confirmed close to the date. */
+            isEstimated: boolean;
+        };
+        PublicHolidayList: {
+            items: components["schemas"]["PublicHoliday"][];
         };
         Permission: {
             /** @example appointments.manage */
@@ -3518,6 +3779,197 @@ export interface operations {
             path: {
                 orgId: components["parameters"]["OrgId"];
                 invitationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listClosures: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addClosure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClosureInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Closure"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeClosure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                closureId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServiceAreas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAreaList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceAreaInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceArea"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                areaId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceAreaInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceArea"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                areaId: components["schemas"]["Uuid"];
             };
             cookie?: never;
         };
@@ -4917,6 +5369,109 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listBookingPolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policies. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicy"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getEffectiveBookingPolicy: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                serviceId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy, with the scope it came from. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicy"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                policyId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     createFileUpload: {
         parameters: {
             query?: never;
@@ -5491,6 +6046,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    listPublicHolidays: {
+        parameters: {
+            query: {
+                countryCode: components["schemas"]["CountryCode"];
+                year: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Holidays. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicHolidayList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listPermissions: {

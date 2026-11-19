@@ -315,6 +315,7 @@ public class Locations {
         location.setCurrencyCode(entity.getFunctionalCurrency());
         location.setServiceMode(input.serviceMode() == null ? "ON_PREMISES" : input.serviceMode());
         location.setOnlineBooking(input.onlineBooking() == null || input.onlineBooking());
+        location.setClosedOnPublicHolidays(input.closedOnPublicHolidays() == null || input.closedOnPublicHolidays());
     }
 
     /** The requested slug (409 if taken), or one derived from the name with a numeric suffix if needed. */
@@ -385,6 +386,7 @@ public class Locations {
                 location.getServiceMode(),
                 location.getOnlineBooking(),
                 hours,
+                location.getClosedOnPublicHolidays(),
                 location.getPlaceId(),
                 location.getCurrencyCode(),
                 location.getStatus(),

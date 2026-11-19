@@ -36,6 +36,8 @@ tags:
     description: Services, variants, prices, add-ons, bundles, resources and galleries
   - name: Team
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
+  - name: Booking policies
+    description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -95,6 +97,14 @@ paths:
     $ref: ./tenancy/paths.yaml#/invitations
   /v1/orgs/{orgId}/invitations/{invitationId}:
     $ref: ./tenancy/paths.yaml#/invitation
+  /v1/orgs/{orgId}/locations/{locationId}/closures:
+    $ref: ./tenancy/paths.yaml#/closures
+  /v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}:
+    $ref: ./tenancy/paths.yaml#/closure
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas:
+    $ref: ./tenancy/paths.yaml#/serviceAreas
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}:
+    $ref: ./tenancy/paths.yaml#/serviceArea
   /v1/invitations/accept:
     $ref: ./tenancy/paths.yaml#/invitationAccept
   /v1/orgs/{orgId}/verification-cases:
@@ -153,6 +163,13 @@ paths:
     $ref: ./team/paths.yaml#/timeOffDecision
   /v1/orgs/{orgId}/schedule:
     $ref: ./team/paths.yaml#/schedule
+  # --- booking policies -------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/booking-policies:
+    $ref: ./scheduling/paths.yaml#/bookingPolicies
+  /v1/orgs/{orgId}/booking-policies/effective:
+    $ref: ./scheduling/paths.yaml#/effectivePolicy
+  /v1/orgs/{orgId}/booking-policies/{policyId}:
+    $ref: ./scheduling/paths.yaml#/bookingPolicy
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles
@@ -200,6 +217,8 @@ paths:
     $ref: ./reference/paths.yaml#/categories
   /v1/ref/admin-areas:
     $ref: ./reference/paths.yaml#/adminAreas
+  /v1/ref/public-holidays:
+    $ref: ./reference/paths.yaml#/publicHolidays
   /v1/ref/permissions:
     $ref: ./reference/paths.yaml#/permissions
 components:

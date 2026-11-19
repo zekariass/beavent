@@ -211,6 +211,10 @@ Native tabs (`expo-router/native-tabs`, already used). Labels from `@beavent/i18
 
 Text tabs under the Explore search: **All · Services · Events**. `labelStrong` selected with a 2 px `text` underline (not `primary`: selection here is navigation, not a choice inside a form), unselected `label` `textMuted`. Swiping the content horizontally does **not** switch scope (conflicts with rails). Remembers the last scope per device.
 
+### 5.3a AnchorTabs
+
+In-page section tabs on long detail screens (venue: Services · Team · Reviews · About; event: About · Tickets · Location · Organizer). Same look as ScopeTabs. Appear (sticky, under the collapsed header) only after the hero scrolls away; tapping scrolls to the section; the selected tab follows the scroll position (scroll-spy). Sections that are empty are omitted from the tabs. Not used on screens shorter than ~2 viewport heights.
+
 ### 5.4 StepProgress
 
 A thin segmented bar (3 px, gaps of 4) under the `flow` header: completed and current segments `primary`, upcoming `border`. Number of segments = steps actually shown (skipped steps are not drawn). Accessibility: "Step 2 of 4, Choose a time". No step numbers in text, no step names row.

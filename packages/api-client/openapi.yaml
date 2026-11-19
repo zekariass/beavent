@@ -36,6 +36,8 @@ tags:
     description: Services, variants, prices, add-ons, bundles, resources and galleries
   - name: Team
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
+  - name: Booking policies
+    description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -942,6 +944,236 @@ paths:
       parameters:
         - $ref: '#/components/parameters/OrgId'
         - name: invitationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/locations/{locationId}/closures:
+    get:
+      tags:
+        - Organizations
+      operationId: listClosures
+      summary: Closures of a location in a date range
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClosureList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Organizations
+      operationId: addClosure
+      summary: Close a location for a period (e.g. renovation, staff training)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosureInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Closure'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}:
+    delete:
+      tags:
+        - Organizations
+      operationId: removeClosure
+      summary: Remove a closure
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: closureId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas:
+    get:
+      tags:
+        - Organizations
+      operationId: listServiceAreas
+      summary: Where a location serves customers at home
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAreaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Organizations
+      operationId: addServiceArea
+      summary: Add an at-home service area with travel fee and time
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAreaInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceArea'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}:
+    put:
+      tags:
+        - Organizations
+      operationId: updateServiceArea
+      summary: Change a service area
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: areaId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAreaInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceArea'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Organizations
+      operationId: removeServiceArea
+      summary: Remove a service area
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: areaId
           in: path
           required: true
           schema:
@@ -2498,6 +2730,112 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/booking-policies:
+    get:
+      tags:
+        - Booking policies
+      operationId: listBookingPolicies
+      summary: All booking policies (organization default, per location, per service)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Policies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingPolicyList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Booking policies
+      operationId: setBookingPolicy
+      summary: Create or replace the policy for a scope (organization, location, service, or both)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingPolicyInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/booking-policies/effective:
+    get:
+      tags:
+        - Booking policies
+      operationId: getEffectiveBookingPolicy
+      summary: The policy that applies to a service at a location (most specific wins)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Policy, with the scope it came from.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/booking-policies/{policyId}:
+    delete:
+      tags:
+        - Booking policies
+      operationId: deleteBookingPolicy
+      summary: Remove a location or service policy (the next broader one applies again)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -3093,6 +3431,37 @@ paths:
                 $ref: '#/components/schemas/AdminAreaList'
         '400':
           $ref: '#/components/responses/BadRequest'
+  /v1/ref/public-holidays:
+    get:
+      tags:
+        - Reference
+      operationId: listPublicHolidays
+      summary: Public holidays of a country in a year
+      security: []
+      parameters:
+        - name: countryCode
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/CountryCode'
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+      responses:
+        '200':
+          description: Holidays.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicHolidayList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/ref/permissions:
     get:
       tags:
@@ -3987,6 +4356,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OpeningHours'
+        closedOnPublicHolidays:
+          type: boolean
+          default: true
         placeId:
           $ref: '#/components/schemas/Uuid'
         currency:
@@ -4065,6 +4437,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OpeningHours'
+        closedOnPublicHolidays:
+          type: boolean
+          default: true
     Role:
       type: object
       required:
@@ -4263,6 +4638,114 @@ components:
             - phone
         - required:
             - email
+    Closure:
+      type: object
+      required:
+        - id
+        - startsAt
+        - endsAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        reason:
+          type: string
+    ClosureList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Closure'
+    ClosureInput:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+      properties:
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        reason:
+          type: string
+          maxLength: 200
+    ServiceArea:
+      type: object
+      required:
+        - id
+        - locationId
+        - name
+        - travelFeeMinor
+        - currency
+        - travelMinutes
+        - isActive
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        adminAreaId:
+          $ref: '#/components/schemas/Uuid'
+        center:
+          $ref: '#/components/schemas/GeoPoint'
+        radiusMeters:
+          type: integer
+        travelFeeMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        travelMinutes:
+          type: integer
+        isActive:
+          type: boolean
+    ServiceAreaList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceArea'
+    ServiceAreaInput:
+      type: object
+      description: An administrative area (e.g. a sub-city), or a circle around a point.
+      required:
+        - name
+        - travelFeeMinor
+        - travelMinutes
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        adminAreaId:
+          $ref: '#/components/schemas/Uuid'
+        center:
+          $ref: '#/components/schemas/GeoPoint'
+        radiusMeters:
+          type: integer
+          minimum: 100
+          maximum: 100000
+        travelFeeMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        travelMinutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+        isActive:
+          type: boolean
     InvitationAccept:
       type: object
       required:
@@ -5477,6 +5960,148 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/WorkingDay'
+    Deposit:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        percent:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 100
+          description: Required for PERCENT.
+        fixedMinor:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Required for FIXED (in the market's price currency).
+        appliesTo:
+          type: string
+          enum:
+            - EVERYONE
+            - NEW_CUSTOMERS
+            - MARKETPLACE_CUSTOMERS
+            - FLAGGED_CUSTOMERS
+          default: EVERYONE
+    BookingPolicy:
+      type: object
+      required:
+        - scope
+        - minNoticeMinutes
+        - maxAdvanceDays
+        - slotIntervalMinutes
+        - requiresApproval
+        - allowPayAtVenue
+        - deposit
+        - cancellationWindowMinutes
+        - lateCancelFeePercent
+        - noShowFeePercent
+        - policyText
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        scope:
+          type: string
+          enum:
+            - ORGANIZATION
+            - LOCATION
+            - SERVICE
+            - SERVICE_AND_LOCATION
+            - PLATFORM_DEFAULT
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        minNoticeMinutes:
+          type: integer
+        maxAdvanceDays:
+          type: integer
+        slotIntervalMinutes:
+          type: integer
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        deposit:
+          $ref: '#/components/schemas/Deposit'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        cancellationWindowMinutes:
+          type: integer
+        lateCancelFeePercent:
+          type: number
+        noShowFeePercent:
+          type: number
+        policyText:
+          $ref: '#/components/schemas/LocalizedText'
+    BookingPolicyList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingPolicy'
+    BookingPolicyInput:
+      type: object
+      description: Leave locationId and serviceId out for the organization default.
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        minNoticeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 43200
+          default: 60
+        maxAdvanceDays:
+          type: integer
+          minimum: 1
+          maximum: 730
+          default: 90
+        slotIntervalMinutes:
+          type: integer
+          enum:
+            - 5
+            - 10
+            - 15
+            - 20
+            - 30
+            - 60
+          default: 15
+        requiresApproval:
+          type: boolean
+          description: Request-to-book; the business confirms each booking.
+        allowPayAtVenue:
+          type: boolean
+          default: true
+        deposit:
+          $ref: '#/components/schemas/Deposit'
+        cancellationWindowMinutes:
+          type: integer
+          minimum: 0
+          maximum: 43200
+          default: 1440
+          description: Free cancellation until this long before the start.
+        lateCancelFeePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        noShowFeePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        policyText:
+          $ref: '#/components/schemas/LocalizedText'
     FilePurpose:
       type: string
       enum:
@@ -6191,6 +6816,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminArea'
+    PublicHoliday:
+      type: object
+      required:
+        - date
+        - name
+        - isEstimated
+      properties:
+        date:
+          type: string
+          format: date
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        adminAreaId:
+          $ref: '#/components/schemas/Uuid'
+          description: Absent = nationwide.
+        isEstimated:
+          type: boolean
+          description: Moon-sighting holidays are confirmed close to the date.
+    PublicHolidayList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicHoliday'
     Permission:
       type: object
       required:

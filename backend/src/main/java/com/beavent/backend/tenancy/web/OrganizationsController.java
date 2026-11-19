@@ -8,6 +8,7 @@ import com.beavent.backend.platform.RateLimiter;
 import com.beavent.backend.tenancy.OrgAccess;
 import com.beavent.backend.tenancy.internal.Bodies;
 import com.beavent.backend.tenancy.internal.LegalEntities;
+import com.beavent.backend.tenancy.internal.LocationExtras;
 import com.beavent.backend.tenancy.internal.Locations;
 import com.beavent.backend.tenancy.internal.Organizations;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,13 +40,19 @@ class OrganizationsController {
     private final LegalEntities legalEntities;
     private final Locations locations;
     private final RateLimiter rateLimiter;
+    private final LocationExtras locationExtras;
 
     OrganizationsController(
-            Organizations organizations, LegalEntities legalEntities, Locations locations, RateLimiter rateLimiter) {
+            Organizations organizations,
+            LegalEntities legalEntities,
+            Locations locations,
+            RateLimiter rateLimiter,
+            LocationExtras locationExtras) {
         this.organizations = organizations;
         this.legalEntities = legalEntities;
         this.locations = locations;
         this.rateLimiter = rateLimiter;
+        this.locationExtras = locationExtras;
     }
 
     @PostMapping("/v1/orgs")
@@ -134,6 +142,57 @@ class OrganizationsController {
         OrgAccess access = OrgAccess.current().require(SETTINGS);
         Bodies.Location location = locations.update(access.orgId(), locationId, body, ifMatch, access.userId());
         return ResponseEntity.ok().eTag(ETags.of(location.version())).body(location);
+    }
+
+    @GetMapping("/v1/orgs/{orgId}/locations/{locationId}/closures")
+    Bodies.Items<Bodies.Closure> closures(
+            @PathVariable UUID orgId,
+            @PathVariable UUID locationId,
+            @RequestParam java.time.LocalDate from,
+            @RequestParam java.time.LocalDate to) {
+        return new Bodies.Items<>(locationExtras.closures(OrgAccess.current(), locationId, from, to));
+    }
+
+    @PostMapping("/v1/orgs/{orgId}/locations/{locationId}/closures")
+    ResponseEntity<Bodies.Closure> addClosure(
+            @PathVariable UUID orgId, @PathVariable UUID locationId, @Valid @RequestBody Bodies.ClosureInput body) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(locationExtras.addClosure(OrgAccess.current(), locationId, body));
+    }
+
+    @DeleteMapping("/v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}")
+    ResponseEntity<Void> removeClosure(
+            @PathVariable UUID orgId, @PathVariable UUID locationId, @PathVariable UUID closureId) {
+        locationExtras.removeClosure(OrgAccess.current(), locationId, closureId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/v1/orgs/{orgId}/locations/{locationId}/service-areas")
+    Bodies.Items<Bodies.ServiceArea> serviceAreas(@PathVariable UUID orgId, @PathVariable UUID locationId) {
+        return new Bodies.Items<>(locationExtras.serviceAreas(OrgAccess.current(), locationId));
+    }
+
+    @PostMapping("/v1/orgs/{orgId}/locations/{locationId}/service-areas")
+    ResponseEntity<Bodies.ServiceArea> addServiceArea(
+            @PathVariable UUID orgId, @PathVariable UUID locationId, @Valid @RequestBody Bodies.ServiceAreaInput body) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(locationExtras.saveServiceArea(OrgAccess.current(), locationId, null, body));
+    }
+
+    @PutMapping("/v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}")
+    Bodies.ServiceArea updateServiceArea(
+            @PathVariable UUID orgId,
+            @PathVariable UUID locationId,
+            @PathVariable UUID areaId,
+            @Valid @RequestBody Bodies.ServiceAreaInput body) {
+        return locationExtras.saveServiceArea(OrgAccess.current(), locationId, areaId, body);
+    }
+
+    @DeleteMapping("/v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}")
+    ResponseEntity<Void> removeServiceArea(
+            @PathVariable UUID orgId, @PathVariable UUID locationId, @PathVariable UUID areaId) {
+        locationExtras.removeServiceArea(OrgAccess.current(), locationId, areaId);
+        return ResponseEntity.noContent().build();
     }
 
     static int limit(Integer limit) {

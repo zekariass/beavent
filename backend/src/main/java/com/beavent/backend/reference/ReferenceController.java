@@ -70,6 +70,8 @@ class ReferenceController {
 
     record Permission(String code, String module, String description, boolean isSensitive) {}
 
+    record PublicHoliday(java.time.LocalDate date, Map<String, String> name, UUID adminAreaId, boolean isEstimated) {}
+
     record Items<T>(List<T> items) {}
 
     private static final CacheControl PUBLIC_CACHE =
@@ -185,6 +187,26 @@ class ReferenceController {
                         r.get(PATH_TEXT)))));
     }
 
+    @GetMapping("/v1/ref/public-holidays")
+    ResponseEntity<Items<PublicHoliday>> publicHolidays(@RequestParam String countryCode, @RequestParam int year) {
+        if (year < 2000 || year > 2100) {
+            throw new com.beavent.backend.platform.ApiException(
+                    com.beavent.backend.platform.ProblemCode.VALIDATION_FAILED, "year must be between 2000 and 2100.");
+        }
+        var holidays = com.beavent.db.ref.Tables.PUBLIC_HOLIDAYS;
+        return cached(new Items<>(dsl.selectFrom(holidays)
+                .where(
+                        holidays.COUNTRY_CODE.eq(countryCode),
+                        holidays.HOLIDAY_DATE.between(
+                                java.time.LocalDate.of(year, 1, 1), java.time.LocalDate.of(year, 12, 31)))
+                .orderBy(holidays.HOLIDAY_DATE)
+                .fetch(h -> new PublicHoliday(
+                        h.getHolidayDate(),
+                        json.readValue(h.getNameI18n().data(), STRING_MAP),
+                        h.getAdminAreaId(),
+                        h.getIsEstimated()))));
+    }
+
     @GetMapping("/v1/ref/permissions")
     Items<Permission> permissions() {
         return new Items<>(dsl.selectFrom(PERMISSIONS)
@@ -202,7 +224,12 @@ class ReferenceController {
 
         @Bean
         PublicEndpoints referencePublicEndpoints() {
-            return () -> List.of("/v1/ref/markets", "/v1/ref/languages", "/v1/ref/categories", "/v1/ref/admin-areas");
+            return () -> List.of(
+                    "/v1/ref/markets",
+                    "/v1/ref/languages",
+                    "/v1/ref/categories",
+                    "/v1/ref/admin-areas",
+                    "/v1/ref/public-holidays");
         }
     }
 }
