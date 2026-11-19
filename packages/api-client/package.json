@@ -16,7 +16,7 @@
   "devDependencies": {
     "@beavent/config": "*",
     "@types/node": "^24.19.2",
-    "typescript": "^5"
+    "typescript": "^7"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.106.0",
