@@ -34,6 +34,8 @@ tags:
     description: Business verification (KYB)
   - name: Catalogue
     description: Services, variants, prices, add-ons, bundles, resources and galleries
+  - name: Team
+    description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -1860,6 +1862,636 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/pricing-levels:
+    get:
+      tags:
+        - Team
+      operationId: listPricingLevels
+      summary: Pricing levels (Junior, Senior, Master …)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingLevelList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team
+      operationId: createPricingLevel
+      summary: Add a pricing level
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingLevelInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingLevel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/pricing-levels/{levelId}:
+    put:
+      tags:
+        - Team
+      operationId: updatePricingLevel
+      summary: Rename or re-rank a pricing level
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: levelId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingLevelInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingLevel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Team
+      operationId: deletePricingLevel
+      summary: Delete an unused pricing level
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: levelId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/staff:
+    get:
+      tags:
+        - Team
+      operationId: listStaff
+      summary: Team profiles
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team
+      operationId: createStaff
+      summary: Add a team profile (with or without a login)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffInput'
+      responses:
+        '201':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/staff/{staffId}:
+    get:
+      tags:
+        - Team
+      operationId: getStaff
+      summary: A team profile
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Team
+      operationId: updateStaff
+      summary: Replace a team profile
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffInput'
+      responses:
+        '200':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Team
+      operationId: archiveStaff
+      summary: Archive a team profile (history is kept)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/staff/{staffId}/working-pattern:
+    get:
+      tags:
+        - Team
+      operationId: getWorkingPattern
+      summary: Regular working hours in effect on a date (default today)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingPattern'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Team
+      operationId: setWorkingPattern
+      summary: Set regular working hours from a date on (earlier days keep the old pattern)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkingPatternInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingPattern'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/shifts:
+    get:
+      tags:
+        - Team
+      operationId: listShifts
+      summary: One-off shifts in a date range
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team
+      operationId: createShift
+      summary: Add a one-off shift (replaces the regular hours that day)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/shifts/{shiftId}:
+    delete:
+      tags:
+        - Team
+      operationId: cancelShift
+      summary: Cancel a shift
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: shiftId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/time-off:
+    get:
+      tags:
+        - Team
+      operationId: listTimeOff
+      summary: Time off in a date range
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team
+      operationId: createTimeOff
+      summary: Add time off (managers) or request it (for yourself)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeOffInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/time-off/{timeOffId}:
+    delete:
+      tags:
+        - Team
+      operationId: cancelTimeOff
+      summary: Cancel time off
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: timeOffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/time-off/{timeOffId}/decision:
+    post:
+      tags:
+        - Team
+      operationId: decideTimeOff
+      summary: Approve or reject a time-off request
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: timeOffId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeOffDecision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/schedule:
+    get:
+      tags:
+        - Team
+      operationId: getSchedule
+      summary: Working hours per person and day (regular hours, shifts, time off)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4431,6 +5063,420 @@ components:
           type: integer
           minimum: 0
           maximum: 10000
+    PricingLevel:
+      type: object
+      required:
+        - id
+        - name
+        - rank
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        rank:
+          type: integer
+    PricingLevelList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingLevel'
+    PricingLevelInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        rank:
+          type: integer
+          minimum: 0
+          maximum: 100
+    Staff:
+      type: object
+      required:
+        - id
+        - displayName
+        - employmentType
+        - isBookable
+        - bookableOnline
+        - languages
+        - sortOrder
+        - status
+        - locationIds
+        - serviceIds
+        - version
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        displayName:
+          type: string
+        jobTitle:
+          type: string
+        bio:
+          $ref: '#/components/schemas/LocalizedText'
+        photoFileId:
+          $ref: '#/components/schemas/Uuid'
+        phone:
+          type: string
+        email:
+          type: string
+        employmentType:
+          type: string
+        pricingLevelId:
+          $ref: '#/components/schemas/Uuid'
+        memberId:
+          $ref: '#/components/schemas/Uuid'
+        isBookable:
+          type: boolean
+        bookableOnline:
+          type: boolean
+        languages:
+          type: array
+          items:
+            type: string
+        calendarColor:
+          type: string
+        sortOrder:
+          type: integer
+        startedOn:
+          type: string
+          format: date
+        endedOn:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - ARCHIVED
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        serviceIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        version:
+          type: integer
+    StaffList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Staff'
+    StaffInput:
+      type: object
+      required:
+        - displayName
+        - locationIds
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        jobTitle:
+          type: string
+          maxLength: 80
+        bio:
+          $ref: '#/components/schemas/LocalizedText'
+        photoFileId:
+          $ref: '#/components/schemas/Uuid'
+          description: A processed public image of the organization.
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+        employmentType:
+          type: string
+          enum:
+            - EMPLOYEE
+            - CONTRACTOR
+            - CHAIR_RENTER
+            - APPRENTICE
+            - VOLUNTEER
+        pricingLevelId:
+          $ref: '#/components/schemas/Uuid'
+        memberId:
+          $ref: '#/components/schemas/Uuid'
+          description: Links the profile to a team member's login (optional).
+        isBookable:
+          type: boolean
+        bookableOnline:
+          type: boolean
+        languages:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/LanguageCode'
+        calendarColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        sortOrder:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        startedOn:
+          type: string
+          format: date
+        locationIds:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Uuid'
+        serviceIds:
+          type: array
+          description: Services this person performs.
+          items:
+            $ref: '#/components/schemas/Uuid'
+    Time:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      examples:
+        - '08:30'
+    PatternEntry:
+      type: object
+      required:
+        - locationId
+        - isoWeekday
+        - startsAt
+        - endsAt
+      properties:
+        week:
+          type: integer
+          minimum: 1
+          maximum: 8
+          default: 1
+          description: Week of the rotation (1..repeatWeeks), counted from effectiveFrom.
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        isoWeekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+        startsAt:
+          $ref: '#/components/schemas/Time'
+        endsAt:
+          $ref: '#/components/schemas/Time'
+    WorkingPattern:
+      type: object
+      required:
+        - repeatWeeks
+        - entries
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+        repeatWeeks:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/PatternEntry'
+    WorkingPatternInput:
+      type: object
+      required:
+        - effectiveFrom
+        - entries
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+          description: First day the pattern applies (a Monday keeps weeks aligned). Earlier days keep the old pattern.
+        repeatWeeks:
+          type: integer
+          minimum: 1
+          maximum: 8
+          default: 1
+        entries:
+          type: array
+          maxItems: 112
+          items:
+            $ref: '#/components/schemas/PatternEntry'
+    Shift:
+      type: object
+      required:
+        - id
+        - staffId
+        - locationId
+        - startsAt
+        - endsAt
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        status:
+          type: string
+          enum:
+            - PUBLISHED
+            - CANCELLED
+        note:
+          type: string
+    ShiftList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shift'
+    ShiftInput:
+      type: object
+      required:
+        - staffId
+        - locationId
+        - startsAt
+        - endsAt
+      properties:
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        note:
+          type: string
+          maxLength: 300
+    TimeOff:
+      type: object
+      required:
+        - id
+        - staffId
+        - startsAt
+        - endsAt
+        - kind
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        kind:
+          type: string
+        status:
+          type: string
+          enum:
+            - REQUESTED
+            - APPROVED
+            - REJECTED
+            - CANCELLED
+        reason:
+          type: string
+    TimeOffList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeOff'
+    TimeOffInput:
+      type: object
+      required:
+        - staffId
+        - startsAt
+        - endsAt
+        - kind
+      properties:
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        endsAt:
+          $ref: '#/components/schemas/Instant'
+        kind:
+          type: string
+          enum:
+            - ANNUAL
+            - SICK
+            - UNPAID
+            - TRAINING
+            - PUBLIC_HOLIDAY
+            - OTHER
+        reason:
+          type: string
+          maxLength: 300
+    TimeOffDecision:
+      type: object
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum:
+            - APPROVE
+            - REJECT
+    WorkingDay:
+      type: object
+      required:
+        - staffId
+        - date
+        - intervals
+      properties:
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        date:
+          type: string
+          format: date
+          description: Local date at the location.
+        source:
+          type: string
+          enum:
+            - PATTERN
+            - SHIFTS
+        intervals:
+          type: array
+          description: Working time after approved time off is removed.
+          items:
+            type: object
+            required:
+              - locationId
+              - startsAt
+              - endsAt
+            properties:
+              locationId:
+                $ref: '#/components/schemas/Uuid'
+              startsAt:
+                $ref: '#/components/schemas/Instant'
+              endsAt:
+                $ref: '#/components/schemas/Instant'
+    Schedule:
+      type: object
+      required:
+        - days
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkingDay'
     FilePurpose:
       type: string
       enum:

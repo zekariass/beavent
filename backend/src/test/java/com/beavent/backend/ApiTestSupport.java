@@ -176,4 +176,105 @@ public abstract class ApiTestSupport {
                                 .eq(phone.toLowerCase(java.util.Locale.ROOT))))
                 .execute();
     }
+
+    // --- organizations ----------------------------------------------------------------------------------------
+
+    /** An organization with an owner, a legal entity and two locations in Addis Ababa. */
+    public record Salon(java.util.UUID id, Person owner, java.util.UUID location1, java.util.UUID location2) {
+
+        public String path(String rest) {
+            return "/v1/orgs/" + id + rest;
+        }
+    }
+
+    protected java.util.UUID category(String kind, String code) {
+        return system.select(com.beavent.db.ref.Tables.CATEGORIES.ID)
+                .from(com.beavent.db.ref.Tables.CATEGORIES)
+                .where(
+                        com.beavent.db.ref.Tables.CATEGORIES.KIND.eq(kind),
+                        com.beavent.db.ref.Tables.CATEGORIES.CODE.eq(code))
+                .fetchSingle(com.beavent.db.ref.Tables.CATEGORIES.ID);
+    }
+
+    protected Salon newSalon(String name) throws Exception {
+        Person owner = newPerson();
+        java.util.UUID orgId = java.util.UUID.fromString(call(
+                        post("/v1/orgs"),
+                        Map.of(
+                                "displayName",
+                                name,
+                                "kind",
+                                "BUSINESS",
+                                "primaryCategoryId",
+                                category("BUSINESS", "HAIR_SALON"),
+                                "defaultLanguage",
+                                "am"),
+                        owner.token())
+                .text("id"));
+        String entity = call(
+                        post("/v1/orgs/" + orgId + "/legal-entities"),
+                        Map.of(
+                                "countryCode",
+                                "ET",
+                                "entityType",
+                                "PLC",
+                                "registeredName",
+                                name + " PLC",
+                                "taxRegime",
+                                "TOT"),
+                        owner.token())
+                .text("id");
+        java.util.UUID area = system.select(com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS.ID)
+                .from(com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS)
+                .where(
+                        com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS.COUNTRY_CODE.eq("ET"),
+                        com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS.LEVEL.eq((short) 2))
+                .limit(1)
+                .fetchSingle(com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS.ID);
+        java.util.UUID[] locations = new java.util.UUID[2];
+        for (int i = 0; i < 2; i++) {
+            locations[i] = java.util.UUID.fromString(call(
+                            post("/v1/orgs/" + orgId + "/locations"),
+                            Map.of(
+                                    "name",
+                                    "Branch " + (i + 1),
+                                    "legalEntityId",
+                                    entity,
+                                    "timezone",
+                                    "Africa/Addis_Ababa",
+                                    "address",
+                                    Map.of("countryCode", "ET", "adminAreaId", area, "landmark", "Near Edna Mall")),
+                            owner.token())
+                    .text("id"));
+        }
+        return new Salon(orgId, owner, locations[0], locations[1]);
+    }
+
+    /** Invites a new person with a system role and has them accept; returns them signed in. */
+    protected Person newMember(Salon salon, String roleCode) throws Exception {
+        String roleId = null;
+        for (JsonNode role : call(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(salon.path("/roles")),
+                        null,
+                        salon.owner().token())
+                .body()
+                .get("items")) {
+            if (role.get("code").asString().equals(roleCode)) {
+                roleId = role.get("id").asString();
+            }
+        }
+        String phone = newPhone();
+        String inviter =
+                roleCode.equals("RECEPTIONIST") || roleCode.equals("PROFESSIONAL") || roleCode.equals("CASHIER")
+                        ? salon.owner().token()
+                        : stepUp(salon.owner());
+        Call invited = call(post(salon.path("/invitations")), Map.of("phone", phone, "roleId", roleId), inviter);
+        assertThat(invited.status()).as(String.valueOf(invited.body())).isEqualTo(201);
+        String token = sms.lastMessageTo(phone).replaceAll("(?s).*token=([A-Za-z0-9_-]+).*", "$1");
+        String access = signInWithOtp(phone).text("accessToken");
+        assertThat(call(post("/v1/invitations/accept"), Map.of("token", token), access)
+                        .status())
+                .isEqualTo(200);
+        return new Person(phone, access);
+    }
 }

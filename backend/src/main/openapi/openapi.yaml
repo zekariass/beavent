@@ -34,6 +34,8 @@ tags:
     description: Business verification (KYB)
   - name: Catalogue
     description: Services, variants, prices, add-ons, bundles, resources and galleries
+  - name: Team
+    description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -128,6 +130,29 @@ paths:
     $ref: ./catalog/paths.yaml#/gallery
   /v1/orgs/{orgId}/gallery/{itemId}:
     $ref: ./catalog/paths.yaml#/galleryItem
+  # --- team -------------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/pricing-levels:
+    $ref: ./team/paths.yaml#/pricingLevels
+  /v1/orgs/{orgId}/pricing-levels/{levelId}:
+    $ref: ./team/paths.yaml#/pricingLevel
+  /v1/orgs/{orgId}/staff:
+    $ref: ./team/paths.yaml#/staffList
+  /v1/orgs/{orgId}/staff/{staffId}:
+    $ref: ./team/paths.yaml#/staff
+  /v1/orgs/{orgId}/staff/{staffId}/working-pattern:
+    $ref: ./team/paths.yaml#/workingPattern
+  /v1/orgs/{orgId}/shifts:
+    $ref: ./team/paths.yaml#/shifts
+  /v1/orgs/{orgId}/shifts/{shiftId}:
+    $ref: ./team/paths.yaml#/shift
+  /v1/orgs/{orgId}/time-off:
+    $ref: ./team/paths.yaml#/timeOff
+  /v1/orgs/{orgId}/time-off/{timeOffId}:
+    $ref: ./team/paths.yaml#/timeOffItem
+  /v1/orgs/{orgId}/time-off/{timeOffId}/decision:
+    $ref: ./team/paths.yaml#/timeOffDecision
+  /v1/orgs/{orgId}/schedule:
+    $ref: ./team/paths.yaml#/schedule
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles

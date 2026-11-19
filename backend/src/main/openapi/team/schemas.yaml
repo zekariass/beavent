@@ -1,0 +1,332 @@
+PricingLevelInput:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 60
+    rank:
+      type: integer
+      minimum: 0
+      maximum: 100
+PricingLevel:
+  type: object
+  required: [id, name, rank]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    rank:
+      type: integer
+PricingLevelList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/PricingLevel'
+StaffInput:
+  type: object
+  required: [displayName, locationIds]
+  properties:
+    displayName:
+      type: string
+      minLength: 1
+      maxLength: 80
+    jobTitle:
+      type: string
+      maxLength: 80
+    bio:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    photoFileId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: A processed public image of the organization.
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+    employmentType:
+      type: string
+      enum: [EMPLOYEE, CONTRACTOR, CHAIR_RENTER, APPRENTICE, VOLUNTEER]
+    pricingLevelId:
+      $ref: ../common/schemas.yaml#/Uuid
+    memberId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: Links the profile to a team member's login (optional).
+    isBookable:
+      type: boolean
+    bookableOnline:
+      type: boolean
+    languages:
+      type: array
+      maxItems: 10
+      items:
+        $ref: ../common/schemas.yaml#/LanguageCode
+    calendarColor:
+      type: string
+      pattern: ^#[0-9a-fA-F]{6}$
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    startedOn:
+      type: string
+      format: date
+    locationIds:
+      type: array
+      minItems: 1
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    serviceIds:
+      type: array
+      description: Services this person performs.
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+Staff:
+  type: object
+  required: [id, displayName, employmentType, isBookable, bookableOnline, languages, sortOrder, status, locationIds, serviceIds, version]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    displayName:
+      type: string
+    jobTitle:
+      type: string
+    bio:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    photoFileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    phone:
+      type: string
+    email:
+      type: string
+    employmentType:
+      type: string
+    pricingLevelId:
+      $ref: ../common/schemas.yaml#/Uuid
+    memberId:
+      $ref: ../common/schemas.yaml#/Uuid
+    isBookable:
+      type: boolean
+    bookableOnline:
+      type: boolean
+    languages:
+      type: array
+      items:
+        type: string
+    calendarColor:
+      type: string
+    sortOrder:
+      type: integer
+    startedOn:
+      type: string
+      format: date
+    endedOn:
+      type: string
+      format: date
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    serviceIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    version:
+      type: integer
+StaffList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Staff'
+Time:
+  type: string
+  pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+  examples: ["08:30"]
+PatternEntry:
+  type: object
+  required: [locationId, isoWeekday, startsAt, endsAt]
+  properties:
+    week:
+      type: integer
+      minimum: 1
+      maximum: 8
+      default: 1
+      description: Week of the rotation (1..repeatWeeks), counted from effectiveFrom.
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    isoWeekday:
+      type: integer
+      minimum: 1
+      maximum: 7
+    startsAt:
+      $ref: '#/Time'
+    endsAt:
+      $ref: '#/Time'
+WorkingPatternInput:
+  type: object
+  required: [effectiveFrom, entries]
+  properties:
+    effectiveFrom:
+      type: string
+      format: date
+      description: First day the pattern applies (a Monday keeps weeks aligned). Earlier days keep the old pattern.
+    repeatWeeks:
+      type: integer
+      minimum: 1
+      maximum: 8
+      default: 1
+    entries:
+      type: array
+      maxItems: 112
+      items:
+        $ref: '#/PatternEntry'
+WorkingPattern:
+  type: object
+  required: [repeatWeeks, entries]
+  properties:
+    effectiveFrom:
+      type: string
+      format: date
+    repeatWeeks:
+      type: integer
+    entries:
+      type: array
+      items:
+        $ref: '#/PatternEntry'
+ShiftInput:
+  type: object
+  required: [staffId, locationId, startsAt, endsAt]
+  properties:
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    note:
+      type: string
+      maxLength: 300
+Shift:
+  type: object
+  required: [id, staffId, locationId, startsAt, endsAt, status]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    status:
+      type: string
+      enum: [PUBLISHED, CANCELLED]
+    note:
+      type: string
+ShiftList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Shift'
+TimeOffInput:
+  type: object
+  required: [staffId, startsAt, endsAt, kind]
+  properties:
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    kind:
+      type: string
+      enum: [ANNUAL, SICK, UNPAID, TRAINING, PUBLIC_HOLIDAY, OTHER]
+    reason:
+      type: string
+      maxLength: 300
+TimeOff:
+  type: object
+  required: [id, staffId, startsAt, endsAt, kind, status]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    kind:
+      type: string
+    status:
+      type: string
+      enum: [REQUESTED, APPROVED, REJECTED, CANCELLED]
+    reason:
+      type: string
+TimeOffList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/TimeOff'
+TimeOffDecision:
+  type: object
+  required: [decision]
+  properties:
+    decision:
+      type: string
+      enum: [APPROVE, REJECT]
+WorkingDay:
+  type: object
+  required: [staffId, date, intervals]
+  properties:
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    date:
+      type: string
+      format: date
+      description: Local date at the location.
+    source:
+      type: string
+      enum: [PATTERN, SHIFTS]
+    intervals:
+      type: array
+      description: Working time after approved time off is removed.
+      items:
+        type: object
+        required: [locationId, startsAt, endsAt]
+        properties:
+          locationId:
+            $ref: ../common/schemas.yaml#/Uuid
+          startsAt:
+            $ref: ../common/schemas.yaml#/Instant
+          endsAt:
+            $ref: ../common/schemas.yaml#/Instant
+Schedule:
+  type: object
+  required: [days]
+  properties:
+    days:
+      type: array
+      items:
+        $ref: '#/WorkingDay'

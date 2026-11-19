@@ -2,8 +2,6 @@ package com.beavent.backend.catalog;
 
 import static com.beavent.db.catalog.Tables.SERVICE_PRICES;
 import static com.beavent.db.platform.Tables.FILES;
-import static com.beavent.db.ref.Tables.ADMINISTRATIVE_AREAS;
-import static com.beavent.db.ref.Tables.CATEGORIES;
 import static com.beavent.db.team.Tables.PRICING_LEVELS;
 import static com.beavent.db.team.Tables.STAFF;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,65 +22,8 @@ import tools.jackson.databind.JsonNode;
 /** Catalogue (plan step 1.1): service menu, variants, price overrides, add-ons, bundles, resources, galleries. */
 class CatalogApiTests extends ApiTestSupport {
 
-    record Org(UUID id, Person owner, UUID location1, UUID location2) {
-        String path(String rest) {
-            return "/v1/orgs/" + id + rest;
-        }
-    }
-
-    UUID category(String kind, String code) {
-        return system.select(CATEGORIES.ID)
-                .from(CATEGORIES)
-                .where(CATEGORIES.KIND.eq(kind), CATEGORIES.CODE.eq(code))
-                .fetchSingle(CATEGORIES.ID);
-    }
-
-    Org salon() throws Exception {
-        Person owner = newPerson();
-        UUID orgId = UUID.fromString(call(
-                        post("/v1/orgs"),
-                        Map.of(
-                                "displayName", "Nu Hair Studio",
-                                "kind", "BUSINESS",
-                                "primaryCategoryId", category("BUSINESS", "HAIR_SALON"),
-                                "defaultLanguage", "am"),
-                        owner.token())
-                .text("id"));
-        String entity = call(
-                        post("/v1/orgs/" + orgId + "/legal-entities"),
-                        Map.of(
-                                "countryCode",
-                                "ET",
-                                "entityType",
-                                "PLC",
-                                "registeredName",
-                                "Nu PLC",
-                                "taxRegime",
-                                "TOT"),
-                        owner.token())
-                .text("id");
-        UUID area = system.select(ADMINISTRATIVE_AREAS.ID)
-                .from(ADMINISTRATIVE_AREAS)
-                .where(ADMINISTRATIVE_AREAS.COUNTRY_CODE.eq("ET"), ADMINISTRATIVE_AREAS.LEVEL.eq((short) 2))
-                .limit(1)
-                .fetchSingle(ADMINISTRATIVE_AREAS.ID);
-        UUID[] locations = new UUID[2];
-        for (int i = 0; i < 2; i++) {
-            locations[i] = UUID.fromString(call(
-                            post("/v1/orgs/" + orgId + "/locations"),
-                            Map.of(
-                                    "name",
-                                    "Branch " + (i + 1),
-                                    "legalEntityId",
-                                    entity,
-                                    "timezone",
-                                    "Africa/Addis_Ababa",
-                                    "address",
-                                    Map.of("countryCode", "ET", "adminAreaId", area, "landmark", "Near Edna Mall")),
-                            owner.token())
-                    .text("id"));
-        }
-        return new Org(orgId, owner, locations[0], locations[1]);
+    Salon salon() throws Exception {
+        return newSalon("Nu Hair Studio");
     }
 
     Map<String, Object> variant(Object id, String nameEn, int minutes, long price, List<?> stages) {
@@ -101,7 +42,7 @@ class CatalogApiTests extends ApiTestSupport {
         return v;
     }
 
-    Map<String, Object> colourService(Org org, List<Map<String, Object>> variants) {
+    Map<String, Object> colourService(Salon org, List<Map<String, Object>> variants) {
         Map<String, Object> input = new HashMap<>();
         input.put("categoryId", category("SERVICE", "HAIR"));
         input.put("name", Map.of("en", "Colour", "am", "ቀለም"));
@@ -124,7 +65,7 @@ class CatalogApiTests extends ApiTestSupport {
 
     @Test
     void aSalonBuildsItsMenuWithVariantsStagesAndLocations() throws Exception {
-        Org org = salon();
+        Salon org = salon();
         String t = org.owner().token();
         Call group = call(post(org.path("/service-groups")), Map.of("name", Map.of("en", "Hair", "am", "ፀጉር")), t);
         assertThat(group.status()).isEqualTo(201);
@@ -215,7 +156,7 @@ class CatalogApiTests extends ApiTestSupport {
 
     @Test
     void theMostSpecificPriceWinsAndChangesKeepHistory() throws Exception {
-        Org org = salon();
+        Salon org = salon();
         String t = org.owner().token();
         Call service = call(
                 post(org.path("/services")), colourService(org, List.of(variant(null, "Cut", 45, 50_000, null))), t);
@@ -321,7 +262,7 @@ class CatalogApiTests extends ApiTestSupport {
                 + p.get("durationMinutes").asInt();
     }
 
-    UUID staff(Org org, String name, UUID level) {
+    UUID staff(Salon org, String name, UUID level) {
         UUID id = UUID.randomUUID();
         system.insertInto(STAFF)
                 .set(STAFF.ID, id)
@@ -334,7 +275,7 @@ class CatalogApiTests extends ApiTestSupport {
 
     @Test
     void addOnsResourcesAndBundles() throws Exception {
-        Org org = salon();
+        Salon org = salon();
         String t = org.owner().token();
         Call addon = call(
                 post(org.path("/addons")),
@@ -413,7 +354,7 @@ class CatalogApiTests extends ApiTestSupport {
 
     @Test
     void galleriesUseTheOrganizationsProcessedImagesOnly() throws Exception {
-        Org org = salon();
+        Salon org = salon();
         String t = org.owner().token();
         UUID image = file(org.id(), "GALLERY", "PUBLIC", "beavent-public", "CLEAN");
         UUID document = file(org.id(), "KYC", "SENSITIVE", "beavent-private", "CLEAN");
@@ -434,7 +375,7 @@ class CatalogApiTests extends ApiTestSupport {
         assertThat(call(post(org.path("/gallery")), Map.of("fileId", document), t)
                         .status())
                 .isEqualTo(422);
-        Org other = salon();
+        Salon other = salon();
         assertThat(call(
                                 post(other.path("/gallery")),
                                 Map.of("fileId", image),
@@ -463,8 +404,8 @@ class CatalogApiTests extends ApiTestSupport {
 
     @Test
     void membersReadTheMenuOnlyManagersChangeItAndOrganizationsStaySeparate() throws Exception {
-        Org org = salon();
-        Org other = salon();
+        Salon org = salon();
+        Salon other = salon();
         String t = org.owner().token();
         String serviceId = call(
                         post(org.path("/services")),
