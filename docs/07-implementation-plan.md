@@ -1,0 +1,546 @@
+# 07 — Implementation plan
+
+**Status:** v2 of the plan. **Scope:** from an empty repository to a pilot in Addis Ababa, then what follows.
+**How to use it:** work through the stages **in order**. A stage starts when the previous stage's "done when" checks pass. Steps inside a stage are listed in a sensible order but can overlap if more people are available. There are no dates: move on when ready.
+**Read with:** [03 architecture](03-system-architecture.md), [04 payments](04-payments-and-money.md), [05 data model](05-data-model.md), [06 markets](06-markets-and-localization.md).
+
+---
+
+## 1. Decisions this plan is built on
+
+| # | Decision | Consequence |
+|---|---|---|
+| L1 | **Chapa holds the money.** Customer payments are collected by Chapa; each seller is a **Chapa subaccount** tied to the seller's bank account; Chapa settles the seller's share directly to that bank account and keeps the platform's share in the platform's Chapa balance. | Collection mode `PROVIDER_SPLIT` for every seller. The platform never holds seller funds and runs **no seller payouts**. `PLATFORM_COLLECTS` and `SELLER_DIRECT` stay disabled. |
+| L2 | **Chapa is the only payment provider for now.** | All online methods (telebirr, CBE Birr, M-PESA, cards, bank apps and whatever else Chapa supports) go through Chapa. No SantimPay, ArifPay, direct telebirr or manual bank-transfer flow. The provider-agnostic adapter layer is still built, so adding providers later is a configuration + adapter task. |
+| L3 | **Hosting is decided later.** | Everything is containerised and cloud-neutral (PostgreSQL + PostGIS, Redis, RabbitMQ, S3-compatible storage) and runs on Docker Compose until then. A hosted staging environment is needed **before Stage 3** (real Chapa webhooks need a public URL); production before Stage 9. |
+
+Assumption to confirm: **cash and pay-at-venue** stay available at the front desk and box office. They are recorded at POS, not processed by any provider, so they don't conflict with L2. If you want *online-only* payments, drop the cash parts of Stage 4.
+
+### 1.1 What Chapa's documentation says, and what it means for us
+
+From [developer.chapa.co](https://developer.chapa.co/): [split payments](https://developer.chapa.co/integrations/split-payment), [webhooks](https://developer.chapa.co/integrations/webhooks), [refunds](https://developer.chapa.co/refund), [accept payments](https://developer.chapa.co/integrations/accept-payments). Re-confirm each item in Chapa's test mode (Stage 3, step 3.1).
+
+| Chapa fact | Design consequence |
+|---|---|
+| `POST /v1/subaccount` with `bank_code`, `account_number`, `account_name`, `business_name`, `split_type` (`percentage`/`flat`), `split_value`; returns a subaccount id | Created when a seller's bank account is verified. Stored as `payments.provider_accounts` (owner `ORGANIZATION`, `parent_account_id` = platform Chapa account, `sub_account_reference` = Chapa id). |
+| `split_value` is the **platform's** commission; the subaccount gets the rest; values can be **overridden per transaction** | We compute the exact platform fee per order with our fee engine (`billing.fee_rules`) and send it as a **flat** override on every payment. The subaccount's default split is 0 as a safety net. |
+| Subaccounts settle in **ETB** | Sellers are priced and settled in ETB. |
+| `POST /v1/transaction/initialize` → `checkout_url`; amount sent as a decimal string; `tx_ref` unique; `callback_url`, `return_url`; ETB and USD | The adapter converts `amount_minor` ↔ decimal exactly. `tx_ref` = our `payment_attempts.id`. USD stays off. |
+| Direct charge `POST /v1/charges?type={method}` | In the mobile app, telebirr/M-PESA/CBE Birr can use a **push prompt without a browser redirect**. Web uses hosted checkout. |
+| Verify transaction by `tx_ref` | Fulfil only after a server-side verify that matches status, amount, currency, `tx_ref` and mode. Also used for polling. |
+| Webhooks: `charge.success`, `charge.failed/cancelled`, `charge.refunded`, `charge.reversed`, `payout.*`; `x-chapa-signature` = HMAC-SHA256 of the payload with the secret; retried every 10 min, up to 72 h | `POST /v1/hooks/chapa` verifies the signature on the raw body, stores the event in `payments.webhook_events`, then processes it idempotently. |
+| Refunds `POST /v1/refund/{tx_ref}` (full or partial, our unique `reference`); `GET /v1/refund/{ref_id}/verify`; statuses `initiated → processing → refunded \| reversed`; **refunds are deducted from the platform's Chapa balance; Chapa charges are not refunded** | **The platform funds refunds even though the seller already has the money.** We need a refund float, a seller receivable in the ledger and a recovery mechanism (§3). |
+| Disputes/chargebacks are taken from the platform's account; the platform must know its subaccounts | KYB is required before a seller can take online payments. Disputes become seller receivables. |
+| Transfers API and balance endpoints exist | Not needed now; usable later for refund-by-payout or recovery. |
+| Test mode with test cards and test mobile numbers | Certification suite runs against test mode before going live. |
+
+## 2. Rules for every step (definition of done)
+
+- Code reviewed; unit and integration tests; OpenAPI spec updated and the TypeScript client regenerated.
+- `db/scripts/validate.sh` green on PostGIS in CI (new tables follow doc 05 §7; the schema-lint test enforces it).
+- Amharic and English strings; Ethiopian date/time display where dates are shown.
+- Audit events for sensitive actions; metrics/alerts for new background jobs.
+- Docs updated when behaviour differs from docs 03–06.
+
+## 3. Money rules under "Chapa holds the money"
+
+**Flow.** Customer pays Chapa → Chapa splits: **seller share → seller's bank account**, **platform share → platform's Chapa balance**. The platform share = buyer fees + seller-paid platform fees (+ VAT on fees) for that order, sent as a flat per-transaction split.
+
+**Ledger postings**
+
+| Event | Postings |
+|---|---|
+| Payment succeeded | Dr `PROVIDER_CLEARING` (platform Chapa balance) platform share / Cr `PLATFORM_FEE_REVENUE` + `TAX_PAYABLE`. The seller share is not platform money; it is recorded in `commerce` and `billing.fee_assessments` for statements. |
+| Chapa fee | Dr `PLATFORM_PROCESSING_COST` / Cr `PROVIDER_CLEARING` (or charged to the customer, per Chapa terms) |
+| Refund (seller share s, platform share p refunded per policy) | Dr `SELLER_RECEIVABLE` s, Dr `PLATFORM_FEE_REVENUE`/`TAX_PAYABLE` p / Cr `REFUNDS_PAYABLE` s+p → on `refunded`: Dr `REFUNDS_PAYABLE` / Cr `PROVIDER_CLEARING` |
+| Recovery from seller | Dr `PROVIDER_CLEARING` / Cr `SELLER_RECEIVABLE` |
+| Platform fee on a cash sale | Dr `SELLER_RECEIVABLE` / Cr `PLATFORM_FEE_REVENUE` + `TAX_PAYABLE` |
+
+**Refund funding and recovery**
+1. **Float.** Keep a refund float in the platform's Chapa balance, with an alert when it is low.
+2. **Recovery** (`payments.org_settings.recovery_mode`):
+   - `SPLIT_TOP_UP` (default): the seller's next transactions carry an extra recovery amount in the split, capped per transaction (`recovery_cap_bps`), until the receivable is cleared.
+   - `INVOICE`: a platform invoice the seller pays through a Chapa link.
+3. **Exposure limits** (`trust.risk_profiles`): a per-seller cap on outstanding receivables. Above it, refunds need seller pre-funding or admin approval.
+4. **Events.** With split settlement, organizers get ticket money before the event. Controls:
+   - New organizers are reviewed before publishing (`PENDING_REVIEW`).
+   - Per-organizer caps on tickets sold before their first event completes.
+   - Bulk-cancellation refunds above the float require organizer pre-funding.
+5. Chargebacks/disputes follow the same receivable path.
+
+Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3).
+
+---
+
+## Stage 0 — Foundation
+
+**Goal:** a working skeleton every later stage builds on: repository, CI, backend structure, identity, organizations, files, admin shell, design system.
+
+**0.1 Lock the decisions into the database baseline.** ✅ *Done.* Version 1 is unreleased, so edit the V1 files directly.
+- Seed (`V1_21`), Ethiopia market features: `PROVIDER_SPLIT` → `ENABLED`; `SELLER_DIRECT`, `MANUAL_BANK_TRANSFER`, `PLATFORM_COLLECTION`, `DIASPORA_PRESENTMENT`, `INSTANT_PAYOUT` → `DISABLED`.
+- Keep the non-Chapa providers in the catalogue as `PLANNED` (no routes). Chapa in ET: `can_refund_api`, `can_partial_refund`, `can_split`, `can_payout` = true; status `SANDBOX` until step 3.9.
+- Add `interaction` to the `provider_capabilities` unique key (Chapa offers both hosted checkout and direct-charge push).
+- Ledger: add account code `SELLER_RECEIVABLE` and transaction kinds `SELLER_RECOVERY`, `REFUND_FUNDED_BY_PLATFORM`.
+- `payments.org_settings`: add `recovery_mode` (`SPLIT_TOP_UP` | `INVOICE`) and `recovery_cap_bps`.
+- Add a split-mode refund → seller receivable test to `02_money_invariants.sql`.
+- Mark the decisions as taken in doc 01 §5 and doc 04 §3/§17.
+
+*Done when:* `validate.sh` is green and docs and seed agree.
+
+**0.2 Validate on real PostGIS.** ✅ *Done* — `npm run db:validate` (PostGIS 3.5.2 container).
+- Add `docker-compose.yml` with a PostGIS image (pin the version to match production once hosting is chosen).
+- Give `validate.sh` a `--docker` mode and make CI use it.
+
+*Done when:* the full suite passes on PostGIS locally and in CI.
+
+**0.3 Monorepo and toolchain.** ✅ *Done* (CODEOWNERS pending GitHub usernames).
+- Layout (doc 03 §1): `backend/`, `mobile/`, `web/`, `business/`, `admin-console/`, `packages/{api-client,ui,i18n,calendar,money,config}`, `db/`, `docs/`.
+- npm workspaces + Turborepo for TypeScript; Gradle for the API (Flyway packages `db/migration`; jOOQ, Spring Modulith, AMQP, Actuator, Testcontainers).
+- Pinned: Java 21 LTS (move to 25 later without code change); Node 26 / npm 11; Spring Boot 4.1; Expo SDK 58; Next.js 16.
+- Formatters and linters (Prettier, ESLint, Expo lint, Spotless/Palantir Java Format), PR template with the definition of done; CODEOWNERS once GitHub usernames are known.
+
+*Done when:* `npm run build`, `npm run lint`, `npm run typecheck`, `npm run api:build` and `npm run db:validate` work from a clean clone.
+
+**0.4 CI and local environment.**
+- CI: build, lint, tests, DB validation on PostGIS, Spring Modulith boundary tests, an OpenAPI breaking-change check, client type-check in every app, and container images.
+- Docker Compose dev stack: PostGIS, Redis, RabbitMQ, MinIO (S3-compatible storage), Mailpit, and a **Chapa stub server** (initialize, verify, refund, subaccount, webhook replay) so payment work can start before Chapa test keys arrive.
+- Secrets: `.env` locally, a secret manager once hosted. The DB stores only `*_secret_ref`.
+
+*Done when:* every PR runs the full pipeline.
+
+**0.5 Backend skeleton.**
+- Spring Boot + Spring Modulith; one module per domain (doc 03 §2.2) with public `api` and private `internal` packages.
+- Flyway runs `db/migration`; jOOQ code generation.
+- Three datasources (`beavent_app`, `beavent_identity`, `beavent_system`); a transaction interceptor sets `platform.set_request_context(user, org)`.
+- Problem+json errors with SQLSTATE mapping (23P01 → `SLOT_TAKEN`, bucket 23514 → `SOLD_OUT`); `Idempotency-Key` handling; `If-Match`/`version`; cursor pagination; correlation ids; OpenTelemetry.
+- Outbox relay → RabbitMQ; idempotent consumer base (`platform.processed_messages`); job scheduler.
+
+*Done when:* an integration test (Testcontainers + PostGIS) writes a row + outbox event under RLS and a consumer handles it exactly once.
+
+**0.6 API contract workflow.**
+- One OpenAPI 3.1 spec per module, bundled in CI.
+- `packages/api-client` generated (types, fetch client, React Query hooks).
+- Rule: every module starts with its spec, reviewed by backend, web and mobile.
+
+*Done when:* the auth + tenancy spec is merged and used by the app shells.
+
+**0.7 Identity.**
+- Phone-first sign-up/in by SMS OTP through an SMS adapter (needs D4), with rate limits.
+- Optional password; Google/Apple sign-in.
+- Sessions with refresh rotation and reuse detection; JWT + JWKS.
+- MFA (TOTP) for owners and sensitive permissions, plus step-up OTP.
+- Consent capture; device registration; guest-order claiming.
+
+*Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests.
+
+**0.8 Organizations and access.**
+- Onboarding API: kind, category, legal entity (TIN, VAT/TOT regime), first location (place, landmark, map pin), capabilities.
+- Members, invitations, role templates + custom roles, location scope.
+- Permission checks (`X-Org-Id` → membership → permission → RLS context).
+- KYB case with document upload.
+
+*Done when:* API-level tests prove an org A token can never read or write org B data.
+
+**0.9 Files and media.**
+- Pre-signed uploads to S3-compatible storage; virus-scan hook; image variants.
+- `SENSITIVE` files served only through short-lived signed URLs after a permission check, with audit.
+
+*Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation.
+
+**0.10 Admin console shell.**
+- Staff SSO + MFA; market-scoped staff roles; reason + audit on every change.
+- Screens: organization search/360, KYB queue, user search, audit log, feature flags, market settings (read-only).
+
+*Done when:* an operator approves a KYB case and it appears in the audit log.
+
+**0.11 Design system, languages and calendar.**
+- Design tokens and component libraries (web + React Native); Ethiopic font and line-height rules; a low-end Android performance budget.
+- `packages/i18n` (Amharic + English complete, Afaan Oromo started).
+- `packages/calendar`: Ethiopian ⇄ Gregorian conversion + Ethiopian local time, with property tests and a Java twin.
+- `packages/money`.
+- Wireframes for the pilot journeys (needs D9).
+
+*Done when:* the web, partner and mobile shells render in Amharic and English with Ethiopian dates and times.
+
+**Checkpoint A (end of Stage 0):** a user signs up by SMS OTP, creates an organization, completes onboarding, uploads KYB documents and invites a colleague; an admin approves KYB; it all works in Amharic or English, and CI is green on PostGIS.
+
+---
+
+## Stage 1 — Catalogue and team
+
+**Goal:** a business can describe what it sells and who does it.
+
+**1.1 Services.**
+- Services, variants, stage templates (processing time), add-ons, bundles.
+- Pricing levels and location/staff/level price overrides.
+- Resources (rooms, chairs, beds); galleries.
+- Partner portal catalogue screens.
+
+**1.2 Team.**
+- Staff (with or without login), locations, working patterns, shifts, time off.
+- Partner portal team screens; "My schedule" in mobile Business mode.
+
+**1.3 Booking policies.**
+- Notice period, booking horizon, slot interval, request-to-book.
+- Deposit rules (none/percent/fixed/full; who they apply to), cancellation window, no-show and late-cancel fees.
+- Most-specific-wins resolution.
+
+**1.4 Locations and at-home services.**
+- Hours, closures and public holidays.
+- Service areas with travel fee and travel time.
+
+*Done when:* a salon builds a menu with staff-specific prices and a weekly rota for its team in the partner portal.
+
+---
+
+## Stage 2 — Appointments (pay at venue)
+
+**Goal:** end-to-end booking without online payment, so the scheduling core is proven before money is involved.
+
+**2.1 Availability engine.**
+- Write a half-page spec first (inputs, algorithm, edge cases), then implement.
+- Inputs: patterns, shifts, time off, closures, holidays, existing reservations, stage occupancy, resources, buffers, travel time, service areas.
+- Cache with invalidation on calendar changes.
+
+*Done when:* property tests show no offered slot ever overlaps a reservation, and one location/day with 10 staff returns in under 300 ms.
+
+**2.2 Booking.**
+- Hold → order (pay at venue) → appointment → reservations, in one transaction; a conflict returns `SLOT_TAKEN`.
+- Hold-expiry job; reschedule; cancellation with policy evaluation; group bookings; booking for someone else.
+
+*Done when:* two users racing for the same slot through the API get exactly one booking.
+
+**2.3 Calendar operations.**
+- Day/week calendar by staff and resource; drag-to-move; walk-ins; blocks; staff-only forced overlap.
+- Statuses: arrived/started/completed/no-show.
+- Realtime updates over WebSocket, in the partner portal and in mobile Business mode.
+
+**2.4 CRM basics.**
+- Customer profiles, notes/alerts/allergies, tags, history, merge.
+- Consultation/consent forms with e-signature; patch-test enforcement.
+
+**2.5 Consumer booking UI.**
+- Web marketplace: location page and booking flow.
+- Mobile app: same flow, plus "my appointments" (reschedule/cancel).
+
+**2.6 Waitlist.**
+- Waitlist for time windows; an automatic offer with a held slot when an appointment is cancelled.
+
+*Done when:* a customer books a pay-at-venue appointment on web or mobile, it appears on the stylist's calendar instantly, the front desk completes it, and a cancellation triggers a waitlist offer.
+
+---
+
+## Stage 3 — Commerce and Chapa payments
+
+**Goal:** online payments through Chapa with split settlement, starting with appointment deposits and full prepayment.
+
+*Prerequisites:* D1 (Chapa account and test keys) and D5 (hosted staging with a public webhook URL). Until then, steps 3.2–3.4 can be built against the Chapa stub.
+
+**3.1 Chapa onboarding and facts.**
+- Configure the platform's Chapa account (split enabled, webhook URL and secret).
+- Confirm with Chapa (D2): fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement.
+- Record the answers in `docs/` and update §1.1 and §3 if anything differs.
+
+**3.2 Orders, tax and fees.**
+- Mixed-basket orders with line arithmetic, header totals and document numbering.
+- Promotions and promo/access codes.
+- Tax engine: VAT/TOT × tax category → immutable snapshots; tax-inclusive display.
+- Fee engine: `billing.fee_rules` → `fee_assessments`, with `BUYER_FEE` lines or seller-absorbed fees. The order's **platform share** is the Chapa split amount.
+
+*Done when:* property tests pass for rounding, inclusive/exclusive tax and fee caps.
+
+**3.3 Chapa adapter.** Implements `PaymentProviderAdapter` (doc 04 §4):
+- Hosted checkout (web) and direct charge (app), with a flat per-transaction subaccount split.
+- Verify by `tx_ref`, with strict matching.
+- Webhook signature verification over the raw body.
+- Refund and refund verify.
+- Subaccount creation from Chapa's bank list.
+- Transaction export for reconciliation.
+- Exact decimal ↔ minor-unit conversion.
+
+Contract tests run against the stub and a test suite runs against Chapa test mode.
+
+**3.4 Payment orchestration.**
+- Intents and attempts, with routing (one route today: Chapa).
+- Webhook inbox + worker; polling via verify until expiry; `UNKNOWN` resolution.
+- Duplicate success → `SUCCEEDED_DUPLICATE` → automatic refund.
+- Late success after a hold expires: re-confirm if the slot is still free, otherwise refund.
+- On success: confirm the order and appointment, convert the hold, post the ledger (§3), record fees, notify.
+- Payment UX: web "checking payment…" page; app push-prompt waiting screen; survives the app being backgrounded.
+
+*Done when:* the fault-injection suite passes: duplicate and out-of-order webhooks, missing webhook (poll path), timeout, customer cancels, double approval, late success, and a Chapa error on initialize.
+
+**3.5 Seller "Get paid" onboarding.**
+- Partner portal flow: legal entity → bank account (Chapa bank list; name must match) → step-up OTP → Chapa subaccount created → online payments enabled.
+- Gate: online payments only after KYB is approved **and** the subaccount exists. Until then, pay-at-venue only.
+- Changing the bank account creates a new subaccount, starts a 72 h cooling-off before routing to it, and notifies the owner.
+
+**3.6 Deposits and balances.**
+- Deposit or full prepayment at booking, per the policy snapshot; balance collected at the venue (`payment_schedule`).
+- No-show/late-cancel: deposit forfeited up to the policy fee, the rest refunded.
+
+**3.7 Payment links.**
+- Links for balances and phone bookings, sent by SMS/email (Telegram later).
+
+**3.8 Gift cards and customer balance.**
+- Sell gift cards online; deliver them, including on a schedule.
+- Redeem as a payment method; refund to customer balance as an option.
+
+**3.9 Reconciliation and go-live certification.**
+- Daily import of Chapa transactions and refunds; matching by reference.
+- Exceptions queue in the admin console; Chapa fees posted.
+- Certification checklist in test mode → a live low-value test → capability `LIVE` with `verified_at`.
+
+*Done when:* a full day of test-mode traffic reconciles with zero unexplained lines.
+
+**Checkpoint B:** a customer books with a telebirr deposit; Chapa splits the payment between seller and platform; the booking confirms; reconciliation matches.
+
+---
+
+## Stage 4 — POS and in-person sales
+
+**Goal:** the front desk can take every payment at the counter.
+
+**4.1 POS.**
+- In mobile Business mode and the partner portal: services, products, gift cards, tips (with staff allocation), discounts, split tender.
+
+**4.2 Payment methods at the counter.**
+- **Chapa**: a direct-charge prompt to the customer's phone, or a payment link/QR the customer opens.
+- **Cash**: drawer sessions with float and variance.
+- **Gift card** and **customer balance**.
+
+**4.3 Receipts.**
+- By SMS/email; printable; gapless numbering per legal entity.
+
+**4.4 Platform fees on cash sales.**
+- E.g. the marketplace new-client commission on a cash-paid visit becomes a seller receivable (§3).
+
+**4.5 Products.**
+- Basic retail products sold at POS, with stock levels and movements. Full purchasing comes later.
+
+*Done when:* a visit with a deposit already paid online is completed at the counter with the balance split between cash and Chapa, a tip and a product; the receipt is correct, and the drawer closes with zero variance.
+
+---
+
+## Stage 5 — Refunds and seller recovery
+
+**Goal:** money can flow back correctly, and the platform recovers what it funds.
+
+**5.1 Refund requests and approvals.**
+- Customer requests (appointment cancellation window, later the event policy) → organization approval.
+- Organization- and system-initiated refunds; full, partial and per line.
+
+**5.2 Chapa refunds.**
+- Call the refund API; track status via verify and webhooks.
+- `reversed` → failed, with an alert.
+
+**5.3 Funding and recovery.**
+- Post `REFUND_FUNDED_BY_PLATFORM` and a `SELLER_RECEIVABLE` entry.
+- Recover by split top-up or invoice.
+- Exposure caps; refund-float monitoring and alert.
+
+**5.4 Fee rules on refunds.**
+- Which buyer and platform fees are refunded, per market policy (doc 04 §8).
+
+**5.5 Partner finance screen.**
+- Sales, Chapa settlements as reported, platform fees, receivables and recoveries, statements.
+
+*Done when:* in Chapa test mode, a partial and a full refund each produce the correct seller receivable, the next sale's split recovers it within the cap, and the ledger balances.
+
+---
+
+## Stage 6 — Events and ticketing
+
+**Goal:** organizers create events and sell tickets.
+
+**6.1 Event authoring.**
+- Wizard: details, Amharic/English translations, category, cover, content blocks (agenda, FAQs).
+- Venue: a shared public venue or own location.
+- Online access links revealed only to ticket holders.
+- New-organizer review before publishing.
+
+**6.2 Schedule.**
+- Single, multi-day, recurring (RRULE generation) and timed-entry slots.
+
+**6.3 Tickets and capacity.**
+- Paid, free, donation and pay-what-you-want tickets.
+- Visibility, limits, sales windows, sequential release, early-bird price phases.
+- Inventory buckets (occurrence, type, pools); organizer holds.
+
+**6.4 Checkout.**
+- Reserve movements in bucket-id order.
+- Attendee questions (forms), promo and access codes, merchandise add-ons for pickup at the event.
+- Free orders without payment; Chapa payment with split.
+- Reservation-expiry job; per-organizer pre-event sales caps (§3).
+
+**6.5 Tickets and wallet.**
+- One ticket per admission; opaque QR secret; SMS serial.
+- Offline wallet in the app; delivery by SMS/email.
+- Transfers with QR rotation.
+
+**6.6 Organizer operations.**
+- Attendee list and export; sales dashboard; publish, pause, postpone, cancel.
+- Cancel triggers bulk refunds (Stage 5), with pre-funding when the float is insufficient.
+
+**6.7 Classes.**
+- `CLASS_SERIES` events at the organization's location, with instructors and rooms in the shared reservation ledger.
+
+**6.8 Consumer UI.**
+- Event page, ticket checkout, and ticket wallet on web and mobile.
+
+*Done when:* an organizer publishes a recurring event with early-bird and VIP tickets sharing a capacity pool; an API race test shows no oversell; an organizer cancellation refunds everyone and creates the matching receivable.
+
+---
+
+## Stage 7 — Check-in and box office
+
+**Goal:** run the door on event day, including without internet.
+
+**7.1 Devices.**
+- Register scanner devices, scoped to an event or occurrence; revocable; event-scoped staff roles.
+
+**7.2 Offline manifest.**
+- A signed manifest of credential hashes, updated incrementally.
+
+**7.3 Scanning.**
+- Camera scanner in mobile Business mode.
+- Idempotent scan sync; authoritative admissions; re-entry; conflict flagging.
+- Search by name, phone or serial.
+
+**7.4 Live counters.**
+- Per gate and per ticket type, over WebSocket.
+
+**7.5 Box office.**
+- POS (Stage 4) with the order channel `BOX_OFFICE` and a cash drawer tied to the occurrence.
+
+*Done when:* two devices stay offline for a session, then sync, producing correct admissions and flagged conflicts; a transferred ticket's old QR is rejected.
+
+---
+
+## Stage 8 — Discovery, reviews, notifications
+
+**Goal:** customers find businesses and events, and everyone is kept informed.
+
+**8.1 Discovery projector and search.**
+- Projector builds `discovery.listings` for locations and events.
+- Search API: full-text + trigram + map, with Amharic/Latin transliteration aliases.
+- Web: home, city and category landing pages (SEO) and search with map. Mobile: discover tab.
+
+**8.2 Profiles.**
+- Organization and organizer profile pages; follow organizer, plus auto-follow after purchase.
+
+**8.3 Reviews.**
+- Verified reviews after completed visits and events; organization responses; moderation queue in the admin console.
+
+**8.4 Notifications.**
+- Amharic/English templates for every transactional event.
+- Channels: SMS, email and push (Telegram bot when ready).
+- Reminders 24 h and 2 h before, showing Ethiopian local time.
+- Quiet hours and preferences.
+
+**8.5 Basic marketing.**
+- SMS campaigns to consenting customers; followers and past-attendee audiences; tracking links.
+
+**8.6 Embeds.**
+- Booking and ticket widgets (`/embed/*`) for partners' own sites and social links.
+
+*Done when:* a new user finds a salon and an event through search, books and buys, receives confirmations and reminders, and leaves verified reviews afterwards.
+
+---
+
+## Stage 9 — Hardening and launch readiness
+
+*Prerequisites:* D3, D6, D7, D8, D11.
+
+**9.1 Load tests.**
+- Search, availability, ticket on-sale burst, webhook storm and check-in sync, against the targets in doc 03 §6.
+
+**9.2 Security review.**
+- OWASP ASVS L2 checklist; dependency and secrets scanning.
+- Penetration test of auth, tenancy/RLS, payments and file access.
+- MFA enforced for owners and admin staff.
+
+**9.3 Operations.**
+- Dashboards: payment success rate, webhook lag, polling backlog, refund float, receivables, reconciliation exceptions, hold-expiry lag, SMS delivery.
+- Alerts and on-call.
+- Runbooks: Chapa outage, refund reversed, float low, duplicate payment, scanner offline at the door.
+
+**9.4 Resilience.**
+- Backup and restore drill; migration rollback plan.
+
+**9.5 Market activation gates for Ethiopia as `PILOT`** (doc 06 §4):
+- Terms published.
+- Tax rates verified.
+- Chapa capabilities `LIVE`.
+- SMS sender approved.
+- Support contacts set.
+- Holidays seeded.
+- Translations reviewed.
+- Risk defaults and fee/plan prices configured.
+- Reconciliation dry run complete.
+
+**9.6 Store releases.**
+- App Store / Play Store builds; production web deployments.
+
+*Done when:* every activation gate is green in the admin console's market-readiness view.
+
+---
+
+## Stage 10 — Pilot
+
+**10.1 Onboarding.**
+- 10–20 businesses (salons, spas, at-home professionals) and 3–5 organizers, with white-glove onboarding (D10).
+
+**10.2 Operating rhythm.**
+- Daily support triage; weekly reconciliation review; refund-float and receivables review.
+
+**10.3 Feedback.**
+- Feed pilot findings into the after-pilot backlog.
+
+**Pilot exit:**
+- Four consecutive weekly reconciliations with zero unexplained differences.
+- Payment success rate at or above the agreed target.
+- No unresolved Sev-1 incidents.
+- Partner feedback collected.
+- The market moves to `LIVE`.
+
+---
+
+## After the pilot (in order)
+
+| Stage | Highlights | Payment note |
+|---|---|---|
+| 11 Growth | Memberships, packages, loyalty, automations, Telegram/WhatsApp campaigns and chat bridges, reserved seating, sessions, passes, ads/featured placements, AI concierge beta, team pay, purchasing and online store, partner API and webhooks, fiscal e-invoicing as the MoR schedule requires | Still Chapa only. Renewals by payment link unless Chapa supports saved instruments |
+| 12 East Africa | Kenya first, then Uganda, Tanzania, Rwanda; Swahili; eTIMS/EFRIS/VFD/EBM adapters | **Needs a second provider** (Chapa is Ethiopia-focused): M-PESA Daraja and/or an aggregator such as pawaPay or Flutterwave, through the existing adapter interface; choose the collection mode per market |
+| 13 Pan-Africa | West, North and Southern Africa; Arabic RTL; licensed `PLATFORM_COLLECTS` where available | Per-market providers and licensing |
+
+---
+
+## Dependencies and decisions
+
+| # | Item | Owner | Needed before |
+|---|---|---|---|
+| D1 | Chapa business account, split enabled, test keys | Founders/finance | Stage 3 (start early; the stub covers development meanwhile) |
+| D2 | Chapa terms: fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement | Finance + Chapa | Stage 3 go-live certification (3.9) |
+| D3 | Legal confirmation that the split model needs no platform payment licence; consumer and partner terms (am/en) | Counsel | Stage 9 |
+| D4 | SMS gateway for OTP and notifications; sender ID registration | Ops | Stage 0, step 0.7 |
+| D5 | Hosting provider and region for **staging** | Founders + engineering | Stage 3 (public webhook URL) |
+| D6 | Production hosting, backups/DR, data-protection review | Founders + counsel | Stage 9 |
+| D7 | Tax rates and regimes verified (VAT/TOT); receipt rules; whether pilot sellers need MoR e-invoicing | Tax adviser | Stage 9 |
+| D8 | Fee rates and plan prices for Ethiopia | Commercial | Stage 3 (configuration), final before Stage 9 |
+| D9 | Wireframes and visual design for the pilot journeys | Designer | Stage 0, step 0.11, then ahead of each stage's UI |
+| D10 | Pilot partner list and their bank accounts | Business development | Stage 10 |
+| D11 | Apple/Google developer accounts; app names in Amharic and English | Ops | Stage 9 |
+
+## Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Chapa split/refund behaviour differs from its docs | Payments rework | Confirm early (3.1); adapter isolates changes; test-mode suite |
+| Single provider, no failover | Lost sales during a Chapa outage | Health monitoring; pay-at-venue fallback for appointments; status banner; confirmation retries; a second Ethiopian provider kept ready to enable |
+| Refund float exhausted (e.g. a large event cancelled) | Delayed refunds | Float alerts, per-organizer exposure caps, pre-funding for bulk refunds, organizer review |
+| Organizer takes the money and cancels | Platform absorbs refunds | KYB before online sales; caps before the first completed event; recovery via split top-up; terms making organizers liable |
+| Hosting decision not made | Stage 3 can't receive real webhooks | Build against the Chapa stub; D5 is a hard prerequisite for Stage 3 certification |
+| SMS cost and deliverability | OTP failures | Telegram channel; delivery monitoring; per-message cost tracking |
+| Scope creep into growth features | Pilot slips | Stages 0–10 are the pilot scope; new requests go to Stage 11 unless a pilot partner is blocked |
+| Availability engine complexity | Wrong slots offered | Spec first; property tests; DB exclusion constraint as the backstop |
