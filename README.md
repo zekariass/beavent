@@ -4,16 +4,18 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 
 ## Repository layout
 
-| Path             | What                                                                                                         | Stack                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `backend/`       | API + workers (one Spring Boot modular monolith)                                                             | Java 21, Spring Boot 4.1, Gradle       |
-| `mobile/`        | Consumer app + Business mode                                                                                 | Expo SDK 58, React Native, Expo Router |
-| `web/`           | Web marketplace (port 3000)                                                                                  | Next.js 16                             |
-| `business/`      | Business / organizer portal (port 3001)                                                                      | Next.js 16                             |
-| `admin-console/` | Internal admin console (port 3002)                                                                           | Next.js 16                             |
-| `packages/`      | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`            | TypeScript                             |
-| `db/`            | Database baseline (Flyway migrations), invariant tests, validation scripts — the single source of the schema | PostgreSQL 17 + PostGIS                |
-| `docs/`          | Design and plan                                                                                              | Markdown                               |
+| Path                | What                                                                                                         | Stack                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| `backend/`          | API + workers (one Spring Boot modular monolith)                                                             | Java 21, Spring Boot 4.1, Gradle       |
+| `mobile/`           | Consumer app + Business mode                                                                                 | Expo SDK 58, React Native, Expo Router |
+| `web/`              | Web marketplace (port 3000)                                                                                  | Next.js 16                             |
+| `business/`         | Business / organizer portal (port 3001)                                                                      | Next.js 16                             |
+| `admin-console/`    | Internal admin console (port 3002)                                                                           | Next.js 16                             |
+| `packages/`         | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`            | TypeScript                             |
+| `tools/chapa-stub/` | Local stand-in for the Chapa API (port 8090) — development and CI only; see its README                       | Node 26 (TypeScript)                   |
+| `docker/`           | Container image definition shared by the Next.js apps                                                        | Docker                                 |
+| `db/`               | Database baseline (Flyway migrations), invariant tests, validation scripts — the single source of the schema | PostgreSQL 17 + PostGIS                |
+| `docs/`             | Design and plan                                                                                              | Markdown                               |
 
 ## Prerequisites
 
@@ -26,7 +28,8 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 
 ```bash
 npm install                 # install all JS workspaces (one root lockfile)
-docker compose up -d        # local services: PostGIS :5433, Redis :6379, RabbitMQ :5672/:15672, MinIO :9000/:9001, Mailpit :8025
+cp .env.example .env        # local settings (never commit .env)
+docker compose up -d        # PostGIS :5433, Redis :6379, RabbitMQ :5672/:15672, MinIO :9000/:9001, Mailpit :8025, Chapa stub :8090
 
 npm run db:validate         # schema: throwaway PostGIS container → migrations → tests → race test
 npm run api:build           # backend: compile, format check, tests (Testcontainers; Flyway applies db/migration)
@@ -35,11 +38,25 @@ cd backend && ./gradlew bootRun   # run the API against docker compose services
 npm run dev                 # all JS apps in dev mode (or: npm run dev -w @beavent/web)
 npm run lint                # lint all JS workspaces
 npm run typecheck           # typecheck all JS workspaces
+npm run test                # JS tests (e.g. the Chapa stub)
 npm run build               # production builds
 npm run format              # Prettier (JS/TS/JSON/MD outside backend, db, docs)
 cd backend && ./gradlew spotlessApply   # Java formatting (Palantir Java Format)
 cd mobile && npx expo start # run the mobile app
 ```
+
+## Container images
+
+```bash
+docker build -f backend/Dockerfile -t beavent-api .
+docker build -f docker/next-app.Dockerfile --build-arg APP=web -t beavent-web .   # APP = web | business | admin-console
+docker build -t beavent-chapa-stub tools/chapa-stub
+```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request: JS (format, lint, typecheck, test, build), backend (Gradle build
+with Testcontainers), database (`validate.sh --docker`) and all container images. Dependabot proposes weekly updates.
 
 ## Conventions
 

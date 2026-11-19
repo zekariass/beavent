@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.expo
+**/build
+**/.gradle
+**/dist
+**/coverage
+.git
+.github
+docs
+mobile
+**/.env
+**/.env.*

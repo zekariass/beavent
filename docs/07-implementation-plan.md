@@ -101,12 +101,13 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* `npm run build`, `npm run lint`, `npm run typecheck`, `npm run api:build` and `npm run db:validate` work from a clean clone.
 
-**0.4 CI and local environment.**
-- CI: build, lint, tests, DB validation on PostGIS, Spring Modulith boundary tests, an OpenAPI breaking-change check, client type-check in every app, and container images.
-- Docker Compose dev stack: PostGIS, Redis, RabbitMQ, MinIO (S3-compatible storage), Mailpit, and a **Chapa stub server** (initialize, verify, refund, subaccount, webhook replay) so payment work can start before Chapa test keys arrive.
-- Secrets: `.env` locally, a secret manager once hosted. The DB stores only `*_secret_ref`.
+**0.4 CI and local environment.** ✅ *Done* — `.github/workflows/ci.yml` (runs once the branch is pushed), `tools/chapa-stub`, `.env.example`, container images.
+- CI: format, lint, typecheck, tests (incl. the Chapa stub), builds, DB validation on PostGIS, backend build with Testcontainers and Spring Modulith boundary tests, all container images. The OpenAPI breaking-change check is added with the first spec (step 0.6).
+- Docker Compose dev stack: PostGIS, Redis, RabbitMQ, MinIO (S3-compatible storage), Mailpit, plus the **Chapa stub** (initialize, direct charge, verify, refund, subaccount, signed webhooks, outcome by phone suffix, fault injection) so payment work can start before Chapa test keys arrive.
+- Secrets: `.env` locally (from `.env.example`), a secret manager once hosted. The DB stores only `*_secret_ref`.
+- Container images: backend, Chapa stub, and one shared Next.js image definition (standalone output) for web, business and admin-console. Dependabot weekly.
 
-*Done when:* every PR runs the full pipeline.
+*Done when:* every PR runs the full pipeline. (Verified locally: every CI command passes and the workflow passes actionlint; it runs on GitHub after the first push.)
 
 **0.5 Backend skeleton.**
 - Spring Boot + Spring Modulith; one module per domain (doc 03 §2.2) with public `api` and private `internal` packages.

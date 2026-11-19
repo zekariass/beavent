@@ -71,6 +71,14 @@ tasks.named('processResources') {
 	}
 }
 
+tasks.named('bootJar') {
+	archiveFileName = 'beavent-api.jar'
+}
+
+tasks.named('jar') {
+	enabled = false
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

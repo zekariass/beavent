@@ -10,7 +10,8 @@
     "web",
     "business",
     "admin-console",
-    "packages/*"
+    "packages/*",
+    "tools/*"
   ],
   "scripts": {
     "dev": "turbo run dev",
@@ -21,7 +22,8 @@
     "format:check": "prettier --check .",
     "api:build": "cd backend && ./gradlew build",
     "db:up": "docker compose up -d",
-    "db:validate": "db/scripts/validate.sh --docker"
+    "db:validate": "db/scripts/validate.sh --docker",
+    "test": "turbo run test"
   },
   "devDependencies": {
     "prettier": "3.10.1",

@@ -54,6 +54,19 @@ services:
     image: axllent/mailpit:v1.24
     ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
 
+  chapa-stub:
+    # Local stand-in for the Chapa API (tools/chapa-stub). The backend points CHAPA_BASE_URL here in development.
+    # Webhooks go to the backend running on the host (./gradlew bootRun on :8080).
+    build: ./tools/chapa-stub
+    environment:
+      PORT: "8090"
+      PUBLIC_URL: http://localhost:8090
+      WEBHOOK_URL: http://host.docker.internal:8080/v1/hooks/chapa
+      CHAPA_SECRET_KEY: CHASECK_TEST-beavent-stub
+      CHAPA_WEBHOOK_SECRET: beavent-stub-webhook-secret
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:8090:8090"]
+
 volumes:
   pgdata:
   miniodata:

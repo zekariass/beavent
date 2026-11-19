@@ -55,7 +55,10 @@ db/
   tests/          invariant tests
   scripts/        validate.sh, concurrency_check.sh
 docs/
-docker-compose.yml  local PostGIS, Redis, RabbitMQ, MinIO, Mailpit
+tools/chapa-stub/ local stand-in for the Chapa API (development and CI)
+docker/           shared Next.js image definition
+docker-compose.yml  local PostGIS, Redis, RabbitMQ, MinIO, Mailpit, Chapa stub
+.github/workflows/  CI
 ```
 
 ### 1.1 Mobile app (one app, two modes)
