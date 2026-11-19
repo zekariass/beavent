@@ -6,7 +6,9 @@ describe("catalogues", () => {
   test("Amharic and English are complete; Afaan Oromo is started", () => {
     assert.deepEqual(missingKeys("am"), []);
     assert.deepEqual(missingKeys("en"), []);
-    assert.ok(missingKeys("om").length > 0 && missingKeys("om").length < 25);
+    // Afaan Oromo is started: some keys are translated, the rest fall back to English.
+    assert.ok(missingKeys("om").length > 0);
+    assert.notEqual(createTranslator("om")("nav.explore"), createTranslator("en")("nav.explore"));
   });
   test("every Amharic message keeps the English placeholders", () => {
     const am = createTranslator("am");

@@ -13,9 +13,7 @@ const nextConfig: NextConfig = {
     "@beavent/money",
     "@beavent/ui",
   ],
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // The portal is per-user and rendered at request time; the public landing pages are prerendered per language.
   turbopack: {
     rules: {
       "*.css": {

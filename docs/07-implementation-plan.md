@@ -186,26 +186,28 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 **Goal:** a business can describe what it sells and who does it.
 
-**1.1 Services.**
-- Services, variants, stage templates (processing time), add-ons, bundles.
-- Pricing levels and location/staff/level price overrides.
-- Resources (rooms, chairs, beds); galleries.
-- Partner portal catalogue screens.
+**1.1 Services.** ✅ *Done* (API + partner portal) — `backend/.../catalog`.
+- Menu sections; services with variants (duration, buffers, price type), stage templates (e.g. apply / process / rinse; the stages must add up to the variant's duration), resource needs, add-ons, bundles (sum, fixed price or percent off).
+- Price overrides per location, team member, pricing level or combinations, effective-dated (history kept). `ServicePricing` resolves the most specific price and duration for booking.
+- Resources (rooms, chairs, beds, stations; parallel units); galleries using processed public images.
+- Partner portal: menu with sections, service editor (Amharic and English names, options, durations, prices in birr, locations), staff-specific prices.
 
-**1.2 Team.**
-- Staff (with or without login), locations, working patterns, shifts, time off.
-- Partner portal team screens; "My schedule" in mobile Business mode.
+**1.2 Team.** ✅ *Done* (API + partner portal; mobile "My schedule" next) — `backend/.../team`.
+- Team profiles with or without a login (one profile per login), locations, services performed, pricing levels.
+- Regular hours as weekly or multi-week rotations, effective-dated; one-off shifts replace the pattern for a day; time off recorded by managers or requested by the person and then decided.
+- `Rota` computes working intervals per person and local day; managers and people who see every calendar see everyone, others only themselves.
+- Partner portal: team list, add a team member, regular hours editor, weekly rota (Ethiopian dates and Ethiopian time in Amharic).
 
-**1.3 Booking policies.**
-- Notice period, booking horizon, slot interval, request-to-book.
-- Deposit rules (none/percent/fixed/full; who they apply to), cancellation window, no-show and late-cancel fees.
-- Most-specific-wins resolution.
+**1.3 Booking policies.** ✅ *Done* (API + partner portal) — `backend/.../scheduling`.
+- Notice period, booking horizon, slot interval, request-to-book, pay at venue.
+- Deposit rules (none/percent/fixed/full; who they apply to), cancellation window, no-show and late-cancel fees, policy text.
+- Most-specific-wins resolution (service + location, service, location, organization, platform default) via `BookingPolicies`.
 
-**1.4 Locations and at-home services.**
-- Hours, closures and public holidays.
-- Service areas with travel fee and travel time.
+**1.4 Locations and at-home services.** ✅ *Done* (API) — tenancy and reference.
+- Opening hours (0.8), closures, a "closed on public holidays" switch; Ethiopian public holidays 2026–2027 as reference data (to be confirmed by a local adviser like other legal facts).
+- Service areas (administrative area or circle) with travel fee and travel time.
 
-*Done when:* a salon builds a menu with staff-specific prices and a weekly rota for its team in the partner portal.
+*Done when:* a salon builds a menu with staff-specific prices and a weekly rota for its team in the partner portal. ✅ (`tools/e2e/tests/partner-portal.spec.ts`: a real browser signs in by code, onboards a business, builds the menu, adds a stylist with regular hours, sets her price and checks the rota in English and Amharic; plus `CatalogApiTests`, `TeamApiTests`, `PoliciesAndLocationsApiTests`.)
 
 ---
 
