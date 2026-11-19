@@ -874,6 +874,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/staff/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your own team profile in this organization (for "My schedule") */
+        get: operations["getMyStaffProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/staff/{staffId}": {
         parameters: {
             query?: never;
@@ -4996,6 +5013,38 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    getMyStaffProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description No team profile is linked to your login here. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     getStaff: {

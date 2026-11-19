@@ -10,22 +10,27 @@ import { SymbolView } from "expo-symbols";
 import { Pressable, useColorScheme, View, StyleSheet } from "react-native";
 
 import { Colors, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useApp } from "@/lib/app-context";
 
 import { ExternalLink } from "./external-link";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
 export default function AppTabs() {
+  const { t } = useApp();
   return (
     <Tabs>
       <TabSlot style={{ height: "100%" }} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton>{t("mobile.tab.home")}</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+            <TabButton>{t("mobile.tab.explore")}</TabButton>
+          </TabTrigger>
+          <TabTrigger name="business" href="/business" asChild>
+            <TabButton>{t("mobile.tab.business")}</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -62,7 +67,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          Beavent
         </ThemedText>
 
         {props.children}

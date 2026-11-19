@@ -147,6 +147,8 @@ paths:
     $ref: ./team/paths.yaml#/pricingLevel
   /v1/orgs/{orgId}/staff:
     $ref: ./team/paths.yaml#/staffList
+  /v1/orgs/{orgId}/staff/me:
+    $ref: ./team/paths.yaml#/myStaff
   /v1/orgs/{orgId}/staff/{staffId}:
     $ref: ./team/paths.yaml#/staff
   /v1/orgs/{orgId}/staff/{staffId}/working-pattern:

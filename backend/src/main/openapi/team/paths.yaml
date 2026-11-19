@@ -609,3 +609,25 @@ schedule:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+myStaff:
+  get:
+    tags: [Team]
+    operationId: getMyStaffProfile
+    summary: Your own team profile in this organization (for "My schedule")
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Profile.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Staff
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        description: No team profile is linked to your login here.
+        content:
+          application/problem+json:
+            schema:
+              $ref: ../common/schemas.yaml#/Problem

@@ -31,7 +31,8 @@ class SecurityConfiguration {
                 // Payment provider webhooks: authenticated by their HMAC signature, not by a user token.
                 "/v1/hooks/**"));
         modules.forEach(module -> open.addAll(module.patterns()));
-        http.csrf(csrf -> csrf.disable())
+        http.cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
@@ -49,6 +50,33 @@ class SecurityConfiguration {
                         .accessDeniedHandler((request, response, e) -> problems.write(response, ProblemCode.FORBIDDEN)))
                 .addFilterAfter(new AuthenticatedRequestContextFilter(), BearerTokenAuthenticationFilter.class);
         return http.build();
+    }
+
+    /**
+     * Browsers may call the API directly only from the listed origins ({@code beavent.web.allowed-origins}; none by
+     * default). Tokens travel in the Authorization header, never in cookies, so credentials are not allowed.
+     */
+    @Bean
+    org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource(
+            @org.springframework.beans.factory.annotation.Value("${beavent.web.allowed-origins:}")
+                    List<String> origins) {
+        var config = new org.springframework.web.cors.CorsConfiguration();
+        config.setAllowedOrigins(origins.stream().filter(o -> !o.isBlank()).toList());
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Accept-Language",
+                "X-Request-Id",
+                "If-Match",
+                "Idempotency-Key"));
+        config.setExposedHeaders(List.of("ETag", "X-Request-Id", "Retry-After"));
+        config.setAllowCredentials(false);
+        config.setMaxAge(3600L);
+        var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     /** No built-in users: suppresses Spring Boot's generated development password. */

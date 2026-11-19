@@ -44,4 +44,19 @@ class ApiSpecEndpointTests {
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.requestId").isNotEmpty());
     }
+
+    @Test
+    void browsersMayCallTheApiOnlyFromAllowedOrigins() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/v1/me")
+                        .header("Origin", "http://localhost:8081")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", "authorization"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Access-Control-Allow-Origin", "http://localhost:8081"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/v1/me")
+                        .header("Origin", "https://evil.example")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
+    }
 }

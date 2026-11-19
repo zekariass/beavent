@@ -189,6 +189,19 @@ public class TeamProfiles {
         });
     }
 
+    /** The caller's own profile (linked to their login), if any. */
+    public TeamBodies.Staff mine(OrgAccess access) {
+        return transactions.execute(status -> {
+            StaffRecord staff = dsl.selectFrom(STAFF)
+                    .where(STAFF.MEMBER_ID.eq(access.memberId()), STAFF.STATUS.ne("ARCHIVED"))
+                    .fetchOne();
+            if (staff == null) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "No team profile is linked to your login here.");
+            }
+            return views(List.of(staff)).getFirst();
+        });
+    }
+
     StaffRecord found(UUID staffId, boolean lock) {
         var query = dsl.selectFrom(STAFF).where(STAFF.ID.eq(staffId));
         StaffRecord staff = lock ? query.forUpdate().fetchOne() : query.fetchOne();

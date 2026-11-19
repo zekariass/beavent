@@ -117,6 +117,15 @@ export const en = {
   "portal.weekday.5": "Friday",
   "portal.weekday.6": "Saturday",
   "portal.weekday.7": "Sunday",
+  "mobile.tab.home": "Home",
+  "mobile.tab.explore": "Explore",
+  "mobile.tab.business": "Business",
+  "mobile.business.signInHint": "Sign in to see your work schedule.",
+  "mobile.schedule.title": "My schedule",
+  "mobile.schedule.noProfile": "Your manager has not linked a team profile to your login yet.",
+  "mobile.schedule.noBusinesses": "You are not part of a business yet.",
+  "mobile.schedule.off": "Day off",
+  "mobile.signOut": "Sign out",
 } as const;
 
 export type MessageKey = keyof typeof en;

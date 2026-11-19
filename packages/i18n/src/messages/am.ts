@@ -117,4 +117,13 @@ export const am: Catalogue = {
   "portal.weekday.5": "ዓርብ",
   "portal.weekday.6": "ቅዳሜ",
   "portal.weekday.7": "እሑድ",
+  "mobile.tab.home": "መነሻ",
+  "mobile.tab.explore": "ያስሱ",
+  "mobile.tab.business": "ንግድ",
+  "mobile.business.signInHint": "የሥራ ፕሮግራምዎን ለማየት ይግቡ።",
+  "mobile.schedule.title": "የእኔ የሥራ ፕሮግራም",
+  "mobile.schedule.noProfile": "ኃላፊዎ እስካሁን የሠራተኛ መገለጫዎን ከመለያዎ ጋር አላገናኘም።",
+  "mobile.schedule.noBusinesses": "እስካሁን የማንኛውም ንግድ አባል አይደሉም።",
+  "mobile.schedule.off": "እረፍት",
+  "mobile.signOut": "ውጣ",
 };

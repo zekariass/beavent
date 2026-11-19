@@ -82,6 +82,11 @@ class TeamController {
                 .body(staff);
     }
 
+    @GetMapping("/staff/me")
+    TeamBodies.Staff myProfile(@PathVariable UUID orgId) {
+        return profiles.mine(OrgAccess.current());
+    }
+
     @GetMapping("/staff/{staffId}")
     ResponseEntity<TeamBodies.Staff> getStaff(@PathVariable UUID orgId, @PathVariable UUID staffId) {
         TeamBodies.Staff staff = profiles.get(staffId);

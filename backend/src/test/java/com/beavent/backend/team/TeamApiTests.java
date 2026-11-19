@@ -416,6 +416,14 @@ class TeamApiTests extends ApiTestSupport {
                         .status())
                 .isEqualTo(409);
 
+        // "My schedule": the profile linked to your login.
+        assertThat(call(get(salon.path("/staff/me")), null, receptionist.token())
+                        .text("id"))
+                .isEqualTo(hana);
+        assertThat(call(get(salon.path("/staff/me")), null, t).status())
+                .as("owner has no profile")
+                .isEqualTo(404);
+
         // A professional without calendar.view_all sees only their own schedule.
         Person stylist = newMember(salon, "PROFESSIONAL");
         assertThat(call(
