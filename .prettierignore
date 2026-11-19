@@ -1,0 +1,11 @@
+node_modules
+.next
+.turbo
+dist
+coverage
+backend
+db
+docs
+**/package-lock.json
+mobile/ios
+mobile/android

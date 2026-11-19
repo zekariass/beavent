@@ -1,0 +1,19 @@
+{
+  "name": "@beavent/calendar",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ethiopian \u21c4 Gregorian conversion and Ethiopian local-time formatting. Built in Stage 0, step 0.11.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@beavent/config": "*",
+    "typescript": "^5"
+  }
+}
