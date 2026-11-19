@@ -4,6 +4,7 @@ import static com.beavent.db.platform.Tables.FEATURE_FLAGS;
 import static com.beavent.db.platform.Tables.FEATURE_FLAG_OVERRIDES;
 import static com.beavent.db.ref.Tables.MARKETS;
 
+import com.beavent.backend.identity.Assurance;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.Audit;
 import com.beavent.backend.platform.ProblemCode;
@@ -55,6 +56,7 @@ public class Flags {
             throw new ApiException(
                     ProblemCode.FORBIDDEN, "Changing feature flags needs market management for all markets.");
         }
+        Assurance.requireStepUp();
         transactions.executeWithoutResult(status -> {
             FeatureFlagsRecord flag = system.selectFrom(FEATURE_FLAGS)
                     .where(FEATURE_FLAGS.CODE.eq(code))

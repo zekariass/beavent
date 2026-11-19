@@ -41,23 +41,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/auth/password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Sign in with phone or email and password */
-        post: operations["signInWithPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/auth/oauth/{provider}": {
         parameters: {
             query?: never;
@@ -69,23 +52,6 @@ export interface paths {
         put?: never;
         /** Sign in with Google or Apple */
         post: operations["signInWithProvider"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/mfa/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Complete sign-in with the second factor */
-        post: operations["verifyMfa"];
         delete?: never;
         options?: never;
         head?: never;
@@ -179,57 +145,6 @@ export interface paths {
         head?: never;
         /** Update profile and preferences */
         patch: operations["updateMe"];
-        trace?: never;
-    };
-    "/v1/me/password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set or change the password (revokes other sessions) */
-        put: operations["changePassword"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/me/mfa/totp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start enrolling an authenticator app */
-        post: operations["enrollTotp"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/me/mfa/totp/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Confirm the authenticator app with a first code */
-        post: operations["confirmTotp"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/v1/me/sessions": {
@@ -987,7 +902,7 @@ export interface components {
          */
         OtpPurpose: "SIGN_IN" | "VERIFY_PHONE" | "STEP_UP" | "CLAIM_GUEST_ORDERS" | "CHANGE_PAYOUT_ACCOUNT";
         /** @enum {string} */
-        OtpChannel: "SMS" | "TELEGRAM" | "WHATSAPP" | "VOICE";
+        OtpChannel: "SMS" | "TELEGRAM" | "WHATSAPP" | "VOICE" | "EMAIL";
         /** @enum {string} */
         ClientApp: "MOBILE_APP" | "WEB_MARKETPLACE" | "PARTNER_PORTAL" | "ADMIN_CONSOLE";
         /**
@@ -995,14 +910,17 @@ export interface components {
          * @example am
          */
         LanguageCode: string;
+        /** @description Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL). */
         OtpRequest: {
-            phone: components["schemas"]["PhoneE164"];
+            phone?: components["schemas"]["PhoneE164"];
+            /** Format: email */
+            email?: string;
             purpose: components["schemas"]["OtpPurpose"];
-            /** @default SMS */
-            channel: components["schemas"]["OtpChannel"];
+            /** @description Defaults to SMS for phones and EMAIL for email addresses. */
+            channel?: components["schemas"]["OtpChannel"];
             clientApp: components["schemas"]["ClientApp"];
             language?: components["schemas"]["LanguageCode"];
-        };
+        } & (unknown | unknown);
         /** Format: uuid */
         Uuid: string;
         /**
@@ -1083,16 +1001,11 @@ export interface components {
             /** @enum {string} */
             displayCalendar?: "GREGORIAN" | "ETHIOPIAN";
             timezone?: string;
-            mfaEnabled: boolean;
-            hasPassword?: boolean;
             isPlatformStaff: boolean;
             memberships: components["schemas"]["Membership"][];
         };
         Tokens: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
+            /** @constant */
             result: "TOKENS";
             accessToken: string;
             accessTokenExpiresAt: components["schemas"]["Instant"];
@@ -1102,35 +1015,12 @@ export interface components {
             isNewUser: boolean;
             user: components["schemas"]["Me"];
         };
-        MfaRequired: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            result: "MFA_REQUIRED";
-            mfaChallengeId: components["schemas"]["Uuid"];
-            methods: ("TOTP" | "SMS")[];
-        };
-        /** @description Either tokens, or a second factor is required first. */
-        AuthResult: components["schemas"]["Tokens"] | components["schemas"]["MfaRequired"];
-        PasswordLogin: {
-            /** @description Phone number (E.164) or email. */
-            identifier: string;
-            /** Format: password */
-            password: string;
-            clientApp: components["schemas"]["ClientApp"];
-            device?: components["schemas"]["DeviceInfo"];
-        };
         OAuthLogin: {
             /** @description ID token from Google or Apple, verified server-side (issuer, audience, signature, nonce). */
             idToken: string;
             nonce: string;
             clientApp: components["schemas"]["ClientApp"];
             device?: components["schemas"]["DeviceInfo"];
-        };
-        MfaVerify: {
-            mfaChallengeId: components["schemas"]["Uuid"];
-            code: string;
         };
         RefreshRequest: {
             /** Format: password */
@@ -1145,10 +1035,9 @@ export interface components {
             /** @default false */
             allSessions: boolean;
         };
+        /** @description A fresh one-time code (purpose STEP_UP, sent to the account's phone or email) before a sensitive action. */
         StepUpRequest: {
-            /** @enum {string} */
-            method: "OTP" | "TOTP";
-            challengeId?: components["schemas"]["Uuid"];
+            challengeId: components["schemas"]["Uuid"];
             code: string;
         };
         Jwks: {
@@ -1171,25 +1060,6 @@ export interface components {
             /** @enum {string} */
             displayCalendar?: "GREGORIAN" | "ETHIOPIAN";
             timezone?: string;
-        };
-        PasswordChange: {
-            /**
-             * Format: password
-             * @description Required when a password is already set (step-up token also accepted).
-             */
-            currentPassword?: string;
-            /** Format: password */
-            newPassword: string;
-        };
-        TotpEnrollment: {
-            factorId: components["schemas"]["Uuid"];
-            otpauthUri: string;
-            /** @description Base32; shown once. */
-            secret: string;
-        };
-        TotpConfirm: {
-            factorId: components["schemas"]["Uuid"];
-            code: string;
         };
         Session: {
             id: components["schemas"]["Uuid"];
@@ -1929,43 +1799,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Signed in, or a second factor is required. */
+            /** @description Signed in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthResult"];
+                    "application/json": components["schemas"]["Tokens"];
                 };
             };
             400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            429: components["responses"]["TooManyRequests"];
-        };
-    };
-    signInWithPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordLogin"];
-            };
-        };
-        responses: {
-            /** @description Signed in, or a second factor is required. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResult"];
-                };
-            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             429: components["responses"]["TooManyRequests"];
@@ -1986,13 +1829,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Signed in, or a second factor is required. */
+            /** @description Signed in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthResult"];
+                    "application/json": components["schemas"]["Tokens"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -2006,33 +1849,6 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-        };
-    };
-    verifyMfa: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MfaVerify"];
-            };
-        };
-        responses: {
-            /** @description Signed in. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Tokens"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            429: components["responses"]["TooManyRequests"];
         };
     };
     refreshTokens: {
@@ -2172,63 +1988,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
-        };
-    };
-    changePassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordChange"];
-            };
-        };
-        responses: {
-            204: components["responses"]["NoContent"];
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    enrollTotp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Secret to add to the authenticator app. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TotpEnrollment"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    confirmTotp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TotpConfirm"];
-            };
-        };
-        responses: {
-            204: components["responses"]["NoContent"];
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
         };
     };
     listSessions: {

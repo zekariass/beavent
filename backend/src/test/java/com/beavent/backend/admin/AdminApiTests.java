@@ -42,19 +42,17 @@ class AdminApiTests extends ApiTestSupport {
                 .execute();
     }
 
-    /** A staff member signed in to the admin console with code + authenticator app. */
-    String staffToken(String roleCode, String marketCode) throws Exception {
+    /** A staff member signed in to the admin console with a phone code. */
+    Person staff(String roleCode, String marketCode) throws Exception {
         Person person = newPerson();
         grant(person, roleCode, marketCode);
-        byte[] secret = enrollAuthenticator(person);
-        Call first = signInWithOtp(person.phone(), "ADMIN_CONSOLE");
-        assertThat(first.text("result")).isEqualTo("MFA_REQUIRED");
-        Call signedIn = call(
-                post("/v1/auth/mfa/verify"),
-                Map.of("mfaChallengeId", first.text("mfaChallengeId"), "code", totp(secret, 1)),
-                null);
+        Call signedIn = signInWithOtp(person.phone(), "ADMIN_CONSOLE");
         assertThat(signedIn.status()).as(String.valueOf(signedIn.body())).isEqualTo(200);
-        return signedIn.text("accessToken");
+        return new Person(person.phone(), signedIn.text("accessToken"));
+    }
+
+    String staffToken(String roleCode, String marketCode) throws Exception {
+        return staff(roleCode, marketCode).token();
     }
 
     record Org(UUID id, Person owner, UUID caseId, UUID documentId) {}
@@ -127,23 +125,23 @@ class AdminApiTests extends ApiTestSupport {
     // --- tests -----------------------------------------------------------------------------------------------
 
     @Test
-    void onlyStaffWithAnAuthenticatorAppGetIn() throws Exception {
+    void onlyStaffGetInAndTheirSessionsAreShort() throws Exception {
         Person outsider = newPerson();
         assertThat(signInWithOtp(outsider.phone(), "ADMIN_CONSOLE").status()).isEqualTo(403);
         assertThat(call(get("/v1/admin/me"), null, outsider.token()).status())
                 .as("consumer token")
                 .isEqualTo(403);
+        assertThat(call(get("/v1/admin/me"), null, null).status()).isEqualTo(401);
 
         Person staff = newPerson();
         grant(staff, "SUPPORT_AGENT", null);
-        Call codeOnly = signInWithOtp(staff.phone(), "ADMIN_CONSOLE");
-        assertThat(codeOnly.status()).isEqualTo(200);
-        assertThat(call(get("/v1/admin/me"), null, codeOnly.text("accessToken")).status())
-                .as("no second factor")
-                .isEqualTo(403);
-        assertThat(call(get("/v1/admin/me"), null, null).status()).isEqualTo(401);
-
-        String token = staffToken("SUPPORT_AGENT", null);
+        Call signedIn = signInWithOtp(staff.phone(), "ADMIN_CONSOLE");
+        assertThat(signedIn.status()).isEqualTo(200);
+        assertThat(java.time.Duration.between(
+                        java.time.Instant.now(), java.time.Instant.parse(signedIn.text("refreshTokenExpiresAt"))))
+                .as("admin sessions last 12 hours")
+                .isLessThanOrEqualTo(java.time.Duration.ofHours(12));
+        String token = signedIn.text("accessToken");
         Call me = call(get("/v1/admin/me"), null, token);
         assertThat(me.status()).isEqualTo(200);
         assertThat(me.body().get("roles").get(0).get("roleCode").asString()).isEqualTo("SUPPORT_AGENT");
@@ -157,7 +155,8 @@ class AdminApiTests extends ApiTestSupport {
     @Test
     void operatorApprovesABusinessVerificationAndItAppearsInTheAuditLog() throws Exception {
         Org org = orgAwaitingVerification("Kappa Barbers");
-        String analyst = staffToken("RISK_ANALYST", "ET");
+        Person analystPerson = staff("RISK_ANALYST", "ET");
+        String analyst = analystPerson.token();
 
         JsonNode queue = call(get("/v1/admin/verification-cases?limit=100"), null, analyst)
                 .body()
@@ -167,24 +166,33 @@ class AdminApiTests extends ApiTestSupport {
         assertThat(detail.body().get("verificationCase").get("orgName").asString())
                 .isEqualTo("Kappa Barbers");
         assertThat(detail.body().get("documents").size()).isEqualTo(1);
-        Call document = call(
-                post("/v1/admin/verification-cases/" + org.caseId() + "/documents/" + org.documentId() + "/access-url"),
-                null,
-                analyst);
+        String documentPath =
+                "/v1/admin/verification-cases/" + org.caseId() + "/documents/" + org.documentId() + "/access-url";
+        Call withoutCode = call(post(documentPath), null, analyst);
+        assertThat(withoutCode.text("code")).as("documents need a fresh code").isEqualTo("STEP_UP_REQUIRED");
+        String confirmed = stepUp(analystPerson);
+        Call document = call(post(documentPath), null, confirmed);
         assertThat(document.status()).isEqualTo(200);
         assertThat(document.text("url")).contains("X-Amz-Signature");
 
         assertThat(callInvalid(
                                 post("/v1/admin/verification-cases/" + org.caseId() + "/decision"),
                                 Map.of("decision", "APPROVE"),
-                                analyst)
+                                confirmed)
                         .status())
                 .as("a reason is required")
                 .isEqualTo(400);
+        assertThat(call(
+                                post("/v1/admin/verification-cases/" + org.caseId() + "/decision"),
+                                Map.of("decision", "APPROVE", "reason", "Trade licence matches the registry"),
+                                analyst)
+                        .text("code"))
+                .as("decisions need a fresh code")
+                .isEqualTo("STEP_UP_REQUIRED");
         Call approved = call(
                 post("/v1/admin/verification-cases/" + org.caseId() + "/decision"),
                 Map.of("decision", "APPROVE", "reason", "Trade licence matches the registry"),
-                analyst);
+                confirmed);
         assertThat(approved.status()).isEqualTo(200);
         assertThat(approved.body().get("verificationCase").get("status").asString())
                 .isEqualTo("APPROVED");
@@ -195,7 +203,7 @@ class AdminApiTests extends ApiTestSupport {
         assertThat(call(
                                 post("/v1/admin/verification-cases/" + org.caseId() + "/decision"),
                                 Map.of("decision", "REJECT", "reason", "Changed my mind"),
-                                analyst)
+                                confirmed)
                         .status())
                 .isEqualTo(409);
 
@@ -232,13 +240,8 @@ class AdminApiTests extends ApiTestSupport {
 
         // The owner also works for the platform: someone else must decide.
         grant(org.owner(), "RISK_ANALYST", null);
-        byte[] secret = enrollAuthenticator(org.owner());
-        Call first = signInWithOtp(org.owner().phone(), "ADMIN_CONSOLE");
-        String ownerAsStaff = call(
-                        post("/v1/auth/mfa/verify"),
-                        Map.of("mfaChallengeId", first.text("mfaChallengeId"), "code", totp(secret, 1)),
-                        null)
-                .text("accessToken");
+        Call ownerSignIn = signInWithOtp(org.owner().phone(), "ADMIN_CONSOLE");
+        String ownerAsStaff = stepUp(new Person(org.owner().phone(), ownerSignIn.text("accessToken")));
         assertThat(call(
                                 post("/v1/admin/verification-cases/" + org.caseId() + "/decision"),
                                 Map.of("decision", "APPROVE", "reason", "Looks fine to me"),
@@ -278,8 +281,11 @@ class AdminApiTests extends ApiTestSupport {
         Map<String, Object> enable = Map.of("defaultEnabled", true, "reason", "Pilot launch");
         assertThat(call(put("/v1/admin/feature-flags/" + code), enable, ops).status())
                 .isEqualTo(403);
-        String superAdmin = staffToken("SUPER_ADMIN", null);
-        Call enabled = call(put("/v1/admin/feature-flags/" + code), enable, superAdmin);
+        Person superAdmin = staff("SUPER_ADMIN", null);
+        assertThat(call(put("/v1/admin/feature-flags/" + code), enable, superAdmin.token())
+                        .text("code"))
+                .isEqualTo("STEP_UP_REQUIRED");
+        Call enabled = call(put("/v1/admin/feature-flags/" + code), enable, stepUp(superAdmin));
         assertThat(enabled.status()).isEqualTo(200);
         assertThat(enabled.body().get("defaultEnabled").asBoolean()).isTrue();
     }

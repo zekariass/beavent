@@ -8,6 +8,7 @@ import static com.beavent.db.trust.Tables.VERIFICATION_CASES;
 import static com.beavent.db.trust.Tables.VERIFICATION_DOCUMENTS;
 
 import com.beavent.backend.files.FileAccess;
+import com.beavent.backend.identity.Assurance;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.Audit;
 import com.beavent.backend.platform.DomainEvent;
@@ -28,7 +29,10 @@ import org.jooq.impl.DSL;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** The KYB/KYC review queue and decisions. Staff cannot decide cases of organizations they belong to. */
+/**
+ * The KYB/KYC review queue and decisions. Opening documents and deciding need a fresh code (step-up); staff cannot
+ * decide cases of organizations they belong to.
+ */
 @Component
 public class Kyb {
 
@@ -103,9 +107,10 @@ public class Kyb {
         return new AdminBodies.CaseDetail(summary(row), entity, documents);
     }
 
-    /** Signed URL for one document of a case; audited with the reviewer. */
+    /** Signed URL for one document of a case; needs a fresh code (step-up) and is audited with the reviewer. */
     public AdminBodies.AccessUrl documentUrl(StaffAccess staff, UUID caseId, UUID documentId) {
         Record row = visibleCase(staff, REVIEW, caseId);
+        Assurance.requireStepUp();
         UUID fileId = system.select(VERIFICATION_DOCUMENTS.FILE_ID)
                 .from(VERIFICATION_DOCUMENTS)
                 .where(VERIFICATION_DOCUMENTS.ID.eq(documentId), VERIFICATION_DOCUMENTS.CASE_ID.eq(caseId))
@@ -130,6 +135,7 @@ public class Kyb {
     public AdminBodies.CaseDetail decide(StaffAccess staff, UUID caseId, AdminBodies.Decision decision) {
         transactions.executeWithoutResult(status -> {
             Record row = visibleCase(staff, DECIDE, caseId);
+            Assurance.requireStepUp();
             UUID orgId = row.get(VERIFICATION_CASES.ORG_ID);
             if (orgId != null
                     && system.fetchExists(

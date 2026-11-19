@@ -1,6 +1,5 @@
 package com.beavent.backend.admin.internal;
 
-import static com.beavent.db.iam.Tables.MFA_FACTORS;
 import static com.beavent.db.iam.Tables.STAFF_ROLE_PERMISSIONS;
 import static com.beavent.db.iam.Tables.USER_STAFF_ROLES;
 
@@ -22,8 +21,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * Every {@code /v1/admin} request: admin-console token, multi-factor sign-in (authenticator app), active staff role.
- * Staff permissions are reloaded on each request, so revoking a role takes effect immediately.
+ * Every {@code /v1/admin} request: admin-console token (12-hour sessions) and an active staff role, reloaded on each
+ * request so revoking a role takes effect immediately. Sensitive actions additionally need a fresh code (step-up).
  */
 class StaffInterceptor implements HandlerInterceptor {
 
@@ -45,16 +44,6 @@ class StaffInterceptor implements HandlerInterceptor {
             throw new ApiException(ProblemCode.FORBIDDEN, "Sign in to the admin console to use this API.");
         }
         UUID userId = UUID.fromString(jwt.getSubject());
-        String assurance = jwt.getClaimAsString("aal");
-        boolean multiFactor = "MFA".equals(assurance)
-                || ("STEP_UP".equals(assurance)
-                        && system.fetchExists(
-                                MFA_FACTORS, MFA_FACTORS.USER_ID.eq(userId).and(MFA_FACTORS.CONFIRMED_AT.isNotNull())));
-        if (!multiFactor) {
-            throw new ApiException(
-                    ProblemCode.FORBIDDEN,
-                    "The admin console needs an authenticator app: set one up under your account, then sign in again.");
-        }
         Map<String, Set<UUID>> permissions = new HashMap<>();
         system.select(STAFF_ROLE_PERMISSIONS.PERMISSION_CODE, USER_STAFF_ROLES.MARKET_ID)
                 .from(USER_STAFF_ROLES)

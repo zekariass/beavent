@@ -3,6 +3,7 @@ package com.beavent.backend.identity.internal;
 import static com.beavent.db.iam.Tables.AUTH_CHALLENGES;
 
 import com.beavent.backend.platform.ApiException;
+import com.beavent.backend.platform.EmailGateway;
 import com.beavent.backend.platform.IdentityDb;
 import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.RateLimiter;
@@ -21,8 +22,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * One-time codes sent to a phone. Codes and destinations are stored only as HMACs; each challenge allows a few
- * attempts, expires quickly and is consumed once. Requests are rate-limited per phone and per IP.
+ * One-time codes sent to a phone (SMS, Telegram, WhatsApp, voice) or an email address. Codes and destinations are
+ * stored only as HMACs; each challenge allows a few
+ * attempts, expires quickly and is consumed once. Requests are rate-limited per destination and per IP.
  */
 @Component
 public class Otps {
@@ -34,6 +36,10 @@ public class Otps {
         public String phone() {
             return (String) context.get("phone");
         }
+
+        public String email() {
+            return (String) context.get("email");
+        }
     }
 
     static final String FAILED = "The code is incorrect or has expired.";
@@ -43,6 +49,7 @@ public class Otps {
     private final Crypto crypto;
     private final RateLimiter rateLimiter;
     private final SmsGateway sms;
+    private final EmailGateway email;
     private final IdentityProperties.Otp config;
     private final JsonMapper json;
 
@@ -52,6 +59,7 @@ public class Otps {
             Crypto crypto,
             RateLimiter rateLimiter,
             SmsGateway sms,
+            EmailGateway email,
             IdentityProperties properties,
             JsonMapper json) {
         this.dsl = dsl;
@@ -59,19 +67,23 @@ public class Otps {
         this.crypto = crypto;
         this.rateLimiter = rateLimiter;
         this.sms = sms;
+        this.email = email;
         this.config = properties.otp();
         this.json = json;
     }
 
+    /** @param phone E.164 number, or {@code null} when {@code emailAddress} is given (channel EMAIL) */
     public Challenge request(
             String phone,
+            String emailAddress,
             String purpose,
             String channel,
             UUID userId,
             String ipAddress,
             String language,
             Map<String, Object> extraContext) {
-        String destination = crypto.destinationHash(phone);
+        String target = phone != null ? phone : emailAddress.strip().toLowerCase(java.util.Locale.ROOT);
+        String destination = crypto.destinationHash(target);
         rateLimiter.hit("otp:destination:" + destination, config.perPhonePerHour(), Duration.ofHours(1));
         if (ipAddress != null) {
             rateLimiter.hit("otp:ip:" + ipAddress, config.perIpPerHour(), Duration.ofHours(1));
@@ -81,7 +93,7 @@ public class Otps {
         Instant now = Instant.now();
         Instant expires = now.plus(config.ttl());
         Map<String, Object> context = new java.util.HashMap<>(extraContext == null ? Map.of() : extraContext);
-        context.put("phone", phone);
+        context.put(phone != null ? "phone" : "email", target);
         transactions.executeWithoutResult(status -> {
             boolean tooSoon = dsl.fetchExists(
                     AUTH_CHALLENGES,
@@ -106,7 +118,12 @@ public class Otps {
                     .set(AUTH_CHALLENGES.CONTEXT, JSONB.valueOf(json.writeValueAsString(context)))
                     .execute();
         });
-        sms.send(phone, SmsGateway.Channel.valueOf(channel), message(code, language));
+        if (phone != null) {
+            sms.send(phone, SmsGateway.Channel.valueOf(channel), message(code, language));
+        } else {
+            email.send(
+                    target, "am".equals(language) ? "የBeavent ማረጋገጫ ኮድ" : "Your Beavent code", message(code, language));
+        }
         return new Challenge(id, expires, now.plus(config.resendAfter()), channel, config.codeLength());
     }
 

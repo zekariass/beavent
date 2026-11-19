@@ -48,7 +48,7 @@ cd mobile && npx expo start # run the mobile app
 
 ## Admin console access
 
-Staff sign in at http://localhost:3002 with their phone and an authenticator app. Grant the first staff role to an
+Staff sign in at http://localhost:3002 with a code sent to their phone or email. Grant the first staff role to an
 account that has signed in once:
 
 ```bash

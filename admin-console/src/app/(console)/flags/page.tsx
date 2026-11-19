@@ -1,5 +1,6 @@
 import { Badge, Cell, Empty, PageTitle, Table, formatInstant } from "@/components/ui";
-import { staffApi, unwrap } from "@/lib/session";
+import { ConfirmPanel } from "@/components/ConfirmPanel";
+import { hasStepUp, staffApi, unwrap } from "@/lib/session";
 import { FlagToggle } from "./FlagToggle";
 
 export default async function FlagsPage() {
@@ -7,12 +8,14 @@ export default async function FlagsPage() {
   const flags = unwrap(await api.GET("/v1/admin/feature-flags"));
   const me = unwrap(await api.GET("/v1/admin/me"));
   const canEdit = me.permissions.includes("admin.markets.manage");
+  const confirmed = await hasStepUp();
   return (
     <>
       <PageTitle
         title="Feature flags"
         subtitle="Defaults and per-market, organization or person overrides."
       />
+      {canEdit && !confirmed && <ConfirmPanel what="change flags" />}
       {flags.items.length === 0 ? (
         <Empty>No flags defined.</Empty>
       ) : (
@@ -34,7 +37,9 @@ export default async function FlagsPage() {
                 ))}
               </Cell>
               <Cell>{formatInstant(f.updatedAt)}</Cell>
-              <Cell>{canEdit && <FlagToggle code={f.code} enabled={f.defaultEnabled} />}</Cell>
+              <Cell>
+                {canEdit && confirmed && <FlagToggle code={f.code} enabled={f.defaultEnabled} />}
+              </Cell>
             </tr>
           ))}
         </Table>

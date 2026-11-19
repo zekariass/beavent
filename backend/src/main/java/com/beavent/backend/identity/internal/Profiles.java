@@ -1,6 +1,5 @@
 package com.beavent.backend.identity.internal;
 
-import static com.beavent.db.iam.Tables.MFA_FACTORS;
 import static com.beavent.db.iam.Tables.USERS;
 import static com.beavent.db.iam.Tables.USER_CONSENTS;
 import static com.beavent.db.iam.Tables.USER_PROFILES;
@@ -28,23 +27,18 @@ public class Profiles {
     public record MeView(
             UsersRecord user,
             UserProfilesRecord profile,
-            boolean mfaEnabled,
-            boolean hasPassword,
             boolean platformStaff,
             List<MembershipDirectory.Membership> memberships) {}
 
     private final DSLContext dsl;
-    private final Passwords passwords;
     private final ObjectProvider<MembershipDirectory> memberships;
     private final ObjectProvider<AvatarFiles> avatarFiles;
 
     Profiles(
             @IdentityDb DSLContext dsl,
-            Passwords passwords,
             ObjectProvider<MembershipDirectory> memberships,
             ObjectProvider<AvatarFiles> avatarFiles) {
         this.dsl = dsl;
-        this.passwords = passwords;
         this.memberships = memberships;
         this.avatarFiles = avatarFiles;
     }
@@ -62,13 +56,11 @@ public class Profiles {
             profile.setUserId(userId);
             profile.store();
         }
-        boolean mfa =
-                dsl.fetchExists(MFA_FACTORS, MFA_FACTORS.USER_ID.eq(userId).and(MFA_FACTORS.CONFIRMED_AT.isNotNull()));
         boolean staff = dsl.fetchExists(
                 USER_STAFF_ROLES, USER_STAFF_ROLES.USER_ID.eq(userId).and(USER_STAFF_ROLES.REVOKED_AT.isNull()));
         MembershipDirectory directory = memberships.getIfAvailable();
         List<MembershipDirectory.Membership> list = directory == null ? List.of() : directory.activeMemberships(userId);
-        return new MeView(user, profile, mfa, passwords.hasPassword(userId), staff, list);
+        return new MeView(user, profile, staff, list);
     }
 
     /** JSON merge-patch semantics: absent = unchanged, null = cleared. */

@@ -99,12 +99,11 @@ Migration order follows dependencies: `00 foundation · 01 ref · 02 iam · 03 t
 | `user_profiles`, `user_addresses` | Display profile; saved addresses (landmark + geo) |
 | `user_credentials` | Argon2id hash, lockout |
 | `user_identities` | Google / Apple / Telegram / Fayda links |
-| `mfa_factors` | TOTP / SMS / WebAuthn (secret by reference) |
 | `devices` | App installations and push tokens |
 | `sessions` | Refresh-token rotation families with reuse detection |
 | `auth_challenges` | OTP and verification challenges (destination stored as HMAC) |
 | `user_consents` | Acceptance of legal document versions |
-| `permissions` | One permission catalogue (`ORGANIZATION` and `PLATFORM` scopes; `is_sensitive` → MFA) |
+| `permissions` | One permission catalogue (`ORGANIZATION` and `PLATFORM` scopes; `is_sensitive` → step-up code) |
 | `staff_roles`, `staff_role_permissions`, `user_staff_roles` | Platform staff roles, scoped per market |
 
 ### tenant: organizations (14)

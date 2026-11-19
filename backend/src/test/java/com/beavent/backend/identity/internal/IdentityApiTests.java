@@ -5,11 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import com.beavent.backend.ApiTestSupport;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -21,6 +19,9 @@ class IdentityApiTests extends ApiTestSupport {
 
     @Autowired
     Crypto crypto;
+
+    @Autowired
+    com.beavent.backend.platform.messaging.LoggingEmailGateway email;
 
     // --- tests -----------------------------------------------------------------------------------------------
 
@@ -141,106 +142,72 @@ class IdentityApiTests extends ApiTestSupport {
     }
 
     @Test
-    void passwordCanBeSetAfterARecentSignInAndLocksAfterRepeatedFailures() throws Exception {
-        String phone = newPhone();
-        String access = signInWithOtp(phone).body().get("accessToken").asString();
-        assertThat(call(put("/v1/me/password"), java.util.Map.of("newPassword", "correct horse battery"), access)
+    void emailCodesSignInAndNeverOpenAnotherAccountThatOnlyTypedTheSameAddress() throws Exception {
+        String address = "selam." + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
+        // Someone signed up by phone and typed this address into their profile without verifying it.
+        String phoneUser = signInWithOtp(newPhone()).body().get("accessToken").asString();
+        String phoneUserId = call(get("/v1/me"), null, phoneUser).text("id");
+        assertThat(call(patch("/v1/me"), java.util.Map.of("email", address), phoneUser)
                         .status())
-                .isEqualTo(204);
+                .isEqualTo(200);
 
-        Call ok = call(
-                post("/v1/auth/password"),
+        Call challenge = call(
+                post("/v1/auth/otp/request"),
                 java.util.Map.of(
-                        "identifier", phone, "password", "correct horse battery", "clientApp", "PARTNER_PORTAL"),
+                        "email", address, "purpose", "SIGN_IN", "clientApp", "WEB_MARKETPLACE", "language", "am"),
                 null);
-        assertThat(ok.status()).isEqualTo(200);
-        assertThat(claims(json, ok.body().get("accessToken").asString())
-                        .get("aal")
-                        .asString())
-                .isEqualTo("PASSWORD");
-        assertThat(ok.body().get("user").get("hasPassword").asBoolean()).isTrue();
+        assertThat(challenge.status()).isEqualTo(202);
+        assertThat(challenge.text("channel")).isEqualTo("EMAIL");
+        Call signedIn = call(
+                post("/v1/auth/otp/verify"),
+                java.util.Map.of("challengeId", challenge.text("challengeId"), "code", emailCode(address)),
+                null);
+        assertThat(signedIn.status()).isEqualTo(200);
+        assertThat(signedIn.body().get("isNewUser").asBoolean()).isTrue();
+        assertThat(signedIn.body().get("user").get("email").asString()).isEqualTo(address);
+        assertThat(signedIn.body().get("user").get("emailVerified").asBoolean()).isTrue();
+        assertThat(signedIn.body().get("user").get("id").asString()).isNotEqualTo(phoneUserId);
+        assertThat(call(get("/v1/me"), null, phoneUser).body().has("email"))
+                .as("the unverified copy was released")
+                .isFalse();
 
-        for (int i = 0; i < 10; i++) {
-            assertThat(call(
-                                    post("/v1/auth/password"),
-                                    java.util.Map.of(
-                                            "identifier",
-                                            phone,
-                                            "password",
-                                            "wrong-" + i,
-                                            "clientApp",
-                                            "PARTNER_PORTAL"),
-                                    null)
-                            .status())
-                    .isEqualTo(401);
-        }
-        // Locked: the right password is refused until the lockout expires.
-        assertThat(call(
-                                post("/v1/auth/password"),
+        // Step-up for an email-only account goes to the verified email.
+        String access = signedIn.text("accessToken");
+        ageChallenges(address);
+        Call stepChallenge = call(
+                post("/v1/auth/otp/request"),
+                java.util.Map.of("email", address.toUpperCase(), "purpose", "STEP_UP", "clientApp", "WEB_MARKETPLACE"),
+                access);
+        assertThat(stepChallenge.status()).isEqualTo(202);
+        Call stepUp = call(
+                post("/v1/auth/step-up"),
+                java.util.Map.of("challengeId", stepChallenge.text("challengeId"), "code", emailCode(address)),
+                access);
+        assertThat(claims(json, stepUp.text("accessToken")).get("aal").asString())
+                .isEqualTo("STEP_UP");
+
+        assertThat(callInvalid(
+                                post("/v1/auth/otp/request"),
                                 java.util.Map.of(
-                                        "identifier",
-                                        phone,
-                                        "password",
-                                        "correct horse battery",
-                                        "clientApp",
-                                        "PARTNER_PORTAL"),
-                                null)
-                        .status())
-                .isEqualTo(401);
-        // Unknown accounts look the same as wrong passwords.
-        assertThat(call(
-                                post("/v1/auth/password"),
-                                java.util.Map.of(
-                                        "identifier",
+                                        "phone",
                                         newPhone(),
-                                        "password",
-                                        "whatever-123",
+                                        "email",
+                                        address,
+                                        "purpose",
+                                        "SIGN_IN",
                                         "clientApp",
-                                        "PARTNER_PORTAL"),
+                                        "MOBILE_APP"),
                                 null)
                         .status())
-                .isEqualTo(401);
+                .as("phone and email together")
+                .isEqualTo(400);
     }
 
-    @Test
-    void authenticatorAppMakesSignInRequireASecondFactorAndCodesCannotBeReplayed() throws Exception {
-        String phone = newPhone();
-        String access = signInWithOtp(phone).body().get("accessToken").asString();
-        Call enrollment = call(post("/v1/me/mfa/totp"), null, access);
-        assertThat(enrollment.status()).isEqualTo(201);
-        byte[] secret = Totp.fromBase32(enrollment.body().get("secret").asString());
-        long step = Totp.step(Instant.now().getEpochSecond());
-        assertThat(call(
-                                post("/v1/me/mfa/totp/confirm"),
-                                java.util.Map.of(
-                                        "factorId",
-                                        enrollment.body().get("factorId").asString(),
-                                        "code",
-                                        Totp.code(secret, step)),
-                                access)
-                        .status())
-                .isEqualTo(204);
-
-        Call pending = signInWithOtp(phone);
-        assertThat(pending.body().get("result").asString()).isEqualTo("MFA_REQUIRED");
-        String mfaChallenge = pending.body().get("mfaChallengeId").asString();
-        // The code already used for confirmation is rejected (replay); the next step's code works.
-        assertThat(call(
-                                post("/v1/auth/mfa/verify"),
-                                java.util.Map.of("mfaChallengeId", mfaChallenge, "code", Totp.code(secret, step)),
-                                null)
-                        .status())
-                .isEqualTo(401);
-        Call done = call(
-                post("/v1/auth/mfa/verify"),
-                java.util.Map.of("mfaChallengeId", mfaChallenge, "code", Totp.code(secret, step + 1)),
-                null);
-        assertThat(done.status()).isEqualTo(200);
-        assertThat(claims(json, done.body().get("accessToken").asString())
-                        .get("aal")
-                        .asString())
-                .isEqualTo("MFA");
-        assertThat(done.body().get("user").get("mfaEnabled").asBoolean()).isTrue();
+    String emailCode(String address) {
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern.compile("(\\d{6})").matcher(email.lastMessageTo(address));
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
     }
 
     @Test
@@ -257,7 +224,7 @@ class IdentityApiTests extends ApiTestSupport {
         String challengeId = requestCode(phone, "STEP_UP", access);
         Call stepUp = call(
                 post("/v1/auth/step-up"),
-                java.util.Map.of("method", "OTP", "challengeId", challengeId, "code", lastCode(phone)),
+                java.util.Map.of("challengeId", challengeId, "code", lastCode(phone)),
                 access);
         assertThat(stepUp.status()).isEqualTo(200);
         JsonNode claims = claims(json, stepUp.body().get("accessToken").asString());

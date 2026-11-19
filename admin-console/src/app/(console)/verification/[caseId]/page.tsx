@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge, Cell, PageTitle, Table, formatInstant } from "@/components/ui";
-import { staffApi, unwrap } from "@/lib/session";
+import { ConfirmPanel } from "@/components/ConfirmPanel";
+import { hasStepUp, staffApi, unwrap } from "@/lib/session";
 import { DecisionForm } from "./DecisionForm";
 
 const OPEN = ["OPEN", "AWAITING_INFO", "IN_REVIEW"];
@@ -15,6 +16,7 @@ export default async function VerificationCasePage({
   );
   const me = unwrap(await api.GET("/v1/admin/me"));
   const c = detail.verificationCase;
+  const confirmed = await hasStepUp();
   return (
     <>
       <PageTitle
@@ -38,6 +40,7 @@ export default async function VerificationCasePage({
           </p>
         </section>
       )}
+      {!confirmed && <ConfirmPanel what="open documents or decide" />}
       <section className="mb-6">
         <h2 className="mb-2 font-medium">Documents</h2>
         <Table head={["Type", "Status", "Expires", ""]}>
@@ -50,14 +53,16 @@ export default async function VerificationCasePage({
               <Cell>{d.expiresOn ?? "—"}</Cell>
               <Cell>
                 {/* A plain link (no prefetch): every opening is audited. */}
-                <a
-                  href={`/verification/${caseId}/documents/${d.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  Open (60 s link)
-                </a>
+                {confirmed && (
+                  <a
+                    href={`/verification/${caseId}/documents/${d.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Open (60 s link)
+                  </a>
+                )}
               </Cell>
             </tr>
           ))}

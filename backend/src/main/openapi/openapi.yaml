@@ -44,12 +44,8 @@ paths:
     $ref: ./identity/paths.yaml#/otpRequest
   /v1/auth/otp/verify:
     $ref: ./identity/paths.yaml#/otpVerify
-  /v1/auth/password:
-    $ref: ./identity/paths.yaml#/passwordLogin
   /v1/auth/oauth/{provider}:
     $ref: ./identity/paths.yaml#/oauthLogin
-  /v1/auth/mfa/verify:
-    $ref: ./identity/paths.yaml#/mfaVerify
   /v1/auth/refresh:
     $ref: ./identity/paths.yaml#/refresh
   /v1/auth/logout:
@@ -60,12 +56,6 @@ paths:
     $ref: ./identity/paths.yaml#/jwks
   /v1/me:
     $ref: ./identity/paths.yaml#/me
-  /v1/me/password:
-    $ref: ./identity/paths.yaml#/mePassword
-  /v1/me/mfa/totp:
-    $ref: ./identity/paths.yaml#/meTotp
-  /v1/me/mfa/totp/confirm:
-    $ref: ./identity/paths.yaml#/meTotpConfirm
   /v1/me/sessions:
     $ref: ./identity/paths.yaml#/meSessions
   /v1/me/sessions/{sessionId}:

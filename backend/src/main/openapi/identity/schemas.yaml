@@ -4,7 +4,7 @@ OtpPurpose:
   description: SIGN_IN creates the account on first use (phone-first sign-up).
 OtpChannel:
   type: string
-  enum: [SMS, TELEGRAM, WHATSAPP, VOICE]
+  enum: [SMS, TELEGRAM, WHATSAPP, VOICE, EMAIL]
 ClientApp:
   type: string
   enum: [MOBILE_APP, WEB_MARKETPLACE, PARTNER_PORTAL, ADMIN_CONSOLE]
@@ -23,16 +23,24 @@ DeviceInfo:
       maxLength: 40
 OtpRequest:
   type: object
-  required: [phone, purpose, clientApp]
+  description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
+  required: [purpose, clientApp]
+  oneOf:
+    - required: [phone]
+    - required: [email]
   properties:
     phone:
       $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+      maxLength: 200
     purpose:
       $ref: '#/OtpPurpose'
     channel:
       allOf:
         - $ref: '#/OtpChannel'
-      default: SMS
+      description: Defaults to SMS for phones and EMAIL for email addresses.
     clientApp:
       $ref: '#/ClientApp'
     language:
@@ -63,23 +71,6 @@ OtpVerify:
       pattern: ^[0-9]{4,8}$
     device:
       $ref: '#/DeviceInfo'
-PasswordLogin:
-  type: object
-  required: [identifier, password, clientApp]
-  properties:
-    identifier:
-      type: string
-      description: Phone number (E.164) or email.
-      maxLength: 320
-    password:
-      type: string
-      format: password
-      minLength: 1
-      maxLength: 256
-    clientApp:
-      $ref: '#/ClientApp'
-    device:
-      $ref: '#/DeviceInfo'
 OAuthLogin:
   type: object
   required: [idToken, nonce, clientApp]
@@ -93,15 +84,6 @@ OAuthLogin:
       $ref: '#/ClientApp'
     device:
       $ref: '#/DeviceInfo'
-MfaVerify:
-  type: object
-  required: [mfaChallengeId, code]
-  properties:
-    mfaChallengeId:
-      $ref: ../common/schemas.yaml#/Uuid
-    code:
-      type: string
-      pattern: ^[0-9]{6}$
 RefreshRequest:
   type: object
   required: [refreshToken]
@@ -121,26 +103,14 @@ LogoutRequest:
       default: false
 StepUpRequest:
   type: object
-  required: [method, code]
+  description: A fresh one-time code (purpose STEP_UP, sent to the account's phone or email) before a sensitive action.
+  required: [challengeId, code]
   properties:
-    method:
-      type: string
-      enum: [OTP, TOTP]
     challengeId:
       $ref: ../common/schemas.yaml#/Uuid
     code:
       type: string
       pattern: ^[0-9]{4,8}$
-AuthResult:
-  description: Either tokens, or a second factor is required first.
-  oneOf:
-    - $ref: '#/Tokens'
-    - $ref: '#/MfaRequired'
-  discriminator:
-    propertyName: result
-    mapping:
-      TOKENS: '#/Tokens'
-      MFA_REQUIRED: '#/MfaRequired'
 Tokens:
   type: object
   required: [result, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, user, isNewUser]
@@ -161,20 +131,6 @@ Tokens:
       type: boolean
     user:
       $ref: '#/Me'
-MfaRequired:
-  type: object
-  required: [result, mfaChallengeId, methods]
-  properties:
-    result:
-      type: string
-      const: MFA_REQUIRED
-    mfaChallengeId:
-      $ref: ../common/schemas.yaml#/Uuid
-    methods:
-      type: array
-      items:
-        type: string
-        enum: [TOTP, SMS]
 Jwks:
   type: object
   required: [keys]
@@ -206,7 +162,7 @@ Membership:
         type: string
 Me:
   type: object
-  required: [id, status, phoneVerified, emailVerified, mfaEnabled, memberships, isPlatformStaff]
+  required: [id, status, phoneVerified, emailVerified, memberships, isPlatformStaff]
   properties:
     id:
       $ref: ../common/schemas.yaml#/Uuid
@@ -240,10 +196,6 @@ Me:
       enum: [GREGORIAN, ETHIOPIAN]
     timezone:
       type: string
-    mfaEnabled:
-      type: boolean
-    hasPassword:
-      type: boolean
     isPlatformStaff:
       type: boolean
     memberships:
@@ -277,39 +229,6 @@ MeUpdate:
       enum: [GREGORIAN, ETHIOPIAN]
     timezone:
       type: string
-PasswordChange:
-  type: object
-  required: [newPassword]
-  properties:
-    currentPassword:
-      type: string
-      format: password
-      description: Required when a password is already set (step-up token also accepted).
-    newPassword:
-      type: string
-      format: password
-      minLength: 10
-      maxLength: 256
-TotpEnrollment:
-  type: object
-  required: [factorId, otpauthUri, secret]
-  properties:
-    factorId:
-      $ref: ../common/schemas.yaml#/Uuid
-    otpauthUri:
-      type: string
-    secret:
-      type: string
-      description: Base32; shown once.
-TotpConfirm:
-  type: object
-  required: [factorId, code]
-  properties:
-    factorId:
-      $ref: ../common/schemas.yaml#/Uuid
-    code:
-      type: string
-      pattern: ^[0-9]{6}$
 Session:
   type: object
   required: [id, clientApp, createdAt, current]

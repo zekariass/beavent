@@ -266,14 +266,15 @@ public class Sessions {
             java.time.Duration accessTtl) {
         String refreshToken = Crypto.randomToken();
         Instant now = Instant.now();
-        Instant refreshExpires = now.plus(properties.refreshTokenTtl());
+        Instant refreshExpires = now.plus(
+                "ADMIN_CONSOLE".equals(clientApp) ? properties.adminRefreshTokenTtl() : properties.refreshTokenTtl());
         dsl.insertInto(SESSIONS)
                 .set(SESSIONS.USER_ID, userId)
                 .set(SESSIONS.CLIENT_APP, clientApp)
                 .set(SESSIONS.DEVICE_ID, deviceId)
                 .set(SESSIONS.FAMILY_ID, familyId)
                 .set(SESSIONS.REFRESH_TOKEN_HASH, crypto.tokenHash(refreshToken))
-                .set(SESSIONS.ASSURANCE_LEVEL, assurance == Assurance.STEP_UP ? Assurance.MFA.name() : assurance.name())
+                .set(SESSIONS.ASSURANCE_LEVEL, assurance.name())
                 .set(SESSIONS.IP_ADDRESS, (Object) DSL.field(
                         "cast({0} as inet)",
                         Object.class, DSL.val(client == null ? null : client.ipAddress(), String.class)))

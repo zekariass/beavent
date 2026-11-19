@@ -12,11 +12,12 @@ public record IdentityProperties(
         @DefaultValue("10m") Duration accessTokenTtl,
         @DefaultValue("5m") Duration stepUpTokenTtl,
         @DefaultValue("30d") Duration refreshTokenTtl,
+        /** Admin-console sessions end sooner (no second factor; sensitive actions need a fresh code). */
+        @DefaultValue("12h") Duration adminRefreshTokenTtl,
         /** Base64, ≥ 32 bytes. Keys OTP/destination HMACs and the authenticator-secret cipher. */
         String secretKey,
         @DefaultValue Jwt jwt,
         @DefaultValue Otp otp,
-        @DefaultValue Password password,
         @DefaultValue OAuth oauth) {
 
     public record Jwt(
@@ -34,11 +35,6 @@ public record IdentityProperties(
             @DefaultValue("30s") Duration resendAfter,
             @DefaultValue("5") int perPhonePerHour,
             @DefaultValue("30") int perIpPerHour) {}
-
-    public record Password(
-            @DefaultValue("10") int maxFailures,
-            @DefaultValue("15m") Duration lockout,
-            @DefaultValue("10") int minLength) {}
 
     public record OAuth(
             @DefaultValue Provider google, @DefaultValue Provider apple) {}

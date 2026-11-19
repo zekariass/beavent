@@ -17,7 +17,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
-class IdTokenAndTotpTest {
+class IdTokenVerifierTest {
 
     @Test
     void verifiesGoogleStyleIdTokensIssuerAudienceAndNonce() throws Exception {
@@ -64,13 +64,5 @@ class IdTokenAndTotpTest {
                         .build());
         jwt.sign(new RSASSASigner(key));
         return jwt.serialize();
-    }
-
-    @Test
-    void totpMatchesRfc6238TestVector() {
-        // RFC 6238 appendix B, SHA-1, T = 59 s → 94287082 (8 digits); 6-digit variant is the last 6 digits.
-        byte[] secret = "12345678901234567890".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-        assertThat(Totp.code(secret, Totp.step(59))).isEqualTo("287082");
-        assertThat(Totp.fromBase32(Totp.base32(secret))).isEqualTo(secret);
     }
 }

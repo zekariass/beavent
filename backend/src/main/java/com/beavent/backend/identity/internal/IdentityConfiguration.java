@@ -12,12 +12,6 @@ class IdentityConfiguration {
 
     @Bean
     PublicEndpoints identityPublicEndpoints() {
-        return () -> List.of(
-                "/v1/auth/otp/**",
-                "/v1/auth/password",
-                "/v1/auth/oauth/**",
-                "/v1/auth/mfa/verify",
-                "/v1/auth/refresh",
-                "/.well-known/jwks.json");
+        return () -> List.of("/v1/auth/otp/**", "/v1/auth/oauth/**", "/v1/auth/refresh", "/.well-known/jwks.json");
     }
 }

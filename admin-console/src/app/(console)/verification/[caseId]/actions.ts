@@ -18,7 +18,7 @@ export async function decide(
   if (reason.length < 5)
     return { error: "Give a reason (at least 5 characters); it is recorded in the audit log." };
   const { data, error } = await (
-    await staffApi()
+    await staffApi({ stepUp: true })
   ).POST("/v1/admin/verification-cases/{caseId}/decision", {
     params: { path: { caseId } },
     body: { decision, reason },

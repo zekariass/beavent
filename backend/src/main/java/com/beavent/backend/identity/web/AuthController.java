@@ -3,7 +3,6 @@ package com.beavent.backend.identity.web;
 import com.beavent.backend.identity.Assurance;
 import com.beavent.backend.identity.internal.Accounts;
 import com.beavent.backend.identity.internal.ClientContext;
-import com.beavent.backend.identity.internal.Mfa;
 import com.beavent.backend.identity.internal.Otps;
 import com.beavent.backend.identity.internal.Profiles;
 import com.beavent.backend.identity.internal.Sessions;
@@ -34,7 +33,6 @@ class AuthController {
     private final Otps otps;
     private final SignIn signIn;
     private final Sessions sessions;
-    private final Mfa mfa;
     private final Accounts accounts;
     private final Profiles profiles;
     private final TransactionTemplate transactions;
@@ -43,14 +41,12 @@ class AuthController {
             Otps otps,
             SignIn signIn,
             Sessions sessions,
-            Mfa mfa,
             Accounts accounts,
             Profiles profiles,
             @IdentityDb TransactionTemplate transactions) {
         this.otps = otps;
         this.signIn = signIn;
         this.sessions = sessions;
-        this.mfa = mfa;
         this.accounts = accounts;
         this.profiles = profiles;
         this.transactions = transactions;
@@ -59,7 +55,14 @@ class AuthController {
     @PostMapping("/v1/auth/otp/request")
     ResponseEntity<OtpChallengeBody> requestOtp(
             @Valid @RequestBody OtpRequestBody body, @AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
-        String channel = body.channel() == null ? "SMS" : body.channel();
+        if ((body.phone() == null) == (body.email() == null)) {
+            throw new ApiException(ProblemCode.VALIDATION_FAILED, "Give either a phone number or an email address.");
+        }
+        boolean byEmail = body.email() != null;
+        String channel = byEmail ? "EMAIL" : body.channel() == null ? "SMS" : body.channel();
+        if (byEmail != "EMAIL".equals(channel)) {
+            throw new ApiException(ProblemCode.VALIDATION_FAILED, "Codes to an email address use the EMAIL channel.");
+        }
         UUID userId = null;
         switch (body.purpose()) {
             case "SIGN_IN" -> {}
@@ -68,17 +71,24 @@ class AuthController {
                     throw new ApiException(ProblemCode.UNAUTHENTICATED);
                 }
                 userId = UUID.fromString(jwt.getSubject());
-                String phone = transactions.execute(s -> accounts.byId(UUID.fromString(jwt.getSubject()))
-                        .map(u -> u.getPhoneE164())
-                        .orElse(null));
-                if (phone == null || !phone.equals(body.phone())) {
-                    throw new ApiException(ProblemCode.VALIDATION_FAILED, "Use the phone number on your account.");
+                var user = transactions.execute(s -> accounts.byId(UUID.fromString(jwt.getSubject()))
+                        .orElseThrow(() -> new ApiException(ProblemCode.UNAUTHENTICATED)));
+                boolean ownPhone = body.phone() != null
+                        && user.getPhoneVerifiedAt() != null
+                        && body.phone().equals(user.getPhoneE164());
+                boolean ownEmail = byEmail
+                        && user.getEmailVerifiedAt() != null
+                        && body.email().strip().equalsIgnoreCase(user.getEmail());
+                if (!ownPhone && !ownEmail) {
+                    throw new ApiException(
+                            ProblemCode.VALIDATION_FAILED, "Use the verified phone number or email on your account.");
                 }
             }
             default -> throw new ApiException(ProblemCode.VALIDATION_FAILED, "This code purpose is not available yet.");
         }
         Otps.Challenge challenge = otps.request(
                 body.phone(),
+                body.email(),
                 body.purpose(),
                 channel,
                 userId,
@@ -95,7 +105,7 @@ class AuthController {
     }
 
     @PostMapping("/v1/auth/otp/verify")
-    Object verifyOtp(@Valid @RequestBody OtpVerifyBody body, HttpServletRequest request) {
+    TokensBody verifyOtp(@Valid @RequestBody OtpVerifyBody body, HttpServletRequest request) {
         SignIn.Outcome outcome = signIn.withOtp(
                 body.challengeId(),
                 body.code(),
@@ -105,25 +115,14 @@ class AuthController {
         return result(outcome);
     }
 
-    @PostMapping("/v1/auth/password")
-    Object signInWithPassword(@Valid @RequestBody PasswordLoginBody body, HttpServletRequest request) {
-        return result(signIn.withPassword(
-                body.identifier(), body.password(), client(body.clientApp(), body.device(), request)));
-    }
-
     @PostMapping("/v1/auth/oauth/{provider}")
-    Object signInWithProvider(
+    TokensBody signInWithProvider(
             @PathVariable String provider, @Valid @RequestBody OAuthLoginBody body, HttpServletRequest request) {
         if (!List.of("google", "apple").contains(provider)) {
             throw new ApiException(ProblemCode.NOT_FOUND);
         }
         return result(signIn.withProvider(
                 provider, body.idToken(), body.nonce(), client(body.clientApp(), body.device(), request)));
-    }
-
-    @PostMapping("/v1/auth/mfa/verify")
-    TokensBody verifyMfa(@Valid @RequestBody MfaVerifyBody body) {
-        return tokens(signIn.completeMfa(body.mfaChallengeId(), body.code()), false);
     }
 
     @PostMapping("/v1/auth/refresh")
@@ -158,19 +157,9 @@ class AuthController {
             @Valid @RequestBody StepUpBody body, @AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
         UUID userId = UUID.fromString(jwt.getSubject());
         UUID familyId = UUID.fromString(jwt.getClaimAsString(Assurance.SESSION_CLAIM));
-        if ("OTP".equals(body.method())) {
-            if (body.challengeId() == null) {
-                throw new ApiException(ProblemCode.VALIDATION_FAILED, "challengeId is required for OTP step-up.");
-            }
-            Otps.Verified verified = otps.verify(body.challengeId(), body.code(), "STEP_UP");
-            if (!userId.equals(verified.userId())) {
-                throw new ApiException(ProblemCode.UNAUTHENTICATED, "The code is incorrect or has expired.");
-            }
-        } else {
-            Boolean ok = transactions.execute(s -> mfa.verifyTotp(userId, body.code()));
-            if (!Boolean.TRUE.equals(ok)) {
-                throw new ApiException(ProblemCode.UNAUTHENTICATED, "The code is incorrect or has expired.");
-            }
+        Otps.Verified verified = otps.verify(body.challengeId(), body.code(), "STEP_UP");
+        if (!userId.equals(verified.userId())) {
+            throw new ApiException(ProblemCode.UNAUTHENTICATED, "The code is incorrect or has expired.");
         }
         TokenPair tokens = transactions.execute(s -> sessions.stepUp(
                 userId,
@@ -179,10 +168,7 @@ class AuthController {
         return tokens(tokens, false);
     }
 
-    private Object result(SignIn.Outcome outcome) {
-        if (outcome.mfaChallengeId() != null) {
-            return new MfaRequiredBody("MFA_REQUIRED", outcome.mfaChallengeId(), List.of("TOTP"));
-        }
+    private TokensBody result(SignIn.Outcome outcome) {
         return tokens(outcome.tokens(), outcome.newUser());
     }
 

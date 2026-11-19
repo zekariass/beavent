@@ -79,39 +79,13 @@ paths:
               $ref: '#/components/schemas/OtpVerify'
       responses:
         '200':
-          description: Signed in, or a second factor is required.
+          description: Signed in.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResult'
+                $ref: '#/components/schemas/Tokens'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-  /v1/auth/password:
-    post:
-      tags:
-        - Auth
-      operationId: signInWithPassword
-      summary: Sign in with phone or email and password
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordLogin'
-      responses:
-        '200':
-          description: Signed in, or a second factor is required.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -142,11 +116,11 @@ paths:
               $ref: '#/components/schemas/OAuthLogin'
       responses:
         '200':
-          description: Signed in, or a second factor is required.
+          description: Signed in.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResult'
+                $ref: '#/components/schemas/Tokens'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -157,32 +131,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-  /v1/auth/mfa/verify:
-    post:
-      tags:
-        - Auth
-      operationId: verifyMfa
-      summary: Complete sign-in with the second factor
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MfaVerify'
-      responses:
-        '200':
-          description: Signed in.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tokens'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
   /v1/auth/refresh:
     post:
       tags:
@@ -305,59 +253,6 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
-  /v1/me/password:
-    put:
-      tags:
-        - Me
-      operationId: changePassword
-      summary: Set or change the password (revokes other sessions)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordChange'
-      responses:
-        '204':
-          $ref: '#/components/responses/NoContent'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /v1/me/mfa/totp:
-    post:
-      tags:
-        - Me
-      operationId: enrollTotp
-      summary: Start enrolling an authenticator app
-      responses:
-        '201':
-          description: Secret to add to the authenticator app.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TotpEnrollment'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /v1/me/mfa/totp/confirm:
-    post:
-      tags:
-        - Me
-      operationId: confirmTotp
-      summary: Confirm the authenticator app with a first code
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TotpConfirm'
-      responses:
-        '204':
-          $ref: '#/components/responses/NoContent'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
   /v1/me/sessions:
     get:
       tags:
@@ -1803,6 +1698,7 @@ components:
         - TELEGRAM
         - WHATSAPP
         - VOICE
+        - EMAIL
     ClientApp:
       type: string
       enum:
@@ -1817,19 +1713,28 @@ components:
         - am
     OtpRequest:
       type: object
+      description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
       required:
-        - phone
         - purpose
         - clientApp
+      oneOf:
+        - required:
+            - phone
+        - required:
+            - email
       properties:
         phone:
           $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+          maxLength: 200
         purpose:
           $ref: '#/components/schemas/OtpPurpose'
         channel:
           allOf:
             - $ref: '#/components/schemas/OtpChannel'
-          default: SMS
+          description: Defaults to SMS for phones and EMAIL for email addresses.
         clientApp:
           $ref: '#/components/schemas/ClientApp'
         language:
@@ -1991,7 +1896,6 @@ components:
         - status
         - phoneVerified
         - emailVerified
-        - mfaEnabled
         - memberships
         - isPlatformStaff
       properties:
@@ -2034,10 +1938,6 @@ components:
             - ETHIOPIAN
         timezone:
           type: string
-        mfaEnabled:
-          type: boolean
-        hasPassword:
-          type: boolean
         isPlatformStaff:
           type: boolean
         memberships:
@@ -2071,55 +1971,6 @@ components:
           type: boolean
         user:
           $ref: '#/components/schemas/Me'
-    MfaRequired:
-      type: object
-      required:
-        - result
-        - mfaChallengeId
-        - methods
-      properties:
-        result:
-          type: string
-          const: MFA_REQUIRED
-        mfaChallengeId:
-          $ref: '#/components/schemas/Uuid'
-        methods:
-          type: array
-          items:
-            type: string
-            enum:
-              - TOTP
-              - SMS
-    AuthResult:
-      description: Either tokens, or a second factor is required first.
-      oneOf:
-        - $ref: '#/components/schemas/Tokens'
-        - $ref: '#/components/schemas/MfaRequired'
-      discriminator:
-        propertyName: result
-        mapping:
-          TOKENS: '#/components/schemas/Tokens'
-          MFA_REQUIRED: '#/components/schemas/MfaRequired'
-    PasswordLogin:
-      type: object
-      required:
-        - identifier
-        - password
-        - clientApp
-      properties:
-        identifier:
-          type: string
-          description: Phone number (E.164) or email.
-          maxLength: 320
-        password:
-          type: string
-          format: password
-          minLength: 1
-          maxLength: 256
-        clientApp:
-          $ref: '#/components/schemas/ClientApp'
-        device:
-          $ref: '#/components/schemas/DeviceInfo'
     OAuthLogin:
       type: object
       required:
@@ -2136,17 +1987,6 @@ components:
           $ref: '#/components/schemas/ClientApp'
         device:
           $ref: '#/components/schemas/DeviceInfo'
-    MfaVerify:
-      type: object
-      required:
-        - mfaChallengeId
-        - code
-      properties:
-        mfaChallengeId:
-          $ref: '#/components/schemas/Uuid'
-        code:
-          type: string
-          pattern: ^[0-9]{6}$
     RefreshRequest:
       type: object
       required:
@@ -2167,15 +2007,11 @@ components:
           default: false
     StepUpRequest:
       type: object
+      description: A fresh one-time code (purpose STEP_UP, sent to the account's phone or email) before a sensitive action.
       required:
-        - method
+        - challengeId
         - code
       properties:
-        method:
-          type: string
-          enum:
-            - OTP
-            - TOTP
         challengeId:
           $ref: '#/components/schemas/Uuid'
         code:
@@ -2230,45 +2066,6 @@ components:
             - ETHIOPIAN
         timezone:
           type: string
-    PasswordChange:
-      type: object
-      required:
-        - newPassword
-      properties:
-        currentPassword:
-          type: string
-          format: password
-          description: Required when a password is already set (step-up token also accepted).
-        newPassword:
-          type: string
-          format: password
-          minLength: 10
-          maxLength: 256
-    TotpEnrollment:
-      type: object
-      required:
-        - factorId
-        - otpauthUri
-        - secret
-      properties:
-        factorId:
-          $ref: '#/components/schemas/Uuid'
-        otpauthUri:
-          type: string
-        secret:
-          type: string
-          description: Base32; shown once.
-    TotpConfirm:
-      type: object
-      required:
-        - factorId
-        - code
-      properties:
-        factorId:
-          $ref: '#/components/schemas/Uuid'
-        code:
-          type: string
-          pattern: ^[0-9]{6}$
     Session:
       type: object
       required:

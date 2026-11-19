@@ -2,6 +2,7 @@ package com.beavent.backend.identity.web;
 
 import com.beavent.backend.identity.internal.ClientContext;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -29,12 +30,15 @@ final class AuthDtos {
     }
 
     record OtpRequestBody(
-            @NotNull @Pattern(regexp = PHONE) String phone,
+            @Pattern(regexp = PHONE) String phone,
+            @Email @Size(max = 200) String email,
 
             @NotNull @Pattern(regexp = "SIGN_IN|VERIFY_PHONE|STEP_UP|CLAIM_GUEST_ORDERS|CHANGE_PAYOUT_ACCOUNT")
             String purpose,
 
-            @Pattern(regexp = "SMS|TELEGRAM|WHATSAPP|VOICE") String channel,
+            @Pattern(regexp = "SMS|TELEGRAM|WHATSAPP|VOICE|EMAIL")
+            String channel,
+
             @NotNull @Pattern(regexp = CLIENT_APP) String clientApp,
             String language) {}
 
@@ -45,29 +49,18 @@ final class AuthDtos {
             @NotNull @Pattern(regexp = "^[0-9]{4,8}$") String code,
             @Valid DeviceInfo device) {}
 
-    record PasswordLoginBody(
-            @NotBlank @Size(max = 320) String identifier,
-            @NotBlank @Size(max = 256) String password,
-            @NotNull @Pattern(regexp = CLIENT_APP) String clientApp,
-            @Valid DeviceInfo device) {}
-
     record OAuthLoginBody(
             @NotBlank String idToken,
             @NotBlank String nonce,
             @NotNull @Pattern(regexp = CLIENT_APP) String clientApp,
             @Valid DeviceInfo device) {}
 
-    record MfaVerifyBody(
-            @NotNull UUID mfaChallengeId,
-            @NotNull @Pattern(regexp = "^[0-9]{6}$") String code) {}
-
     record RefreshBody(@NotBlank String refreshToken) {}
 
     record LogoutBody(String refreshToken, Boolean allSessions) {}
 
     record StepUpBody(
-            @NotNull @Pattern(regexp = "OTP|TOTP") String method,
-            UUID challengeId,
+            @NotNull UUID challengeId,
             @NotNull @Pattern(regexp = "^[0-9]{4,8}$") String code) {}
 
     record MembershipBody(
@@ -94,8 +87,6 @@ final class AuthDtos {
             String preferredLanguage,
             String displayCalendar,
             String timezone,
-            boolean mfaEnabled,
-            boolean hasPassword,
             boolean isPlatformStaff,
             List<MembershipBody> memberships) {}
 
@@ -107,18 +98,6 @@ final class AuthDtos {
             Instant refreshTokenExpiresAt,
             boolean isNewUser,
             MeBody user) {}
-
-    record MfaRequiredBody(String result, UUID mfaChallengeId, List<String> methods) {}
-
-    record PasswordChangeBody(
-            String currentPassword,
-            @NotNull @Size(min = 10, max = 256) String newPassword) {}
-
-    record TotpEnrollmentBody(UUID factorId, String otpauthUri, String secret) {}
-
-    record TotpConfirmBody(
-            @NotNull UUID factorId,
-            @NotNull @Pattern(regexp = "^[0-9]{6}$") String code) {}
 
     record SessionBody(
             UUID id,

@@ -156,7 +156,7 @@ public abstract class ApiTestSupport {
         String challengeId = requestCode(person.phone(), "STEP_UP", person.token());
         Call stepUp = call(
                 post("/v1/auth/step-up"),
-                Map.of("method", "OTP", "challengeId", challengeId, "code", lastCode(person.phone())),
+                Map.of("challengeId", challengeId, "code", lastCode(person.phone())),
                 person.token());
         assertThat(stepUp.status()).isEqualTo(200);
         return stepUp.text("accessToken");
@@ -166,57 +166,14 @@ public abstract class ApiTestSupport {
         return json.readTree(new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[1]), StandardCharsets.UTF_8));
     }
 
-    /** Moves earlier codes for this phone out of the resend window (tests sign in repeatedly). */
+    /** Moves earlier codes for this phone or email out of the resend window (tests sign in repeatedly). */
     protected void ageChallenges(String phone) {
         system.update(AUTH_CHALLENGES)
                 .set(AUTH_CHALLENGES.CREATED_AT, OffsetDateTime.now().minusMinutes(1))
                 .where(DSL.field("{0}->>'phone'", String.class, AUTH_CHALLENGES.CONTEXT)
-                        .eq(phone))
+                        .eq(phone)
+                        .or(DSL.field("{0}->>'email'", String.class, AUTH_CHALLENGES.CONTEXT)
+                                .eq(phone.toLowerCase(java.util.Locale.ROOT))))
                 .execute();
-    }
-
-    // --- authenticator app (RFC 6238) ------------------------------------------------------------------------
-
-    /** Enrolls and confirms an authenticator app for the person; returns its secret. */
-    protected byte[] enrollAuthenticator(Person person) throws Exception {
-        Call enrollment = call(post("/v1/me/mfa/totp"), null, person.token());
-        assertThat(enrollment.status()).isEqualTo(201);
-        byte[] secret = base32(enrollment.text("secret"));
-        Call confirmed = call(
-                post("/v1/me/mfa/totp/confirm"),
-                Map.of("factorId", enrollment.text("factorId"), "code", totp(secret, 0)),
-                person.token());
-        assertThat(confirmed.status()).isEqualTo(204);
-        return secret;
-    }
-
-    /** The code for the current 30-second step plus {@code stepOffset} (codes cannot be reused). */
-    protected static String totp(byte[] secret, int stepOffset) throws Exception {
-        long step = java.time.Instant.now().getEpochSecond() / 30 + stepOffset;
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA1");
-        mac.init(new javax.crypto.spec.SecretKeySpec(secret, "HmacSHA1"));
-        byte[] hash = mac.doFinal(java.nio.ByteBuffer.allocate(8).putLong(step).array());
-        int offset = hash[hash.length - 1] & 0x0F;
-        int binary = ((hash[offset] & 0x7F) << 24)
-                | ((hash[offset + 1] & 0xFF) << 16)
-                | ((hash[offset + 2] & 0xFF) << 8)
-                | (hash[offset + 3] & 0xFF);
-        return String.format("%06d", binary % 1_000_000);
-    }
-
-    private static byte[] base32(String text) {
-        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        int buffer = 0;
-        int bits = 0;
-        for (char c : text.replace("=", "").toUpperCase(java.util.Locale.ROOT).toCharArray()) {
-            buffer = (buffer << 5) | alphabet.indexOf(c);
-            bits += 5;
-            if (bits >= 8) {
-                out.write((buffer >> (bits - 8)) & 0xFF);
-                bits -= 8;
-            }
-        }
-        return out.toByteArray();
     }
 }

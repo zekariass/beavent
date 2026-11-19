@@ -1,12 +1,11 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { MFA_COOKIE, cookieOptions, problemText, publicApi, storeTokens } from "@/lib/session";
+import { problemText, publicApi, storeTokens } from "@/lib/session";
 
 export interface SignInState {
-  step: "phone" | "code" | "mfa";
-  phone?: string;
+  step: "identify" | "code";
+  destination?: string;
   challengeId?: string;
   error?: string;
 }
@@ -18,13 +17,30 @@ function normalizePhone(raw: string): string {
   return digits.startsWith("+") ? digits : `+${digits}`;
 }
 
+/** Sends a one-time code to the staff member's phone (SMS) or email address. */
 export async function requestCode(_: SignInState, form: FormData): Promise<SignInState> {
-  const phone = normalizePhone(String(form.get("phone") ?? ""));
+  const input = String(form.get("destination") ?? "").trim();
+  const byEmail = input.includes("@");
+  const destination = byEmail ? input.toLowerCase() : normalizePhone(input);
   const { data, error } = await publicApi().POST("/v1/auth/otp/request", {
-    body: { phone, purpose: "SIGN_IN", channel: "SMS", clientApp: "ADMIN_CONSOLE", language: "en" },
+    body: byEmail
+      ? {
+          email: destination,
+          purpose: "SIGN_IN",
+          channel: "EMAIL",
+          clientApp: "ADMIN_CONSOLE",
+          language: "en",
+        }
+      : {
+          phone: destination,
+          purpose: "SIGN_IN",
+          channel: "SMS",
+          clientApp: "ADMIN_CONSOLE",
+          language: "en",
+        },
   });
-  if (!data) return { step: "phone", phone, error: problemText(error, "Could not send a code.") };
-  return { step: "code", phone, challengeId: data.challengeId };
+  if (!data) return { step: "identify", error: problemText(error, "Could not send a code.") };
+  return { step: "code", destination, challengeId: data.challengeId };
 }
 
 export async function verifyCode(state: SignInState, form: FormData): Promise<SignInState> {
@@ -33,29 +49,6 @@ export async function verifyCode(state: SignInState, form: FormData): Promise<Si
   });
   if (!data)
     return { ...state, error: problemText(error, "The code is incorrect or has expired.") };
-  if (data.result === "MFA_REQUIRED") {
-    (await cookies()).set(MFA_COOKIE, data.mfaChallengeId, cookieOptions(300));
-    return { step: "mfa", phone: state.phone };
-  }
-  // Signed in with the code only: the console will ask for an authenticator app first.
-  await storeTokens(data.accessToken, data.refreshToken);
-  redirect("/setup-authenticator");
-}
-
-export async function verifyAuthenticator(
-  state: SignInState,
-  form: FormData,
-): Promise<SignInState> {
-  const jar = await cookies();
-  const mfaChallengeId = jar.get(MFA_COOKIE)?.value;
-  if (!mfaChallengeId) return { step: "phone", error: "Your sign-in expired. Start again." };
-  const { data, error } = await publicApi().POST("/v1/auth/mfa/verify", {
-    body: { mfaChallengeId, code: String(form.get("code") ?? "").trim() },
-  });
-  if (!data || data.result !== "TOKENS") {
-    return { ...state, error: problemText(error, "The code is incorrect.") };
-  }
-  jar.delete(MFA_COOKIE);
   await storeTokens(data.accessToken, data.refreshToken);
   redirect("/");
 }

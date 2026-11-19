@@ -13,9 +13,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * account changes, large refunds, exports, member role changes — call {@link #requireStepUp()}.
  */
 public enum Assurance {
+    /** Signed in with a one-time code to a phone or email. */
     OTP,
-    PASSWORD,
-    MFA,
+    /** Signed in with Google or Apple. */
+    PROVIDER,
+    /** A fresh one-time code shortly before a sensitive action (short-lived token). */
     STEP_UP;
 
     public static final String CLAIM = "aal";

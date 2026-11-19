@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { requestCode, verifyAuthenticator, verifyCode, type SignInState } from "./actions";
+import { requestCode, verifyCode, type SignInState } from "./actions";
 
 const input =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900";
@@ -10,43 +10,26 @@ const button =
 
 export function SignInForm() {
   const [state, action, pending] = useActionState(
-    async (previous: SignInState, form: FormData): Promise<SignInState> => {
-      if (previous.step === "phone") return requestCode(previous, form);
-      if (previous.step === "code") return verifyCode(previous, form);
-      return verifyAuthenticator(previous, form);
-    },
-    { step: "phone" } as SignInState,
+    async (previous: SignInState, form: FormData): Promise<SignInState> =>
+      previous.step === "identify" ? requestCode(previous, form) : verifyCode(previous, form),
+    { step: "identify" } as SignInState,
   );
   return (
     <form action={action} className="flex flex-col gap-4">
-      {state.step === "phone" && (
+      {state.step === "identify" ? (
         <label className="flex flex-col gap-1 text-sm">
-          Phone number
+          Phone number or work email
           <input
-            name="phone"
-            type="tel"
-            autoComplete="tel"
+            name="destination"
             required
-            placeholder="09… or +251…"
+            autoComplete="username"
+            placeholder="09…, +251… or you@…"
             className={input}
           />
         </label>
-      )}
-      {state.step === "code" && (
+      ) : (
         <label className="flex flex-col gap-1 text-sm">
-          Code sent to {state.phone}
-          <input
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            required
-            className={input}
-          />
-        </label>
-      )}
-      {state.step === "mfa" && (
-        <label className="flex flex-col gap-1 text-sm">
-          Code from your authenticator app
+          Code sent to {state.destination}
           <input
             name="code"
             inputMode="numeric"
@@ -62,7 +45,7 @@ export function SignInForm() {
         </p>
       )}
       <button type="submit" disabled={pending} className={button}>
-        {state.step === "phone" ? "Send code" : "Continue"}
+        {state.step === "identify" ? "Send code" : "Sign in"}
       </button>
     </form>
   );

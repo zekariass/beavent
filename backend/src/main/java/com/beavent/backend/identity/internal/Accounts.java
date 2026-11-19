@@ -71,7 +71,32 @@ public class Accounts {
         return created(id);
     }
 
-    /** Creates an account from an external identity (Google/Apple) with a verified email. */
+    /**
+     * Email sign-in: the account whose verified email this is, or a new one. An unverified copy of the address on
+     * another account is released first — typing an email into a profile never gives its owner's inbox access to
+     * that account, and proving the inbox never gives access to someone else's account.
+     */
+    public Account findOrCreateByVerifiedEmail(String email, String language) {
+        Optional<UsersRecord> existing = byEmail(email);
+        if (existing.isPresent() && existing.get().getEmailVerifiedAt() != null) {
+            requireActive(existing.get());
+            return new Account(existing.get(), false);
+        }
+        existing.ifPresent(other -> {
+            dsl.update(USERS)
+                    .setNull(USERS.EMAIL)
+                    .where(USERS.ID.eq(other.getId()))
+                    .execute();
+            audit.userAction(
+                    other.getId(),
+                    "user.unverified_email_released",
+                    "iam.user",
+                    other.getId().toString());
+        });
+        return createWithVerifiedEmail(email, language);
+    }
+
+    /** Creates an account with a verified email (email code, Google or Apple). */
     public Account createWithVerifiedEmail(String email, String language) {
         UUID id = UUID.randomUUID();
         dsl.insertInto(USERS)

@@ -16,7 +16,7 @@ export async function setFlag(
   const reason = String(form.get("reason") ?? "").trim();
   if (reason.length < 5) return { error: "Give a reason (at least 5 characters)." };
   const { data, error } = await (
-    await staffApi()
+    await staffApi({ stepUp: true })
   ).PUT("/v1/admin/feature-flags/{code}", {
     params: { path: { code } },
     body: { defaultEnabled: enabled, reason },

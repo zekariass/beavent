@@ -272,7 +272,7 @@ Daily per provider account:
 
 * No card numbers or CVVs ever touch the platform (hosted fields/pages → PCI DSS SAQ-A scope). Wallet PINs are entered only on the handset or the provider page.
 * Credentials, webhook secrets, payout account numbers and provider tokens live in the secret manager; the DB stores references (`*_secret_ref`) and masked display values.
-* Sensitive operations (refunds above a threshold, payout account changes, payout approvals) require MFA/step-up and are audited with before/after state.
+* Sensitive operations (refunds above a threshold, payout account changes, payout approvals) require a fresh one-time code (step-up) and are audited with before/after state.
 * Records are retained per local accounting law (typically 5–10 years); erasure requests anonymise personal data but keep financial records.
 * AML and KYC: KYB before the first payout; transaction monitoring signals in `trust.fraud_signals`; payout holds via `trust.risk_profiles`.
 

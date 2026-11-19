@@ -43,7 +43,7 @@ DO $$ DECLARE n int; BEGIN
   GET DIAGNOSTICS n = ROW_COUNT;
   PERFORM test.assert(n = 0, 'system role permissions cannot be deleted');
 END $$;
-SELECT test.expect_error($$ SELECT * FROM iam.user_credentials $$, '42501', 'app role has no access to credentials');
+SELECT test.expect_error($$ SELECT * FROM iam.auth_challenges $$, '42501', 'app role has no access to one-time codes');
 SELECT test.expect_error($$ SELECT * FROM iam.sessions $$, '42501', 'app role has no access to sessions');
 SELECT test.expect_error($$ SELECT * FROM payments.webhook_events $$, '42501', 'app role has no access to raw webhooks');
 SELECT test.expect_error($$ UPDATE events.inventory_buckets SET sold = 0 $$, '42501', 'app cannot write inventory counters directly');

@@ -34,7 +34,7 @@ flowchart LR
 | 2 | **Mobile app** | Consumers; organization members in Business mode | Expo / React Native, TypeScript, EAS builds + OTA updates |
 | 3 | **Web marketplace** | Consumers (SEO discovery, booking, checkout, account), embeddable widgets, organization mini-sites | Next.js (App Router), TypeScript |
 | 4 | **Partner portal** | Owners, managers, front desk, event organizers, finance | Next.js, TypeScript |
-| 5 | **Admin console** | Platform staff: ops, support, risk, finance, moderation, market managers | Next.js, TypeScript, internal network + SSO + MFA |
+| 5 | **Admin console** | Platform staff: ops, support, risk, finance, moderation, market managers | Next.js, TypeScript, internal network; code or Google sign-in, 12-hour sessions, step-up codes |
 
 Everything lives in one repository; the TypeScript clients are npm workspaces (Turborepo) and share generated API types and design tokens:
 
@@ -118,7 +118,7 @@ One workspace for every kind of organization. The navigation is driven by `tenan
 
 ### 1.4 Admin console
 
-Internal only (SSO, MFA, IP allow-list). Every mutating action requires a reason and is written to `platform.audit_log`. Permissions come from `iam.staff_roles` and are scoped by market (`iam.user_staff_roles.market_id`).
+Internal only (staff roles, phone/email code or Google sign-in, 12-hour sessions, a fresh code before sensitive actions, IP allow-list). Every mutating action requires a reason and is written to `platform.audit_log`. Permissions come from `iam.staff_roles` and are scoped by market (`iam.user_staff_roles.market_id`).
 
 | Area | Contents |
 |---|---|
@@ -147,7 +147,7 @@ Every module owns one schema and exposes a Java API plus domain events. Modulith
 | Module | Schema | Responsibilities | Publishes (examples) |
 |---|---|---|---|
 | reference | `ref` | Countries, currencies, languages, admin areas, markets, categories, tax rates, legal documents | `market.updated` |
-| identity | `iam` | Sign-up/in (OTP, password, Google/Apple/Telegram), sessions with rotation, MFA/step-up, consents, devices, staff roles | `user.registered`, `user.merged` |
+| identity | `iam` | Sign-up/in (one-time code to phone or email, Google; Apple on iOS), sessions with rotation, step-up, consents, devices, staff roles | `user.registered`, `user.merged` |
 | tenancy | `tenant` | Organizations, capabilities, legal entities, places, locations, roles, members, invitations, domains | `org.created`, `member.joined` |
 | team | `team` | Staff, patterns, shifts, time off, timesheets, compensation, commissions, tips, pay runs | `shift.published` |
 | catalog | `catalog` | Services, stages, prices, add-ons, bundles, resources, products, plan definitions, galleries | `service.changed` |
@@ -196,9 +196,9 @@ Exception, for atomicity: the checkout command coordinates *commerce*, *scheduli
 
 ### 2.5 Authentication and authorisation
 
-* Phone-first OTP (SMS, with WhatsApp/Telegram as alternative channels), password optional, Google/Apple/Telegram sign-in. Guests can check out with a phone number; their orders are linked when they verify the same phone (`CLAIM_GUEST_ORDERS` challenge).
+* One-time codes to a phone (SMS, with WhatsApp/Telegram as alternative channels) or an email address, and Google sign-in (Apple in the iOS app). No passwords, no authenticator apps. Guests can check out with a phone number; their orders are linked when they verify the same phone (`CLAIM_GUEST_ORDERS` challenge).
 * Access tokens: JWT (ES256), 10-minute lifetime, audience per app. Refresh tokens: opaque, hashed, rotated on every use within a family; reuse revokes the family (`iam.sessions.family_id`).
-* MFA required for organization owners, members holding sensitive permissions (`iam.permissions.is_sensitive`: payouts, refunds, member management, exports) and all platform staff. Step-up (fresh OTP) before changing a payout account or issuing large refunds.
+* Step-up (a fresh one-time code to the account's verified phone or email, valid 5 minutes) before sensitive actions: granting sensitive permissions (`iam.permissions.is_sensitive`), changing members' access, payout accounts, large refunds, exports, and staff actions on KYB and flags.
 * Authorisation is evaluated per request: role permissions, then location scope (`tenant.member_locations`), then event scope (`events.staff_assignments`). RLS backs this up at the database layer.
 
 ## 3. Key workflows

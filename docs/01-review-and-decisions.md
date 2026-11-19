@@ -59,6 +59,8 @@ Severity: **Critical** = wrong money, data leakage or legal exposure. **High** =
 | D15 | **Single reference-data model** (`ref.*`): countries, currencies, languages, admin areas (ltree), markets, market currencies, languages and features, categories, tax rates (non-overlapping by exclusion constraint), legal documents. | One truth for expansion. | F1 |
 | D16 | **Adapters for every external, country-specific dependency** — payments, messaging (SMS/WhatsApp/Telegram/email/push), KYC (Fayda, Smile ID), fiscal e-invoicing (ET MoR, KE eTIMS, UG EFRIS, TZ VFD, RW EBM). | New country = new adapter + config rows. | F11 |
 | D17 | **Executable, tested baseline.** Migrations in Flyway order, installed into a throwaway database and checked by invariant tests and a concurrency race test. | Turns review claims into evidence. | F13 |
+| D18 | **Sign-in by one-time code (phone or email) or Google; Apple only in the iOS app.** No passwords, no authenticator apps; sensitive actions need a fresh code (step-up). (Owner decision, 2026-11-19.) | Matches how people in the launch markets sign in, with nothing to remember; Apple requires its option when Google is offered on iOS. |
+| D19 | **Cash and pay-at-venue stay, recorded at POS; optional online deposits per business.** (Owner decision, 2026-11-19.) | Cash is still how many people pay; deposits cut no-shows; fees on cash sales are recovered from later Chapa payments. |
 
 ## 4. What changed, in numbers
 

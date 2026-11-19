@@ -14,7 +14,9 @@
 | L2 | **Chapa is the only payment provider for now.** | All online methods (telebirr, CBE Birr, M-PESA, cards, bank apps and whatever else Chapa supports) go through Chapa. No SantimPay, ArifPay, direct telebirr or manual bank-transfer flow. The provider-agnostic adapter layer is still built, so adding providers later is a configuration + adapter task. |
 | L3 | **Hosting is decided later.** | Everything is containerised and cloud-neutral (PostgreSQL + PostGIS, Redis, RabbitMQ, S3-compatible storage) and runs on Docker Compose until then. A hosted staging environment is needed **before Stage 3** (real Chapa webhooks need a public URL); production before Stage 9. |
 
-Assumption to confirm: **cash and pay-at-venue** stay available at the front desk and box office. They are recorded at POS, not processed by any provider, so they don't conflict with L2. If you want *online-only* payments, drop the cash parts of Stage 4.
+Decided (2026-11-19): **cash and pay-at-venue stay available**, recorded at POS and the box office (no provider involved, so no conflict with L2). Each business can require an **online deposit** through Chapa (`scheduling` deposit settings; Stages 3–4) to cut no-shows; platform fees on cash sales become a seller receivable recovered from later Chapa payments (§3). Event tickets sold online are paid online; cash for events only at the box office (Stage 7).
+
+Decided (2026-11-19): **sign-in is by a one-time code to a phone or email, or with Google** (plus Apple in the iOS app, which Apple requires when Google sign-in is offered). No passwords and no authenticator apps, for anyone; sensitive actions ask for a fresh code (step-up).
 
 ### 1.1 What Chapa's documentation says, and what it means for us
 
@@ -129,15 +131,15 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 *Done when:* the auth + tenancy spec is merged and used by the app shells. ✅
 
 **0.7 Identity.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/identity` (42 backend tests in total).
-- Phone-first sign-in by one-time code: one `SIGN_IN` step for new and existing people (responses never reveal whether an account exists). Codes and phone numbers are stored only as HMACs; 5 attempts per code, 30 s resend window, per-phone and per-IP hourly limits in Redis (`429 RATE_LIMITED`). Codes go through the `SmsGateway` port; locally and in CI the `log` provider records them — a real provider needs D4.
-- Optional password (Argon2id, minimum 10 characters, lockout after 10 failures; unknown accounts take the same time and answer the same way). Setting or changing it needs the current password, a sign-in in the last 10 minutes or a step-up token, and signs out other sessions.
-- Google/Apple sign-in: ID tokens verified against the providers' keys (issuer, audience, nonce, signature); returns `404` until client ids are configured.
+- Sign-in by one-time code to a phone or an email address (email codes added 2026-11-19): one `SIGN_IN` step for new and existing people (responses never reveal whether an account exists). Proving an inbox never opens another account that merely typed the same address unverified (the unverified copy is released). Codes and phone numbers are stored only as HMACs; 5 attempts per code, 30 s resend window, per-phone and per-IP hourly limits in Redis (`429 RATE_LIMITED`). Codes go through the `SmsGateway` port; locally and in CI the `log` provider records them — a real provider needs D4.
+- No passwords and no authenticator apps (decision 2026-11-19; `V2_03` drops their tables).
+- Google sign-in (Apple in the iOS app): ID tokens verified against the providers' keys (issuer, audience, nonce, signature); a verified provider email joins the account that verified the same address. Returns `404` until client ids are configured (D12).
 - Sessions: ES256 access tokens (10 min; audience = client app; `sid` and `aal` claims), JWKS at `/.well-known/jwks.json` (key rotation via retired public keys), opaque refresh tokens stored as hashes with rotation; reusing an old refresh token revokes the whole session family. Sessions can be listed and revoked; logout revokes one or all.
-- MFA: authenticator app (TOTP, secret encrypted with AES-GCM, codes cannot be replayed); once enabled, sign-in returns `MFA_REQUIRED` and finishes with `/v1/auth/mfa/verify`. Step-up (`/v1/auth/step-up`, by code or authenticator) issues a 5-minute `STEP_UP` token; `Assurance.requireStepUp()` guards sensitive actions (`403 STEP_UP_REQUIRED`). Which permissions require it, and MFA for owners, is enforced in 0.8 where permissions exist.
+- Step-up (`/v1/auth/step-up`): a fresh code to the account's verified phone or email issues a 5-minute `STEP_UP` token; `Assurance.requireStepUp()` guards sensitive actions (`403 STEP_UP_REQUIRED`).
 - Profile (`GET/PATCH /v1/me`, merge-patch), device registration (push tokens), consent capture against published legal document versions, audit entries for security events.
 - Moved: guest-order claiming needs orders and is built with checkout (step 6.4; the `CLAIM_GUEST_ORDERS` code purpose already exists).
 
-*Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests. ✅ (`IdentityApiTests`, `IdTokenAndTotpTest`.)
+*Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests. ✅ (`IdentityApiTests`, `ProviderSignInTests`, `IdTokenVerifierTest`.)
 
 **0.8 Organizations and access.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/tenancy`, `.../reference` (48 backend tests in total).
 - Onboarding API: create an organization (kind, business category, market, language; the creator becomes owner; slug from the name or chosen, reserved words refused), profile updates with `If-Match`, capabilities checked against the market's feature switches, legal entities (TIN, VAT/TOT regime, one default per country, currency from the country; changing verified details resets verification), locations with their premises place (landmark-first address following the country's address format, map pin, opening hours with split shifts).
@@ -159,12 +161,12 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 *Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation. ✅ (`FilesApiTests`.)
 
 **0.10 Admin console shell.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/admin`, `admin-console/` (56 backend tests in total).
-- Staff access: admin-console tokens are issued only to accounts with an active staff role; every `/v1/admin` call also needs a multi-factor sign-in (authenticator app) and re-reads the staff roles, so a revoked role stops working at once. Permissions come from staff roles and are scoped to markets (a market-limited reviewer does not see other markets). First staff accounts are granted with `db/scripts/grant-staff-role.sh` (audited). Company single sign-on waits for **D12**.
+- Staff access: admin-console tokens are issued only to accounts with an active staff role (sign-in by phone/email code or Google; sessions last at most 12 hours); every `/v1/admin` call re-reads the staff roles, so a revoked role stops working at once. Permissions come from staff roles and are scoped to markets (a market-limited reviewer does not see other markets). First staff accounts are granted with `db/scripts/grant-staff-role.sh` (audited). Opening KYB documents, deciding cases and changing flags need a fresh code ("confirm it's you", valid 5 minutes).
 - Every change carries a reason and is audited (`PLATFORM_STAFF`); opening a KYB document creates a 60-second signed link and an audit entry; staff cannot decide verification for an organization they belong to.
 - API and screens: overview, verification queue and case review (documents, approve / reject / ask for information), organization search and 360, people search (phone in local or international format, email, name), audit log, feature flags (changing defaults needs global market management), markets (read-only).
 - The console keeps the session server-side: tokens live in httpOnly cookies and never reach the browser; `proxy.ts` rotates them before expiry (never on prefetches, because refresh-token reuse ends the session).
 
-*Done when:* an operator approves a KYB case and it appears in the audit log. ✅ (`AdminApiTests`; also checked end to end on the dev stack: upload → scan → submit → staff sign-in with authenticator → review → approve → audit log page.)
+*Done when:* an operator approves a KYB case and it appears in the audit log. ✅ (`AdminApiTests`; also checked end to end on the dev stack: upload → scan → submit → staff sign-in by code → review → approve → audit log page.)
 
 **0.11 Design system, languages and calendar.** ✅ *Done* except the wireframes (D9) — `packages/{ui,i18n,calendar,money}`, `backend/.../platform/EthiopianCalendar.java`.
 - `packages/ui`: design tokens for web (CSS variables) and React Native (numbers), Ethiopic typography rules (Noto Sans Ethiopic, line height 1.7, nothing below 14 px) and the low-end Android performance budget. Values are provisional until the visual design (D9); shared components are added as screens are designed. The Expo template's Android bundle is already 3.9 MB, close to the 4 MB budget — trim it before Stage 1 screens grow it.
@@ -473,7 +475,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 **9.2 Security review.**
 - OWASP ASVS L2 checklist; dependency and secrets scanning.
 - Penetration test of auth, tenancy/RLS, payments and file access.
-- MFA enforced for owners and admin staff.
+- Step-up codes enforced for every sensitive action (payouts, refunds, member access, exports, KYB, flags); admin sessions at most 12 hours.
 
 **9.3 Operations.**
 - Dashboards: payment success rate, webhook lag, polling backlog, refund float, receivables, reconciliation exceptions, hold-expiry lag, SMS delivery.
@@ -546,7 +548,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 | D9 | Wireframes and visual design for the pilot journeys | Designer | Stage 0, step 0.11, then ahead of each stage's UI |
 | D10 | Pilot partner list and their bank accounts | Business development | Stage 10 |
 | D11 | Apple/Google developer accounts; app names in Amharic and English | Ops | Stage 9 |
-| D12 | Identity provider for staff single sign-on (e.g. Google Workspace or Microsoft Entra) and the company domain | Founders + ops | Before staff beyond the founding team use the admin console (Stage 9 at the latest) |
+| D12 | Google OAuth client ids (web, Android, iOS) and Apple Services ID for the iOS app | Ops | Before the first app release with Google sign-in (Stage 9 at the latest) |
 
 ## Risks
 

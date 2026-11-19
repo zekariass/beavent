@@ -36,38 +36,13 @@ otpVerify:
             $ref: ./schemas.yaml#/OtpVerify
     responses:
       '200':
-        description: Signed in, or a second factor is required.
+        description: Signed in.
         content:
           application/json:
             schema:
-              $ref: ./schemas.yaml#/AuthResult
+              $ref: ./schemas.yaml#/Tokens
       '400':
         $ref: ../common/responses.yaml#/BadRequest
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
-      '403':
-        $ref: ../common/responses.yaml#/Forbidden
-      '429':
-        $ref: ../common/responses.yaml#/TooManyRequests
-passwordLogin:
-  post:
-    tags: [Auth]
-    operationId: signInWithPassword
-    summary: Sign in with phone or email and password
-    security: []
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: ./schemas.yaml#/PasswordLogin
-    responses:
-      '200':
-        description: Signed in, or a second factor is required.
-        content:
-          application/json:
-            schema:
-              $ref: ./schemas.yaml#/AuthResult
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
       '403':
@@ -95,11 +70,11 @@ oauthLogin:
             $ref: ./schemas.yaml#/OAuthLogin
     responses:
       '200':
-        description: Signed in, or a second factor is required.
+        description: Signed in.
         content:
           application/json:
             schema:
-              $ref: ./schemas.yaml#/AuthResult
+              $ref: ./schemas.yaml#/Tokens
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
       '403':
@@ -110,31 +85,6 @@ oauthLogin:
           application/problem+json:
             schema:
               $ref: ../common/schemas.yaml#/Problem
-mfaVerify:
-  post:
-    tags: [Auth]
-    operationId: verifyMfa
-    summary: Complete sign-in with the second factor
-    security: []
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: ./schemas.yaml#/MfaVerify
-    responses:
-      '200':
-        description: Signed in.
-        content:
-          application/json:
-            schema:
-              $ref: ./schemas.yaml#/Tokens
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
-      '403':
-        $ref: ../common/responses.yaml#/Forbidden
-      '429':
-        $ref: ../common/responses.yaml#/TooManyRequests
 refresh:
   post:
     tags: [Auth]
@@ -251,56 +201,6 @@ me:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
-mePassword:
-  put:
-    tags: [Me]
-    operationId: changePassword
-    summary: Set or change the password (revokes other sessions)
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: ./schemas.yaml#/PasswordChange
-    responses:
-      '204':
-        $ref: ../common/responses.yaml#/NoContent
-      '400':
-        $ref: ../common/responses.yaml#/BadRequest
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
-meTotp:
-  post:
-    tags: [Me]
-    operationId: enrollTotp
-    summary: Start enrolling an authenticator app
-    responses:
-      '201':
-        description: Secret to add to the authenticator app.
-        content:
-          application/json:
-            schema:
-              $ref: ./schemas.yaml#/TotpEnrollment
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
-meTotpConfirm:
-  post:
-    tags: [Me]
-    operationId: confirmTotp
-    summary: Confirm the authenticator app with a first code
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: ./schemas.yaml#/TotpConfirm
-    responses:
-      '204':
-        $ref: ../common/responses.yaml#/NoContent
-      '400':
-        $ref: ../common/responses.yaml#/BadRequest
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
 meSessions:
   get:
     tags: [Me]

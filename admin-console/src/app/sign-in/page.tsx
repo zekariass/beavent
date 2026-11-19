@@ -8,7 +8,8 @@ export default function SignInPage() {
       <div>
         <h1 className="text-2xl font-semibold">Beavent admin</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Platform staff only. You need a staff role and an authenticator app.
+          Platform staff only. Sign in with a code sent to your phone or email. Google sign-in is
+          added when the Google client id is configured.
         </p>
       </div>
       <SignInForm />
