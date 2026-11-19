@@ -1,61 +1,117 @@
-import * as Device from "expo-device";
-import { Platform, StyleSheet } from "react-native";
+import {
+  formatEthiopianDate,
+  formatEthiopianTime,
+  gregorianToEthiopian,
+  toEthiopianTime,
+  zoned,
+  type ZonedDateTime,
+} from "@beavent/calendar";
+import {
+  createTranslator,
+  LANGUAGE_NAMES,
+  LANGUAGES,
+  negotiateLanguage,
+  scriptOf,
+  type Language,
+} from "@beavent/i18n";
+import { lineHeightPx, type FontSize } from "@beavent/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AnimatedIcon } from "@/components/animated-icon";
-import { HintRow } from "@/components/hint-row";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { WebBadge } from "@/components/web-badge";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 
-function getDevMenuHint() {
-  if (Platform.OS === "web") {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
+const TIME_ZONE = "Africa/Addis_Ababa";
+
+/** The device's preferred language among the app's languages (Amharic when none matches). */
+function deviceLanguage(): Language {
+  try {
+    return negotiateLanguage([Intl.DateTimeFormat().resolvedOptions().locale]);
+  } catch {
+    return "am";
   }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
+}
+
+/** Addis Ababa wall-clock time; falls back to the device clock if the JS engine lacks time-zone data. */
+function addisNow(): ZonedDateTime {
+  try {
+    return zoned(Date.now(), TIME_ZONE);
+  } catch {
+    const now = new Date();
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+      hour: now.getHours(),
+      minute: now.getMinutes(),
+    };
   }
-  const shortcut = Platform.OS === "android" ? "cmd+m (or ctrl+m)" : "cmd+d";
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
 }
 
 export default function HomeScreen() {
+  const [language, setLanguage] = useState<Language>(deviceLanguage);
+  const [now, setNow] = useState(addisNow);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(addisNow()), 10_000);
+    return () => clearInterval(timer);
+  }, []);
+  const t = useMemo(() => createTranslator(language), [language]);
+  // Ge'ez script needs more line height than Latin text.
+  const lines = (size: FontSize) => ({ lineHeight: lineHeightPx(size, scriptOf(language)) });
+  const standard = `${String(now.hour).padStart(2, "0")}:${String(now.minute).padStart(2, "0")}`;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
+        <ThemedView
+          style={styles.languages}
+          accessibilityRole="radiogroup"
+          accessibilityLabel={t("language.label")}
+        >
+          {LANGUAGES.map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => setLanguage(option)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: option === language }}
+            >
+              <ThemedText type={option === language ? "smallBold" : "small"}>
+                {LANGUAGE_NAMES[option]}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </ThemedView>
+
+        <ThemedText type="subtitle" style={[styles.center, lines("2xl")]}>
+          {t("app.name")}
+        </ThemedText>
+        <ThemedText style={[styles.center, lines("lg")]}>{t("app.tagline")}</ThemedText>
+
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedText type="smallBold" style={lines("sm")}>
+            {t("home.today")}
+          </ThemedText>
+          <ThemedText style={lines("md")}>
+            {formatEthiopianDate(gregorianToEthiopian(now), language, { weekday: true })} ({now.day}
+            /{now.month}/{now.year})
+          </ThemedText>
+          <ThemedText type="smallBold" style={lines("sm")}>
+            {t("home.now")}
+          </ThemedText>
+          <ThemedText style={lines("md")}>
+            {formatEthiopianTime(toEthiopianTime(now.hour, now.minute), language)} ({standard})
+          </ThemedText>
+          <ThemedText type="small" style={lines("sm")}>
+            {t("home.calendarNote")}
           </ThemedText>
         </ThemedView>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
+        <ThemedView style={styles.actions}>
+          <ThemedText style={lines("md")}>{t("home.services")}</ThemedText>
+          <ThemedText style={lines("md")}>{t("home.events")}</ThemedText>
         </ThemedView>
-
-        {Platform.OS === "web" && <WebBadge />}
       </SafeAreaView>
     </ThemedView>
   );
@@ -71,28 +127,26 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
   },
-  heroSection: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  languages: {
+    flexDirection: "row",
+    gap: Spacing.three,
   },
-  title: {
+  center: {
     textAlign: "center",
   },
-  code: {
-    textTransform: "uppercase",
-  },
-  stepContainer: {
-    gap: Spacing.three,
+  card: {
+    gap: Spacing.two,
     alignSelf: "stretch",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+  },
+  actions: {
+    gap: Spacing.two,
+    alignSelf: "stretch",
   },
 });

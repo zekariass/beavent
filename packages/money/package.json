@@ -2,7 +2,7 @@
   "name": "@beavent/money",
   "version": "0.0.0",
   "private": true,
-  "description": "Minor-unit Money type, currency formatting and cash rounding. Built in Stage 0, step 0.11.",
+  "description": "Minor-unit Money: exact parsing, formatting, allocation, percentages and cash rounding.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -10,10 +10,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "devDependencies": {
     "@beavent/config": "*",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/node": "^24.19.2"
   }
 }

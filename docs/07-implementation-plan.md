@@ -166,16 +166,17 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* an operator approves a KYB case and it appears in the audit log. ✅ (`AdminApiTests`; also checked end to end on the dev stack: upload → scan → submit → staff sign-in with authenticator → review → approve → audit log page.)
 
-**0.11 Design system, languages and calendar.**
-- Design tokens and component libraries (web + React Native); Ethiopic font and line-height rules; a low-end Android performance budget.
-- `packages/i18n` (Amharic + English complete, Afaan Oromo started).
-- `packages/calendar`: Ethiopian ⇄ Gregorian conversion + Ethiopian local time, with property tests and a Java twin.
-- `packages/money`.
-- Wireframes for the pilot journeys (needs D9).
+**0.11 Design system, languages and calendar.** ✅ *Done* except the wireframes (D9) — `packages/{ui,i18n,calendar,money}`, `backend/.../platform/EthiopianCalendar.java`.
+- `packages/ui`: design tokens for web (CSS variables) and React Native (numbers), Ethiopic typography rules (Noto Sans Ethiopic, line height 1.7, nothing below 14 px) and the low-end Android performance budget. Values are provisional until the visual design (D9); shared components are added as screens are designed. The Expo template's Android bundle is already 3.9 MB, close to the 4 MB budget — trim it before Stage 1 screens grow it.
+- `packages/i18n`: Amharic and English catalogues complete for the shells, Afaan Oromo started (missing keys fall back to English); ICU-style placeholders and plurals, Accept-Language negotiation, localized-text fallback. The Amharic and Afaan Oromo copy needs review by native-speaking editors before launch.
+- `packages/calendar`: Ethiopian ⇄ Gregorian conversion, Ethiopian local time (hours from 06:00/18:00) and formatting in am/en/om; tested on shared vectors (holidays, leap years) and every day from 1900 to 2200. The Java twin `EthiopianCalendar` runs the same vectors.
+- `packages/money`: exact decimal parsing/printing, localized formatting, allocation without lost minor units, basis-point percentages rounded half up, cash rounding.
+- Shells: web and partner portal under `/am`, `/en`, `/om` (language from the URL, remembered in a cookie, otherwise the browser's languages, defaulting to Amharic) and the mobile home screen (device language, switchable) show today's Ethiopian date and Ethiopian/international time for Addis Ababa.
+- Open: wireframes for the pilot journeys (D9).
 
-*Done when:* the web, partner and mobile shells render in Amharic and English with Ethiopian dates and times.
+*Done when:* the web, partner and mobile shells render in Amharic and English with Ethiopian dates and times. ✅
 
-**Checkpoint A (end of Stage 0):** a user signs up by SMS OTP, creates an organization, completes onboarding, uploads KYB documents and invites a colleague; an admin approves KYB; it all works in Amharic or English, and CI is green on PostGIS.
+**Checkpoint A (end of Stage 0):** *(API side reached: covered by the identity, tenancy, files and admin tests and the end-to-end run in 0.10; the partner-portal onboarding screens come with Stage 1's designs (D9). CI on GitHub runs once a pull request is opened.)* a user signs up by SMS OTP, creates an organization, completes onboarding, uploads KYB documents and invites a colleague; an admin approves KYB; it all works in Amharic or English, and CI is green on PostGIS.
 
 ---
 

@@ -1,0 +1,46 @@
+{
+  "description": "Ethiopian ⇄ Gregorian pairs shared by packages/calendar and the Java twin (EthiopianCalendar). Sources: published Ethiopian calendars and holiday dates.",
+  "dates": [
+    { "ethiopian": [2017, 1, 1], "gregorian": [2024, 9, 11], "note": "Enkutatash (New Year) 2017" },
+    {
+      "ethiopian": [2016, 1, 1],
+      "gregorian": [2023, 9, 12],
+      "note": "New Year after a leap year (2015 had Pagume 6)"
+    },
+    { "ethiopian": [2015, 13, 6], "gregorian": [2023, 9, 11], "note": "Pagume 6 in a leap year" },
+    { "ethiopian": [2016, 13, 5], "gregorian": [2024, 9, 10], "note": "Last day of a common year" },
+    {
+      "ethiopian": [2016, 4, 28],
+      "gregorian": [2024, 1, 7],
+      "note": "Genna (Christmas) falls on Tahsas 28 after a leap year"
+    },
+    { "ethiopian": [2017, 4, 29], "gregorian": [2025, 1, 7], "note": "Genna" },
+    {
+      "ethiopian": [2016, 5, 11],
+      "gregorian": [2024, 1, 20],
+      "note": "Timket (Epiphany) after a leap year"
+    },
+    { "ethiopian": [2017, 1, 17], "gregorian": [2024, 9, 27], "note": "Meskel" },
+    { "ethiopian": [2016, 6, 23], "gregorian": [2024, 3, 2], "note": "Adwa Victory Day" },
+    { "ethiopian": [2018, 1, 1], "gregorian": [2025, 9, 11] },
+    { "ethiopian": [2019, 1, 1], "gregorian": [2026, 9, 11] },
+    {
+      "ethiopian": [2020, 1, 1],
+      "gregorian": [2027, 9, 12],
+      "note": "New Year after leap year 2019"
+    },
+    { "ethiopian": [1992, 4, 22], "gregorian": [2000, 1, 1] },
+    { "ethiopian": [1962, 4, 23], "gregorian": [1970, 1, 1] }
+  ],
+  "times": [
+    { "standard": [6, 0], "ethiopian": [12, 0, "MORNING"] },
+    { "standard": [7, 0], "ethiopian": [1, 0, "MORNING"] },
+    { "standard": [11, 59], "ethiopian": [5, 59, "MORNING"] },
+    { "standard": [12, 0], "ethiopian": [6, 0, "AFTERNOON"] },
+    { "standard": [13, 30], "ethiopian": [7, 30, "AFTERNOON"] },
+    { "standard": [18, 0], "ethiopian": [12, 0, "EVENING"] },
+    { "standard": [23, 15], "ethiopian": [5, 15, "EVENING"] },
+    { "standard": [0, 0], "ethiopian": [6, 0, "NIGHT"] },
+    { "standard": [5, 45], "ethiopian": [11, 45, "NIGHT"] }
+  ]
+}

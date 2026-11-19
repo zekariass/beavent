@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { createTranslator, localized, missingKeys, negotiateLanguage } from "../src/index.ts";
+
+describe("catalogues", () => {
+  test("Amharic and English are complete; Afaan Oromo is started", () => {
+    assert.deepEqual(missingKeys("am"), []);
+    assert.deepEqual(missingKeys("en"), []);
+    assert.ok(missingKeys("om").length > 0 && missingKeys("om").length < 25);
+  });
+  test("every Amharic message keeps the English placeholders", () => {
+    const am = createTranslator("am");
+    assert.equal(am("greeting.named", { name: "ሰላም" }), "ሰላም ሰላም!");
+    assert.equal(am("bookings.count", { count: 0 }), "ምንም ቀጠሮ የለም");
+    assert.equal(am("bookings.count", { count: 3 }), "3 ቀጠሮዎች");
+  });
+});
+
+describe("translation", () => {
+  test("plurals, placeholders and fallbacks", () => {
+    const en = createTranslator("en");
+    assert.equal(en("bookings.count", { count: 1 }), "1 booking");
+    assert.equal(en("bookings.count", { count: 1200 }), "1,200 bookings");
+    assert.equal(en("greeting.named", { name: "Selam" }), "Hello, Selam!");
+    assert.equal(en("greeting.named"), "Hello, {name}!");
+    const om = createTranslator("om");
+    assert.equal(om("home.today"), "Har'a");
+    assert.equal(om("business.title"), "Beavent for business");
+  });
+});
+
+describe("language choice", () => {
+  test("negotiates from Accept-Language and lists", () => {
+    assert.equal(negotiateLanguage("en-US,en;q=0.9,am;q=0.8"), "en");
+    assert.equal(negotiateLanguage("fr-FR, am-ET;q=0.5"), "am");
+    assert.equal(negotiateLanguage("om;q=0, en;q=0.2"), "en");
+    assert.equal(negotiateLanguage(undefined), "am");
+    assert.equal(negotiateLanguage(["om-ET", "en"]), "om");
+  });
+  test("localized text falls back to English, then anything", () => {
+    const hair = { en: "Hair", am: "ፀጉር" };
+    assert.equal(localized(hair, "am"), "ፀጉር");
+    assert.equal(localized(hair, "om", "am"), "ፀጉር");
+    assert.equal(localized(hair, "om"), "Hair");
+    assert.equal(localized({ so: "Timo" }, "am"), "Timo");
+  });
+});

@@ -2,7 +2,7 @@
   "name": "@beavent/calendar",
   "version": "0.0.0",
   "private": true,
-  "description": "Ethiopian \u21c4 Gregorian conversion and Ethiopian local-time formatting. Built in Stage 0, step 0.11.",
+  "description": "Ethiopian ⇄ Gregorian conversion and Ethiopian local-time formatting (Java twin: backend EthiopianCalendar).",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -10,10 +10,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "devDependencies": {
     "@beavent/config": "*",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/node": "^24.19.2"
   }
 }

@@ -29,7 +29,8 @@
     "@beavent/api-client": "*",
     "@beavent/i18n": "*",
     "@beavent/calendar": "*",
-    "@beavent/money": "*"
+    "@beavent/money": "*",
+    "@beavent/ui": "*"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
