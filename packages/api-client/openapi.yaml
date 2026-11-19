@@ -32,6 +32,8 @@ tags:
     description: Members, roles, invitations
   - name: Verification
     description: Business verification (KYB)
+  - name: Catalogue
+    description: Services, variants, prices, add-ons, bundles, resources and galleries
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -1053,6 +1055,811 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VerificationCase'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/service-groups:
+    get:
+      tags:
+        - Catalogue
+      operationId: listServiceGroups
+      summary: Service groups (menu sections)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceGroupList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: createServiceGroup
+      summary: Add a menu section
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceGroupInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/service-groups/{groupId}:
+    put:
+      tags:
+        - Catalogue
+      operationId: updateServiceGroup
+      summary: Rename or reorder a menu section
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceGroupInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Catalogue
+      operationId: deleteServiceGroup
+      summary: Remove an empty menu section
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/services:
+    get:
+      tags:
+        - Catalogue
+      operationId: listServices
+      summary: The service menu
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: groupId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - HIDDEN
+              - ARCHIVED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: createService
+      summary: Add a service with its variants
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '201':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/services/{serviceId}:
+    get:
+      tags:
+        - Catalogue
+      operationId: getService
+      summary: A service
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Catalogue
+      operationId: updateService
+      summary: Replace a service and its variants (variants left out are archived)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '200':
+          description: OK.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Catalogue
+      operationId: archiveService
+      summary: Archive a service (kept for history)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/services/{serviceId}/prices:
+    get:
+      tags:
+        - Catalogue
+      operationId: listServicePrices
+      summary: Current price overrides of a service
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceOverrideList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Catalogue
+      operationId: setServicePrices
+      summary: Replace the price overrides (effective now; earlier prices stay in history)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceOverrideList'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceOverrideList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/services/{serviceId}/variants/{variantId}/price:
+    get:
+      tags:
+        - Catalogue
+      operationId: resolveVariantPrice
+      summary: Price and duration for a location and staff member (most specific wins)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: variantId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolvedPrice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/addons:
+    get:
+      tags:
+        - Catalogue
+      operationId: listAddons
+      summary: Add-ons
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddonList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: createAddon
+      summary: Add an add-on
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddonInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Addon'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/addons/{addonId}:
+    put:
+      tags:
+        - Catalogue
+      operationId: updateAddon
+      summary: Change an add-on
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: addonId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddonInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Addon'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Catalogue
+      operationId: archiveAddon
+      summary: Archive an add-on
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: addonId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/resources:
+    get:
+      tags:
+        - Catalogue
+      operationId: listResources
+      summary: Rooms, chairs, beds and equipment
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: createResource
+      summary: Add a resource
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/resources/{resourceId}:
+    put:
+      tags:
+        - Catalogue
+      operationId: updateResource
+      summary: Change a resource
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/bundles:
+    get:
+      tags:
+        - Catalogue
+      operationId: listBundles
+      summary: Bundles
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: createBundle
+      summary: Add a bundle
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/bundles/{bundleId}:
+    put:
+      tags:
+        - Catalogue
+      operationId: updateBundle
+      summary: Change a bundle
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: bundleId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Catalogue
+      operationId: archiveBundle
+      summary: Archive a bundle
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: bundleId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/gallery:
+    get:
+      tags:
+        - Catalogue
+      operationId: listGallery
+      summary: Gallery images (organization, or one location, service or team member)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItemList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Catalogue
+      operationId: addGalleryItem
+      summary: Add an image to a gallery
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GalleryItemInput'
+      responses:
+        '201':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/gallery/{itemId}:
+    delete:
+      tags:
+        - Catalogue
+      operationId: removeGalleryItem
+      summary: Remove an image from a gallery
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2939,6 +3746,691 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/VerificationDocumentInput'
+    ServiceGroup:
+      type: object
+      required:
+        - id
+        - name
+        - sortOrder
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        sortOrder:
+          type: integer
+    ServiceGroupList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceGroup'
+    Name:
+      description: Text per language code; at least one language.
+      allOf:
+        - $ref: '#/components/schemas/LocalizedText'
+      minProperties: 1
+    ServiceGroupInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        sortOrder:
+          type: integer
+          minimum: 0
+          maximum: 10000
+    PriceType:
+      type: string
+      enum:
+        - FIXED
+        - FROM
+        - FREE
+        - ON_CONSULTATION
+    VariantStage:
+      type: object
+      description: One part of a variant, e.g. colour = apply 30 (staff busy) + process 35 (staff free) + rinse 25.
+      required:
+        - kind
+        - durationMinutes
+      properties:
+        kind:
+          type: string
+          enum:
+            - SERVICE
+            - PROCESSING
+            - FINISHING
+            - CONSULTATION
+        durationMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+        staffBusy:
+          type: boolean
+          default: true
+    ResourceKind:
+      type: string
+      enum:
+        - ROOM
+        - CHAIR
+        - BED
+        - STATION
+        - EQUIPMENT
+        - OTHER
+    ResourceRequirement:
+      type: object
+      description: A specific resource, or any resource of a kind at the location.
+      required:
+        - units
+      properties:
+        resourceId:
+          $ref: '#/components/schemas/Uuid'
+        resourceKind:
+          $ref: '#/components/schemas/ResourceKind'
+        units:
+          type: integer
+          minimum: 1
+          maximum: 500
+        stageSeq:
+          type: integer
+          minimum: 1
+          description: Only during this stage (1-based); absent = the whole service.
+    ServiceVariant:
+      type: object
+      required:
+        - id
+        - durationMinutes
+        - bufferBeforeMinutes
+        - bufferAfterMinutes
+        - priceType
+        - priceMinor
+        - currency
+        - isDefault
+        - stages
+        - resourceRequirements
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        bufferBeforeMinutes:
+          type: integer
+        bufferAfterMinutes:
+          type: integer
+        priceType:
+          $ref: '#/components/schemas/PriceType'
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        isDefault:
+          type: boolean
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariantStage'
+        resourceRequirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceRequirement'
+    Service:
+      type: object
+      required:
+        - id
+        - categoryId
+        - name
+        - deliveryModes
+        - audience
+        - requiresPatchTest
+        - onlineBooking
+        - commissionEligible
+        - status
+        - sortOrder
+        - currency
+        - variants
+        - locationIds
+        - addonIds
+        - staffIds
+        - version
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        groupId:
+          $ref: '#/components/schemas/Uuid'
+        categoryId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        aftercare:
+          $ref: '#/components/schemas/LocalizedText'
+        deliveryModes:
+          type: array
+          items:
+            type: string
+        audience:
+          type: string
+        requiresPatchTest:
+          type: boolean
+        patchTestValidityDays:
+          type: integer
+        onlineBooking:
+          type: boolean
+        commissionEligible:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - HIDDEN
+            - ARCHIVED
+        sortOrder:
+          type: integer
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        variants:
+          type: array
+          description: Active variants.
+          items:
+            $ref: '#/components/schemas/ServiceVariant'
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        addonIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        staffIds:
+          type: array
+          description: Team members who perform it (set from the team API).
+          items:
+            $ref: '#/components/schemas/Uuid'
+        version:
+          type: integer
+          description: Same value as the ETag.
+    ServiceList:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ServiceVariantInput:
+      type: object
+      required:
+        - durationMinutes
+        - priceType
+        - priceMinor
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Existing variant to keep (updates); omit for a new one. Variants left out are archived.
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 1440
+        bufferBeforeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+        bufferAfterMinutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+        priceType:
+          $ref: '#/components/schemas/PriceType'
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        isDefault:
+          type: boolean
+        stages:
+          type: array
+          maxItems: 10
+          description: Optional; their durations must add up to durationMinutes.
+          items:
+            $ref: '#/components/schemas/VariantStage'
+        resourceRequirements:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ResourceRequirement'
+    ServiceInput:
+      type: object
+      required:
+        - categoryId
+        - name
+        - variants
+      properties:
+        groupId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        categoryId:
+          $ref: '#/components/schemas/Uuid'
+          description: A SERVICE category (GET /v1/ref/categories?kind=SERVICE).
+        name:
+          $ref: '#/components/schemas/Name'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        aftercare:
+          $ref: '#/components/schemas/LocalizedText'
+        deliveryModes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - ON_PREMISES
+              - AT_CUSTOMER
+              - ONLINE
+        audience:
+          type: string
+          enum:
+            - EVERYONE
+            - WOMEN
+            - MEN
+            - CHILDREN
+        requiresPatchTest:
+          type: boolean
+        patchTestValidityDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        onlineBooking:
+          type: boolean
+        commissionEligible:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - HIDDEN
+          description: HIDDEN = bookable by the team, not shown online.
+        sortOrder:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+          description: Defaults to the currency of the organization's home market.
+        variants:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ServiceVariantInput'
+        locationIds:
+          type: array
+          description: Locations offering the service; omit for all current locations.
+          items:
+            $ref: '#/components/schemas/Uuid'
+        addonIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+    PriceOverride:
+      type: object
+      description: A price (and optionally duration) for a variant at a location, for a staff member or for a pricing level.
+      required:
+        - variantId
+        - priceMinor
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        pricingLevelId:
+          $ref: '#/components/schemas/Uuid'
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 1440
+    PriceOverrideList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/PriceOverride'
+    ResolvedPrice:
+      type: object
+      required:
+        - variantId
+        - priceType
+        - priceMinor
+        - currency
+        - durationMinutes
+        - source
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        priceType:
+          $ref: '#/components/schemas/PriceType'
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        durationMinutes:
+          type: integer
+        source:
+          type: string
+          enum:
+            - STAFF_AND_LOCATION
+            - STAFF
+            - LEVEL_AND_LOCATION
+            - LEVEL
+            - LOCATION
+            - DEFAULT
+          description: Most specific match wins.
+    Addon:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+        - currency
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - ARCHIVED
+    AddonList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Addon'
+    AddonInput:
+      type: object
+      required:
+        - name
+        - priceMinor
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        durationMinutes:
+          type: integer
+          minimum: 0
+          maximum: 480
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    Resource:
+      type: object
+      required:
+        - id
+        - locationId
+        - name
+        - kind
+        - units
+        - isActive
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ResourceKind'
+        units:
+          type: integer
+        isActive:
+          type: boolean
+    ResourceList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+    ResourceInput:
+      type: object
+      required:
+        - locationId
+        - name
+        - kind
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        kind:
+          $ref: '#/components/schemas/ResourceKind'
+        units:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: Places used in parallel (a sauna for 4 = 4).
+        isActive:
+          type: boolean
+    Bundle:
+      type: object
+      required:
+        - id
+        - name
+        - pricing
+        - currency
+        - scheduling
+        - onlineBooking
+        - status
+        - items
+        - totalPriceMinor
+        - totalDurationMinutes
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        pricing:
+          type: string
+        priceMinor:
+          type: integer
+          format: int64
+        percentOff:
+          type: number
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        scheduling:
+          type: string
+        onlineBooking:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - ARCHIVED
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - serviceVariantId
+              - quantity
+            properties:
+              serviceVariantId:
+                $ref: '#/components/schemas/Uuid'
+              quantity:
+                type: integer
+        totalPriceMinor:
+          type: integer
+          format: int64
+          description: Customer price from the variants' default prices and the bundle pricing.
+        totalDurationMinutes:
+          type: integer
+          description: Sequential = sum of durations; parallel = the longest.
+    BundleList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bundle'
+    BundleInput:
+      type: object
+      required:
+        - name
+        - pricing
+        - items
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        pricing:
+          type: string
+          enum:
+            - SUM_OF_ITEMS
+            - FIXED_PRICE
+            - PERCENT_OFF
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Required for FIXED_PRICE.
+        percentOff:
+          type: number
+          exclusiveMinimum: 0
+          exclusiveMaximum: 100
+          description: Required for PERCENT_OFF.
+        scheduling:
+          type: string
+          enum:
+            - SEQUENTIAL
+            - PARALLEL
+        onlineBooking:
+          type: boolean
+        items:
+          type: array
+          minItems: 2
+          maxItems: 20
+          items:
+            type: object
+            required:
+              - serviceVariantId
+            properties:
+              serviceVariantId:
+                $ref: '#/components/schemas/Uuid'
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 20
+    GalleryItem:
+      type: object
+      required:
+        - id
+        - fileId
+        - sortOrder
+        - url
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        altText:
+          $ref: '#/components/schemas/LocalizedText'
+        sortOrder:
+          type: integer
+        url:
+          type: string
+          format: uri
+        variants:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+    GalleryItemList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GalleryItem'
+    GalleryItemInput:
+      type: object
+      required:
+        - fileId
+      properties:
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+          description: A processed GALLERY or COVER image of the organization.
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        altText:
+          $ref: '#/components/schemas/LocalizedText'
+        sortOrder:
+          type: integer
+          minimum: 0
+          maximum: 10000
     FilePurpose:
       type: string
       enum:

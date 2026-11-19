@@ -1,0 +1,776 @@
+serviceGroups:
+  get:
+    tags: [Catalogue]
+    operationId: listServiceGroups
+    summary: Service groups (menu sections)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ServiceGroupList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: createServiceGroup
+    summary: Add a menu section
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ServiceGroupInput
+    responses:
+      '201':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ServiceGroup
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+serviceGroup:
+  put:
+    tags: [Catalogue]
+    operationId: updateServiceGroup
+    summary: Rename or reorder a menu section
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ServiceGroupInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ServiceGroup
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Catalogue]
+    operationId: deleteServiceGroup
+    summary: Remove an empty menu section
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+services:
+  get:
+    tags: [Catalogue]
+    operationId: listServices
+    summary: The service menu
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: groupId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [ACTIVE, HIDDEN, ARCHIVED]
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ServiceList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: createService
+    summary: Add a service with its variants
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ServiceInput
+    responses:
+      '201':
+        description: OK.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Service
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+service:
+  get:
+    tags: [Catalogue]
+    operationId: getService
+    summary: A service
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Service
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Catalogue]
+    operationId: updateService
+    summary: Replace a service and its variants (variants left out are archived)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - $ref: ../common/parameters.yaml#/IfMatch
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ServiceInput
+    responses:
+      '200':
+        description: OK.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Service
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '412':
+        $ref: ../common/responses.yaml#/PreconditionFailed
+  delete:
+    tags: [Catalogue]
+    operationId: archiveService
+    summary: Archive a service (kept for history)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+servicePrices:
+  get:
+    tags: [Catalogue]
+    operationId: listServicePrices
+    summary: Current price overrides of a service
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PriceOverrideList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Catalogue]
+    operationId: setServicePrices
+    summary: Replace the price overrides (effective now; earlier prices stay in history)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/PriceOverrideList
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PriceOverrideList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+variantPrice:
+  get:
+    tags: [Catalogue]
+    operationId: resolveVariantPrice
+    summary: Price and duration for a location and staff member (most specific wins)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: variantId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: staffId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ResolvedPrice
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+addons:
+  get:
+    tags: [Catalogue]
+    operationId: listAddons
+    summary: Add-ons
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AddonList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: createAddon
+    summary: Add an add-on
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/AddonInput
+    responses:
+      '201':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Addon
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+addon:
+  put:
+    tags: [Catalogue]
+    operationId: updateAddon
+    summary: Change an add-on
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: addonId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/AddonInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Addon
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Catalogue]
+    operationId: archiveAddon
+    summary: Archive an add-on
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: addonId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+resources:
+  get:
+    tags: [Catalogue]
+    operationId: listResources
+    summary: Rooms, chairs, beds and equipment
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ResourceList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: createResource
+    summary: Add a resource
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ResourceInput
+    responses:
+      '201':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Resource
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+resource:
+  put:
+    tags: [Catalogue]
+    operationId: updateResource
+    summary: Change a resource
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ResourceInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Resource
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+bundles:
+  get:
+    tags: [Catalogue]
+    operationId: listBundles
+    summary: Bundles
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BundleList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: createBundle
+    summary: Add a bundle
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/BundleInput
+    responses:
+      '201':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Bundle
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+bundle:
+  put:
+    tags: [Catalogue]
+    operationId: updateBundle
+    summary: Change a bundle
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/BundleInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Bundle
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Catalogue]
+    operationId: archiveBundle
+    summary: Archive a bundle
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+gallery:
+  get:
+    tags: [Catalogue]
+    operationId: listGallery
+    summary: Gallery images (organization, or one location, service or team member)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: serviceId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: staffId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GalleryItemList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Catalogue]
+    operationId: addGalleryItem
+    summary: Add an image to a gallery
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/GalleryItemInput
+    responses:
+      '201':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GalleryItem
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+galleryItem:
+  delete:
+    tags: [Catalogue]
+    operationId: removeGalleryItem
+    summary: Remove an image from a gallery
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

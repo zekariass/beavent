@@ -5,8 +5,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Signed access to stored files for other modules (the admin console's KYB review). Every call is audited by the
- * caller together with its reason.
+ * File access for other modules: signed URLs for staff review (audited by the caller) and public image URLs for
+ * galleries and profiles.
  */
 public interface FileAccess {
 
@@ -18,4 +18,10 @@ public interface FileAccess {
      * @throws com.beavent.backend.platform.ApiException NOT_FOUND / CONFLICT if missing or not processed
      */
     SignedUrl signedUrl(UUID fileId);
+
+    /** A processed public image: its URL and smaller variants by name (w320, w960). */
+    record PublicImage(UUID fileId, UUID orgId, String purpose, String url, java.util.Map<String, String> variants) {}
+
+    /** The public image, if the file is a processed (clean) public file. */
+    java.util.Optional<PublicImage> publicImage(UUID fileId);
 }

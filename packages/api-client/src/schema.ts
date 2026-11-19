@@ -499,6 +499,256 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/service-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Service groups (menu sections) */
+        get: operations["listServiceGroups"];
+        put?: never;
+        /** Add a menu section */
+        post: operations["createServiceGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/service-groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename or reorder a menu section */
+        put: operations["updateServiceGroup"];
+        post?: never;
+        /** Remove an empty menu section */
+        delete: operations["deleteServiceGroup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The service menu */
+        get: operations["listServices"];
+        put?: never;
+        /** Add a service with its variants */
+        post: operations["createService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A service */
+        get: operations["getService"];
+        /** Replace a service and its variants (variants left out are archived) */
+        put: operations["updateService"];
+        post?: never;
+        /** Archive a service (kept for history) */
+        delete: operations["archiveService"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current price overrides of a service */
+        get: operations["listServicePrices"];
+        /** Replace the price overrides (effective now; earlier prices stay in history) */
+        put: operations["setServicePrices"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}/variants/{variantId}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Price and duration for a location and staff member (most specific wins) */
+        get: operations["resolveVariantPrice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Add-ons */
+        get: operations["listAddons"];
+        put?: never;
+        /** Add an add-on */
+        post: operations["createAddon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/addons/{addonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an add-on */
+        put: operations["updateAddon"];
+        post?: never;
+        /** Archive an add-on */
+        delete: operations["archiveAddon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rooms, chairs, beds and equipment */
+        get: operations["listResources"];
+        put?: never;
+        /** Add a resource */
+        post: operations["createResource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/resources/{resourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a resource */
+        put: operations["updateResource"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bundles */
+        get: operations["listBundles"];
+        put?: never;
+        /** Add a bundle */
+        post: operations["createBundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/bundles/{bundleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a bundle */
+        put: operations["updateBundle"];
+        post?: never;
+        /** Archive a bundle */
+        delete: operations["archiveBundle"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gallery images (organization, or one location, service or team member) */
+        get: operations["listGallery"];
+        put?: never;
+        /** Add an image to a gallery */
+        post: operations["addGalleryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gallery/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an image from a gallery */
+        delete: operations["removeGalleryItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -1378,6 +1628,265 @@ export interface components {
             subject: "ORGANIZATION_KYB" | "OWNER_KYC";
             legalEntityId?: components["schemas"]["Uuid"];
             documents: components["schemas"]["VerificationDocumentInput"][];
+        };
+        ServiceGroup: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            sortOrder: number;
+        };
+        ServiceGroupList: {
+            items: components["schemas"]["ServiceGroup"][];
+        };
+        /** @description Text per language code; at least one language. */
+        Name: components["schemas"]["LocalizedText"];
+        ServiceGroupInput: {
+            name: components["schemas"]["Name"];
+            sortOrder?: number;
+        };
+        /** @enum {string} */
+        PriceType: "FIXED" | "FROM" | "FREE" | "ON_CONSULTATION";
+        /** @description One part of a variant, e.g. colour = apply 30 (staff busy) + process 35 (staff free) + rinse 25. */
+        VariantStage: {
+            /** @enum {string} */
+            kind: "SERVICE" | "PROCESSING" | "FINISHING" | "CONSULTATION";
+            durationMinutes: number;
+            /** @default true */
+            staffBusy: boolean;
+        };
+        /** @enum {string} */
+        ResourceKind: "ROOM" | "CHAIR" | "BED" | "STATION" | "EQUIPMENT" | "OTHER";
+        /** @description A specific resource, or any resource of a kind at the location. */
+        ResourceRequirement: {
+            resourceId?: components["schemas"]["Uuid"];
+            resourceKind?: components["schemas"]["ResourceKind"];
+            units: number;
+            /** @description Only during this stage (1-based); absent = the whole service. */
+            stageSeq?: number;
+        };
+        ServiceVariant: {
+            id: components["schemas"]["Uuid"];
+            name?: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            bufferBeforeMinutes: number;
+            bufferAfterMinutes: number;
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            isDefault: boolean;
+            stages: components["schemas"]["VariantStage"][];
+            resourceRequirements: components["schemas"]["ResourceRequirement"][];
+        };
+        Service: {
+            id: components["schemas"]["Uuid"];
+            groupId?: components["schemas"]["Uuid"];
+            categoryId: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            description?: components["schemas"]["LocalizedText"];
+            aftercare?: components["schemas"]["LocalizedText"];
+            deliveryModes: string[];
+            audience: string;
+            requiresPatchTest: boolean;
+            patchTestValidityDays?: number;
+            onlineBooking: boolean;
+            commissionEligible: boolean;
+            /** @enum {string} */
+            status: "ACTIVE" | "HIDDEN" | "ARCHIVED";
+            sortOrder: number;
+            currency: components["schemas"]["CurrencyCode"];
+            /** @description Active variants. */
+            variants: components["schemas"]["ServiceVariant"][];
+            locationIds: components["schemas"]["Uuid"][];
+            addonIds: components["schemas"]["Uuid"][];
+            /** @description Team members who perform it (set from the team API). */
+            staffIds: components["schemas"]["Uuid"][];
+            /** @description Same value as the ETag. */
+            version: number;
+        };
+        ServiceList: {
+            items: components["schemas"]["Service"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        ServiceVariantInput: {
+            /** @description Existing variant to keep (updates); omit for a new one. Variants left out are archived. */
+            id?: components["schemas"]["Uuid"];
+            name?: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            bufferBeforeMinutes?: number;
+            bufferAfterMinutes?: number;
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            isDefault?: boolean;
+            /** @description Optional; their durations must add up to durationMinutes. */
+            stages?: components["schemas"]["VariantStage"][];
+            resourceRequirements?: components["schemas"]["ResourceRequirement"][];
+        };
+        ServiceInput: {
+            groupId?: components["schemas"]["Uuid"] | null;
+            /** @description A SERVICE category (GET /v1/ref/categories?kind=SERVICE). */
+            categoryId: components["schemas"]["Uuid"];
+            name: components["schemas"]["Name"];
+            description?: components["schemas"]["LocalizedText"];
+            aftercare?: components["schemas"]["LocalizedText"];
+            deliveryModes?: ("ON_PREMISES" | "AT_CUSTOMER" | "ONLINE")[];
+            /** @enum {string} */
+            audience?: "EVERYONE" | "WOMEN" | "MEN" | "CHILDREN";
+            requiresPatchTest?: boolean;
+            patchTestValidityDays?: number;
+            onlineBooking?: boolean;
+            commissionEligible?: boolean;
+            /**
+             * @description HIDDEN = bookable by the team, not shown online.
+             * @enum {string}
+             */
+            status?: "ACTIVE" | "HIDDEN";
+            sortOrder?: number;
+            /** @description Defaults to the currency of the organization's home market. */
+            currency?: components["schemas"]["CurrencyCode"];
+            variants: components["schemas"]["ServiceVariantInput"][];
+            /** @description Locations offering the service; omit for all current locations. */
+            locationIds?: components["schemas"]["Uuid"][];
+            addonIds?: components["schemas"]["Uuid"][];
+        };
+        /** @description A price (and optionally duration) for a variant at a location, for a staff member or for a pricing level. */
+        PriceOverride: {
+            variantId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            pricingLevelId?: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            priceMinor: number;
+            durationMinutes?: number;
+        };
+        PriceOverrideList: {
+            items: components["schemas"]["PriceOverride"][];
+        };
+        ResolvedPrice: {
+            variantId: components["schemas"]["Uuid"];
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            durationMinutes: number;
+            /**
+             * @description Most specific match wins.
+             * @enum {string}
+             */
+            source: "STAFF_AND_LOCATION" | "STAFF" | "LEVEL_AND_LOCATION" | "LEVEL" | "LOCATION" | "DEFAULT";
+        };
+        Addon: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+        };
+        AddonList: {
+            items: components["schemas"]["Addon"][];
+        };
+        AddonInput: {
+            name: components["schemas"]["Name"];
+            durationMinutes?: number;
+            /** Format: int64 */
+            priceMinor: number;
+            currency?: components["schemas"]["CurrencyCode"];
+        };
+        Resource: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            kind: components["schemas"]["ResourceKind"];
+            units: number;
+            isActive: boolean;
+        };
+        ResourceList: {
+            items: components["schemas"]["Resource"][];
+        };
+        ResourceInput: {
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            kind: components["schemas"]["ResourceKind"];
+            /** @description Places used in parallel (a sauna for 4 = 4). */
+            units?: number;
+            isActive?: boolean;
+        };
+        Bundle: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            description?: components["schemas"]["LocalizedText"];
+            pricing: string;
+            /** Format: int64 */
+            priceMinor?: number;
+            percentOff?: number;
+            currency: components["schemas"]["CurrencyCode"];
+            scheduling: string;
+            onlineBooking: boolean;
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+            items: {
+                serviceVariantId: components["schemas"]["Uuid"];
+                quantity: number;
+            }[];
+            /**
+             * Format: int64
+             * @description Customer price from the variants' default prices and the bundle pricing.
+             */
+            totalPriceMinor: number;
+            /** @description Sequential = sum of durations; parallel = the longest. */
+            totalDurationMinutes: number;
+        };
+        BundleList: {
+            items: components["schemas"]["Bundle"][];
+        };
+        BundleInput: {
+            name: components["schemas"]["Name"];
+            description?: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            pricing: "SUM_OF_ITEMS" | "FIXED_PRICE" | "PERCENT_OFF";
+            /**
+             * Format: int64
+             * @description Required for FIXED_PRICE.
+             */
+            priceMinor?: number;
+            /** @description Required for PERCENT_OFF. */
+            percentOff?: number;
+            /** @enum {string} */
+            scheduling?: "SEQUENTIAL" | "PARALLEL";
+            onlineBooking?: boolean;
+            items: {
+                serviceVariantId: components["schemas"]["Uuid"];
+                quantity?: number;
+            }[];
+        };
+        GalleryItem: {
+            id: components["schemas"]["Uuid"];
+            fileId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            altText?: components["schemas"]["LocalizedText"];
+            sortOrder: number;
+            /** Format: uri */
+            url: string;
+            variants?: {
+                [key: string]: string;
+            };
+        };
+        GalleryItemList: {
+            items: components["schemas"]["GalleryItem"][];
+        };
+        GalleryItemInput: {
+            /** @description A processed GALLERY or COVER image of the organization. */
+            fileId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            altText?: components["schemas"]["LocalizedText"];
+            sortOrder?: number;
         };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
@@ -2773,6 +3282,740 @@ export interface operations {
                     "application/json": components["schemas"]["VerificationCase"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServiceGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroupList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroup"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                groupId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroup"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deleteServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                groupId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listServices: {
+        parameters: {
+            query?: {
+                groupId?: components["schemas"]["Uuid"];
+                locationId?: components["schemas"]["Uuid"];
+                status?: "ACTIVE" | "HIDDEN" | "ARCHIVED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateService: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description ETag of the version being updated. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServicePrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOverrideList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setServicePrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceOverrideList"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOverrideList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    resolveVariantPrice: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                staffId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+                variantId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedPrice"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAddons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddonList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddonInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Addon"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                addonId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddonInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Addon"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                addonId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listResources: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                resourceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listBundles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundleInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bundle"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                bundleId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundleInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bundle"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                bundleId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listGallery: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                serviceId?: components["schemas"]["Uuid"];
+                staffId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryItemList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GalleryItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                itemId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

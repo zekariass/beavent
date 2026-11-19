@@ -32,6 +32,8 @@ tags:
     description: Members, roles, invitations
   - name: Verification
     description: Business verification (KYB)
+  - name: Catalogue
+    description: Services, variants, prices, add-ons, bundles, resources and galleries
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -97,6 +99,35 @@ paths:
     $ref: ./tenancy/paths.yaml#/verificationCases
   /v1/orgs/{orgId}/verification-cases/{caseId}:
     $ref: ./tenancy/paths.yaml#/verificationCase
+  # --- catalogue --------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/service-groups:
+    $ref: ./catalog/paths.yaml#/serviceGroups
+  /v1/orgs/{orgId}/service-groups/{groupId}:
+    $ref: ./catalog/paths.yaml#/serviceGroup
+  /v1/orgs/{orgId}/services:
+    $ref: ./catalog/paths.yaml#/services
+  /v1/orgs/{orgId}/services/{serviceId}:
+    $ref: ./catalog/paths.yaml#/service
+  /v1/orgs/{orgId}/services/{serviceId}/prices:
+    $ref: ./catalog/paths.yaml#/servicePrices
+  /v1/orgs/{orgId}/services/{serviceId}/variants/{variantId}/price:
+    $ref: ./catalog/paths.yaml#/variantPrice
+  /v1/orgs/{orgId}/addons:
+    $ref: ./catalog/paths.yaml#/addons
+  /v1/orgs/{orgId}/addons/{addonId}:
+    $ref: ./catalog/paths.yaml#/addon
+  /v1/orgs/{orgId}/resources:
+    $ref: ./catalog/paths.yaml#/resources
+  /v1/orgs/{orgId}/resources/{resourceId}:
+    $ref: ./catalog/paths.yaml#/resource
+  /v1/orgs/{orgId}/bundles:
+    $ref: ./catalog/paths.yaml#/bundles
+  /v1/orgs/{orgId}/bundles/{bundleId}:
+    $ref: ./catalog/paths.yaml#/bundle
+  /v1/orgs/{orgId}/gallery:
+    $ref: ./catalog/paths.yaml#/gallery
+  /v1/orgs/{orgId}/gallery/{itemId}:
+    $ref: ./catalog/paths.yaml#/galleryItem
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles
