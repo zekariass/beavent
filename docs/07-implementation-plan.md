@@ -119,12 +119,14 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* an integration test (Testcontainers + PostGIS) writes a row + outbox event under RLS and a consumer handles it exactly once. ✅ (`OutboxTests`, plus `RequestContextIsolationTests`, `IdempotencyTests`.)
 
-**0.6 API contract workflow.**
-- One OpenAPI 3.1 spec per module, bundled in CI.
-- `packages/api-client` generated (types, fetch client, React Query hooks).
+**0.6 API contract workflow.** ✅ *Done* — `backend/src/main/openapi` (identity, tenancy, reference specs for steps 0.7–0.8), `packages/api-client`.
+- Spec-first OpenAPI 3.1, one folder per module (`common`, `identity`, `tenancy`, `reference`), linted with Redocly (`redocly.yaml`) and bundled to `packages/api-client/openapi.yaml`.
+- `packages/api-client`: generated types (`openapi-typescript`), typed fetch client (`openapi-fetch`) adding auth, language and `X-Request-Id`, React Query hooks (`openapi-react-query`), idempotency-key and problem helpers; used by web, business, admin-console and mobile (`src/lib/api.ts`).
+- Backend serves the bundle at `/v1/openapi.yaml`; a test keeps `ProblemCode` identical to the contract's error codes. Request/response validation against the spec is added with the first endpoints (0.7).
+- CI job `api-contract`: lint + regenerate, fail if the committed client is stale, and on pull requests fail on breaking changes against the base branch (`oasdiff`).
 - Rule: every module starts with its spec, reviewed by backend, web and mobile.
 
-*Done when:* the auth + tenancy spec is merged and used by the app shells.
+*Done when:* the auth + tenancy spec is merged and used by the app shells. ✅
 
 **0.7 Identity.**
 - Phone-first sign-up/in by SMS OTP through an SMS adapter (needs D4), with rate limits.

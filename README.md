@@ -38,7 +38,8 @@ cd backend && ./gradlew bootRun   # run the API (profile "local") against docker
 npm run dev                 # all JS apps in dev mode (or: npm run dev -w @beavent/web)
 npm run lint                # lint all JS workspaces
 npm run typecheck           # typecheck all JS workspaces
-npm run test                # JS tests (e.g. the Chapa stub)
+npm run test                # JS tests (e.g. the Chapa stub, the API client)
+npm run api:spec            # lint + bundle the OpenAPI contract, regenerate packages/api-client (commit the result)
 npm run build               # production builds
 npm run format              # Prettier (JS/TS/JSON/MD outside backend, db, docs)
 cd backend && ./gradlew spotlessApply   # Java formatting (Palantir Java Format)

@@ -1,0 +1,17 @@
+# OpenAPI lint rules (npm run api:lint). Source: backend/src/main/openapi; bundle: packages/api-client/openapi.yaml.
+apis:
+  beavent:
+    root: backend/src/main/openapi/openapi.yaml
+    x-openapi-ts:
+      output: packages/api-client/src/schema.ts
+extends:
+  - recommended
+rules:
+  operation-operationId: error
+  operation-summary: error
+  operation-4xx-response: error
+  operation-tag-defined: error
+  tag-description: error
+  no-unused-components: error
+  info-license-strict: off
+  security-defined: error

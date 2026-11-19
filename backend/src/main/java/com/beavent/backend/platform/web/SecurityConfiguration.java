@@ -21,7 +21,8 @@ class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
-                .authorizeHttpRequests(requests -> requests.requestMatchers("/actuator/health/**", "/actuator/info")
+                .authorizeHttpRequests(requests -> requests.requestMatchers(
+                                "/actuator/health/**", "/actuator/info", ApiSpecController.PATH)
                         .permitAll()
                         // Payment provider webhooks: authenticated by their HMAC signature, not by a user token.
                         .requestMatchers("/v1/hooks/**")

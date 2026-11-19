@@ -22,6 +22,7 @@ public enum ProblemCode {
     REFERENCE_NOT_FOUND(HttpStatus.UNPROCESSABLE_CONTENT, "The request refers to something that does not exist."),
     CONSTRAINT_VIOLATION(HttpStatus.UNPROCESSABLE_CONTENT, "The request breaks a business rule."),
     PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "This request requires an If-Match header."),
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please wait and try again."),
     INTERNAL(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on our side.");
 
     private final HttpStatus status;

@@ -1,0 +1,687 @@
+organizations:
+  post:
+    tags: [Organizations]
+    operationId: createOrganization
+    summary: Create an organization (the caller becomes its owner)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/OrganizationCreate
+    responses:
+      '201':
+        description: Created.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Organization
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+organization:
+  get:
+    tags: [Organizations]
+    operationId: getOrganization
+    summary: Get an organization
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Organization.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Organization
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  patch:
+    tags: [Organizations]
+    operationId: updateOrganization
+    summary: Update profile details
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: ../common/parameters.yaml#/IfMatch
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/OrganizationUpdate
+    responses:
+      '200':
+        description: Updated.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Organization
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '412':
+        $ref: ../common/responses.yaml#/PreconditionFailed
+capabilities:
+  put:
+    tags: [Organizations]
+    operationId: setCapabilities
+    summary: Set the enabled capabilities
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CapabilitiesUpdate
+    responses:
+      '200':
+        description: Updated.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Organization
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+legalEntities:
+  get:
+    tags: [Organizations]
+    operationId: listLegalEntities
+    summary: List legal entities (sellers of record per country)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Legal entities.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LegalEntityList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Organizations]
+    operationId: createLegalEntity
+    summary: Add a legal entity
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/LegalEntityInput
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LegalEntity
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+legalEntity:
+  put:
+    tags: [Organizations]
+    operationId: updateLegalEntity
+    summary: Update a legal entity
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: legalEntityId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/LegalEntityInput
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LegalEntity
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+locations:
+  get:
+    tags: [Organizations]
+    operationId: listLocations
+    summary: List locations
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: Locations.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LocationList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Organizations]
+    operationId: createLocation
+    summary: Add a location (branch, studio, box office)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/LocationInput
+    responses:
+      '201':
+        description: Created.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Location
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+location:
+  get:
+    tags: [Organizations]
+    operationId: getLocation
+    summary: Get a location
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Location.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Location
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Organizations]
+    operationId: updateLocation
+    summary: Update a location
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - $ref: ../common/parameters.yaml#/IfMatch
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/LocationInput
+    responses:
+      '200':
+        description: Updated.
+        headers:
+          ETag:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Location
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '412':
+        $ref: ../common/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+roles:
+  get:
+    tags: [Team access]
+    operationId: listRoles
+    summary: System role templates and custom roles
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Roles.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/RoleList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Team access]
+    operationId: createRole
+    summary: Create a custom role
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/RoleCreate
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Role
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+role:
+  patch:
+    tags: [Team access]
+    operationId: updateRole
+    summary: Update a custom role
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/RoleUpdate
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Role
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+  delete:
+    tags: [Team access]
+    operationId: deleteRole
+    summary: Delete an unused custom role
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+members:
+  get:
+    tags: [Team access]
+    operationId: listMembers
+    summary: List team members
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: Members.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MemberList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+member:
+  patch:
+    tags: [Team access]
+    operationId: updateMember
+    summary: Change role, locations or suspend a member
+    description: Changing roles requires MFA for members with sensitive permissions; the last owner cannot be demoted.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: memberId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/MemberUpdate
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Member
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Team access]
+    operationId: removeMember
+    summary: Remove a member
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: memberId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+invitations:
+  get:
+    tags: [Team access]
+    operationId: listInvitations
+    summary: List invitations
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Invitations.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/InvitationList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Team access]
+    operationId: createInvitation
+    summary: Invite someone by phone or email
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/InvitationCreate
+    responses:
+      '201':
+        description: Invitation sent.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Invitation
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+invitation:
+  delete:
+    tags: [Team access]
+    operationId: revokeInvitation
+    summary: Revoke a pending invitation
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+invitationAccept:
+  post:
+    tags: [Team access]
+    operationId: acceptInvitation
+    summary: Accept an invitation (as the signed-in person)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/InvitationAccept
+    responses:
+      '200':
+        description: Membership created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Member
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+verificationCases:
+  get:
+    tags: [Verification]
+    operationId: listVerificationCases
+    summary: Business verification cases
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Cases.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/VerificationCaseList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Verification]
+    operationId: submitVerification
+    summary: Submit documents for verification
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/VerificationCaseCreate
+    responses:
+      '201':
+        description: Submitted.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/VerificationCase
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+verificationCase:
+  get:
+    tags: [Verification]
+    operationId: getVerificationCase
+    summary: Get a verification case
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Case.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/VerificationCase
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

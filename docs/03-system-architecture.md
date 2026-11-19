@@ -175,16 +175,16 @@ Exception, for atomicity: the checkout command coordinates *commerce*, *scheduli
 
 * jOOQ (typed SQL) over JPA: the schema relies on constraints, triggers, ranges and RLS, and explicit SQL keeps behaviour obvious.
 * Three connection pools, one per database role (doc 05 §5): `beavent_app` (request handling, RLS enforced), `beavent_identity` (identity module), `beavent_system` (workers, admin backend).
-* At the start of every transaction the API calls `platform.set_request_context(user_id, org_id)` (transaction-local). The org id comes from the `X-Org-Id` header **after** the server has checked active membership and the permission the endpoint needs. Clients never assert tenancy.
+* At the start of every transaction the API calls `platform.set_request_context(user_id, org_id)` (transaction-local). The org id comes from the `/v1/orgs/{orgId}` path **after** the server has checked active membership and the permission the endpoint needs. Clients never assert tenancy.
 * Public pages and checkout for organization X run with `org_id = X`. Public reads use `SET TRANSACTION READ ONLY` and return only published fields through DTOs.
 
 ### 2.4 API conventions
 
 | Concern | Convention |
 |---|---|
-| Style | REST/JSON, OpenAPI 3.1 is the source of truth; TS client generated into `packages/api-client` |
-| Namespaces | `/v1/auth`, `/v1/me`, `/v1/marketplace/*` (public), `/v1/checkout/*`, `/v1/orgs/{orgId}/*` (partner), `/v1/admin/*`, `/v1/hooks/{provider}` (inbound webhooks), `/v1/partner-api/*` (API keys) |
-| Money | `{ "amount_minor": 150000, "currency": "ETB" }`, never floats; formatting is client-side from currency metadata |
+| Style | REST/JSON, spec-first: OpenAPI 3.1 in `backend/src/main/openapi` (one folder per module) is the source of truth; bundled to `packages/api-client/openapi.yaml`, from which the TS client is generated (`npm run api:spec`) and which the backend serves at `/v1/openapi.yaml`. CI fails on a stale client and, for pull requests, on breaking changes (`oasdiff`). JSON fields are camelCase |
+| Namespaces | `/v1/auth`, `/v1/me`, `/v1/ref/*` (reference data), `/v1/marketplace/*` (public), `/v1/checkout/*`, `/v1/orgs/{orgId}/*` (partner; the organization comes from the path), `/v1/admin/*`, `/v1/hooks/{provider}` (inbound webhooks), `/v1/partner-api/*` (API keys) |
+| Money | `{ "amountMinor": 150000, "currency": "ETB" }`, never floats; formatting is client-side from currency metadata |
 | Time | RFC 3339 UTC instants plus the IANA zone of the location/occurrence; the Ethiopian calendar is display-only |
 | Idempotency | `Idempotency-Key` header required on every POST that creates orders, payments, refunds, payouts or tickets (`platform.idempotency_keys`) |
 | Concurrency | `version` columns + `If-Match` on aggregates (orders, appointments) |

@@ -79,6 +79,11 @@ tasks.named('processResources') {
 	from("${rootDir}/../db/migration") {
 		into 'db/migration'
 	}
+	// Bundled API contract (npm run api:spec), served at /v1/openapi.yaml.
+	from("${rootDir}/../packages/api-client/openapi.yaml") {
+		into 'openapi'
+		rename { 'beavent.yaml' }
+	}
 }
 
 // --- jOOQ code generation -------------------------------------------------------------

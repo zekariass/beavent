@@ -28,6 +28,36 @@ jobs:
       - run: npm run format:check
       - run: npx turbo run lint typecheck test build
 
+  api-contract:
+    name: API contract (lint, generated client up to date, breaking changes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-fund --no-audit
+      - run: npm run api:spec
+      - name: Generated client matches the spec (run `npm run api:spec` and commit)
+        run: git diff --exit-code -- packages/api-client
+      - name: No breaking changes against the base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git cat-file -e "origin/${BASE_REF}:packages/api-client/openapi.yaml" 2>/dev/null; then
+            mkdir -p /tmp/base
+            git show "origin/${BASE_REF}:packages/api-client/openapi.yaml" > /tmp/base/openapi.yaml
+            docker run --rm -v /tmp/base:/base -v "$PWD/packages/api-client:/head" tufin/oasdiff:v1.35.0 \
+              breaking /base/openapi.yaml /head/openapi.yaml --fail-on ERR
+          else
+            echo "Base branch has no API contract yet; nothing to compare."
+          fi
+
   backend:
     name: Backend (format, compile, tests incl. Flyway on PostGIS and module boundaries)
     runs-on: ubuntu-latest

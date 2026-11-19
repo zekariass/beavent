@@ -1,0 +1,499 @@
+OrganizationKind:
+  type: string
+  enum: [BUSINESS, INDEPENDENT_PROFESSIONAL, EVENT_ORGANIZER, VENUE_OPERATOR, NON_PROFIT, COMMUNITY_GROUP]
+Capability:
+  type: string
+  enum:
+    - APPOINTMENTS
+    - CLASSES
+    - EVENTS
+    - RESERVED_SEATING
+    - RETAIL
+    - ONLINE_STORE
+    - AT_HOME_SERVICES
+    - GIFT_CARDS
+    - MEMBERSHIPS
+    - PACKAGES
+    - LOYALTY
+    - MARKETING
+    - TEAM_PAY
+    - AI_CONCIERGE
+    - BOX_OFFICE
+    - PUBLIC_API
+OrganizationCreate:
+  type: object
+  required: [displayName, kind, primaryCategoryId, defaultLanguage]
+  properties:
+    displayName:
+      type: string
+      minLength: 2
+      maxLength: 120
+    slug:
+      type: string
+      pattern: ^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$
+      description: Generated from the name when omitted.
+    kind:
+      $ref: '#/OrganizationKind'
+    primaryCategoryId:
+      $ref: ../common/schemas.yaml#/Uuid
+    marketCode:
+      type: string
+      default: ET
+    defaultLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    capabilities:
+      type: array
+      items:
+        $ref: '#/Capability'
+OrganizationUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    displayName:
+      type: string
+      minLength: 2
+      maxLength: 120
+    descriptionI18n:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoFileId:
+      type: [string, 'null']
+      format: uuid
+    coverFileId:
+      type: [string, 'null']
+      format: uuid
+    websiteUrl:
+      type: [string, 'null']
+      format: uri
+    contactEmail:
+      type: [string, 'null']
+      format: email
+    contactPhone:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/PhoneE164
+        - type: 'null'
+    socialLinks:
+      type: object
+      additionalProperties:
+        type: string
+    defaultLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+Organization:
+  type: object
+  required:
+    [id, slug, displayName, kind, status, verificationStatus, marketplaceStatus, marketCode, defaultLanguage, capabilities, version]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    slug:
+      type: string
+    displayName:
+      type: string
+    kind:
+      $ref: '#/OrganizationKind'
+    primaryCategoryId:
+      $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [ONBOARDING, ACTIVE, RESTRICTED, SUSPENDED, CLOSED]
+    verificationStatus:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+    marketplaceStatus:
+      type: string
+      enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+    marketCode:
+      type: string
+    descriptionI18n:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoFileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    coverFileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    websiteUrl:
+      type: string
+    contactEmail:
+      type: string
+    contactPhone:
+      type: string
+    socialLinks:
+      type: object
+      additionalProperties:
+        type: string
+    defaultLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    capabilities:
+      type: array
+      items:
+        $ref: '#/Capability'
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    version:
+      type: integer
+      description: Same value as the ETag.
+CapabilitiesUpdate:
+  type: object
+  required: [capabilities]
+  properties:
+    capabilities:
+      type: array
+      description: The full desired set; plan entitlements may restrict it.
+      items:
+        $ref: '#/Capability'
+LegalEntityInput:
+  type: object
+  required: [countryCode, entityType, registeredName, taxRegime]
+  properties:
+    countryCode:
+      $ref: ../common/schemas.yaml#/CountryCode
+    entityType:
+      type: string
+      enum: [SOLE_PROPRIETOR, PLC, SHARE_COMPANY, PARTNERSHIP, NGO, INDIVIDUAL, OTHER]
+    registeredName:
+      type: string
+      maxLength: 200
+    tradeLicenseNumber:
+      type: string
+      maxLength: 60
+    tin:
+      type: string
+      maxLength: 30
+      description: Taxpayer identification number.
+    vatNumber:
+      type: string
+      maxLength: 30
+      description: Required when taxRegime is VAT.
+    taxRegime:
+      type: string
+      enum: [VAT, TOT, PRESUMPTIVE, EXEMPT]
+    registeredAddress:
+      $ref: ../common/schemas.yaml#/Address
+    isDefault:
+      type: boolean
+LegalEntity:
+  allOf:
+    - $ref: '#/LegalEntityInput'
+    - type: object
+      required: [id, functionalCurrency, verificationStatus, isDefault]
+      properties:
+        id:
+          $ref: ../common/schemas.yaml#/Uuid
+        functionalCurrency:
+          $ref: ../common/schemas.yaml#/CurrencyCode
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+LegalEntityList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/LegalEntity'
+OpeningHours:
+  type: object
+  required: [isoWeekday, opensAt, closesAt]
+  properties:
+    isoWeekday:
+      type: integer
+      minimum: 1
+      maximum: 7
+    opensAt:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+    closesAt:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+LocationInput:
+  type: object
+  required: [name, legalEntityId, address, timezone]
+  properties:
+    name:
+      type: string
+      maxLength: 120
+    slug:
+      type: string
+      pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+    legalEntityId:
+      $ref: ../common/schemas.yaml#/Uuid
+    address:
+      $ref: ../common/schemas.yaml#/Address
+    timezone:
+      type: string
+      examples: [Africa/Addis_Ababa]
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+    serviceMode:
+      type: string
+      enum: [ON_PREMISES, MOBILE_ONLY, BOTH]
+      default: ON_PREMISES
+    onlineBooking:
+      type: boolean
+      default: true
+    hours:
+      type: array
+      items:
+        $ref: '#/OpeningHours'
+Location:
+  allOf:
+    - $ref: '#/LocationInput'
+    - type: object
+      required: [id, slug, currency, status, marketplaceListed, version]
+      properties:
+        id:
+          $ref: ../common/schemas.yaml#/Uuid
+        placeId:
+          $ref: ../common/schemas.yaml#/Uuid
+        currency:
+          $ref: ../common/schemas.yaml#/CurrencyCode
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, ARCHIVED]
+        marketplaceListed:
+          type: boolean
+        version:
+          type: integer
+LocationList:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Location'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+Role:
+  type: object
+  required: [id, code, name, isSystem, permissions]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    code:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+    isSystem:
+      type: boolean
+      description: System templates are read-only; clone them to customise.
+    permissions:
+      type: array
+      items:
+        type: string
+RoleCreate:
+  type: object
+  required: [name, permissions]
+  properties:
+    name:
+      type: string
+      maxLength: 80
+    description:
+      type: string
+      maxLength: 300
+    basedOnRoleId:
+      $ref: ../common/schemas.yaml#/Uuid
+    permissions:
+      type: array
+      items:
+        type: string
+RoleUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      maxLength: 80
+    description:
+      type: string
+      maxLength: 300
+    permissions:
+      type: array
+      items:
+        type: string
+RoleList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Role'
+Member:
+  type: object
+  required: [id, userId, displayName, roleId, roleCode, status, isOwner, allLocations, locationIds, joinedAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    userId:
+      $ref: ../common/schemas.yaml#/Uuid
+    displayName:
+      type: string
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    roleId:
+      $ref: ../common/schemas.yaml#/Uuid
+    roleCode:
+      type: string
+    status:
+      type: string
+      enum: [ACTIVE, SUSPENDED, REMOVED]
+    isOwner:
+      type: boolean
+    allLocations:
+      type: boolean
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    joinedAt:
+      $ref: ../common/schemas.yaml#/Instant
+MemberUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    roleId:
+      $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [ACTIVE, SUSPENDED]
+    allLocations:
+      type: boolean
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+MemberList:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Member'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+InvitationCreate:
+  type: object
+  required: [roleId]
+  properties:
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+    roleId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+  anyOf:
+    - required: [phone]
+    - required: [email]
+Invitation:
+  type: object
+  required: [id, roleId, status, expiresAt, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+    roleId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [PENDING, ACCEPTED, REVOKED, EXPIRED]
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+InvitationList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Invitation'
+InvitationAccept:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      description: From the invitation link sent by SMS or email.
+VerificationDocumentInput:
+  type: object
+  required: [docType, fileId]
+  properties:
+    docType:
+      type: string
+      enum: [TRADE_LICENSE, TIN_CERTIFICATE, VAT_CERTIFICATE, NATIONAL_ID, FAYDA_ID, PASSPORT, KEBELE_ID, BANK_LETTER, PROFESSIONAL_LICENSE, VENUE_PERMIT, MEMORANDUM_OF_ASSOCIATION]
+    fileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    expiresOn:
+      type: string
+      format: date
+VerificationCaseCreate:
+  type: object
+  required: [subject, documents]
+  properties:
+    subject:
+      type: string
+      enum: [ORGANIZATION_KYB, OWNER_KYC]
+    legalEntityId:
+      $ref: ../common/schemas.yaml#/Uuid
+    documents:
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/VerificationDocumentInput'
+VerificationCase:
+  type: object
+  required: [id, subject, status, createdAt, documents]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    subject:
+      type: string
+    status:
+      type: string
+      enum: [OPEN, AWAITING_INFO, IN_REVIEW, APPROVED, REJECTED, EXPIRED]
+    decisionReason:
+      type: string
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    decidedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    documents:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/VerificationDocumentInput'
+          - type: object
+            required: [id, status]
+            properties:
+              id:
+                $ref: ../common/schemas.yaml#/Uuid
+              status:
+                type: string
+                enum: [SUBMITTED, ACCEPTED, REJECTED]
+VerificationCaseList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/VerificationCase'

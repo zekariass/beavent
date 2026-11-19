@@ -1,0 +1,131 @@
+Uuid:
+  type: string
+  format: uuid
+Instant:
+  type: string
+  format: date-time
+  description: RFC 3339, UTC.
+PhoneE164:
+  type: string
+  pattern: ^\+[1-9][0-9]{6,14}$
+  examples: ["+251911234567"]
+LanguageCode:
+  type: string
+  description: BCP 47 language code (am, om, ti, so, en, sw, ...).
+  examples: [am]
+CountryCode:
+  type: string
+  pattern: ^[A-Z]{2}$
+  examples: [ET]
+CurrencyCode:
+  type: string
+  pattern: ^[A-Z]{3}$
+  examples: [ETB]
+LocalizedText:
+  type: object
+  description: Text per language code; clients fall back user language → organization default → market default → en.
+  additionalProperties:
+    type: string
+  examples:
+    - { en: Hair, am: ፀጉር }
+Money:
+  type: object
+  required: [amountMinor, currency]
+  properties:
+    amountMinor:
+      type: integer
+      format: int64
+      description: Integer amount in the currency's minor units (ETB 1,500.00 → 150000).
+    currency:
+      $ref: '#/CurrencyCode'
+GeoPoint:
+  type: object
+  required: [latitude, longitude]
+  properties:
+    latitude:
+      type: number
+      minimum: -90
+      maximum: 90
+    longitude:
+      type: number
+      minimum: -180
+      maximum: 180
+Address:
+  type: object
+  description: Landmark-first address (most addresses in the launch markets have no postal code).
+  required: [countryCode]
+  properties:
+    countryCode:
+      $ref: '#/CountryCode'
+    adminAreaId:
+      $ref: '#/Uuid'
+    addressLine:
+      type: string
+      maxLength: 300
+    landmark:
+      type: string
+      maxLength: 300
+      examples: ["Behind Edna Mall, 2nd gate"]
+    city:
+      type: string
+      maxLength: 120
+    postalCode:
+      type: string
+      maxLength: 20
+    geo:
+      $ref: '#/GeoPoint'
+PageInfo:
+  type: object
+  required: [nextCursor]
+  properties:
+    nextCursor:
+      type: [string, 'null']
+      description: Pass as `cursor` to get the next page; null on the last page.
+Problem:
+  type: object
+  description: RFC 9457 problem details with Beavent's stable `code`.
+  required: [type, title, status, code]
+  properties:
+    type:
+      type: string
+      format: uri
+      examples: ["urn:beavent:problem:slot-taken"]
+    title:
+      type: string
+    status:
+      type: integer
+    detail:
+      type: string
+    code:
+      type: string
+      enum:
+        - VALIDATION_FAILED
+        - UNAUTHENTICATED
+        - FORBIDDEN
+        - NOT_FOUND
+        - CONFLICT
+        - SLOT_TAKEN
+        - SOLD_OUT
+        - IMMUTABLE
+        - CONCURRENT_UPDATE
+        - IDEMPOTENCY_IN_PROGRESS
+        - PRECONDITION_FAILED
+        - IDEMPOTENCY_KEY_REUSED
+        - REFERENCE_NOT_FOUND
+        - CONSTRAINT_VIOLATION
+        - PRECONDITION_REQUIRED
+        - RATE_LIMITED
+        - INTERNAL
+    requestId:
+      type: string
+    errors:
+      type: array
+      description: Field-level validation errors.
+      items:
+        type: object
+        required: [field, message]
+        properties:
+          field:
+            type: string
+          message:
+            type: string
