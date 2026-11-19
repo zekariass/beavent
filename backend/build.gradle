@@ -49,6 +49,10 @@ dependencies {
 	// compile scope: SqlStateProblems reads PostgreSQL error details (SQLSTATE, table)
 	implementation 'org.postgresql:postgresql'
 
+	// Object storage: any S3-compatible service (SeaweedFS locally; Cloudflare R2 or AWS S3 in production)
+	implementation platform('software.amazon.awssdk:bom:2.57.5')
+	implementation 'software.amazon.awssdk:s3'
+
 	// Coordination & messaging
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'

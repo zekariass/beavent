@@ -1,0 +1,13 @@
+{
+  "identities": [
+    {
+      "name": "anonymous",
+      "actions": ["Read:beavent-public"]
+    },
+    {
+      "name": "beavent",
+      "credentials": [{ "accessKey": "beavent", "secretKey": "beavent-dev-secret" }],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    }
+  ]
+}

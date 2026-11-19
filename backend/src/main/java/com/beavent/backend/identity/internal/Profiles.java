@@ -7,6 +7,7 @@ import static com.beavent.db.iam.Tables.USER_PROFILES;
 import static com.beavent.db.iam.Tables.USER_STAFF_ROLES;
 import static com.beavent.db.ref.Tables.LEGAL_DOCUMENT_VERSIONS;
 
+import com.beavent.backend.identity.AvatarFiles;
 import com.beavent.backend.identity.MembershipDirectory;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.IdentityDb;
@@ -35,11 +36,17 @@ public class Profiles {
     private final DSLContext dsl;
     private final Passwords passwords;
     private final ObjectProvider<MembershipDirectory> memberships;
+    private final ObjectProvider<AvatarFiles> avatarFiles;
 
-    Profiles(@IdentityDb DSLContext dsl, Passwords passwords, ObjectProvider<MembershipDirectory> memberships) {
+    Profiles(
+            @IdentityDb DSLContext dsl,
+            Passwords passwords,
+            ObjectProvider<MembershipDirectory> memberships,
+            ObjectProvider<AvatarFiles> avatarFiles) {
         this.dsl = dsl;
         this.passwords = passwords;
         this.memberships = memberships;
+        this.avatarFiles = avatarFiles;
     }
 
     public MeView me(UUID userId) {
@@ -106,7 +113,12 @@ public class Profiles {
         }
         if (patch.has("avatarFileId")) {
             String value = text(patch, "avatarFileId");
-            profile.addValue(USER_PROFILES.AVATAR_FILE_ID, value == null ? null : UUID.fromString(value));
+            UUID fileId = value == null ? null : UUID.fromString(value);
+            AvatarFiles checker = avatarFiles.getIfAvailable();
+            if (fileId != null && (checker == null || !checker.isUsableAvatar(userId, fileId))) {
+                throw new ApiException(ProblemCode.REFERENCE_NOT_FOUND, "Upload the picture first, then use it.");
+            }
+            profile.addValue(USER_PROFILES.AVATAR_FILE_ID, fileId);
             profileChanged = true;
         }
         if (profileChanged) {

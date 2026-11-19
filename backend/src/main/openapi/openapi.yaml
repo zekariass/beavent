@@ -32,6 +32,8 @@ tags:
     description: Members, roles, invitations
   - name: Verification
     description: Business verification (KYB)
+  - name: Files
+    description: Uploads (pre-signed), processing status, signed download URLs
   - name: Reference
     description: Markets, languages, categories, administrative areas
 paths:
@@ -103,6 +105,21 @@ paths:
     $ref: ./tenancy/paths.yaml#/verificationCases
   /v1/orgs/{orgId}/verification-cases/{caseId}:
     $ref: ./tenancy/paths.yaml#/verificationCase
+  # --- files ------------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/files:
+    $ref: ./files/paths.yaml#/orgFiles
+  /v1/orgs/{orgId}/files/{fileId}:
+    $ref: ./files/paths.yaml#/orgFile
+  /v1/orgs/{orgId}/files/{fileId}/complete:
+    $ref: ./files/paths.yaml#/orgFileComplete
+  /v1/orgs/{orgId}/files/{fileId}/access-url:
+    $ref: ./files/paths.yaml#/orgFileAccessUrl
+  /v1/me/files:
+    $ref: ./files/paths.yaml#/myFiles
+  /v1/me/files/{fileId}:
+    $ref: ./files/paths.yaml#/myFile
+  /v1/me/files/{fileId}/complete:
+    $ref: ./files/paths.yaml#/myFileComplete
   # --- reference --------------------------------------------------------------------------------------------
   /v1/ref/markets:
     $ref: ./reference/paths.yaml#/markets

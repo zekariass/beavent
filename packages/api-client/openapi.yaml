@@ -32,6 +32,8 @@ tags:
     description: Members, roles, invitations
   - name: Verification
     description: Business verification (KYB)
+  - name: Files
+    description: Uploads (pre-signed), processing status, signed download URLs
   - name: Reference
     description: Markets, languages, categories, administrative areas
 paths:
@@ -1160,6 +1162,200 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/files:
+    post:
+      tags:
+        - Files
+      operationId: createFileUpload
+      summary: Start an upload in the organization workspace (returns a pre-signed URL)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadCreate'
+      responses:
+        '201':
+          description: Upload started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/files/{fileId}:
+    get:
+      tags:
+        - Files
+      operationId: getFile
+      summary: Get a file's status and public URLs
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: File.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/files/{fileId}/complete:
+    post:
+      tags:
+        - Files
+      operationId: completeFileUpload
+      summary: Confirm the upload finished; processing starts
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Upload confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/files/{fileId}/access-url:
+    post:
+      tags:
+        - Files
+      operationId: createFileAccessUrl
+      summary: Short-lived download URL for a private or sensitive file (audited)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUrl'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/files:
+    post:
+      tags:
+        - Files
+      operationId: createMyFileUpload
+      summary: Start an upload of your own file (avatar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadCreate'
+      responses:
+        '201':
+          description: Upload started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me/files/{fileId}:
+    get:
+      tags:
+        - Files
+      operationId: getMyFile
+      summary: Get one of your own files
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: File.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/files/{fileId}/complete:
+    post:
+      tags:
+        - Files
+      operationId: completeMyFileUpload
+      summary: Confirm your upload finished
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Upload confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/ref/markets:
     get:
       tags:
@@ -2630,6 +2826,133 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/VerificationDocumentInput'
+    FilePurpose:
+      type: string
+      enum:
+        - LOGO
+        - COVER
+        - GALLERY
+        - EVENT_MEDIA
+        - KYC
+        - DOCUMENT
+        - AVATAR
+      description: |
+        What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
+        Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
+        sensitive), DOCUMENT (private). Personal (/v1/me/files): AVATAR (public).
+    FileUploadCreate:
+      type: object
+      required:
+        - purpose
+        - contentType
+        - sizeBytes
+      properties:
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        contentType:
+          type: string
+          examples:
+            - image/jpeg
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Exact size of the file that will be uploaded; checked when the upload is completed.
+        fileName:
+          type: string
+          maxLength: 200
+    File:
+      type: object
+      required:
+        - id
+        - purpose
+        - visibility
+        - contentType
+        - sizeBytes
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        visibility:
+          type: string
+          enum:
+            - PUBLIC
+            - PRIVATE
+            - SENSITIVE
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - PENDING_UPLOAD
+            - PROCESSING
+            - READY
+            - REJECTED
+          description: Public files get a `url` only when READY (scanned, metadata stripped).
+        fileName:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: Public URL (CDN) of a READY public file.
+        variants:
+          type: object
+          description: Smaller versions of a public image by name (w320, w960).
+          additionalProperties:
+            type: string
+            format: uri
+        width:
+          type: integer
+        height:
+          type: integer
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    FileUpload:
+      type: object
+      required:
+        - file
+        - upload
+      properties:
+        file:
+          $ref: '#/components/schemas/File'
+        upload:
+          type: object
+          required:
+            - url
+            - method
+            - headers
+            - expiresAt
+          description: Send the file bytes with this method, URL and headers (directly to storage), then call `complete`.
+          properties:
+            url:
+              type: string
+              format: uri
+            method:
+              type: string
+              enum:
+                - PUT
+            headers:
+              type: object
+              additionalProperties:
+                type: string
+            expiresAt:
+              $ref: '#/components/schemas/Instant'
+    AccessUrl:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
     Market:
       type: object
       required:

@@ -103,7 +103,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 **0.4 CI and local environment.** ✅ *Done* — `.github/workflows/ci.yml` (runs once the branch is pushed), `tools/chapa-stub`, `.env.example`, container images.
 - CI: format, lint, typecheck, tests (incl. the Chapa stub), builds, DB validation on PostGIS, backend build with Testcontainers and Spring Modulith boundary tests, all container images. The OpenAPI breaking-change check is added with the first spec (step 0.6).
-- Docker Compose dev stack: PostGIS, Redis, RabbitMQ, MinIO (S3-compatible storage), Mailpit, plus the **Chapa stub** (initialize, direct charge, verify, refund, subaccount, signed webhooks, outcome by phone suffix, fault injection) so payment work can start before Chapa test keys arrive.
+- Docker Compose dev stack: PostGIS, Redis, RabbitMQ, SeaweedFS (S3-compatible storage; MinIO stopped publishing images, replaced in 0.9), Mailpit, plus the **Chapa stub** (initialize, direct charge, verify, refund, subaccount, signed webhooks, outcome by phone suffix, fault injection) so payment work can start before Chapa test keys arrive.
 - Secrets: `.env` locally (from `.env.example`), a secret manager once hosted. The DB stores only `*_secret_ref`.
 - Container images: backend, Chapa stub, and one shared Next.js image definition (standalone output) for web, business and admin-console. Dependabot weekly.
 
@@ -149,11 +149,14 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* API-level tests prove an org A token can never read or write org B data. ✅ (`TenancyApiTests`: B's ids and paths are `404`/`422` from A's workspace, including for a person who belongs to both.)
 
-**0.9 Files and media.**
-- Pre-signed uploads to S3-compatible storage; virus-scan hook; image variants.
-- `SENSITIVE` files served only through short-lived signed URLs after a permission check, with audit.
+**0.9 Files and media.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/files` (52 backend tests in total).
+- Direct uploads: the API creates the file record and a pre-signed PUT (15 minutes) to the private bucket; the client uploads, then calls `complete`, which checks the stored size and type. Each purpose (logo, cover, gallery, event media, KYC, document, avatar) fixes who may upload, allowed types (JPEG/PNG, PDF) and size.
+- Processing worker (`file.uploaded` via the outbox): content-type check from the file's bytes, malware scan (`MalwareScanner`: ClamAV `clamd` in production — needs hosting, D5; an EICAR-only scanner locally), and for public images re-encoding (drops EXIF/GPS), size limits against decompression bombs, and `w320`/`w960` variants. Only then are public images copied to the public bucket (CDN); rejected files are deleted and audited.
+- Private and `SENSITIVE` files are only reachable through signed URLs (5 minutes; 60 seconds for sensitive) after the purpose's permission check; each sensitive access is audited. Logos, covers and avatars can only reference processed files of the same organization/person; KYB cases only uploaded, not-rejected documents.
+- Local storage is SeaweedFS (S3 API; MinIO no longer publishes images); production uses any S3-compatible service (Cloudflare R2 or AWS S3, hosting decision D5).
+- Later: clean-up job for uploads never completed (indexed), more purposes as modules need them (customer photos, receipts, exports).
 
-*Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation.
+*Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation. ✅ (`FilesApiTests`.)
 
 **0.10 Admin console shell.**
 - Staff SSO + MFA; market-scoped staff roles; reason + audit on every change.

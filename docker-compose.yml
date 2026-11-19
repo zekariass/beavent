@@ -39,15 +39,15 @@ services:
       interval: 10s
       retries: 20
 
-  minio:
-    # S3-compatible object storage for files and media.
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: beavent
-      MINIO_ROOT_PASSWORD: beavent-dev-secret
-    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
-    volumes: [miniodata:/data]
+  seaweedfs:
+    # S3-compatible object storage for files and media (local stand-in for Cloudflare R2 / AWS S3).
+    # Credentials and the public-read rule for beavent-public: docker/seaweedfs/s3.json.
+    image: chrislusf/seaweedfs:4.52
+    command: server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data
+    ports: ["127.0.0.1:8333:8333"]
+    volumes:
+      - seaweeddata:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
 
   mailpit:
     # Catches all outgoing email in development: http://localhost:8025
@@ -69,4 +69,4 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  seaweeddata:

@@ -161,6 +161,8 @@ class TenancyApiTests extends ApiTestSupport {
                 .set(FILES.STORAGE_KEY, "test/" + id)
                 .set(FILES.CONTENT_TYPE, "application/pdf")
                 .set(FILES.SIZE_BYTES, 1000L)
+                .set(FILES.UPLOADED_AT, java.time.OffsetDateTime.now())
+                .set(FILES.SCAN_STATUS, "CLEAN")
                 .execute();
         return id;
     }

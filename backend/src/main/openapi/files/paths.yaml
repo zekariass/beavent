@@ -1,0 +1,187 @@
+orgFiles:
+  post:
+    tags: [Files]
+    operationId: createFileUpload
+    summary: Start an upload in the organization workspace (returns a pre-signed URL)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/FileUploadCreate
+    responses:
+      '201':
+        description: Upload started.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FileUpload
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+orgFile:
+  get:
+    tags: [Files]
+    operationId: getFile
+    summary: Get a file's status and public URLs
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/File
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+orgFileComplete:
+  post:
+    tags: [Files]
+    operationId: completeFileUpload
+    summary: Confirm the upload finished; processing starts
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Upload confirmed.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/File
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+orgFileAccessUrl:
+  post:
+    tags: [Files]
+    operationId: createFileAccessUrl
+    summary: Short-lived download URL for a private or sensitive file (audited)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: URL.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AccessUrl
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+myFiles:
+  post:
+    tags: [Files]
+    operationId: createMyFileUpload
+    summary: Start an upload of your own file (avatar)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/FileUploadCreate
+    responses:
+      '201':
+        description: Upload started.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FileUpload
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+myFile:
+  get:
+    tags: [Files]
+    operationId: getMyFile
+    summary: Get one of your own files
+    parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/File
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myFileComplete:
+  post:
+    tags: [Files]
+    operationId: completeMyFileUpload
+    summary: Confirm your upload finished
+    parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Upload confirmed.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/File
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

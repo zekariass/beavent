@@ -317,6 +317,7 @@ public class Organizations {
                         .and(FILES.ORG_ID.eq(orgId))
                         .and(FILES.DELETED_AT.isNull())
                         .and(FILES.VISIBILITY.eq("PUBLIC"))
+                        .and(FILES.SCAN_STATUS.eq("CLEAN"))
                         .and(FILES.PURPOSE.in("LOGO", "COVER", "GALLERY")));
         if (!usable) {
             throw new ApiException(ProblemCode.REFERENCE_NOT_FOUND, "Unknown image.");

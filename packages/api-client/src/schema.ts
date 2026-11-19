@@ -584,6 +584,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start an upload in the organization workspace (returns a pre-signed URL) */
+        post: operations["createFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/files/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a file's status and public URLs */
+        get: operations["getFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/files/{fileId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm the upload finished; processing starts */
+        post: operations["completeFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/files/{fileId}/access-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Short-lived download URL for a private or sensitive file (audited) */
+        post: operations["createFileAccessUrl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start an upload of your own file (avatar) */
+        post: operations["createMyFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/files/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one of your own files */
+        get: operations["getMyFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/files/{fileId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm your upload finished */
+        post: operations["completeMyFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ref/markets": {
         parameters: {
             query?: never;
@@ -1202,6 +1321,70 @@ export interface components {
             subject: "ORGANIZATION_KYB" | "OWNER_KYC";
             legalEntityId?: components["schemas"]["Uuid"];
             documents: components["schemas"]["VerificationDocumentInput"][];
+        };
+        /**
+         * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
+         *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
+         *     sensitive), DOCUMENT (private). Personal (/v1/me/files): AVATAR (public).
+         * @enum {string}
+         */
+        FilePurpose: "LOGO" | "COVER" | "GALLERY" | "EVENT_MEDIA" | "KYC" | "DOCUMENT" | "AVATAR";
+        FileUploadCreate: {
+            purpose: components["schemas"]["FilePurpose"];
+            /** @example image/jpeg */
+            contentType: string;
+            /**
+             * Format: int64
+             * @description Exact size of the file that will be uploaded; checked when the upload is completed.
+             */
+            sizeBytes: number;
+            fileName?: string;
+        };
+        File: {
+            id: components["schemas"]["Uuid"];
+            purpose: components["schemas"]["FilePurpose"];
+            /** @enum {string} */
+            visibility: "PUBLIC" | "PRIVATE" | "SENSITIVE";
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /**
+             * @description Public files get a `url` only when READY (scanned, metadata stripped).
+             * @enum {string}
+             */
+            status: "PENDING_UPLOAD" | "PROCESSING" | "READY" | "REJECTED";
+            fileName?: string;
+            /**
+             * Format: uri
+             * @description Public URL (CDN) of a READY public file.
+             */
+            url?: string;
+            /** @description Smaller versions of a public image by name (w320, w960). */
+            variants?: {
+                [key: string]: string;
+            };
+            width?: number;
+            height?: number;
+            createdAt: components["schemas"]["Instant"];
+        };
+        FileUpload: {
+            file: components["schemas"]["File"];
+            /** @description Send the file bytes with this method, URL and headers (directly to storage), then call `complete`. */
+            upload: {
+                /** Format: uri */
+                url: string;
+                /** @enum {string} */
+                method: "PUT";
+                headers: {
+                    [key: string]: string;
+                };
+                expiresAt: components["schemas"]["Instant"];
+            };
+        };
+        AccessUrl: {
+            /** Format: uri */
+            url: string;
+            expiresAt?: components["schemas"]["Instant"];
         };
         Market: {
             code: string;
@@ -2510,6 +2693,197 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    createFileUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Upload started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeFileUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload confirmed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    createFileAccessUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessUrl"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createMyFileUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Upload started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getMyFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeMyFileUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload confirmed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     listMarkets: {

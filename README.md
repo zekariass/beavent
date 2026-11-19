@@ -21,7 +21,7 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 
 - Node 26 (`.nvmrc`) and npm 11
 - Java 21
-- Docker (for PostGIS, Redis, RabbitMQ, MinIO, Mailpit and the tests)
+- Docker (for PostGIS, Redis, RabbitMQ, SeaweedFS (S3), Mailpit and the tests)
 - `psql` client 17 (for `db/scripts/validate.sh`)
 
 ## Common commands
@@ -29,7 +29,7 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 ```bash
 npm install                 # install all JS workspaces (one root lockfile)
 cp .env.example .env        # local settings (never commit .env)
-docker compose up -d        # PostGIS :5433, Redis :6379, RabbitMQ :5672/:15672, MinIO :9000/:9001, Mailpit :8025, Chapa stub :8090
+docker compose up -d        # PostGIS :5433, Redis :6379, RabbitMQ :5672/:15672, SeaweedFS S3 :8333, Mailpit :8025, Chapa stub :8090
 
 npm run db:validate         # schema: throwaway PostGIS container → migrations → tests → race test
 npm run api:build           # backend: compile, format check, tests (Testcontainers; Flyway applies db/migration)

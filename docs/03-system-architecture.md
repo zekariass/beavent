@@ -57,7 +57,7 @@ db/
 docs/
 tools/chapa-stub/ local stand-in for the Chapa API (development and CI)
 docker/           shared Next.js image definition
-docker-compose.yml  local PostGIS, Redis, RabbitMQ, MinIO, Mailpit, Chapa stub
+docker-compose.yml  local PostGIS, Redis, RabbitMQ, SeaweedFS (S3), Mailpit, Chapa stub
 .github/workflows/  CI
 ```
 

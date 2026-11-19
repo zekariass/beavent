@@ -99,6 +99,8 @@ public class Verification {
                             .in(fileIds)
                             .and(FILES.ORG_ID.eq(access.orgId()))
                             .and(FILES.DELETED_AT.isNull())
+                            .and(FILES.UPLOADED_AT.isNotNull())
+                            .and(FILES.SCAN_STATUS.in("PENDING", "CLEAN"))
                             .and(FILES.PURPOSE.in("KYC", "DOCUMENT")));
             if (usable != fileIds.size()) {
                 throw new ApiException(ProblemCode.REFERENCE_NOT_FOUND, "Unknown document file.");
