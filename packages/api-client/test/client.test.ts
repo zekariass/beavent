@@ -11,7 +11,12 @@ test("adds auth, language and request id headers; parses problems", async () => 
     fetch: async (input) => {
       seen = input as Request;
       return new Response(
-        JSON.stringify({ type: "urn:beavent:problem:unauthenticated", title: "Unauthorized", status: 401, code: "UNAUTHENTICATED" }),
+        JSON.stringify({
+          type: "urn:beavent:problem:unauthenticated",
+          title: "Unauthorized",
+          status: 401,
+          code: "UNAUTHENTICATED",
+        }),
         { status: 401, headers: { "content-type": "application/problem+json" } },
       );
     },
