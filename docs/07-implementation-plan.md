@@ -158,11 +158,13 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation. ✅ (`FilesApiTests`.)
 
-**0.10 Admin console shell.**
-- Staff SSO + MFA; market-scoped staff roles; reason + audit on every change.
-- Screens: organization search/360, KYB queue, user search, audit log, feature flags, market settings (read-only).
+**0.10 Admin console shell.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/admin`, `admin-console/` (56 backend tests in total).
+- Staff access: admin-console tokens are issued only to accounts with an active staff role; every `/v1/admin` call also needs a multi-factor sign-in (authenticator app) and re-reads the staff roles, so a revoked role stops working at once. Permissions come from staff roles and are scoped to markets (a market-limited reviewer does not see other markets). First staff accounts are granted with `db/scripts/grant-staff-role.sh` (audited). Company single sign-on waits for **D12**.
+- Every change carries a reason and is audited (`PLATFORM_STAFF`); opening a KYB document creates a 60-second signed link and an audit entry; staff cannot decide verification for an organization they belong to.
+- API and screens: overview, verification queue and case review (documents, approve / reject / ask for information), organization search and 360, people search (phone in local or international format, email, name), audit log, feature flags (changing defaults needs global market management), markets (read-only).
+- The console keeps the session server-side: tokens live in httpOnly cookies and never reach the browser; `proxy.ts` rotates them before expiry (never on prefetches, because refresh-token reuse ends the session).
 
-*Done when:* an operator approves a KYB case and it appears in the audit log.
+*Done when:* an operator approves a KYB case and it appears in the audit log. ✅ (`AdminApiTests`; also checked end to end on the dev stack: upload → scan → submit → staff sign-in with authenticator → review → approve → audit log page.)
 
 **0.11 Design system, languages and calendar.**
 - Design tokens and component libraries (web + React Native); Ethiopic font and line-height rules; a low-end Android performance budget.
@@ -543,6 +545,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 | D9 | Wireframes and visual design for the pilot journeys | Designer | Stage 0, step 0.11, then ahead of each stage's UI |
 | D10 | Pilot partner list and their bank accounts | Business development | Stage 10 |
 | D11 | Apple/Google developer accounts; app names in Amharic and English | Ops | Stage 9 |
+| D12 | Identity provider for staff single sign-on (e.g. Google Workspace or Microsoft Entra) and the company domain | Founders + ops | Before staff beyond the founding team use the admin console (Stage 9 at the latest) |
 
 ## Risks
 

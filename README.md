@@ -46,6 +46,18 @@ cd backend && ./gradlew spotlessApply   # Java formatting (Palantir Java Format)
 cd mobile && npx expo start # run the mobile app
 ```
 
+## Admin console access
+
+Staff sign in at http://localhost:3002 with their phone and an authenticator app. Grant the first staff role to an
+account that has signed in once:
+
+```bash
+PGHOST=localhost PGPORT=5433 PGUSER=beavent PGDATABASE=beavent PGPASSWORD=beavent \
+  db/scripts/grant-staff-role.sh +251911234567 SUPER_ADMIN      # or e.g. RISK_ANALYST ET
+```
+
+Locally, one-time codes appear in the API log (`SMS_PROVIDER=log`).
+
 ## Container images
 
 ```bash

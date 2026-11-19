@@ -703,6 +703,193 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in staff member, roles and permissions */
+        get: operations["getStaffMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orgs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search organizations (name, slug or id) in your markets */
+        get: operations["searchOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orgs/{orgId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Organization 360: profile, owner, team size, verification, recent audit */
+        get: operations["getOrganization360"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search people by phone, email, name or id */
+        get: operations["searchUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/verification-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** KYB/KYC queue, oldest first (default: open cases) */
+        get: operations["listVerificationQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/verification-cases/{caseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A verification case with its documents */
+        get: operations["getVerificationCaseForReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/verification-cases/{caseId}/documents/{documentId}/access-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Short-lived URL to view a submitted document (audited) */
+        post: operations["createVerificationDocumentUrl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/verification-cases/{caseId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve, reject or request more information (reason required, audited) */
+        post: operations["decideVerificationCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audit log, newest first */
+        get: operations["searchAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Feature flags and their overrides */
+        get: operations["listFeatureFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/feature-flags/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a flag default (reason required, audited) */
+        put: operations["updateFeatureFlag"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ref/markets": {
         parameters: {
             query?: never;
@@ -1385,6 +1572,143 @@ export interface components {
             /** Format: uri */
             url: string;
             expiresAt?: components["schemas"]["Instant"];
+        };
+        StaffMe: {
+            userId: components["schemas"]["Uuid"];
+            roles: {
+                /** @example RISK_ANALYST */
+                roleCode: string;
+                /** @description Absent = all markets. */
+                marketCode?: string;
+            }[];
+            permissions: string[];
+        };
+        OrgSummary: {
+            id: components["schemas"]["Uuid"];
+            slug: string;
+            displayName: string;
+            kind: string;
+            status: string;
+            verificationStatus: string;
+            marketCode: string;
+            createdAt: components["schemas"]["Instant"];
+        };
+        OrgSummaryPage: {
+            items: components["schemas"]["OrgSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        LegalEntitySummary: {
+            id: components["schemas"]["Uuid"];
+            countryCode: string;
+            registeredName: string;
+            tin?: string;
+            taxRegime: string;
+            verificationStatus: string;
+        };
+        CaseSummary: {
+            id: components["schemas"]["Uuid"];
+            subject: string;
+            /** @enum {string} */
+            status: "OPEN" | "AWAITING_INFO" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "EXPIRED";
+            orgId: components["schemas"]["Uuid"];
+            orgName: string;
+            marketCode: string;
+            legalEntityId?: components["schemas"]["Uuid"];
+            createdAt: components["schemas"]["Instant"];
+            decidedAt?: components["schemas"]["Instant"];
+            decisionReason?: string;
+            documentCount: number;
+        };
+        AuditEntry: {
+            id: components["schemas"]["Uuid"];
+            occurredAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            actorKind: "USER" | "PLATFORM_STAFF" | "SYSTEM" | "API_CLIENT" | "PROVIDER";
+            actorUserId?: components["schemas"]["Uuid"];
+            orgId?: components["schemas"]["Uuid"];
+            action: string;
+            targetType: string;
+            targetId: string;
+            before?: Record<string, never>;
+            after?: Record<string, never>;
+            reason?: string;
+            requestId?: string;
+        };
+        Org360: {
+            organization: components["schemas"]["OrgSummary"];
+            capabilities: string[];
+            owner?: {
+                userId: components["schemas"]["Uuid"];
+                displayName?: string;
+                phone?: string;
+            };
+            memberCount: number;
+            locationCount: number;
+            legalEntities: components["schemas"]["LegalEntitySummary"][];
+            verificationCases: components["schemas"]["CaseSummary"][];
+            /** @description Empty without the audit permission. */
+            recentAudit: components["schemas"]["AuditEntry"][];
+        };
+        UserSummary: {
+            id: components["schemas"]["Uuid"];
+            phone?: string;
+            email?: string;
+            displayName?: string;
+            status: string;
+            countryCode?: string;
+            createdAt: components["schemas"]["Instant"];
+            lastLoginAt?: components["schemas"]["Instant"];
+            isStaff: boolean;
+            membershipCount: number;
+        };
+        UserSummaryPage: {
+            items: components["schemas"]["UserSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        CaseSummaryPage: {
+            items: components["schemas"]["CaseSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        CaseDetail: {
+            verificationCase: components["schemas"]["CaseSummary"];
+            legalEntity?: components["schemas"]["LegalEntitySummary"];
+            documents: {
+                id: components["schemas"]["Uuid"];
+                docType: string;
+                fileId: components["schemas"]["Uuid"];
+                status: string;
+                /** Format: date */
+                expiresOn?: string;
+            }[];
+        };
+        Decision: {
+            /** @enum {string} */
+            decision: "APPROVE" | "REJECT" | "REQUEST_INFO";
+            /** @description Recorded in the audit log and shown to the organization for rejections and requests. */
+            reason: string;
+        };
+        AuditEntryPage: {
+            items: components["schemas"]["AuditEntry"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        Flag: {
+            code: string;
+            description: string;
+            defaultEnabled: boolean;
+            overrides: {
+                marketCode?: string;
+                orgId?: components["schemas"]["Uuid"];
+                userId?: components["schemas"]["Uuid"];
+                enabled: boolean;
+            }[];
+            updatedAt: components["schemas"]["Instant"];
+        };
+        FlagList: {
+            items: components["schemas"]["Flag"][];
+        };
+        FlagUpdate: {
+            defaultEnabled: boolean;
+            reason: string;
         };
         Market: {
             code: string;
@@ -2884,6 +3208,301 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    getStaffMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMe"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    searchOrganizations: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getOrganization360: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Org360"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    searchUsers: {
+        parameters: {
+            query?: {
+                q?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listVerificationQueue: {
+        parameters: {
+            query?: {
+                status?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getVerificationCaseForReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createVerificationDocumentUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: components["schemas"]["Uuid"];
+                documentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessUrl"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    decideVerificationCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    searchAuditLog: {
+        parameters: {
+            query?: {
+                orgId?: components["schemas"]["Uuid"];
+                actorUserId?: components["schemas"]["Uuid"];
+                action?: string;
+                targetId?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listFeatureFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlagList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateFeatureFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlagUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Flag"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listMarkets: {

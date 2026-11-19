@@ -13,9 +13,7 @@ const nextConfig: NextConfig = {
     "@beavent/money",
     "@beavent/ui",
   ],
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Every admin page is per-user and rendered at request time (no prerendering or cached components).
   turbopack: {
     rules: {
       "*.css": {

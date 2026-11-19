@@ -2,6 +2,7 @@ package com.beavent.backend.files.internal;
 
 import static com.beavent.db.platform.Tables.FILES;
 
+import com.beavent.backend.files.FileAccess;
 import com.beavent.backend.identity.AvatarFiles;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.Audit;
@@ -31,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
  * create (pre-signed PUT) → client uploads → complete (size/type checked) → processed asynchronously.
  */
 @Component
-public class Files implements AvatarFiles {
+public class Files implements AvatarFiles, FileAccess {
 
     private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {};
 
@@ -193,6 +194,23 @@ public class Files implements AvatarFiles {
             }
             return new FileBodies.AccessUrl(url.toString(), Instant.now().plus(ttl));
         });
+    }
+
+    @Override
+    public SignedUrl signedUrl(UUID fileId) {
+        FilesRecord file = system.selectFrom(FILES)
+                .where(FILES.ID.eq(fileId), FILES.DELETED_AT.isNull())
+                .fetchOne();
+        if (file == null) {
+            throw new ApiException(ProblemCode.NOT_FOUND);
+        }
+        if (!"CLEAN".equals(file.getScanStatus())) {
+            throw new ApiException(ProblemCode.CONFLICT, "The file is not ready or was rejected.");
+        }
+        Duration ttl = properties.sensitiveAccessUrlTtl();
+        return new SignedUrl(
+                storage.presignGet(file.getBucket(), file.getStorageKey(), ttl, file.getOriginalName()),
+                Instant.now().plus(ttl));
     }
 
     @Override

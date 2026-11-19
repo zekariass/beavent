@@ -34,6 +34,8 @@ tags:
     description: Business verification (KYB)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
+  - name: Admin
+    description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
 paths:
@@ -120,6 +122,29 @@ paths:
     $ref: ./files/paths.yaml#/myFile
   /v1/me/files/{fileId}/complete:
     $ref: ./files/paths.yaml#/myFileComplete
+  # --- admin console ----------------------------------------------------------------------------------------
+  /v1/admin/me:
+    $ref: ./admin/paths.yaml#/adminMe
+  /v1/admin/orgs:
+    $ref: ./admin/paths.yaml#/adminOrgs
+  /v1/admin/orgs/{orgId}:
+    $ref: ./admin/paths.yaml#/adminOrg
+  /v1/admin/users:
+    $ref: ./admin/paths.yaml#/adminUsers
+  /v1/admin/verification-cases:
+    $ref: ./admin/paths.yaml#/adminCases
+  /v1/admin/verification-cases/{caseId}:
+    $ref: ./admin/paths.yaml#/adminCase
+  /v1/admin/verification-cases/{caseId}/documents/{documentId}/access-url:
+    $ref: ./admin/paths.yaml#/adminCaseDocumentUrl
+  /v1/admin/verification-cases/{caseId}/decision:
+    $ref: ./admin/paths.yaml#/adminCaseDecision
+  /v1/admin/audit-log:
+    $ref: ./admin/paths.yaml#/adminAuditLog
+  /v1/admin/feature-flags:
+    $ref: ./admin/paths.yaml#/adminFlags
+  /v1/admin/feature-flags/{code}:
+    $ref: ./admin/paths.yaml#/adminFlag
   # --- reference --------------------------------------------------------------------------------------------
   /v1/ref/markets:
     $ref: ./reference/paths.yaml#/markets

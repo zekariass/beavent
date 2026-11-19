@@ -34,6 +34,8 @@ tags:
     description: Business verification (KYB)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
+  - name: Admin
+    description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
 paths:
@@ -1356,6 +1358,320 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /v1/admin/me:
+    get:
+      tags:
+        - Admin
+      operationId: getStaffMe
+      summary: The signed-in staff member, roles and permissions
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMe'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/orgs:
+    get:
+      tags:
+        - Admin
+      operationId: searchOrganizations
+      summary: Search organizations (name, slug or id) in your markets
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/orgs/{orgId}:
+    get:
+      tags:
+        - Admin
+      operationId: getOrganization360
+      summary: 'Organization 360: profile, owner, team size, verification, recent audit'
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Org360'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/users:
+    get:
+      tags:
+        - Admin
+      operationId: searchUsers
+      summary: Search people by phone, email, name or id
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/verification-cases:
+    get:
+      tags:
+        - Admin
+      operationId: listVerificationQueue
+      summary: 'KYB/KYC queue, oldest first (default: open cases)'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/verification-cases/{caseId}:
+    get:
+      tags:
+        - Admin
+      operationId: getVerificationCaseForReview
+      summary: A verification case with its documents
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/verification-cases/{caseId}/documents/{documentId}/access-url:
+    post:
+      tags:
+        - Admin
+      operationId: createVerificationDocumentUrl
+      summary: Short-lived URL to view a submitted document (audited)
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUrl'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/verification-cases/{caseId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideVerificationCase
+      summary: Approve, reject or request more information (reason required, audited)
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/audit-log:
+    get:
+      tags:
+        - Admin
+      operationId: searchAuditLog
+      summary: Audit log, newest first
+      parameters:
+        - name: orgId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: actorUserId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/feature-flags:
+    get:
+      tags:
+        - Admin
+      operationId: listFeatureFlags
+      summary: Feature flags and their overrides
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlagList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/feature-flags/{code}:
+    put:
+      tags:
+        - Admin
+      operationId: updateFeatureFlag
+      summary: Change a flag default (reason required, audited)
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlagUpdate'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/ref/markets:
     get:
       tags:
@@ -2953,6 +3269,386 @@ components:
           format: uri
         expiresAt:
           $ref: '#/components/schemas/Instant'
+    StaffMe:
+      type: object
+      required:
+        - userId
+        - roles
+        - permissions
+      properties:
+        userId:
+          $ref: '#/components/schemas/Uuid'
+        roles:
+          type: array
+          items:
+            type: object
+            required:
+              - roleCode
+            properties:
+              roleCode:
+                type: string
+                examples:
+                  - RISK_ANALYST
+              marketCode:
+                type: string
+                description: Absent = all markets.
+        permissions:
+          type: array
+          items:
+            type: string
+    OrgSummary:
+      type: object
+      required:
+        - id
+        - slug
+        - displayName
+        - kind
+        - status
+        - verificationStatus
+        - marketCode
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        displayName:
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+        verificationStatus:
+          type: string
+        marketCode:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    OrgSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrgSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    LegalEntitySummary:
+      type: object
+      required:
+        - id
+        - countryCode
+        - registeredName
+        - taxRegime
+        - verificationStatus
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          type: string
+        registeredName:
+          type: string
+        tin:
+          type: string
+        taxRegime:
+          type: string
+        verificationStatus:
+          type: string
+    CaseSummary:
+      type: object
+      required:
+        - id
+        - subject
+        - status
+        - orgId
+        - orgName
+        - marketCode
+        - createdAt
+        - documentCount
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        subject:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - AWAITING_INFO
+            - IN_REVIEW
+            - APPROVED
+            - REJECTED
+            - EXPIRED
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        orgName:
+          type: string
+        marketCode:
+          type: string
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        decidedAt:
+          $ref: '#/components/schemas/Instant'
+        decisionReason:
+          type: string
+        documentCount:
+          type: integer
+    AuditEntry:
+      type: object
+      required:
+        - id
+        - occurredAt
+        - actorKind
+        - action
+        - targetType
+        - targetId
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        actorKind:
+          type: string
+          enum:
+            - USER
+            - PLATFORM_STAFF
+            - SYSTEM
+            - API_CLIENT
+            - PROVIDER
+        actorUserId:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        before:
+          type: object
+        after:
+          type: object
+        reason:
+          type: string
+        requestId:
+          type: string
+    Org360:
+      type: object
+      required:
+        - organization
+        - capabilities
+        - memberCount
+        - locationCount
+        - legalEntities
+        - verificationCases
+        - recentAudit
+      properties:
+        organization:
+          $ref: '#/components/schemas/OrgSummary'
+        capabilities:
+          type: array
+          items:
+            type: string
+        owner:
+          type: object
+          required:
+            - userId
+          properties:
+            userId:
+              $ref: '#/components/schemas/Uuid'
+            displayName:
+              type: string
+            phone:
+              type: string
+        memberCount:
+          type: integer
+        locationCount:
+          type: integer
+        legalEntities:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalEntitySummary'
+        verificationCases:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        recentAudit:
+          type: array
+          description: Empty without the audit permission.
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+    UserSummary:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+        - isStaff
+        - membershipCount
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        phone:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        countryCode:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        lastLoginAt:
+          $ref: '#/components/schemas/Instant'
+        isStaff:
+          type: boolean
+        membershipCount:
+          type: integer
+    UserSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    CaseSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    CaseDetail:
+      type: object
+      required:
+        - verificationCase
+        - documents
+      properties:
+        verificationCase:
+          $ref: '#/components/schemas/CaseSummary'
+        legalEntity:
+          $ref: '#/components/schemas/LegalEntitySummary'
+        documents:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - docType
+              - fileId
+              - status
+            properties:
+              id:
+                $ref: '#/components/schemas/Uuid'
+              docType:
+                type: string
+              fileId:
+                $ref: '#/components/schemas/Uuid'
+              status:
+                type: string
+              expiresOn:
+                type: string
+                format: date
+    Decision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - APPROVE
+            - REJECT
+            - REQUEST_INFO
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Recorded in the audit log and shown to the organization for rejections and requests.
+    AuditEntryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    Flag:
+      type: object
+      required:
+        - code
+        - description
+        - defaultEnabled
+        - overrides
+        - updatedAt
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        defaultEnabled:
+          type: boolean
+        overrides:
+          type: array
+          items:
+            type: object
+            required:
+              - enabled
+            properties:
+              marketCode:
+                type: string
+              orgId:
+                $ref: '#/components/schemas/Uuid'
+              userId:
+                $ref: '#/components/schemas/Uuid'
+              enabled:
+                type: boolean
+        updatedAt:
+          $ref: '#/components/schemas/Instant'
+    FlagList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flag'
+    FlagUpdate:
+      type: object
+      required:
+        - defaultEnabled
+        - reason
+      properties:
+        defaultEnabled:
+          type: boolean
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
     Market:
       type: object
       required:

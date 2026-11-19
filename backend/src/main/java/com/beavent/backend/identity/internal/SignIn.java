@@ -2,6 +2,7 @@ package com.beavent.backend.identity.internal;
 
 import static com.beavent.db.iam.Tables.USERS;
 import static com.beavent.db.iam.Tables.USER_IDENTITIES;
+import static com.beavent.db.iam.Tables.USER_STAFF_ROLES;
 
 import com.beavent.backend.identity.Assurance;
 import com.beavent.backend.platform.ApiException;
@@ -153,6 +154,20 @@ public class SignIn {
     }
 
     private Outcome complete(UsersRecord user, boolean created, Assurance firstFactor, ClientContext client) {
+        if ("ADMIN_CONSOLE".equals(client.clientApp())
+                && !dsl.fetchExists(
+                        USER_STAFF_ROLES,
+                        USER_STAFF_ROLES
+                                .USER_ID
+                                .eq(user.getId())
+                                .and(USER_STAFF_ROLES.REVOKED_AT.isNull())
+                                .and(USER_STAFF_ROLES
+                                        .EXPIRES_AT
+                                        .isNull()
+                                        .or(USER_STAFF_ROLES.EXPIRES_AT.gt(OffsetDateTime.now()))))) {
+            // Admin-console tokens exist only for platform staff.
+            throw new ApiException(ProblemCode.FORBIDDEN, "This account has no access to the admin console.");
+        }
         if (mfa.hasConfirmedTotp(user.getId())) {
             Map<String, Object> context = new HashMap<>();
             context.put("clientApp", client.clientApp());
