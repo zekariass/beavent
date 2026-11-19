@@ -447,6 +447,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/locations/{locationId}/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Closures of a location in a date range */
+        get: operations["listClosures"];
+        put?: never;
+        /** Close a location for a period (e.g. renovation, staff training) */
+        post: operations["addClosure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a closure */
+        delete: operations["removeClosure"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/service-areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where a location serves customers at home */
+        get: operations["listServiceAreas"];
+        put?: never;
+        /** Add an at-home service area with travel fee and time */
+        post: operations["addServiceArea"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a service area */
+        put: operations["updateServiceArea"];
+        post?: never;
+        /** Remove a service area */
+        delete: operations["removeServiceArea"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -494,6 +565,520 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/service-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Service groups (menu sections) */
+        get: operations["listServiceGroups"];
+        put?: never;
+        /** Add a menu section */
+        post: operations["createServiceGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/service-groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename or reorder a menu section */
+        put: operations["updateServiceGroup"];
+        post?: never;
+        /** Remove an empty menu section */
+        delete: operations["deleteServiceGroup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The service menu */
+        get: operations["listServices"];
+        put?: never;
+        /** Add a service with its variants */
+        post: operations["createService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A service */
+        get: operations["getService"];
+        /** Replace a service and its variants (variants left out are archived) */
+        put: operations["updateService"];
+        post?: never;
+        /** Archive a service (kept for history) */
+        delete: operations["archiveService"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current price overrides of a service */
+        get: operations["listServicePrices"];
+        /** Replace the price overrides (effective now; earlier prices stay in history) */
+        put: operations["setServicePrices"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/services/{serviceId}/variants/{variantId}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Price and duration for a location and staff member (most specific wins) */
+        get: operations["resolveVariantPrice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Add-ons */
+        get: operations["listAddons"];
+        put?: never;
+        /** Add an add-on */
+        post: operations["createAddon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/addons/{addonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an add-on */
+        put: operations["updateAddon"];
+        post?: never;
+        /** Archive an add-on */
+        delete: operations["archiveAddon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rooms, chairs, beds and equipment */
+        get: operations["listResources"];
+        put?: never;
+        /** Add a resource */
+        post: operations["createResource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/resources/{resourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a resource */
+        put: operations["updateResource"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bundles */
+        get: operations["listBundles"];
+        put?: never;
+        /** Add a bundle */
+        post: operations["createBundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/bundles/{bundleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a bundle */
+        put: operations["updateBundle"];
+        post?: never;
+        /** Archive a bundle */
+        delete: operations["archiveBundle"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gallery images (organization, or one location, service or team member) */
+        get: operations["listGallery"];
+        put?: never;
+        /** Add an image to a gallery */
+        post: operations["addGalleryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gallery/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an image from a gallery */
+        delete: operations["removeGalleryItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/pricing-levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pricing levels (Junior, Senior, Master …) */
+        get: operations["listPricingLevels"];
+        put?: never;
+        /** Add a pricing level */
+        post: operations["createPricingLevel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/pricing-levels/{levelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename or re-rank a pricing level */
+        put: operations["updatePricingLevel"];
+        post?: never;
+        /** Delete an unused pricing level */
+        delete: operations["deletePricingLevel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Team profiles */
+        get: operations["listStaff"];
+        put?: never;
+        /** Add a team profile (with or without a login) */
+        post: operations["createStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/staff/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your own team profile in this organization (for "My schedule") */
+        get: operations["getMyStaffProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/staff/{staffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A team profile */
+        get: operations["getStaff"];
+        /** Replace a team profile */
+        put: operations["updateStaff"];
+        post?: never;
+        /** Archive a team profile (history is kept) */
+        delete: operations["archiveStaff"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/staff/{staffId}/working-pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Regular working hours in effect on a date (default today) */
+        get: operations["getWorkingPattern"];
+        /** Set regular working hours from a date on (earlier days keep the old pattern) */
+        put: operations["setWorkingPattern"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One-off shifts in a date range */
+        get: operations["listShifts"];
+        put?: never;
+        /** Add a one-off shift (replaces the regular hours that day) */
+        post: operations["createShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/shifts/{shiftId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a shift */
+        delete: operations["cancelShift"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/time-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Time off in a date range */
+        get: operations["listTimeOff"];
+        put?: never;
+        /** Add time off (managers) or request it (for yourself) */
+        post: operations["createTimeOff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/time-off/{timeOffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel time off */
+        delete: operations["cancelTimeOff"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/time-off/{timeOffId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve or reject a time-off request */
+        post: operations["decideTimeOff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Working hours per person and day (regular hours, shifts, time off) */
+        get: operations["getSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/booking-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All booking policies (organization default, per location, per service) */
+        get: operations["listBookingPolicies"];
+        /** Create or replace the policy for a scope (organization, location, service, or both) */
+        put: operations["setBookingPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/booking-policies/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The policy that applies to a service at a location (most specific wins) */
+        get: operations["getEffectiveBookingPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/booking-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a location or service policy (the next broader one applies again) */
+        delete: operations["deleteBookingPolicy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -873,6 +1458,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ref/public-holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public holidays of a country in a year */
+        get: operations["listPublicHolidays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ref/permissions": {
         parameters: {
             query?: never;
@@ -1236,6 +1838,8 @@ export interface components {
             /** @default true */
             onlineBooking: boolean;
             hours: components["schemas"]["OpeningHours"][];
+            /** @default true */
+            closedOnPublicHolidays: boolean;
             placeId?: components["schemas"]["Uuid"];
             currency: components["schemas"]["CurrencyCode"];
             /** @enum {string} */
@@ -1270,6 +1874,8 @@ export interface components {
             /** @default true */
             onlineBooking: boolean;
             hours?: components["schemas"]["OpeningHours"][];
+            /** @default true */
+            closedOnPublicHolidays: boolean;
         };
         Role: {
             id: components["schemas"]["Uuid"];
@@ -1340,6 +1946,47 @@ export interface components {
             roleId: components["schemas"]["Uuid"];
             locationIds?: components["schemas"]["Uuid"][];
         } | unknown | unknown;
+        Closure: {
+            id: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            reason?: string;
+        };
+        ClosureList: {
+            items: components["schemas"]["Closure"][];
+        };
+        ClosureInput: {
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            reason?: string;
+        };
+        ServiceArea: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            adminAreaId?: components["schemas"]["Uuid"];
+            center?: components["schemas"]["GeoPoint"];
+            radiusMeters?: number;
+            /** Format: int64 */
+            travelFeeMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            travelMinutes: number;
+            isActive: boolean;
+        };
+        ServiceAreaList: {
+            items: components["schemas"]["ServiceArea"][];
+        };
+        /** @description An administrative area (e.g. a sub-city), or a circle around a point. */
+        ServiceAreaInput: {
+            name: string;
+            adminAreaId?: components["schemas"]["Uuid"];
+            center?: components["schemas"]["GeoPoint"];
+            radiusMeters?: number;
+            /** Format: int64 */
+            travelFeeMinor: number;
+            travelMinutes: number;
+            isActive?: boolean;
+        };
         InvitationAccept: {
             /** @description From the invitation link sent by SMS or email. */
             token: string;
@@ -1378,6 +2025,488 @@ export interface components {
             subject: "ORGANIZATION_KYB" | "OWNER_KYC";
             legalEntityId?: components["schemas"]["Uuid"];
             documents: components["schemas"]["VerificationDocumentInput"][];
+        };
+        ServiceGroup: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            sortOrder: number;
+        };
+        ServiceGroupList: {
+            items: components["schemas"]["ServiceGroup"][];
+        };
+        /** @description Text per language code; at least one language. */
+        Name: components["schemas"]["LocalizedText"];
+        ServiceGroupInput: {
+            name: components["schemas"]["Name"];
+            sortOrder?: number;
+        };
+        /** @enum {string} */
+        PriceType: "FIXED" | "FROM" | "FREE" | "ON_CONSULTATION";
+        /** @description One part of a variant, e.g. colour = apply 30 (staff busy) + process 35 (staff free) + rinse 25. */
+        VariantStage: {
+            /** @enum {string} */
+            kind: "SERVICE" | "PROCESSING" | "FINISHING" | "CONSULTATION";
+            durationMinutes: number;
+            /** @default true */
+            staffBusy: boolean;
+        };
+        /** @enum {string} */
+        ResourceKind: "ROOM" | "CHAIR" | "BED" | "STATION" | "EQUIPMENT" | "OTHER";
+        /** @description A specific resource, or any resource of a kind at the location. */
+        ResourceRequirement: {
+            resourceId?: components["schemas"]["Uuid"];
+            resourceKind?: components["schemas"]["ResourceKind"];
+            units: number;
+            /** @description Only during this stage (1-based); absent = the whole service. */
+            stageSeq?: number;
+        };
+        ServiceVariant: {
+            id: components["schemas"]["Uuid"];
+            name?: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            bufferBeforeMinutes: number;
+            bufferAfterMinutes: number;
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            isDefault: boolean;
+            stages: components["schemas"]["VariantStage"][];
+            resourceRequirements: components["schemas"]["ResourceRequirement"][];
+        };
+        Service: {
+            id: components["schemas"]["Uuid"];
+            groupId?: components["schemas"]["Uuid"];
+            categoryId: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            description?: components["schemas"]["LocalizedText"];
+            aftercare?: components["schemas"]["LocalizedText"];
+            deliveryModes: string[];
+            audience: string;
+            requiresPatchTest: boolean;
+            patchTestValidityDays?: number;
+            onlineBooking: boolean;
+            commissionEligible: boolean;
+            /** @enum {string} */
+            status: "ACTIVE" | "HIDDEN" | "ARCHIVED";
+            sortOrder: number;
+            currency: components["schemas"]["CurrencyCode"];
+            /** @description Active variants. */
+            variants: components["schemas"]["ServiceVariant"][];
+            locationIds: components["schemas"]["Uuid"][];
+            addonIds: components["schemas"]["Uuid"][];
+            /** @description Team members who perform it (set from the team API). */
+            staffIds: components["schemas"]["Uuid"][];
+            /** @description Same value as the ETag. */
+            version: number;
+        };
+        ServiceList: {
+            items: components["schemas"]["Service"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        ServiceVariantInput: {
+            /** @description Existing variant to keep (updates); omit for a new one. Variants left out are archived. */
+            id?: components["schemas"]["Uuid"];
+            name?: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            bufferBeforeMinutes?: number;
+            bufferAfterMinutes?: number;
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            isDefault?: boolean;
+            /** @description Optional; their durations must add up to durationMinutes. */
+            stages?: components["schemas"]["VariantStage"][];
+            resourceRequirements?: components["schemas"]["ResourceRequirement"][];
+        };
+        ServiceInput: {
+            groupId?: components["schemas"]["Uuid"] | null;
+            /** @description A SERVICE category (GET /v1/ref/categories?kind=SERVICE). */
+            categoryId: components["schemas"]["Uuid"];
+            name: components["schemas"]["Name"];
+            description?: components["schemas"]["LocalizedText"];
+            aftercare?: components["schemas"]["LocalizedText"];
+            deliveryModes?: ("ON_PREMISES" | "AT_CUSTOMER" | "ONLINE")[];
+            /** @enum {string} */
+            audience?: "EVERYONE" | "WOMEN" | "MEN" | "CHILDREN";
+            requiresPatchTest?: boolean;
+            patchTestValidityDays?: number;
+            onlineBooking?: boolean;
+            commissionEligible?: boolean;
+            /**
+             * @description HIDDEN = bookable by the team, not shown online.
+             * @enum {string}
+             */
+            status?: "ACTIVE" | "HIDDEN";
+            sortOrder?: number;
+            /** @description Defaults to the currency of the organization's home market. */
+            currency?: components["schemas"]["CurrencyCode"];
+            variants: components["schemas"]["ServiceVariantInput"][];
+            /** @description Locations offering the service; omit for all current locations. */
+            locationIds?: components["schemas"]["Uuid"][];
+            addonIds?: components["schemas"]["Uuid"][];
+        };
+        /** @description A price (and optionally duration) for a variant at a location, for a staff member or for a pricing level. */
+        PriceOverride: {
+            variantId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            pricingLevelId?: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            priceMinor: number;
+            durationMinutes?: number;
+        };
+        PriceOverrideList: {
+            items: components["schemas"]["PriceOverride"][];
+        };
+        ResolvedPrice: {
+            variantId: components["schemas"]["Uuid"];
+            priceType: components["schemas"]["PriceType"];
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            durationMinutes: number;
+            /**
+             * @description Most specific match wins.
+             * @enum {string}
+             */
+            source: "STAFF_AND_LOCATION" | "STAFF" | "LEVEL_AND_LOCATION" | "LEVEL" | "LOCATION" | "DEFAULT";
+        };
+        Addon: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+        };
+        AddonList: {
+            items: components["schemas"]["Addon"][];
+        };
+        AddonInput: {
+            name: components["schemas"]["Name"];
+            durationMinutes?: number;
+            /** Format: int64 */
+            priceMinor: number;
+            currency?: components["schemas"]["CurrencyCode"];
+        };
+        Resource: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            kind: components["schemas"]["ResourceKind"];
+            units: number;
+            isActive: boolean;
+        };
+        ResourceList: {
+            items: components["schemas"]["Resource"][];
+        };
+        ResourceInput: {
+            locationId: components["schemas"]["Uuid"];
+            name: string;
+            kind: components["schemas"]["ResourceKind"];
+            /** @description Places used in parallel (a sauna for 4 = 4). */
+            units?: number;
+            isActive?: boolean;
+        };
+        Bundle: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            description?: components["schemas"]["LocalizedText"];
+            pricing: string;
+            /** Format: int64 */
+            priceMinor?: number;
+            percentOff?: number;
+            currency: components["schemas"]["CurrencyCode"];
+            scheduling: string;
+            onlineBooking: boolean;
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+            items: {
+                serviceVariantId: components["schemas"]["Uuid"];
+                quantity: number;
+            }[];
+            /**
+             * Format: int64
+             * @description Customer price from the variants' default prices and the bundle pricing.
+             */
+            totalPriceMinor: number;
+            /** @description Sequential = sum of durations; parallel = the longest. */
+            totalDurationMinutes: number;
+        };
+        BundleList: {
+            items: components["schemas"]["Bundle"][];
+        };
+        BundleInput: {
+            name: components["schemas"]["Name"];
+            description?: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            pricing: "SUM_OF_ITEMS" | "FIXED_PRICE" | "PERCENT_OFF";
+            /**
+             * Format: int64
+             * @description Required for FIXED_PRICE.
+             */
+            priceMinor?: number;
+            /** @description Required for PERCENT_OFF. */
+            percentOff?: number;
+            /** @enum {string} */
+            scheduling?: "SEQUENTIAL" | "PARALLEL";
+            onlineBooking?: boolean;
+            items: {
+                serviceVariantId: components["schemas"]["Uuid"];
+                quantity?: number;
+            }[];
+        };
+        GalleryItem: {
+            id: components["schemas"]["Uuid"];
+            fileId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            altText?: components["schemas"]["LocalizedText"];
+            sortOrder: number;
+            /** Format: uri */
+            url: string;
+            variants?: {
+                [key: string]: string;
+            };
+        };
+        GalleryItemList: {
+            items: components["schemas"]["GalleryItem"][];
+        };
+        GalleryItemInput: {
+            /** @description A processed GALLERY or COVER image of the organization. */
+            fileId: components["schemas"]["Uuid"];
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"];
+            altText?: components["schemas"]["LocalizedText"];
+            sortOrder?: number;
+        };
+        PricingLevel: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            rank: number;
+        };
+        PricingLevelList: {
+            items: components["schemas"]["PricingLevel"][];
+        };
+        PricingLevelInput: {
+            name: string;
+            rank?: number;
+        };
+        Staff: {
+            id: components["schemas"]["Uuid"];
+            displayName: string;
+            jobTitle?: string;
+            bio?: components["schemas"]["LocalizedText"];
+            photoFileId?: components["schemas"]["Uuid"];
+            phone?: string;
+            email?: string;
+            employmentType: string;
+            pricingLevelId?: components["schemas"]["Uuid"];
+            memberId?: components["schemas"]["Uuid"];
+            isBookable: boolean;
+            bookableOnline: boolean;
+            languages: string[];
+            calendarColor?: string;
+            sortOrder: number;
+            /** Format: date */
+            startedOn?: string;
+            /** Format: date */
+            endedOn?: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE" | "ARCHIVED";
+            locationIds: components["schemas"]["Uuid"][];
+            serviceIds: components["schemas"]["Uuid"][];
+            version: number;
+        };
+        StaffList: {
+            items: components["schemas"]["Staff"][];
+        };
+        StaffInput: {
+            displayName: string;
+            jobTitle?: string;
+            bio?: components["schemas"]["LocalizedText"];
+            /** @description A processed public image of the organization. */
+            photoFileId?: components["schemas"]["Uuid"];
+            phone?: components["schemas"]["PhoneE164"];
+            /** Format: email */
+            email?: string;
+            /** @enum {string} */
+            employmentType?: "EMPLOYEE" | "CONTRACTOR" | "CHAIR_RENTER" | "APPRENTICE" | "VOLUNTEER";
+            pricingLevelId?: components["schemas"]["Uuid"];
+            /** @description Links the profile to a team member's login (optional). */
+            memberId?: components["schemas"]["Uuid"];
+            isBookable?: boolean;
+            bookableOnline?: boolean;
+            languages?: components["schemas"]["LanguageCode"][];
+            calendarColor?: string;
+            sortOrder?: number;
+            /** Format: date */
+            startedOn?: string;
+            locationIds: components["schemas"]["Uuid"][];
+            /** @description Services this person performs. */
+            serviceIds?: components["schemas"]["Uuid"][];
+        };
+        /** @example 08:30 */
+        Time: string;
+        PatternEntry: {
+            /**
+             * @description Week of the rotation (1..repeatWeeks), counted from effectiveFrom.
+             * @default 1
+             */
+            week: number;
+            locationId: components["schemas"]["Uuid"];
+            isoWeekday: number;
+            startsAt: components["schemas"]["Time"];
+            endsAt: components["schemas"]["Time"];
+        };
+        WorkingPattern: {
+            /** Format: date */
+            effectiveFrom?: string;
+            repeatWeeks: number;
+            entries: components["schemas"]["PatternEntry"][];
+        };
+        WorkingPatternInput: {
+            /**
+             * Format: date
+             * @description First day the pattern applies (a Monday keeps weeks aligned). Earlier days keep the old pattern.
+             */
+            effectiveFrom: string;
+            /** @default 1 */
+            repeatWeeks: number;
+            entries: components["schemas"]["PatternEntry"][];
+        };
+        Shift: {
+            id: components["schemas"]["Uuid"];
+            staffId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            status: "PUBLISHED" | "CANCELLED";
+            note?: string;
+        };
+        ShiftList: {
+            items: components["schemas"]["Shift"][];
+        };
+        ShiftInput: {
+            staffId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            note?: string;
+        };
+        TimeOff: {
+            id: components["schemas"]["Uuid"];
+            staffId: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            kind: string;
+            /** @enum {string} */
+            status: "REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+            reason?: string;
+        };
+        TimeOffList: {
+            items: components["schemas"]["TimeOff"][];
+        };
+        TimeOffInput: {
+            staffId: components["schemas"]["Uuid"];
+            startsAt: components["schemas"]["Instant"];
+            endsAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            kind: "ANNUAL" | "SICK" | "UNPAID" | "TRAINING" | "PUBLIC_HOLIDAY" | "OTHER";
+            reason?: string;
+        };
+        TimeOffDecision: {
+            /** @enum {string} */
+            decision: "APPROVE" | "REJECT";
+        };
+        WorkingDay: {
+            staffId: components["schemas"]["Uuid"];
+            /**
+             * Format: date
+             * @description Local date at the location.
+             */
+            date: string;
+            /** @enum {string} */
+            source?: "PATTERN" | "SHIFTS";
+            /** @description Working time after approved time off is removed. */
+            intervals: {
+                locationId: components["schemas"]["Uuid"];
+                startsAt: components["schemas"]["Instant"];
+                endsAt: components["schemas"]["Instant"];
+            }[];
+        };
+        Schedule: {
+            days: components["schemas"]["WorkingDay"][];
+        };
+        Deposit: {
+            /** @enum {string} */
+            mode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            /** @description Required for PERCENT. */
+            percent?: number;
+            /**
+             * Format: int64
+             * @description Required for FIXED (in the market's price currency).
+             */
+            fixedMinor?: number;
+            /**
+             * @default EVERYONE
+             * @enum {string}
+             */
+            appliesTo: "EVERYONE" | "NEW_CUSTOMERS" | "MARKETPLACE_CUSTOMERS" | "FLAGGED_CUSTOMERS";
+        };
+        BookingPolicy: {
+            id?: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            scope: "ORGANIZATION" | "LOCATION" | "SERVICE" | "SERVICE_AND_LOCATION" | "PLATFORM_DEFAULT";
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            minNoticeMinutes: number;
+            maxAdvanceDays: number;
+            slotIntervalMinutes: number;
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            deposit: components["schemas"]["Deposit"];
+            currency?: components["schemas"]["CurrencyCode"];
+            cancellationWindowMinutes: number;
+            lateCancelFeePercent: number;
+            noShowFeePercent: number;
+            policyText: components["schemas"]["LocalizedText"];
+        };
+        BookingPolicyList: {
+            items: components["schemas"]["BookingPolicy"][];
+        };
+        /** @description Leave locationId and serviceId out for the organization default. */
+        BookingPolicyInput: {
+            locationId?: components["schemas"]["Uuid"];
+            serviceId?: components["schemas"]["Uuid"];
+            /** @default 60 */
+            minNoticeMinutes: number;
+            /** @default 90 */
+            maxAdvanceDays: number;
+            /**
+             * @default 15
+             * @enum {integer}
+             */
+            slotIntervalMinutes: 5 | 10 | 15 | 20 | 30 | 60;
+            /** @description Request-to-book; the business confirms each booking. */
+            requiresApproval?: boolean;
+            /** @default true */
+            allowPayAtVenue: boolean;
+            deposit?: components["schemas"]["Deposit"];
+            /**
+             * @description Free cancellation until this long before the start.
+             * @default 1440
+             */
+            cancellationWindowMinutes: number;
+            lateCancelFeePercent?: number;
+            noShowFeePercent?: number;
+            policyText?: components["schemas"]["LocalizedText"];
         };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
@@ -1652,6 +2781,18 @@ export interface components {
         };
         AdminAreaList: {
             items: components["schemas"]["AdminArea"][];
+        };
+        PublicHoliday: {
+            /** Format: date */
+            date: string;
+            name: components["schemas"]["LocalizedText"];
+            /** @description Absent = nationwide. */
+            adminAreaId?: components["schemas"]["Uuid"];
+            /** @description Moon-sighting holidays are confirmed close to the date. */
+            isEstimated: boolean;
+        };
+        PublicHolidayList: {
+            items: components["schemas"]["PublicHoliday"][];
         };
         Permission: {
             /** @example appointments.manage */
@@ -2666,6 +3807,197 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listClosures: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addClosure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClosureInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Closure"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeClosure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                closureId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServiceAreas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAreaList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceAreaInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceArea"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                areaId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceAreaInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceArea"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeServiceArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                locationId: components["schemas"]["Uuid"];
+                areaId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     acceptInvitation: {
         parameters: {
             query?: never;
@@ -2776,6 +4108,1417 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listServiceGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroupList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroup"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                groupId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceGroup"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deleteServiceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                groupId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listServices: {
+        parameters: {
+            query?: {
+                groupId?: components["schemas"]["Uuid"];
+                locationId?: components["schemas"]["Uuid"];
+                status?: "ACTIVE" | "HIDDEN" | "ARCHIVED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateService: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description ETag of the version being updated. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServicePrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOverrideList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setServicePrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceOverrideList"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOverrideList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    resolveVariantPrice: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                staffId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                serviceId: components["schemas"]["Uuid"];
+                variantId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedPrice"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAddons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddonList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddonInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Addon"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                addonId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddonInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Addon"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                addonId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listResources: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                resourceId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listBundles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundleInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bundle"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updateBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                bundleId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundleInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bundle"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                bundleId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listGallery: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                serviceId?: components["schemas"]["Uuid"];
+                staffId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryItemList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GalleryItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    removeGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                itemId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPricingLevels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingLevelList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createPricingLevel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingLevelInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingLevel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    updatePricingLevel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                levelId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingLevelInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingLevel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deletePricingLevel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                levelId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listStaff: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                status?: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getMyStaffProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description No team profile is linked to your login here. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                staffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStaff: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description ETag of the version being updated. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                staffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                staffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkingPattern: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                staffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPattern"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setWorkingPattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                staffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkingPatternInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingPattern"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listShifts: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                staffId?: components["schemas"]["Uuid"];
+                locationId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Shift"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    cancelShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                shiftId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTimeOff: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                staffId?: components["schemas"]["Uuid"];
+                status?: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeOffList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTimeOff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeOffInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeOff"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    cancelTimeOff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                timeOffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    decideTimeOff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                timeOffId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeOffDecision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeOff"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getSchedule: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                staffId?: components["schemas"]["Uuid"];
+                locationId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listBookingPolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policies. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicy"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getEffectiveBookingPolicy: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                serviceId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy, with the scope it came from. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicy"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                policyId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     createFileUpload: {
@@ -3352,6 +6095,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    listPublicHolidays: {
+        parameters: {
+            query: {
+                countryCode: components["schemas"]["CountryCode"];
+                year: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Holidays. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicHolidayList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listPermissions: {

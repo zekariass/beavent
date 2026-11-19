@@ -1,0 +1,551 @@
+Name:
+  description: Text per language code; at least one language.
+  allOf:
+    - $ref: ../common/schemas.yaml#/LocalizedText
+  minProperties: 1
+ServiceGroupInput:
+  type: object
+  required: [name]
+  properties:
+    name:
+      $ref: '#/Name'
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 10000
+ServiceGroup:
+  type: object
+  required: [id, name, sortOrder]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    sortOrder:
+      type: integer
+ServiceGroupList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ServiceGroup'
+PriceType:
+  type: string
+  enum: [FIXED, FROM, FREE, ON_CONSULTATION]
+ResourceKind:
+  type: string
+  enum: [ROOM, CHAIR, BED, STATION, EQUIPMENT, OTHER]
+VariantStage:
+  type: object
+  description: One part of a variant, e.g. colour = apply 30 (staff busy) + process 35 (staff free) + rinse 25.
+  required: [kind, durationMinutes]
+  properties:
+    kind:
+      type: string
+      enum: [SERVICE, PROCESSING, FINISHING, CONSULTATION]
+    durationMinutes:
+      type: integer
+      minimum: 1
+      maximum: 1440
+    staffBusy:
+      type: boolean
+      default: true
+ResourceRequirement:
+  type: object
+  description: A specific resource, or any resource of a kind at the location.
+  required: [units]
+  properties:
+    resourceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    resourceKind:
+      $ref: '#/ResourceKind'
+    units:
+      type: integer
+      minimum: 1
+      maximum: 500
+    stageSeq:
+      type: integer
+      minimum: 1
+      description: Only during this stage (1-based); absent = the whole service.
+ServiceVariantInput:
+  type: object
+  required: [durationMinutes, priceType, priceMinor]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: Existing variant to keep (updates); omit for a new one. Variants left out are archived.
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+      minimum: 5
+      maximum: 1440
+    bufferBeforeMinutes:
+      type: integer
+      minimum: 0
+      maximum: 240
+    bufferAfterMinutes:
+      type: integer
+      minimum: 0
+      maximum: 240
+    priceType:
+      $ref: '#/PriceType'
+    priceMinor:
+      type: integer
+      format: int64
+      minimum: 0
+    isDefault:
+      type: boolean
+    stages:
+      type: array
+      maxItems: 10
+      description: Optional; their durations must add up to durationMinutes.
+      items:
+        $ref: '#/VariantStage'
+    resourceRequirements:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/ResourceRequirement'
+ServiceVariant:
+  type: object
+  required: [id, durationMinutes, bufferBeforeMinutes, bufferAfterMinutes, priceType, priceMinor, currency, isDefault, stages, resourceRequirements]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    bufferBeforeMinutes:
+      type: integer
+    bufferAfterMinutes:
+      type: integer
+    priceType:
+      $ref: '#/PriceType'
+    priceMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    isDefault:
+      type: boolean
+    stages:
+      type: array
+      items:
+        $ref: '#/VariantStage'
+    resourceRequirements:
+      type: array
+      items:
+        $ref: '#/ResourceRequirement'
+ServiceInput:
+  type: object
+  required: [categoryId, name, variants]
+  properties:
+    groupId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    categoryId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: A SERVICE category (GET /v1/ref/categories?kind=SERVICE).
+    name:
+      $ref: '#/Name'
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    aftercare:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    deliveryModes:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        enum: [ON_PREMISES, AT_CUSTOMER, ONLINE]
+    audience:
+      type: string
+      enum: [EVERYONE, WOMEN, MEN, CHILDREN]
+    requiresPatchTest:
+      type: boolean
+    patchTestValidityDays:
+      type: integer
+      minimum: 1
+      maximum: 3650
+    onlineBooking:
+      type: boolean
+    commissionEligible:
+      type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, HIDDEN]
+      description: HIDDEN = bookable by the team, not shown online.
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+      description: Defaults to the currency of the organization's home market.
+    variants:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        $ref: '#/ServiceVariantInput'
+    locationIds:
+      type: array
+      description: Locations offering the service; omit for all current locations.
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    addonIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+Service:
+  type: object
+  required: [id, categoryId, name, deliveryModes, audience, requiresPatchTest, onlineBooking, commissionEligible, status, sortOrder, currency, variants, locationIds, addonIds, staffIds, version]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    groupId:
+      $ref: ../common/schemas.yaml#/Uuid
+    categoryId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    aftercare:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    deliveryModes:
+      type: array
+      items:
+        type: string
+    audience:
+      type: string
+    requiresPatchTest:
+      type: boolean
+    patchTestValidityDays:
+      type: integer
+    onlineBooking:
+      type: boolean
+    commissionEligible:
+      type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, HIDDEN, ARCHIVED]
+    sortOrder:
+      type: integer
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    variants:
+      type: array
+      description: Active variants.
+      items:
+        $ref: '#/ServiceVariant'
+    locationIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    addonIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    staffIds:
+      type: array
+      description: Team members who perform it (set from the team API).
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    version:
+      type: integer
+      description: Same value as the ETag.
+ServiceList:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Service'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+PriceOverride:
+  type: object
+  description: A price (and optionally duration) for a variant at a location, for a staff member or for a pricing level.
+  required: [variantId, priceMinor]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    pricingLevelId:
+      $ref: ../common/schemas.yaml#/Uuid
+    priceMinor:
+      type: integer
+      format: int64
+      minimum: 0
+    durationMinutes:
+      type: integer
+      minimum: 5
+      maximum: 1440
+PriceOverrideList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      maxItems: 500
+      items:
+        $ref: '#/PriceOverride'
+ResolvedPrice:
+  type: object
+  required: [variantId, priceType, priceMinor, currency, durationMinutes, source]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    priceType:
+      $ref: '#/PriceType'
+    priceMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    durationMinutes:
+      type: integer
+    source:
+      type: string
+      enum: [STAFF_AND_LOCATION, STAFF, LEVEL_AND_LOCATION, LEVEL, LOCATION, DEFAULT]
+      description: Most specific match wins.
+AddonInput:
+  type: object
+  required: [name, priceMinor]
+  properties:
+    name:
+      $ref: '#/Name'
+    durationMinutes:
+      type: integer
+      minimum: 0
+      maximum: 480
+    priceMinor:
+      type: integer
+      format: int64
+      minimum: 0
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+Addon:
+  type: object
+  required: [id, name, durationMinutes, priceMinor, currency, status]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    priceMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+AddonList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Addon'
+ResourceInput:
+  type: object
+  required: [locationId, name, kind]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    kind:
+      $ref: '#/ResourceKind'
+    units:
+      type: integer
+      minimum: 1
+      maximum: 500
+      description: Places used in parallel (a sauna for 4 = 4).
+    isActive:
+      type: boolean
+Resource:
+  type: object
+  required: [id, locationId, name, kind, units, isActive]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    kind:
+      $ref: '#/ResourceKind'
+    units:
+      type: integer
+    isActive:
+      type: boolean
+ResourceList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Resource'
+BundleInput:
+  type: object
+  required: [name, pricing, items]
+  properties:
+    name:
+      $ref: '#/Name'
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    pricing:
+      type: string
+      enum: [SUM_OF_ITEMS, FIXED_PRICE, PERCENT_OFF]
+    priceMinor:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Required for FIXED_PRICE.
+    percentOff:
+      type: number
+      exclusiveMinimum: 0
+      exclusiveMaximum: 100
+      description: Required for PERCENT_OFF.
+    scheduling:
+      type: string
+      enum: [SEQUENTIAL, PARALLEL]
+    onlineBooking:
+      type: boolean
+    items:
+      type: array
+      minItems: 2
+      maxItems: 20
+      items:
+        type: object
+        required: [serviceVariantId]
+        properties:
+          serviceVariantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          quantity:
+            type: integer
+            minimum: 1
+            maximum: 20
+Bundle:
+  type: object
+  required: [id, name, pricing, currency, scheduling, onlineBooking, status, items, totalPriceMinor, totalDurationMinutes]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    pricing:
+      type: string
+    priceMinor:
+      type: integer
+      format: int64
+    percentOff:
+      type: number
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    scheduling:
+      type: string
+    onlineBooking:
+      type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+    items:
+      type: array
+      items:
+        type: object
+        required: [serviceVariantId, quantity]
+        properties:
+          serviceVariantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          quantity:
+            type: integer
+    totalPriceMinor:
+      type: integer
+      format: int64
+      description: Customer price from the variants' default prices and the bundle pricing.
+    totalDurationMinutes:
+      type: integer
+      description: Sequential = sum of durations; parallel = the longest.
+BundleList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Bundle'
+GalleryItemInput:
+  type: object
+  required: [fileId]
+  properties:
+    fileId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: A processed GALLERY or COVER image of the organization.
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    altText:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 10000
+GalleryItem:
+  type: object
+  required: [id, fileId, sortOrder, url]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    fileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    altText:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    sortOrder:
+      type: integer
+    url:
+      type: string
+      format: uri
+    variants:
+      type: object
+      additionalProperties:
+        type: string
+        format: uri
+GalleryItemList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/GalleryItem'

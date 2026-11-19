@@ -261,6 +261,9 @@ LocationInput:
       type: array
       items:
         $ref: '#/OpeningHours'
+    closedOnPublicHolidays:
+      type: boolean
+      default: true
 Location:
   type: object
   required: [id, name, slug, legalEntityId, address, timezone, serviceMode, onlineBooking, hours, currency, status, marketplaceListed, version]
@@ -296,6 +299,9 @@ Location:
       type: array
       items:
         $ref: '#/OpeningHours'
+    closedOnPublicHolidays:
+      type: boolean
+      default: true
     placeId:
       $ref: ../common/schemas.yaml#/Uuid
     currency:
@@ -556,3 +562,94 @@ VerificationCaseList:
       type: array
       items:
         $ref: '#/VerificationCase'
+Closure:
+  type: object
+  required: [id, startsAt, endsAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    reason:
+      type: string
+ClosureInput:
+  type: object
+  required: [startsAt, endsAt]
+  properties:
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    endsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    reason:
+      type: string
+      maxLength: 200
+ClosureList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Closure'
+ServiceAreaInput:
+  type: object
+  description: An administrative area (e.g. a sub-city), or a circle around a point.
+  required: [name, travelFeeMinor, travelMinutes]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    adminAreaId:
+      $ref: ../common/schemas.yaml#/Uuid
+    center:
+      $ref: ../common/schemas.yaml#/GeoPoint
+    radiusMeters:
+      type: integer
+      minimum: 100
+      maximum: 100000
+    travelFeeMinor:
+      type: integer
+      format: int64
+      minimum: 0
+    travelMinutes:
+      type: integer
+      minimum: 0
+      maximum: 240
+    isActive:
+      type: boolean
+ServiceArea:
+  type: object
+  required: [id, locationId, name, travelFeeMinor, currency, travelMinutes, isActive]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    adminAreaId:
+      $ref: ../common/schemas.yaml#/Uuid
+    center:
+      $ref: ../common/schemas.yaml#/GeoPoint
+    radiusMeters:
+      type: integer
+    travelFeeMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    travelMinutes:
+      type: integer
+    isActive:
+      type: boolean
+ServiceAreaList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ServiceArea'

@@ -169,3 +169,26 @@ PermissionList:
       type: array
       items:
         $ref: '#/Permission'
+PublicHoliday:
+  type: object
+  required: [date, name, isEstimated]
+  properties:
+    date:
+      type: string
+      format: date
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    adminAreaId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: Absent = nationwide.
+    isEstimated:
+      type: boolean
+      description: Moon-sighting holidays are confirmed close to the date.
+PublicHolidayList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/PublicHoliday'

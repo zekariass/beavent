@@ -214,6 +214,21 @@ public class Files implements AvatarFiles, FileAccess {
     }
 
     @Override
+    public java.util.Optional<PublicImage> publicImage(UUID fileId) {
+        FilesRecord file = system.selectFrom(FILES)
+                .where(FILES.ID.eq(fileId), FILES.DELETED_AT.isNull())
+                .fetchOne();
+        if (file == null || !"PUBLIC".equals(file.getVisibility())) {
+            return java.util.Optional.empty();
+        }
+        FileBodies.File view = view(file);
+        return view.url() == null
+                ? java.util.Optional.empty()
+                : java.util.Optional.of(
+                        new PublicImage(fileId, file.getOrgId(), file.getPurpose(), view.url(), view.variants()));
+    }
+
+    @Override
     public boolean isUsableAvatar(UUID userId, UUID fileId) {
         return system.fetchExists(
                 FILES,

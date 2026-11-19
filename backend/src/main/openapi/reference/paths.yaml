@@ -91,3 +91,33 @@ permissions:
               $ref: ./schemas.yaml#/PermissionList
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+publicHolidays:
+  get:
+    tags: [Reference]
+    operationId: listPublicHolidays
+    summary: Public holidays of a country in a year
+    security: []
+    parameters:
+      - name: countryCode
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/CountryCode
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+    responses:
+      '200':
+        description: Holidays.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PublicHolidayList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

@@ -32,6 +32,12 @@ tags:
     description: Members, roles, invitations
   - name: Verification
     description: Business verification (KYB)
+  - name: Catalogue
+    description: Services, variants, prices, add-ons, bundles, resources and galleries
+  - name: Team
+    description: Team profiles, pricing levels, working hours, shifts, time off and the rota
+  - name: Booking policies
+    description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -91,12 +97,81 @@ paths:
     $ref: ./tenancy/paths.yaml#/invitations
   /v1/orgs/{orgId}/invitations/{invitationId}:
     $ref: ./tenancy/paths.yaml#/invitation
+  /v1/orgs/{orgId}/locations/{locationId}/closures:
+    $ref: ./tenancy/paths.yaml#/closures
+  /v1/orgs/{orgId}/locations/{locationId}/closures/{closureId}:
+    $ref: ./tenancy/paths.yaml#/closure
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas:
+    $ref: ./tenancy/paths.yaml#/serviceAreas
+  /v1/orgs/{orgId}/locations/{locationId}/service-areas/{areaId}:
+    $ref: ./tenancy/paths.yaml#/serviceArea
   /v1/invitations/accept:
     $ref: ./tenancy/paths.yaml#/invitationAccept
   /v1/orgs/{orgId}/verification-cases:
     $ref: ./tenancy/paths.yaml#/verificationCases
   /v1/orgs/{orgId}/verification-cases/{caseId}:
     $ref: ./tenancy/paths.yaml#/verificationCase
+  # --- catalogue --------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/service-groups:
+    $ref: ./catalog/paths.yaml#/serviceGroups
+  /v1/orgs/{orgId}/service-groups/{groupId}:
+    $ref: ./catalog/paths.yaml#/serviceGroup
+  /v1/orgs/{orgId}/services:
+    $ref: ./catalog/paths.yaml#/services
+  /v1/orgs/{orgId}/services/{serviceId}:
+    $ref: ./catalog/paths.yaml#/service
+  /v1/orgs/{orgId}/services/{serviceId}/prices:
+    $ref: ./catalog/paths.yaml#/servicePrices
+  /v1/orgs/{orgId}/services/{serviceId}/variants/{variantId}/price:
+    $ref: ./catalog/paths.yaml#/variantPrice
+  /v1/orgs/{orgId}/addons:
+    $ref: ./catalog/paths.yaml#/addons
+  /v1/orgs/{orgId}/addons/{addonId}:
+    $ref: ./catalog/paths.yaml#/addon
+  /v1/orgs/{orgId}/resources:
+    $ref: ./catalog/paths.yaml#/resources
+  /v1/orgs/{orgId}/resources/{resourceId}:
+    $ref: ./catalog/paths.yaml#/resource
+  /v1/orgs/{orgId}/bundles:
+    $ref: ./catalog/paths.yaml#/bundles
+  /v1/orgs/{orgId}/bundles/{bundleId}:
+    $ref: ./catalog/paths.yaml#/bundle
+  /v1/orgs/{orgId}/gallery:
+    $ref: ./catalog/paths.yaml#/gallery
+  /v1/orgs/{orgId}/gallery/{itemId}:
+    $ref: ./catalog/paths.yaml#/galleryItem
+  # --- team -------------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/pricing-levels:
+    $ref: ./team/paths.yaml#/pricingLevels
+  /v1/orgs/{orgId}/pricing-levels/{levelId}:
+    $ref: ./team/paths.yaml#/pricingLevel
+  /v1/orgs/{orgId}/staff:
+    $ref: ./team/paths.yaml#/staffList
+  /v1/orgs/{orgId}/staff/me:
+    $ref: ./team/paths.yaml#/myStaff
+  /v1/orgs/{orgId}/staff/{staffId}:
+    $ref: ./team/paths.yaml#/staff
+  /v1/orgs/{orgId}/staff/{staffId}/working-pattern:
+    $ref: ./team/paths.yaml#/workingPattern
+  /v1/orgs/{orgId}/shifts:
+    $ref: ./team/paths.yaml#/shifts
+  /v1/orgs/{orgId}/shifts/{shiftId}:
+    $ref: ./team/paths.yaml#/shift
+  /v1/orgs/{orgId}/time-off:
+    $ref: ./team/paths.yaml#/timeOff
+  /v1/orgs/{orgId}/time-off/{timeOffId}:
+    $ref: ./team/paths.yaml#/timeOffItem
+  /v1/orgs/{orgId}/time-off/{timeOffId}/decision:
+    $ref: ./team/paths.yaml#/timeOffDecision
+  /v1/orgs/{orgId}/schedule:
+    $ref: ./team/paths.yaml#/schedule
+  # --- booking policies -------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/booking-policies:
+    $ref: ./scheduling/paths.yaml#/bookingPolicies
+  /v1/orgs/{orgId}/booking-policies/effective:
+    $ref: ./scheduling/paths.yaml#/effectivePolicy
+  /v1/orgs/{orgId}/booking-policies/{policyId}:
+    $ref: ./scheduling/paths.yaml#/bookingPolicy
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles
@@ -144,6 +219,8 @@ paths:
     $ref: ./reference/paths.yaml#/categories
   /v1/ref/admin-areas:
     $ref: ./reference/paths.yaml#/adminAreas
+  /v1/ref/public-holidays:
+    $ref: ./reference/paths.yaml#/publicHolidays
   /v1/ref/permissions:
     $ref: ./reference/paths.yaml#/permissions
 components:

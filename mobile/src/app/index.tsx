@@ -6,33 +6,18 @@ import {
   zoned,
   type ZonedDateTime,
 } from "@beavent/calendar";
-import {
-  createTranslator,
-  LANGUAGE_NAMES,
-  LANGUAGES,
-  negotiateLanguage,
-  scriptOf,
-  type Language,
-} from "@beavent/i18n";
+import { LANGUAGE_NAMES, LANGUAGES, scriptOf } from "@beavent/i18n";
 import { lineHeightPx, type FontSize } from "@beavent/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useApp } from "@/lib/app-context";
 
 const TIME_ZONE = "Africa/Addis_Ababa";
-
-/** The device's preferred language among the app's languages (Amharic when none matches). */
-function deviceLanguage(): Language {
-  try {
-    return negotiateLanguage([Intl.DateTimeFormat().resolvedOptions().locale]);
-  } catch {
-    return "am";
-  }
-}
 
 /** Addis Ababa wall-clock time; falls back to the device clock if the JS engine lacks time-zone data. */
 function addisNow(): ZonedDateTime {
@@ -51,13 +36,12 @@ function addisNow(): ZonedDateTime {
 }
 
 export default function HomeScreen() {
-  const [language, setLanguage] = useState<Language>(deviceLanguage);
+  const { language, setLanguage, t } = useApp();
   const [now, setNow] = useState(addisNow);
   useEffect(() => {
     const timer = setInterval(() => setNow(addisNow()), 10_000);
     return () => clearInterval(timer);
   }, []);
-  const t = useMemo(() => createTranslator(language), [language]);
   // Ge'ez script needs more line height than Latin text.
   const lines = (size: FontSize) => ({ lineHeight: lineHeightPx(size, scriptOf(language)) });
   const standard = `${String(now.hour).padStart(2, "0")}:${String(now.minute).padStart(2, "0")}`;

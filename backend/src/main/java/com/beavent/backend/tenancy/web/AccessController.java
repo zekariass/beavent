@@ -22,9 +22,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Roles, members, invitations and verification cases (backend/src/main/openapi/tenancy). */
+/** Team access: roles, members, invitations, and verification cases (backend/src/main/openapi/tenancy). */
 @RestController
-class TeamController {
+class AccessController {
 
     static final String MEMBERS = "org.members.manage";
 
@@ -33,7 +33,7 @@ class TeamController {
     private final Invitations invitations;
     private final Verification verification;
 
-    TeamController(Roles roles, Members members, Invitations invitations, Verification verification) {
+    AccessController(Roles roles, Members members, Invitations invitations, Verification verification) {
         this.roles = roles;
         this.members = members;
         this.invitations = invitations;

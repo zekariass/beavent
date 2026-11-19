@@ -139,7 +139,8 @@ public final class Bodies {
             String serviceMode,
 
             Boolean onlineBooking,
-            @Size(max = 50) List<@NotNull @Valid OpeningHours> hours) {}
+            @Size(max = 50) List<@NotNull @Valid OpeningHours> hours,
+            Boolean closedOnPublicHolidays) {}
 
     public record Location(
             UUID id,
@@ -153,11 +154,40 @@ public final class Bodies {
             String serviceMode,
             boolean onlineBooking,
             List<OpeningHours> hours,
+            boolean closedOnPublicHolidays,
             UUID placeId,
             String currency,
             String status,
             boolean marketplaceListed,
             long version) {}
+
+    public record ClosureInput(
+            @NotNull Instant startsAt,
+            @NotNull Instant endsAt,
+            @Size(max = 200) String reason) {}
+
+    public record Closure(UUID id, Instant startsAt, Instant endsAt, String reason) {}
+
+    public record ServiceAreaInput(
+            @NotBlank @Size(max = 80) String name,
+            UUID adminAreaId,
+            @Valid GeoPoint center,
+            @Min(100) @Max(100000) Integer radiusMeters,
+            @NotNull @Min(0) Long travelFeeMinor,
+            @NotNull @Min(0) @Max(240) Integer travelMinutes,
+            Boolean isActive) {}
+
+    public record ServiceArea(
+            UUID id,
+            UUID locationId,
+            String name,
+            UUID adminAreaId,
+            GeoPoint center,
+            Integer radiusMeters,
+            long travelFeeMinor,
+            String currency,
+            int travelMinutes,
+            boolean isActive) {}
 
     // --- roles, members, invitations -----------------------------------------------------------------------
 

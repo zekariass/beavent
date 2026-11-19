@@ -42,6 +42,7 @@ npm run test                # JS tests (e.g. the Chapa stub, the API client)
 npm run api:spec            # lint + bundle the OpenAPI contract, regenerate packages/api-client (commit the result)
 npm run build               # production builds
 npm run format              # Prettier (JS/TS/JSON/MD outside backend, db, docs)
+npm run e2e                 # browser tests against a running stack (API_LOG=<api log file>; see tools/e2e)
 cd backend && ./gradlew spotlessApply   # Java formatting (Palantir Java Format)
 cd mobile && npx expo start # run the mobile app
 ```
