@@ -4,7 +4,7 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'com.diffplug.spotless' version '8.11.0'
 	// Generates jOOQ classes from a throwaway PostGIS container migrated with db/migration.
-	id 'dev.monosoul.jooq-docker' version '9.0.11'
+	id 'dev.monosoul.jooq-docker' version '9.0.12'
 }
 
 group = 'com.beavent'
@@ -50,7 +50,7 @@ dependencies {
 	implementation 'org.postgresql:postgresql'
 
 	// Object storage: any S3-compatible service (SeaweedFS locally; Cloudflare R2 or AWS S3 in production)
-	implementation platform('software.amazon.awssdk:bom:2.57.5')
+	implementation platform('software.amazon.awssdk:bom:2.59.1')
 	implementation 'software.amazon.awssdk:s3'
 
 	// Coordination & messaging
