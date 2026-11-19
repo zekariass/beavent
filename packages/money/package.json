@@ -1,0 +1,21 @@
+{
+  "name": "@beavent/money",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minor-unit Money: exact parsing, formatting, allocation, percentages and cash rounding.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@beavent/config": "*",
+    "typescript": "^5",
+    "@types/node": "^24.19.2"
+  }
+}

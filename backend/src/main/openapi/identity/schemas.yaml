@@ -1,0 +1,283 @@
+OtpPurpose:
+  type: string
+  enum: [SIGN_IN, VERIFY_PHONE, STEP_UP, CLAIM_GUEST_ORDERS, CHANGE_PAYOUT_ACCOUNT]
+  description: SIGN_IN creates the account on first use (phone-first sign-up).
+OtpChannel:
+  type: string
+  enum: [SMS, TELEGRAM, WHATSAPP, VOICE, EMAIL]
+ClientApp:
+  type: string
+  enum: [MOBILE_APP, WEB_MARKETPLACE, PARTNER_PORTAL, ADMIN_CONSOLE]
+DeviceInfo:
+  type: object
+  required: [installationId, platform]
+  properties:
+    installationId:
+      type: string
+      maxLength: 200
+    platform:
+      type: string
+      enum: [IOS, ANDROID, WEB]
+    appVersion:
+      type: string
+      maxLength: 40
+OtpRequest:
+  type: object
+  description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
+  required: [purpose, clientApp]
+  oneOf:
+    - required: [phone]
+    - required: [email]
+  properties:
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    email:
+      type: string
+      format: email
+      maxLength: 200
+    purpose:
+      $ref: '#/OtpPurpose'
+    channel:
+      allOf:
+        - $ref: '#/OtpChannel'
+      description: Defaults to SMS for phones and EMAIL for email addresses.
+    clientApp:
+      $ref: '#/ClientApp'
+    language:
+      $ref: ../common/schemas.yaml#/LanguageCode
+OtpChallenge:
+  type: object
+  required: [challengeId, expiresAt, resendAfter, channel]
+  properties:
+    challengeId:
+      $ref: ../common/schemas.yaml#/Uuid
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    resendAfter:
+      $ref: ../common/schemas.yaml#/Instant
+    channel:
+      $ref: '#/OtpChannel'
+    codeLength:
+      type: integer
+      examples: [6]
+OtpVerify:
+  type: object
+  required: [challengeId, code]
+  properties:
+    challengeId:
+      $ref: ../common/schemas.yaml#/Uuid
+    code:
+      type: string
+      pattern: ^[0-9]{4,8}$
+    device:
+      $ref: '#/DeviceInfo'
+OAuthLogin:
+  type: object
+  required: [idToken, nonce, clientApp]
+  properties:
+    idToken:
+      type: string
+      description: ID token from Google or Apple, verified server-side (issuer, audience, signature, nonce).
+    nonce:
+      type: string
+    clientApp:
+      $ref: '#/ClientApp'
+    device:
+      $ref: '#/DeviceInfo'
+RefreshRequest:
+  type: object
+  required: [refreshToken]
+  properties:
+    refreshToken:
+      type: string
+      format: password
+LogoutRequest:
+  type: object
+  properties:
+    refreshToken:
+      type: string
+      format: password
+      description: Revokes this session; omit to revoke the session of the access token.
+    allSessions:
+      type: boolean
+      default: false
+StepUpRequest:
+  type: object
+  description: A fresh one-time code (purpose STEP_UP, sent to the account's phone or email) before a sensitive action.
+  required: [challengeId, code]
+  properties:
+    challengeId:
+      $ref: ../common/schemas.yaml#/Uuid
+    code:
+      type: string
+      pattern: ^[0-9]{4,8}$
+Tokens:
+  type: object
+  required: [result, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, user, isNewUser]
+  properties:
+    result:
+      type: string
+      const: TOKENS
+    accessToken:
+      type: string
+    accessTokenExpiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    refreshToken:
+      type: string
+      description: Opaque; rotated on every refresh. Reusing an old one revokes the whole session family.
+    refreshTokenExpiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    isNewUser:
+      type: boolean
+    user:
+      $ref: '#/Me'
+Jwks:
+  type: object
+  required: [keys]
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+Membership:
+  type: object
+  required: [orgId, orgName, orgSlug, roleCode, roleName, isOwner, capabilities]
+  properties:
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgName:
+      type: string
+    orgSlug:
+      type: string
+    roleCode:
+      type: string
+    roleName:
+      type: string
+    isOwner:
+      type: boolean
+    capabilities:
+      type: array
+      items:
+        type: string
+Me:
+  type: object
+  required: [id, status, phoneVerified, emailVerified, memberships, isPlatformStaff]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    phone:
+      $ref: ../common/schemas.yaml#/PhoneE164
+    phoneVerified:
+      type: boolean
+    email:
+      type: string
+      format: email
+    emailVerified:
+      type: boolean
+    status:
+      type: string
+      enum: [PENDING, ACTIVE, LOCKED, SUSPENDED, CLOSED]
+    firstName:
+      type: string
+    lastName:
+      type: string
+      description: In Ethiopia usually the father's name; never required.
+    displayName:
+      type: string
+    avatarFileId:
+      $ref: ../common/schemas.yaml#/Uuid
+    countryCode:
+      $ref: ../common/schemas.yaml#/CountryCode
+    preferredLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    displayCalendar:
+      type: string
+      enum: [GREGORIAN, ETHIOPIAN]
+    timezone:
+      type: string
+    isPlatformStaff:
+      type: boolean
+    memberships:
+      type: array
+      items:
+        $ref: '#/Membership'
+MeUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    firstName:
+      type: [string, 'null']
+      maxLength: 100
+    lastName:
+      type: [string, 'null']
+      maxLength: 100
+    displayName:
+      type: [string, 'null']
+      maxLength: 100
+    email:
+      type: [string, 'null']
+      format: email
+      description: Changing the email starts a verification.
+    avatarFileId:
+      type: [string, 'null']
+      format: uuid
+    preferredLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    displayCalendar:
+      type: string
+      enum: [GREGORIAN, ETHIOPIAN]
+    timezone:
+      type: string
+Session:
+  type: object
+  required: [id, clientApp, createdAt, current]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    clientApp:
+      $ref: '#/ClientApp'
+    deviceLabel:
+      type: string
+    ipAddress:
+      type: string
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    lastUsedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    current:
+      type: boolean
+SessionList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Session'
+DeviceRegistration:
+  type: object
+  required: [installationId, platform]
+  properties:
+    installationId:
+      type: string
+      maxLength: 200
+    platform:
+      type: string
+      enum: [IOS, ANDROID, WEB]
+    pushToken:
+      type: string
+      maxLength: 4096
+    appVersion:
+      type: string
+    locale:
+      type: string
+ConsentAcceptance:
+  type: object
+  required: [documentVersionIds]
+  properties:
+    documentVersionIds:
+      type: array
+      minItems: 1
+      items:
+        $ref: ../common/schemas.yaml#/Uuid

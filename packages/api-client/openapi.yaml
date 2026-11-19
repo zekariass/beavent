@@ -1,0 +1,3768 @@
+openapi: 3.1.0
+info:
+  title: Beavent API
+  version: 0.1.0
+  summary: One API for booking services and selling events (docs/03 §2.4).
+  description: |
+    Conventions
+    - JSON fields are camelCase. Money is `{ "amountMinor": 150000, "currency": "ETB" }` (integer minor units).
+    - Instants are RFC 3339 UTC; local rules carry an IANA time zone. The Ethiopian calendar is display-only.
+    - Partner (organization) endpoints live under `/v1/orgs/{orgId}`; the server checks membership and
+      permission on every call and the database enforces row-level isolation.
+    - Errors are `application/problem+json` with a stable `code` (see `Problem`).
+    - POSTs that create orders, payments, refunds, payouts or tickets require `Idempotency-Key`.
+    - Updates to versioned resources require `If-Match` with the `ETag` from the last read.
+    - Lists use cursor pagination (`cursor`, `limit`).
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+    description: 'Same origin (local development: http://localhost:8080)'
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: Sign-in, tokens and sessions
+  - name: Me
+    description: The signed-in person
+  - name: Organizations
+    description: Partner workspaces (businesses, freelancers, organizers)
+  - name: Team access
+    description: Members, roles, invitations
+  - name: Verification
+    description: Business verification (KYB)
+  - name: Files
+    description: Uploads (pre-signed), processing status, signed download URLs
+  - name: Admin
+    description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
+  - name: Reference
+    description: Markets, languages, categories, administrative areas
+paths:
+  /v1/auth/otp/request:
+    post:
+      tags:
+        - Auth
+      operationId: requestOtp
+      summary: Send a one-time code to a phone number
+      description: Rate limited per phone and IP. SIGN_IN creates the account on first successful verification.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '202':
+          description: Code sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpChallenge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/otp/verify:
+    post:
+      tags:
+        - Auth
+      operationId: verifyOtp
+      summary: Verify a one-time code and sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerify'
+      responses:
+        '200':
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/oauth/{provider}:
+    post:
+      tags:
+        - Auth
+      operationId: signInWithProvider
+      summary: Sign in with Google or Apple
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - google
+              - apple
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthLogin'
+      responses:
+        '200':
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: This provider is not enabled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/auth/refresh:
+    post:
+      tags:
+        - Auth
+      operationId: refreshTokens
+      summary: Exchange a refresh token for new tokens (rotation)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair; the old refresh token is no longer valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      operationId: signOut
+      summary: Sign out (revoke the session, or all sessions)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/auth/step-up:
+    post:
+      tags:
+        - Auth
+      operationId: stepUp
+      summary: Re-confirm identity before a sensitive action
+      description: Returns an access token with assurance STEP_UP valid for 5 minutes (payout account changes, large refunds, exports).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepUpRequest'
+      responses:
+        '200':
+          description: Step-up tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /.well-known/jwks.json:
+    get:
+      tags:
+        - Auth
+      operationId: getJwks
+      summary: Public keys for verifying access tokens
+      security: []
+      responses:
+        '200':
+          description: JSON Web Key Set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Jwks'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me:
+    get:
+      tags:
+        - Me
+      operationId: getMe
+      summary: The signed-in person, with their organization memberships
+      responses:
+        '200':
+          description: Profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags:
+        - Me
+      operationId: updateMe
+      summary: Update profile and preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeUpdate'
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/sessions:
+    get:
+      tags:
+        - Me
+      operationId: listSessions
+      summary: Active sessions across devices
+      responses:
+        '200':
+          description: Sessions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/sessions/{sessionId}:
+    delete:
+      tags:
+        - Me
+      operationId: revokeSession
+      summary: Sign out one session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/devices:
+    post:
+      tags:
+        - Me
+      operationId: registerDevice
+      summary: Register or update this device's push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRegistration'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/consents:
+    post:
+      tags:
+        - Me
+      operationId: acceptLegalDocuments
+      summary: Record acceptance of terms / privacy notice versions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentAcceptance'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs:
+    post:
+      tags:
+        - Organizations
+      operationId: createOrganization
+      summary: Create an organization (the caller becomes its owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+      responses:
+        '201':
+          description: Created.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}:
+    get:
+      tags:
+        - Organizations
+      operationId: getOrganization
+      summary: Get an organization
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Organization.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Organizations
+      operationId: updateOrganization
+      summary: Update profile details
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUpdate'
+      responses:
+        '200':
+          description: Updated.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/capabilities:
+    put:
+      tags:
+        - Organizations
+      operationId: setCapabilities
+      summary: Set the enabled capabilities
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapabilitiesUpdate'
+      responses:
+        '200':
+          description: Updated.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/legal-entities:
+    get:
+      tags:
+        - Organizations
+      operationId: listLegalEntities
+      summary: List legal entities (sellers of record per country)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Legal entities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalEntityList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Organizations
+      operationId: createLegalEntity
+      summary: Add a legal entity
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalEntityInput'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/legal-entities/{legalEntityId}:
+    put:
+      tags:
+        - Organizations
+      operationId: updateLegalEntity
+      summary: Update a legal entity
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: legalEntityId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalEntityInput'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/locations:
+    get:
+      tags:
+        - Organizations
+      operationId: listLocations
+      summary: List locations
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Locations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Organizations
+      operationId: createLocation
+      summary: Add a location (branch, studio, box office)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationInput'
+      responses:
+        '201':
+          description: Created.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/locations/{locationId}:
+    get:
+      tags:
+        - Organizations
+      operationId: getLocation
+      summary: Get a location
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Location.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Organizations
+      operationId: updateLocation
+      summary: Update a location
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationInput'
+      responses:
+        '200':
+          description: Updated.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/roles:
+    get:
+      tags:
+        - Team access
+      operationId: listRoles
+      summary: System role templates and custom roles
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team access
+      operationId: createRole
+      summary: Create a custom role
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreate'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/roles/{roleId}:
+    patch:
+      tags:
+        - Team access
+      operationId: updateRole
+      summary: Update a custom role
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdate'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Team access
+      operationId: deleteRole
+      summary: Delete an unused custom role
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/members:
+    get:
+      tags:
+        - Team access
+      operationId: listMembers
+      summary: List team members
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Members.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/members/{memberId}:
+    patch:
+      tags:
+        - Team access
+      operationId: updateMember
+      summary: Change role, locations or suspend a member
+      description: Changing roles requires MFA for members with sensitive permissions; the last owner cannot be demoted.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdate'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Team access
+      operationId: removeMember
+      summary: Remove a member
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/invitations:
+    get:
+      tags:
+        - Team access
+      operationId: listInvitations
+      summary: List invitations
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Invitations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Team access
+      operationId: createInvitation
+      summary: Invite someone by phone or email
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+      responses:
+        '201':
+          description: Invitation sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/invitations/{invitationId}:
+    delete:
+      tags:
+        - Team access
+      operationId: revokeInvitation
+      summary: Revoke a pending invitation
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/invitations/accept:
+    post:
+      tags:
+        - Team access
+      operationId: acceptInvitation
+      summary: Accept an invitation (as the signed-in person)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationAccept'
+      responses:
+        '200':
+          description: Membership created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/verification-cases:
+    get:
+      tags:
+        - Verification
+      operationId: listVerificationCases
+      summary: Business verification cases
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Cases.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationCaseList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Verification
+      operationId: submitVerification
+      summary: Submit documents for verification
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationCaseCreate'
+      responses:
+        '201':
+          description: Submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationCase'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/verification-cases/{caseId}:
+    get:
+      tags:
+        - Verification
+      operationId: getVerificationCase
+      summary: Get a verification case
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationCase'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/files:
+    post:
+      tags:
+        - Files
+      operationId: createFileUpload
+      summary: Start an upload in the organization workspace (returns a pre-signed URL)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadCreate'
+      responses:
+        '201':
+          description: Upload started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/files/{fileId}:
+    get:
+      tags:
+        - Files
+      operationId: getFile
+      summary: Get a file's status and public URLs
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: File.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/files/{fileId}/complete:
+    post:
+      tags:
+        - Files
+      operationId: completeFileUpload
+      summary: Confirm the upload finished; processing starts
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Upload confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/files/{fileId}/access-url:
+    post:
+      tags:
+        - Files
+      operationId: createFileAccessUrl
+      summary: Short-lived download URL for a private or sensitive file (audited)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUrl'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/files:
+    post:
+      tags:
+        - Files
+      operationId: createMyFileUpload
+      summary: Start an upload of your own file (avatar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadCreate'
+      responses:
+        '201':
+          description: Upload started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me/files/{fileId}:
+    get:
+      tags:
+        - Files
+      operationId: getMyFile
+      summary: Get one of your own files
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: File.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/files/{fileId}/complete:
+    post:
+      tags:
+        - Files
+      operationId: completeMyFileUpload
+      summary: Confirm your upload finished
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Upload confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/admin/me:
+    get:
+      tags:
+        - Admin
+      operationId: getStaffMe
+      summary: The signed-in staff member, roles and permissions
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMe'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/orgs:
+    get:
+      tags:
+        - Admin
+      operationId: searchOrganizations
+      summary: Search organizations (name, slug or id) in your markets
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/orgs/{orgId}:
+    get:
+      tags:
+        - Admin
+      operationId: getOrganization360
+      summary: 'Organization 360: profile, owner, team size, verification, recent audit'
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Org360'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/users:
+    get:
+      tags:
+        - Admin
+      operationId: searchUsers
+      summary: Search people by phone, email, name or id
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/verification-cases:
+    get:
+      tags:
+        - Admin
+      operationId: listVerificationQueue
+      summary: 'KYB/KYC queue, oldest first (default: open cases)'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/verification-cases/{caseId}:
+    get:
+      tags:
+        - Admin
+      operationId: getVerificationCaseForReview
+      summary: A verification case with its documents
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/verification-cases/{caseId}/documents/{documentId}/access-url:
+    post:
+      tags:
+        - Admin
+      operationId: createVerificationDocumentUrl
+      summary: Short-lived URL to view a submitted document (audited)
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUrl'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/verification-cases/{caseId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideVerificationCase
+      summary: Approve, reject or request more information (reason required, audited)
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/audit-log:
+    get:
+      tags:
+        - Admin
+      operationId: searchAuditLog
+      summary: Audit log, newest first
+      parameters:
+        - name: orgId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: actorUserId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/feature-flags:
+    get:
+      tags:
+        - Admin
+      operationId: listFeatureFlags
+      summary: Feature flags and their overrides
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlagList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/feature-flags/{code}:
+    put:
+      tags:
+        - Admin
+      operationId: updateFeatureFlag
+      summary: Change a flag default (reason required, audited)
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlagUpdate'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/ref/markets:
+    get:
+      tags:
+        - Reference
+      operationId: listMarkets
+      summary: Markets with their languages, currencies and feature switches
+      security: []
+      responses:
+        '200':
+          description: Markets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketList'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/ref/languages:
+    get:
+      tags:
+        - Reference
+      operationId: listLanguages
+      summary: Supported languages
+      security: []
+      responses:
+        '200':
+          description: Languages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanguageList'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/ref/categories:
+    get:
+      tags:
+        - Reference
+      operationId: listCategories
+      summary: Business, service, event and product categories
+      security: []
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - BUSINESS
+              - SERVICE
+              - EVENT
+              - PRODUCT
+      responses:
+        '200':
+          description: Categories.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryList'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/ref/admin-areas:
+    get:
+      tags:
+        - Reference
+      operationId: listAdminAreas
+      summary: Administrative areas (regions, sub-cities, woredas ...) for address pickers
+      security: []
+      parameters:
+        - name: countryCode
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/CountryCode'
+        - name: parentId
+          in: query
+          required: false
+          description: Omit for top-level areas.
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Areas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAreaList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/ref/permissions:
+    get:
+      tags:
+        - Reference
+      operationId: listPermissions
+      summary: Organization permission catalogue (for the role editor)
+      responses:
+        '200':
+          description: Permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token from /v1/auth/* (ES256, 10 minutes).
+  schemas:
+    PhoneE164:
+      type: string
+      pattern: ^\+[1-9][0-9]{6,14}$
+      examples:
+        - '+251911234567'
+    OtpPurpose:
+      type: string
+      enum:
+        - SIGN_IN
+        - VERIFY_PHONE
+        - STEP_UP
+        - CLAIM_GUEST_ORDERS
+        - CHANGE_PAYOUT_ACCOUNT
+      description: SIGN_IN creates the account on first use (phone-first sign-up).
+    OtpChannel:
+      type: string
+      enum:
+        - SMS
+        - TELEGRAM
+        - WHATSAPP
+        - VOICE
+        - EMAIL
+    ClientApp:
+      type: string
+      enum:
+        - MOBILE_APP
+        - WEB_MARKETPLACE
+        - PARTNER_PORTAL
+        - ADMIN_CONSOLE
+    LanguageCode:
+      type: string
+      description: BCP 47 language code (am, om, ti, so, en, sw, ...).
+      examples:
+        - am
+    OtpRequest:
+      type: object
+      description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
+      required:
+        - purpose
+        - clientApp
+      oneOf:
+        - required:
+            - phone
+        - required:
+            - email
+      properties:
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+          maxLength: 200
+        purpose:
+          $ref: '#/components/schemas/OtpPurpose'
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/OtpChannel'
+          description: Defaults to SMS for phones and EMAIL for email addresses.
+        clientApp:
+          $ref: '#/components/schemas/ClientApp'
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+    Uuid:
+      type: string
+      format: uuid
+    Instant:
+      type: string
+      format: date-time
+      description: RFC 3339, UTC.
+    OtpChallenge:
+      type: object
+      required:
+        - challengeId
+        - expiresAt
+        - resendAfter
+        - channel
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Uuid'
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        resendAfter:
+          $ref: '#/components/schemas/Instant'
+        channel:
+          $ref: '#/components/schemas/OtpChannel'
+        codeLength:
+          type: integer
+          examples:
+            - 6
+    Problem:
+      type: object
+      description: RFC 9457 problem details with Beavent's stable `code`.
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri
+          examples:
+            - urn:beavent:problem:slot-taken
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+          description: The request path that produced this problem.
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - STEP_UP_REQUIRED
+            - NOT_FOUND
+            - CONFLICT
+            - SLOT_TAKEN
+            - SOLD_OUT
+            - IMMUTABLE
+            - CONCURRENT_UPDATE
+            - IDEMPOTENCY_IN_PROGRESS
+            - PRECONDITION_FAILED
+            - IDEMPOTENCY_KEY_REUSED
+            - REFERENCE_NOT_FOUND
+            - CONSTRAINT_VIOLATION
+            - PRECONDITION_REQUIRED
+            - RATE_LIMITED
+            - INTERNAL
+        requestId:
+          type: string
+        errors:
+          type: array
+          description: Field-level validation errors.
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    DeviceInfo:
+      type: object
+      required:
+        - installationId
+        - platform
+      properties:
+        installationId:
+          type: string
+          maxLength: 200
+        platform:
+          type: string
+          enum:
+            - IOS
+            - ANDROID
+            - WEB
+        appVersion:
+          type: string
+          maxLength: 40
+    OtpVerify:
+      type: object
+      required:
+        - challengeId
+        - code
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Uuid'
+        code:
+          type: string
+          pattern: ^[0-9]{4,8}$
+        device:
+          $ref: '#/components/schemas/DeviceInfo'
+    CountryCode:
+      type: string
+      pattern: ^[A-Z]{2}$
+      examples:
+        - ET
+    Membership:
+      type: object
+      required:
+        - orgId
+        - orgName
+        - orgSlug
+        - roleCode
+        - roleName
+        - isOwner
+        - capabilities
+      properties:
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        orgName:
+          type: string
+        orgSlug:
+          type: string
+        roleCode:
+          type: string
+        roleName:
+          type: string
+        isOwner:
+          type: boolean
+        capabilities:
+          type: array
+          items:
+            type: string
+    Me:
+      type: object
+      required:
+        - id
+        - status
+        - phoneVerified
+        - emailVerified
+        - memberships
+        - isPlatformStaff
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        phoneVerified:
+          type: boolean
+        email:
+          type: string
+          format: email
+        emailVerified:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACTIVE
+            - LOCKED
+            - SUSPENDED
+            - CLOSED
+        firstName:
+          type: string
+        lastName:
+          type: string
+          description: In Ethiopia usually the father's name; never required.
+        displayName:
+          type: string
+        avatarFileId:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        preferredLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        displayCalendar:
+          type: string
+          enum:
+            - GREGORIAN
+            - ETHIOPIAN
+        timezone:
+          type: string
+        isPlatformStaff:
+          type: boolean
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+    Tokens:
+      type: object
+      required:
+        - result
+        - accessToken
+        - accessTokenExpiresAt
+        - refreshToken
+        - refreshTokenExpiresAt
+        - user
+        - isNewUser
+      properties:
+        result:
+          type: string
+          const: TOKENS
+        accessToken:
+          type: string
+        accessTokenExpiresAt:
+          $ref: '#/components/schemas/Instant'
+        refreshToken:
+          type: string
+          description: Opaque; rotated on every refresh. Reusing an old one revokes the whole session family.
+        refreshTokenExpiresAt:
+          $ref: '#/components/schemas/Instant'
+        isNewUser:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/Me'
+    OAuthLogin:
+      type: object
+      required:
+        - idToken
+        - nonce
+        - clientApp
+      properties:
+        idToken:
+          type: string
+          description: ID token from Google or Apple, verified server-side (issuer, audience, signature, nonce).
+        nonce:
+          type: string
+        clientApp:
+          $ref: '#/components/schemas/ClientApp'
+        device:
+          $ref: '#/components/schemas/DeviceInfo'
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          format: password
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          format: password
+          description: Revokes this session; omit to revoke the session of the access token.
+        allSessions:
+          type: boolean
+          default: false
+    StepUpRequest:
+      type: object
+      description: A fresh one-time code (purpose STEP_UP, sent to the account's phone or email) before a sensitive action.
+      required:
+        - challengeId
+        - code
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Uuid'
+        code:
+          type: string
+          pattern: ^[0-9]{4,8}$
+    Jwks:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    MeUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        firstName:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        lastName:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        displayName:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        email:
+          type:
+            - string
+            - 'null'
+          format: email
+          description: Changing the email starts a verification.
+        avatarFileId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        preferredLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        displayCalendar:
+          type: string
+          enum:
+            - GREGORIAN
+            - ETHIOPIAN
+        timezone:
+          type: string
+    Session:
+      type: object
+      required:
+        - id
+        - clientApp
+        - createdAt
+        - current
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        clientApp:
+          $ref: '#/components/schemas/ClientApp'
+        deviceLabel:
+          type: string
+        ipAddress:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        lastUsedAt:
+          $ref: '#/components/schemas/Instant'
+        current:
+          type: boolean
+    SessionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+    DeviceRegistration:
+      type: object
+      required:
+        - installationId
+        - platform
+      properties:
+        installationId:
+          type: string
+          maxLength: 200
+        platform:
+          type: string
+          enum:
+            - IOS
+            - ANDROID
+            - WEB
+        pushToken:
+          type: string
+          maxLength: 4096
+        appVersion:
+          type: string
+        locale:
+          type: string
+    ConsentAcceptance:
+      type: object
+      required:
+        - documentVersionIds
+      properties:
+        documentVersionIds:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Uuid'
+    OrganizationKind:
+      type: string
+      enum:
+        - BUSINESS
+        - INDEPENDENT_PROFESSIONAL
+        - EVENT_ORGANIZER
+        - VENUE_OPERATOR
+        - NON_PROFIT
+        - COMMUNITY_GROUP
+    Capability:
+      type: string
+      enum:
+        - APPOINTMENTS
+        - CLASSES
+        - EVENTS
+        - RESERVED_SEATING
+        - RETAIL
+        - ONLINE_STORE
+        - AT_HOME_SERVICES
+        - GIFT_CARDS
+        - MEMBERSHIPS
+        - PACKAGES
+        - LOYALTY
+        - MARKETING
+        - TEAM_PAY
+        - AI_CONCIERGE
+        - BOX_OFFICE
+        - PUBLIC_API
+    OrganizationCreate:
+      type: object
+      required:
+        - displayName
+        - kind
+        - primaryCategoryId
+        - defaultLanguage
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 120
+        slug:
+          type: string
+          pattern: ^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$
+          description: Generated from the name when omitted.
+        kind:
+          $ref: '#/components/schemas/OrganizationKind'
+        primaryCategoryId:
+          $ref: '#/components/schemas/Uuid'
+        marketCode:
+          type: string
+          default: ET
+        defaultLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Capability'
+    LocalizedText:
+      type: object
+      description: Text per language code; clients fall back user language → organization default → market default → en.
+      additionalProperties:
+        type: string
+      examples:
+        - en: Hair
+          am: ፀጉር
+    Organization:
+      type: object
+      required:
+        - id
+        - slug
+        - displayName
+        - kind
+        - status
+        - verificationStatus
+        - marketplaceStatus
+        - marketCode
+        - defaultLanguage
+        - capabilities
+        - version
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        displayName:
+          type: string
+        kind:
+          $ref: '#/components/schemas/OrganizationKind'
+        primaryCategoryId:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - ONBOARDING
+            - ACTIVE
+            - RESTRICTED
+            - SUSPENDED
+            - CLOSED
+        verificationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+        marketplaceStatus:
+          type: string
+          enum:
+            - HIDDEN
+            - PENDING_REVIEW
+            - LISTED
+            - DELISTED
+        marketCode:
+          type: string
+        descriptionI18n:
+          $ref: '#/components/schemas/LocalizedText'
+        logoFileId:
+          $ref: '#/components/schemas/Uuid'
+        coverFileId:
+          $ref: '#/components/schemas/Uuid'
+        websiteUrl:
+          type: string
+        contactEmail:
+          type: string
+        contactPhone:
+          type: string
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+        defaultLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Capability'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        version:
+          type: integer
+          description: Same value as the ETag.
+    OrganizationUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 120
+        descriptionI18n:
+          $ref: '#/components/schemas/LocalizedText'
+        logoFileId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        coverFileId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        websiteUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+        contactEmail:
+          type:
+            - string
+            - 'null'
+          format: email
+        contactPhone:
+          oneOf:
+            - $ref: '#/components/schemas/PhoneE164'
+            - type: 'null'
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+        defaultLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+    CapabilitiesUpdate:
+      type: object
+      required:
+        - capabilities
+      properties:
+        capabilities:
+          type: array
+          description: The full desired set; plan entitlements may restrict it.
+          items:
+            $ref: '#/components/schemas/Capability'
+    GeoPoint:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+    Address:
+      type: object
+      description: Landmark-first address (most addresses in the launch markets have no postal code).
+      required:
+        - countryCode
+      properties:
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        adminAreaId:
+          $ref: '#/components/schemas/Uuid'
+        addressLine:
+          type: string
+          maxLength: 300
+        landmark:
+          type: string
+          maxLength: 300
+          examples:
+            - Behind Edna Mall, 2nd gate
+        city:
+          type: string
+          maxLength: 120
+        postalCode:
+          type: string
+          maxLength: 20
+        geo:
+          $ref: '#/components/schemas/GeoPoint'
+    CurrencyCode:
+      type: string
+      pattern: ^[A-Z]{3}$
+      examples:
+        - ETB
+    LegalEntity:
+      type: object
+      required:
+        - id
+        - countryCode
+        - entityType
+        - registeredName
+        - taxRegime
+        - functionalCurrency
+        - verificationStatus
+        - isDefault
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        entityType:
+          type: string
+          enum:
+            - SOLE_PROPRIETOR
+            - PLC
+            - SHARE_COMPANY
+            - PARTNERSHIP
+            - NGO
+            - INDIVIDUAL
+            - OTHER
+        registeredName:
+          type: string
+          maxLength: 200
+        tradeLicenseNumber:
+          type: string
+          maxLength: 60
+        tin:
+          type: string
+          maxLength: 30
+          description: Taxpayer identification number.
+        vatNumber:
+          type: string
+          maxLength: 30
+          description: Required when taxRegime is VAT.
+        taxRegime:
+          type: string
+          enum:
+            - VAT
+            - TOT
+            - PRESUMPTIVE
+            - EXEMPT
+        registeredAddress:
+          $ref: '#/components/schemas/Address'
+        isDefault:
+          type: boolean
+        functionalCurrency:
+          $ref: '#/components/schemas/CurrencyCode'
+        verificationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+    LegalEntityList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalEntity'
+    LegalEntityInput:
+      type: object
+      required:
+        - countryCode
+        - entityType
+        - registeredName
+        - taxRegime
+      properties:
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        entityType:
+          type: string
+          enum:
+            - SOLE_PROPRIETOR
+            - PLC
+            - SHARE_COMPANY
+            - PARTNERSHIP
+            - NGO
+            - INDIVIDUAL
+            - OTHER
+        registeredName:
+          type: string
+          maxLength: 200
+        tradeLicenseNumber:
+          type: string
+          maxLength: 60
+        tin:
+          type: string
+          maxLength: 30
+          description: Taxpayer identification number.
+        vatNumber:
+          type: string
+          maxLength: 30
+          description: Required when taxRegime is VAT.
+        taxRegime:
+          type: string
+          enum:
+            - VAT
+            - TOT
+            - PRESUMPTIVE
+            - EXEMPT
+        registeredAddress:
+          $ref: '#/components/schemas/Address'
+        isDefault:
+          type: boolean
+    OpeningHours:
+      type: object
+      required:
+        - isoWeekday
+        - opensAt
+        - closesAt
+      properties:
+        isoWeekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+        opensAt:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+        closesAt:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+    Location:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - legalEntityId
+        - address
+        - timezone
+        - serviceMode
+        - onlineBooking
+        - hours
+        - currency
+        - status
+        - marketplaceListed
+        - version
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          maxLength: 120
+        slug:
+          type: string
+          pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        address:
+          $ref: '#/components/schemas/Address'
+        timezone:
+          type: string
+          examples:
+            - Africa/Addis_Ababa
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+          default: ON_PREMISES
+        onlineBooking:
+          type: boolean
+          default: true
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpeningHours'
+        placeId:
+          $ref: '#/components/schemas/Uuid'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - ARCHIVED
+        marketplaceListed:
+          type: boolean
+        version:
+          type: integer
+          description: Same value as the ETag.
+    PageInfo:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page.
+    LocationList:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    LocationInput:
+      type: object
+      required:
+        - name
+        - legalEntityId
+        - address
+        - timezone
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        slug:
+          type: string
+          pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        address:
+          $ref: '#/components/schemas/Address'
+        timezone:
+          type: string
+          examples:
+            - Africa/Addis_Ababa
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+          default: ON_PREMISES
+        onlineBooking:
+          type: boolean
+          default: true
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpeningHours'
+    Role:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - isSystem
+        - permissions
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isSystem:
+          type: boolean
+          description: System templates are read-only; clone them to customise.
+        permissions:
+          type: array
+          items:
+            type: string
+    RoleList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    RoleCreate:
+      type: object
+      required:
+        - name
+        - permissions
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 300
+        basedOnRoleId:
+          $ref: '#/components/schemas/Uuid'
+        permissions:
+          type: array
+          items:
+            type: string
+    RoleUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 300
+        permissions:
+          type: array
+          items:
+            type: string
+    Member:
+      type: object
+      required:
+        - id
+        - userId
+        - displayName
+        - roleId
+        - roleCode
+        - status
+        - isOwner
+        - allLocations
+        - locationIds
+        - joinedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        userId:
+          $ref: '#/components/schemas/Uuid'
+        displayName:
+          type: string
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        roleId:
+          $ref: '#/components/schemas/Uuid'
+        roleCode:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - SUSPENDED
+            - REMOVED
+        isOwner:
+          type: boolean
+        allLocations:
+          type: boolean
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        joinedAt:
+          $ref: '#/components/schemas/Instant'
+    MemberList:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    MemberUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        roleId:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - SUSPENDED
+        allLocations:
+          type: boolean
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+    Invitation:
+      type: object
+      required:
+        - id
+        - roleId
+        - status
+        - expiresAt
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+        roleId:
+          $ref: '#/components/schemas/Uuid'
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACCEPTED
+            - REVOKED
+            - EXPIRED
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    InvitationList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+    InvitationCreate:
+      type: object
+      required:
+        - roleId
+      properties:
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+        roleId:
+          $ref: '#/components/schemas/Uuid'
+        locationIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+      anyOf:
+        - required:
+            - phone
+        - required:
+            - email
+    InvitationAccept:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: From the invitation link sent by SMS or email.
+    VerificationDocument:
+      type: object
+      required:
+        - id
+        - docType
+        - fileId
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        docType:
+          type: string
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        expiresOn:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - SUBMITTED
+            - ACCEPTED
+            - REJECTED
+    VerificationCase:
+      type: object
+      required:
+        - id
+        - subject
+        - status
+        - createdAt
+        - documents
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        subject:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - AWAITING_INFO
+            - IN_REVIEW
+            - APPROVED
+            - REJECTED
+            - EXPIRED
+        decisionReason:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        decidedAt:
+          $ref: '#/components/schemas/Instant'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationDocument'
+    VerificationCaseList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationCase'
+    VerificationDocumentInput:
+      type: object
+      required:
+        - docType
+        - fileId
+      properties:
+        docType:
+          type: string
+          enum:
+            - TRADE_LICENSE
+            - TIN_CERTIFICATE
+            - VAT_CERTIFICATE
+            - NATIONAL_ID
+            - FAYDA_ID
+            - PASSPORT
+            - KEBELE_ID
+            - BANK_LETTER
+            - PROFESSIONAL_LICENSE
+            - VENUE_PERMIT
+            - MEMORANDUM_OF_ASSOCIATION
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        expiresOn:
+          type: string
+          format: date
+    VerificationCaseCreate:
+      type: object
+      required:
+        - subject
+        - documents
+      properties:
+        subject:
+          type: string
+          enum:
+            - ORGANIZATION_KYB
+            - OWNER_KYC
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        documents:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/VerificationDocumentInput'
+    FilePurpose:
+      type: string
+      enum:
+        - LOGO
+        - COVER
+        - GALLERY
+        - EVENT_MEDIA
+        - KYC
+        - DOCUMENT
+        - AVATAR
+      description: |
+        What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
+        Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
+        sensitive), DOCUMENT (private). Personal (/v1/me/files): AVATAR (public).
+    FileUploadCreate:
+      type: object
+      required:
+        - purpose
+        - contentType
+        - sizeBytes
+      properties:
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        contentType:
+          type: string
+          examples:
+            - image/jpeg
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Exact size of the file that will be uploaded; checked when the upload is completed.
+        fileName:
+          type: string
+          maxLength: 200
+    File:
+      type: object
+      required:
+        - id
+        - purpose
+        - visibility
+        - contentType
+        - sizeBytes
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        visibility:
+          type: string
+          enum:
+            - PUBLIC
+            - PRIVATE
+            - SENSITIVE
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - PENDING_UPLOAD
+            - PROCESSING
+            - READY
+            - REJECTED
+          description: Public files get a `url` only when READY (scanned, metadata stripped).
+        fileName:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: Public URL (CDN) of a READY public file.
+        variants:
+          type: object
+          description: Smaller versions of a public image by name (w320, w960).
+          additionalProperties:
+            type: string
+            format: uri
+        width:
+          type: integer
+        height:
+          type: integer
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    FileUpload:
+      type: object
+      required:
+        - file
+        - upload
+      properties:
+        file:
+          $ref: '#/components/schemas/File'
+        upload:
+          type: object
+          required:
+            - url
+            - method
+            - headers
+            - expiresAt
+          description: Send the file bytes with this method, URL and headers (directly to storage), then call `complete`.
+          properties:
+            url:
+              type: string
+              format: uri
+            method:
+              type: string
+              enum:
+                - PUT
+            headers:
+              type: object
+              additionalProperties:
+                type: string
+            expiresAt:
+              $ref: '#/components/schemas/Instant'
+    AccessUrl:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+    StaffMe:
+      type: object
+      required:
+        - userId
+        - roles
+        - permissions
+      properties:
+        userId:
+          $ref: '#/components/schemas/Uuid'
+        roles:
+          type: array
+          items:
+            type: object
+            required:
+              - roleCode
+            properties:
+              roleCode:
+                type: string
+                examples:
+                  - RISK_ANALYST
+              marketCode:
+                type: string
+                description: Absent = all markets.
+        permissions:
+          type: array
+          items:
+            type: string
+    OrgSummary:
+      type: object
+      required:
+        - id
+        - slug
+        - displayName
+        - kind
+        - status
+        - verificationStatus
+        - marketCode
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        displayName:
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+        verificationStatus:
+          type: string
+        marketCode:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    OrgSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrgSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    LegalEntitySummary:
+      type: object
+      required:
+        - id
+        - countryCode
+        - registeredName
+        - taxRegime
+        - verificationStatus
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          type: string
+        registeredName:
+          type: string
+        tin:
+          type: string
+        taxRegime:
+          type: string
+        verificationStatus:
+          type: string
+    CaseSummary:
+      type: object
+      required:
+        - id
+        - subject
+        - status
+        - orgId
+        - orgName
+        - marketCode
+        - createdAt
+        - documentCount
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        subject:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - AWAITING_INFO
+            - IN_REVIEW
+            - APPROVED
+            - REJECTED
+            - EXPIRED
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        orgName:
+          type: string
+        marketCode:
+          type: string
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        decidedAt:
+          $ref: '#/components/schemas/Instant'
+        decisionReason:
+          type: string
+        documentCount:
+          type: integer
+    AuditEntry:
+      type: object
+      required:
+        - id
+        - occurredAt
+        - actorKind
+        - action
+        - targetType
+        - targetId
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        actorKind:
+          type: string
+          enum:
+            - USER
+            - PLATFORM_STAFF
+            - SYSTEM
+            - API_CLIENT
+            - PROVIDER
+        actorUserId:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        before:
+          type: object
+        after:
+          type: object
+        reason:
+          type: string
+        requestId:
+          type: string
+    Org360:
+      type: object
+      required:
+        - organization
+        - capabilities
+        - memberCount
+        - locationCount
+        - legalEntities
+        - verificationCases
+        - recentAudit
+      properties:
+        organization:
+          $ref: '#/components/schemas/OrgSummary'
+        capabilities:
+          type: array
+          items:
+            type: string
+        owner:
+          type: object
+          required:
+            - userId
+          properties:
+            userId:
+              $ref: '#/components/schemas/Uuid'
+            displayName:
+              type: string
+            phone:
+              type: string
+        memberCount:
+          type: integer
+        locationCount:
+          type: integer
+        legalEntities:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalEntitySummary'
+        verificationCases:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        recentAudit:
+          type: array
+          description: Empty without the audit permission.
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+    UserSummary:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+        - isStaff
+        - membershipCount
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        phone:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        countryCode:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        lastLoginAt:
+          $ref: '#/components/schemas/Instant'
+        isStaff:
+          type: boolean
+        membershipCount:
+          type: integer
+    UserSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    CaseSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    CaseDetail:
+      type: object
+      required:
+        - verificationCase
+        - documents
+      properties:
+        verificationCase:
+          $ref: '#/components/schemas/CaseSummary'
+        legalEntity:
+          $ref: '#/components/schemas/LegalEntitySummary'
+        documents:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - docType
+              - fileId
+              - status
+            properties:
+              id:
+                $ref: '#/components/schemas/Uuid'
+              docType:
+                type: string
+              fileId:
+                $ref: '#/components/schemas/Uuid'
+              status:
+                type: string
+              expiresOn:
+                type: string
+                format: date
+    Decision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - APPROVE
+            - REJECT
+            - REQUEST_INFO
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Recorded in the audit log and shown to the organization for rejections and requests.
+    AuditEntryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    Flag:
+      type: object
+      required:
+        - code
+        - description
+        - defaultEnabled
+        - overrides
+        - updatedAt
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        defaultEnabled:
+          type: boolean
+        overrides:
+          type: array
+          items:
+            type: object
+            required:
+              - enabled
+            properties:
+              marketCode:
+                type: string
+              orgId:
+                $ref: '#/components/schemas/Uuid'
+              userId:
+                $ref: '#/components/schemas/Uuid'
+              enabled:
+                type: boolean
+        updatedAt:
+          $ref: '#/components/schemas/Instant'
+    FlagList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flag'
+    FlagUpdate:
+      type: object
+      required:
+        - defaultEnabled
+        - reason
+      properties:
+        defaultEnabled:
+          type: boolean
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+    Market:
+      type: object
+      required:
+        - code
+        - countryCode
+        - name
+        - status
+        - defaultCurrency
+        - defaultLanguage
+        - defaultTimezone
+        - languages
+        - currencies
+      properties:
+        code:
+          type: string
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - PLANNED
+            - PILOT
+            - LIVE
+            - PAUSED
+            - RETIRED
+        defaultCurrency:
+          $ref: '#/components/schemas/CurrencyCode'
+        defaultLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        defaultTimezone:
+          type: string
+        displayCalendar:
+          type: string
+          enum:
+            - GREGORIAN
+            - ETHIOPIAN
+        localTimeConvention:
+          type: string
+          enum:
+            - STANDARD
+            - ETHIOPIAN
+        pricesIncludeTax:
+          type: boolean
+        languages:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - isDefault
+              - status
+            properties:
+              code:
+                $ref: '#/components/schemas/LanguageCode'
+              isDefault:
+                type: boolean
+              status:
+                type: string
+                enum:
+                  - ENABLED
+                  - BETA
+        currencies:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - minorUnits
+              - canPrice
+              - canPresent
+            properties:
+              code:
+                $ref: '#/components/schemas/CurrencyCode'
+              minorUnits:
+                type: integer
+              canPrice:
+                type: boolean
+              canPresent:
+                type: boolean
+        features:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+              - DISABLED
+              - BETA
+              - ENABLED
+    MarketList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Market'
+    Language:
+      type: object
+      required:
+        - code
+        - englishName
+        - nativeName
+        - script
+        - direction
+      properties:
+        code:
+          $ref: '#/components/schemas/LanguageCode'
+        englishName:
+          type: string
+        nativeName:
+          type: string
+        script:
+          type: string
+        direction:
+          type: string
+          enum:
+            - LTR
+            - RTL
+    LanguageList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Language'
+    Category:
+      type: object
+      required:
+        - id
+        - kind
+        - vertical
+        - code
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        parentId:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum:
+            - BUSINESS
+            - SERVICE
+            - EVENT
+            - PRODUCT
+        vertical:
+          type: string
+        code:
+          type: string
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        icon:
+          type: string
+    CategoryList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    AdminArea:
+      type: object
+      required:
+        - id
+        - countryCode
+        - level
+        - levelName
+        - name
+        - path
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        parentId:
+          $ref: '#/components/schemas/Uuid'
+        level:
+          type: integer
+        levelName:
+          type: string
+          examples:
+            - SUB_CITY
+        code:
+          type: string
+        name:
+          type: string
+        nameI18n:
+          $ref: '#/components/schemas/LocalizedText'
+        path:
+          type: string
+          examples:
+            - ET.AA.BOLE
+    AdminAreaList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminArea'
+    Permission:
+      type: object
+      required:
+        - code
+        - module
+        - description
+        - isSensitive
+      properties:
+        code:
+          type: string
+          examples:
+            - appointments.manage
+        module:
+          type: string
+        description:
+          type: string
+        isSensitive:
+          type: boolean
+          description: Requires MFA / step-up.
+    PermissionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limited; retry after the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid access token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Not allowed for this person, organization or permission.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NoContent:
+      description: Done.
+    Conflict:
+      description: Conflicts with existing data.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: Breaks a business rule.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Not found (also returned when the resource belongs to another organization).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: The resource changed since it was read (If-Match did not match).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  parameters:
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag of the version being updated.
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 1024
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25

@@ -1,0 +1,21 @@
+{
+  "name": "@beavent/ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design tokens (web + React Native), Ethiopic typography rules and the low-end Android performance budget.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@beavent/config": "*",
+    "typescript": "^5",
+    "@types/node": "^24.19.2"
+  }
+}

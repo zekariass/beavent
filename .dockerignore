@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.expo
+**/build
+!backend/build/libs/beavent-api.jar
+**/.gradle
+**/dist
+**/coverage
+.git
+.github
+docs
+mobile
+**/.env
+**/.env.*

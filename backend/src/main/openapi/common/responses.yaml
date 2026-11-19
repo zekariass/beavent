@@ -1,0 +1,54 @@
+NoContent:
+  description: Done.
+BadRequest:
+  description: The request is invalid.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+Unauthorized:
+  description: Missing or invalid access token.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+Forbidden:
+  description: Not allowed for this person, organization or permission.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+NotFound:
+  description: Not found (also returned when the resource belongs to another organization).
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+Conflict:
+  description: Conflicts with existing data.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+PreconditionFailed:
+  description: The resource changed since it was read (If-Match did not match).
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+Unprocessable:
+  description: Breaks a business rule.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem
+TooManyRequests:
+  description: Rate limited; retry after the `Retry-After` header.
+  headers:
+    Retry-After:
+      schema:
+        type: integer
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem

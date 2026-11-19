@@ -1,0 +1,94 @@
+FilePurpose:
+  type: string
+  enum: [LOGO, COVER, GALLERY, EVENT_MEDIA, KYC, DOCUMENT, AVATAR]
+  description: |
+    What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
+    Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
+    sensitive), DOCUMENT (private). Personal (/v1/me/files): AVATAR (public).
+FileUploadCreate:
+  type: object
+  required: [purpose, contentType, sizeBytes]
+  properties:
+    purpose:
+      $ref: '#/FilePurpose'
+    contentType:
+      type: string
+      examples: [image/jpeg]
+    sizeBytes:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Exact size of the file that will be uploaded; checked when the upload is completed.
+    fileName:
+      type: string
+      maxLength: 200
+File:
+  type: object
+  required: [id, purpose, visibility, contentType, sizeBytes, status, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    purpose:
+      $ref: '#/FilePurpose'
+    visibility:
+      type: string
+      enum: [PUBLIC, PRIVATE, SENSITIVE]
+    contentType:
+      type: string
+    sizeBytes:
+      type: integer
+      format: int64
+    status:
+      type: string
+      enum: [PENDING_UPLOAD, PROCESSING, READY, REJECTED]
+      description: Public files get a `url` only when READY (scanned, metadata stripped).
+    fileName:
+      type: string
+    url:
+      type: string
+      format: uri
+      description: Public URL (CDN) of a READY public file.
+    variants:
+      type: object
+      description: Smaller versions of a public image by name (w320, w960).
+      additionalProperties:
+        type: string
+        format: uri
+    width:
+      type: integer
+    height:
+      type: integer
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+FileUpload:
+  type: object
+  required: [file, upload]
+  properties:
+    file:
+      $ref: '#/File'
+    upload:
+      type: object
+      required: [url, method, headers, expiresAt]
+      description: Send the file bytes with this method, URL and headers (directly to storage), then call `complete`.
+      properties:
+        url:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          $ref: ../common/schemas.yaml#/Instant
+AccessUrl:
+  type: object
+  required: [url]
+  properties:
+    url:
+      type: string
+      format: uri
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant

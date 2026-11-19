@@ -1,0 +1,273 @@
+otpRequest:
+  post:
+    tags: [Auth]
+    operationId: requestOtp
+    summary: Send a one-time code to a phone number
+    description: Rate limited per phone and IP. SIGN_IN creates the account on first successful verification.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/OtpRequest
+    responses:
+      '202':
+        description: Code sent.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/OtpChallenge
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+otpVerify:
+  post:
+    tags: [Auth]
+    operationId: verifyOtp
+    summary: Verify a one-time code and sign in
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/OtpVerify
+    responses:
+      '200':
+        description: Signed in.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Tokens
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+oauthLogin:
+  post:
+    tags: [Auth]
+    operationId: signInWithProvider
+    summary: Sign in with Google or Apple
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [google, apple]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/OAuthLogin
+    responses:
+      '200':
+        description: Signed in.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Tokens
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        description: This provider is not enabled.
+        content:
+          application/problem+json:
+            schema:
+              $ref: ../common/schemas.yaml#/Problem
+refresh:
+  post:
+    tags: [Auth]
+    operationId: refreshTokens
+    summary: Exchange a refresh token for new tokens (rotation)
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/RefreshRequest
+    responses:
+      '200':
+        description: New token pair; the old refresh token is no longer valid.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Tokens
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+logout:
+  post:
+    tags: [Auth]
+    operationId: signOut
+    summary: Sign out (revoke the session, or all sessions)
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/LogoutRequest
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+stepUp:
+  post:
+    tags: [Auth]
+    operationId: stepUp
+    summary: Re-confirm identity before a sensitive action
+    description: Returns an access token with assurance STEP_UP valid for 5 minutes (payout account changes, large refunds, exports).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/StepUpRequest
+    responses:
+      '200':
+        description: Step-up tokens.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Tokens
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+jwks:
+  get:
+    tags: [Auth]
+    operationId: getJwks
+    summary: Public keys for verifying access tokens
+    security: []
+    responses:
+      '200':
+        description: JSON Web Key Set.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Jwks
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+me:
+  get:
+    tags: [Me]
+    operationId: getMe
+    summary: The signed-in person, with their organization memberships
+    responses:
+      '200':
+        description: Profile.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Me
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+  patch:
+    tags: [Me]
+    operationId: updateMe
+    summary: Update profile and preferences
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/MeUpdate
+    responses:
+      '200':
+        description: Updated profile.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Me
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+meSessions:
+  get:
+    tags: [Me]
+    operationId: listSessions
+    summary: Active sessions across devices
+    responses:
+      '200':
+        description: Sessions.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SessionList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+meSession:
+  delete:
+    tags: [Me]
+    operationId: revokeSession
+    summary: Sign out one session
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+meDevices:
+  post:
+    tags: [Me]
+    operationId: registerDevice
+    summary: Register or update this device's push token
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/DeviceRegistration
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+meConsents:
+  post:
+    tags: [Me]
+    operationId: acceptLegalDocuments
+    summary: Record acceptance of terms / privacy notice versions
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ConsentAcceptance
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

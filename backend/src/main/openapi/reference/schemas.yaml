@@ -1,0 +1,171 @@
+Market:
+  type: object
+  required: [code, countryCode, name, status, defaultCurrency, defaultLanguage, defaultTimezone, languages, currencies]
+  properties:
+    code:
+      type: string
+    countryCode:
+      $ref: ../common/schemas.yaml#/CountryCode
+    name:
+      type: string
+    status:
+      type: string
+      enum: [PLANNED, PILOT, LIVE, PAUSED, RETIRED]
+    defaultCurrency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    defaultLanguage:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    defaultTimezone:
+      type: string
+    displayCalendar:
+      type: string
+      enum: [GREGORIAN, ETHIOPIAN]
+    localTimeConvention:
+      type: string
+      enum: [STANDARD, ETHIOPIAN]
+    pricesIncludeTax:
+      type: boolean
+    languages:
+      type: array
+      items:
+        type: object
+        required: [code, isDefault, status]
+        properties:
+          code:
+            $ref: ../common/schemas.yaml#/LanguageCode
+          isDefault:
+            type: boolean
+          status:
+            type: string
+            enum: [ENABLED, BETA]
+    currencies:
+      type: array
+      items:
+        type: object
+        required: [code, minorUnits, canPrice, canPresent]
+        properties:
+          code:
+            $ref: ../common/schemas.yaml#/CurrencyCode
+          minorUnits:
+            type: integer
+          canPrice:
+            type: boolean
+          canPresent:
+            type: boolean
+    features:
+      type: object
+      additionalProperties:
+        type: string
+        enum: [DISABLED, BETA, ENABLED]
+MarketList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Market'
+Language:
+  type: object
+  required: [code, englishName, nativeName, script, direction]
+  properties:
+    code:
+      $ref: ../common/schemas.yaml#/LanguageCode
+    englishName:
+      type: string
+    nativeName:
+      type: string
+    script:
+      type: string
+    direction:
+      type: string
+      enum: [LTR, RTL]
+LanguageList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Language'
+Category:
+  type: object
+  required: [id, kind, vertical, code, name]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    parentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      type: string
+      enum: [BUSINESS, SERVICE, EVENT, PRODUCT]
+    vertical:
+      type: string
+    code:
+      type: string
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    icon:
+      type: string
+CategoryList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Category'
+AdminArea:
+  type: object
+  required: [id, countryCode, level, levelName, name, path]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    countryCode:
+      $ref: ../common/schemas.yaml#/CountryCode
+    parentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    level:
+      type: integer
+    levelName:
+      type: string
+      examples: [SUB_CITY]
+    code:
+      type: string
+    name:
+      type: string
+    nameI18n:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    path:
+      type: string
+      examples: [ET.AA.BOLE]
+AdminAreaList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminArea'
+Permission:
+  type: object
+  required: [code, module, description, isSensitive]
+  properties:
+    code:
+      type: string
+      examples: [appointments.manage]
+    module:
+      type: string
+    description:
+      type: string
+    isSensitive:
+      type: boolean
+      description: Requires MFA / step-up.
+PermissionList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Permission'

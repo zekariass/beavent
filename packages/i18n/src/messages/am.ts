@@ -1,0 +1,30 @@
+import type { Catalogue } from "./en.ts";
+
+// Amharic (complete for the shells). Copy to be reviewed by a native-speaking editor before launch.
+export const am: Catalogue = {
+  "app.name": "ቢቨንት",
+  "app.tagline": "የውበትና የጤና አገልግሎቶችን ያስይዙ። ዝግጅቶችን ያግኙ። ሁሉም በአንድ ቦታ።",
+  "nav.explore": "ያስሱ",
+  "nav.bookings": "ቀጠሮዎች",
+  "nav.tickets": "ትኬቶች",
+  "nav.account": "መለያ",
+  "nav.signIn": "ይግቡ",
+  "home.services": "ሳሎን፣ ስፓ ወይም ፀጉር ቤት ያስይዙ",
+  "home.events": "በአቅራቢያዎ ያሉ ዝግጅቶችን ያግኙ",
+  "home.today": "ዛሬ",
+  "home.now": "አሁን",
+  "home.calendarNote": "ቀናት በኢትዮጵያ የቀን አቆጣጠር፣ ሰዓቶች በኢትዮጵያ አቆጣጠር።",
+  "language.label": "ቋንቋ",
+  "calendar.ethiopian": "የኢትዮጵያ የቀን አቆጣጠር",
+  "calendar.gregorian": "የፈረንጅ የቀን አቆጣጠር",
+  "time.ethiopian": "የኢትዮጵያ ሰዓት",
+  "time.standard": "ዓለም አቀፍ ሰዓት",
+  "business.title": "ቢቨንት ለንግድ",
+  "business.subtitle": "ቀጠሮ፣ ሽያጭ፣ ሠራተኞችና ዝግጅቶች ለሳሎኖች፣ ለስፓዎች፣ ለባለሙያዎችና ለአዘጋጆች።",
+  "business.start": "ንግድዎን ይመዝግቡ",
+  "business.signIn": "ወደ ሥራ ቦታዎ ይግቡ",
+  "bookings.count": "{count, plural, =0 {ምንም ቀጠሮ የለም} other {# ቀጠሮዎች}}",
+  "greeting.named": "ሰላም {name}!",
+  "error.generic": "ችግር ተፈጥሯል። እባክዎ እንደገና ይሞክሩ።",
+  "error.offline": "ከመስመር ውጭ ነዎት። ሲገናኙ እንደገና እንሞክራለን።",
+};
