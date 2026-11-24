@@ -25,6 +25,7 @@ export default async function WorkspaceLayout({
     [`${base}/team`, t("portal.nav.team")],
     [`${base}/rota`, t("portal.nav.rota")],
     [`${base}/policies`, t("portal.nav.policies")],
+    [`${base}/share`, t("portal.nav.share")],
   ] as const;
   return (
     <div className="flex flex-1 flex-col lg:flex-row">

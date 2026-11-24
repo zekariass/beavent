@@ -18,6 +18,7 @@ optional styling advice. **Do not invent a visual style.**
    light / `#5CC8A1` dark) for actions and selection, gold `accent` at most once per screen. No violet or orange
    primaries, no new brand colours.
 3. **Use the design tokens only** — `@beavent/ui` (`packages/ui/src/index.ts`) is the single source of truth.
+   - Venue and price wording (prices, durations, opening hours, policy sentences) comes from `@beavent/venue`, shared by web and mobile.
    - React Native: build screens from `@beavent/native` (`packages/native/src/ui`, shared by both mobile apps: `Text`, `Button`, `TextField`, `Screen`,
      `Section`, `ListRow`, `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`,
      `PreferencesSections`, `BeaventTabs`; shell: `AppProvider`, `useBeaventShell`);

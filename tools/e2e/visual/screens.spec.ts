@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
+import { seedSalon } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
@@ -239,4 +240,37 @@ test("business app schedule and preferences", async ({ page }) => {
   await page.goto(BUSINESS_APP);
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
   await shot(page, "business-app-schedule-am-dark");
+});
+
+test("venue page · both languages, both themes, phone and desktop", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: language === "am" ? "am-ET" : "en-US",
+        viewport: DESKTOP,
+      });
+      const page = await context.newPage();
+      const url = `${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}`;
+      await page.goto(url);
+      await page
+        .getByText(language === "am" ? "ቦክስ ሹሩባ" : "Box braids", { exact: true })
+        .first()
+        .click();
+      await shot(page, `venue-${language}-${scheme}-desktop`);
+      await page.setViewportSize(PHONE);
+      await shot(page, `venue-${language}-${scheme}-phone`);
+      // The same place in the consumer app (web build), language from the device locale.
+      await page.setViewportSize({ width: 390, height: 2600 });
+      await page.goto(`${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}`);
+      await page
+        .getByText(language === "am" ? "ቦክስ ሹሩባ" : "Box braids", { exact: true })
+        .first()
+        .click();
+      await page.waitForTimeout(600);
+      await shot(page, `mobile-venue-${language}-${scheme}`);
+      await context.close();
+    }
+  }
 });

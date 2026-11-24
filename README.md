@@ -84,7 +84,7 @@ is **mandatory** for people and AI agents alike:
   checklists, component APIs and the definition of done for UI work.
 
 In code: tokens live in `packages/ui` (`npm run generate -w @beavent/ui` rebuilds `tokens.css` for the web apps; a
-test checks contrast and that the CSS is current); React Native primitives and app shell in `packages/native` (`@beavent/native`, used by both mobile apps); visual QA
+test checks contrast and that the CSS is current); React Native primitives and app shell in `packages/native` (`@beavent/native`, used by both mobile apps); how a venue page reads (prices, hours, policies) in `packages/venue` (`@beavent/venue`, web and mobile); visual QA
 with `npm run visual -w @beavent/e2e` against a running stack.
 
 ## Conventions

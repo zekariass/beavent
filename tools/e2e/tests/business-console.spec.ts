@@ -83,4 +83,25 @@ test("a salon builds its menu, staff prices and weekly rota", async ({ page }) =
   await expect(
     page.getByRole("row", { name: /Selam/ }).getByText("ጠዋት 2:30–ከሰዓት 6:30"),
   ).toHaveCount(5);
+
+  // The business shares its page: the link is on the console, and anyone without an account can open it.
+  await page.goto(
+    page
+      .url()
+      .replace(/\/rota.*$/, "/share")
+      .replace("/am/", "/en/"),
+  );
+  await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
+  const link = (await page.locator("span.break-all").first().innerText()).trim();
+  expect(link).toMatch(/\/b\/[a-z0-9-]+\/[a-z0-9-]+$/);
+  const visitor = await page.context().browser()!.newContext();
+  const venue = await visitor.newPage();
+  await venue.goto(
+    link
+      .replace(/^https?:\/\/[^/]+/, process.env.WEB_URL ?? "http://localhost:3000")
+      .replace("/b/", "/en/b/"),
+  );
+  await expect(venue.getByRole("heading", { level: 1 })).toHaveText("Abeba Beauty Salon");
+  await expect(venue.getByText("Haircut").first()).toBeVisible();
+  await visitor.close();
 });

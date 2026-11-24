@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     "@beavent/calendar",
     "@beavent/money",
     "@beavent/ui",
+    "@beavent/venue",
   ],
   // Not using cacheComponents / partialPrefetching: the business and admin consoles are per-user and rendered at
   // request time, and the public pages are prerendered per language (generateStaticParams). Revisit when the

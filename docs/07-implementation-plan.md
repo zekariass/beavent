@@ -12,7 +12,7 @@
 |---|---|---|
 | 0 Foundation | ✅ Done | API (identity, tenancy, files, admin), design system, two mobile apps and one web platform (D20). Hosted CI runs on PR #8: all green |
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
-| 2 Appointments | **In progress** | 2.1 done: availability engine, loader and public endpoint (60 ms for a busy day). Next: 2.2 public venue page. Nothing a customer can touch yet |
+| 2 Appointments | **In progress** | 2.1 availability (60 ms for a busy day) and 2.2 public venue page (web, app, share link) done. Next: 2.3 booking core. A customer can look, not yet book |
 | 3–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
@@ -282,13 +282,17 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 
 *Done when:* ✅ property tests show no offered slot ever overlaps a reservation, and one location/day with 10 staff returns in under 300 ms including loading (an API test against PostGIS measures it).
 
-**2.2 Public venue page.** The first thing a customer sees; Fresha's venue profile.
-- Backend: public read API (`/v1/public/…`) for a business location: profile, photos, landmark-first address, hours (open now), services grouped as on the menu with price ranges and durations, bookable team members, policy summary, rating once reviews exist. Only listed, active, online-bookable data is exposed; each public read runs in a read-only transaction confined to that business (RLS). Responses are cacheable (ETag, short max-age). Gaps G1, G3 in the design doc.
-- Web: the venue page in the public site: S-04 (gallery, sticky "Book" action, services list with search, team, about, reviews placeholder, hours, map link), S-05 service sheet, S-17 professional sheet. Server-rendered for sharing and SEO (Open Graph card in the venue's language). A stable URL scheme (decided in this step: business slug and optional location).
-- Share: the business console shows the booking link, a QR code (downloadable) and "copy link" (P-08 listing preview starts here).
-- Consumer app: open a venue from a link or QR (deep link `beavent://` plus universal links when domains exist, D11) and show the same screens (S-04, S-05, S-17) with `@beavent/native` components. The Explore tab shows recent venues only; search is Stage 8.
-
-*Done when:* a salon built in Stage 1 has a public page in Amharic and English that matches the venue spec on phone and desktop, shared by link or QR, with visual-QA screenshots reviewed.
+**2.2 Public venue page.** ✅ *Done* (24 Nov 2026), with the deviations below. The first thing a customer sees; Fresha's venue profile.
+- Backend: `GET /v1/public/venues/{business}/{location}` (and `…/{business}/locations`) in the new `marketplace` module: profile, photos, landmark-first address, hours, upcoming closures, services grouped as on the menu with price ranges (standard price and any lower per-person, level or location price) and durations, add-ons, bookable team, the effective policy, other locations. Only active, online-bookable services offered at the location are exposed; a business that is suspended or closed, or an archived location, is `404`. Reads run in the business's context (RLS); cacheable for 30 s; 240 requests per minute per address. API tests cover content, hidden services, multi-branch, phone-only and removed places.
+- Web: the S-04 page at `/{lang}/b/{business}/{location}` (a link without a language follows the browser): gallery or initial, title, open status in both time conventions, anchor tabs, service rows that open in place (variants, add-ons, aftercare, patch-test note), team, about (hours with today in bold, closures, policy sentences), other locations, Call action, loading skeleton, "not on Beavent" and error states, noindex unless the business is approved for the marketplace. The business console has a **Booking link** page (copy link, open page).
+- Consumer app: the same screen at `/b/{business}/{location}` (`beavent://b/…`), with the same wording from the shared `@beavent/venue` package.
+- Tests: unit tests of the shared formatting (`packages/venue`), Playwright for the web page (both languages), the console link and the app screen; screenshots reviewed in both languages, both themes, phone and desktop.
+- **Deviations from the plan and what moves where:**
+  - No **Book now** button yet: the booking flow is 2.4; the action is **Call** until then. The sticky booking box on desktop and the bar on phones are ready for it.
+  - **QR code** for the booking link needs a QR library: not on the approved list. Ask for approval, then add it to the Booking link page in 2.4 (the link and copy work now).
+  - **S-05 service sheet and S-17 professional sheet** arrive with the basket in 2.4 (rows open in place until then). `next_available_at` and "Next available today" also need a chosen service, so they come with 2.4.
+  - Open status uses hours and announced closures; **public holidays** are not applied to the "Open" label yet (availability does apply them).
+  - Reviews, rating and the map preview wait for Stage 8; the Explore tab still shows no venues.
 
 **2.3 Booking core.**
 - **Hold → appointment → reservations in one transaction**, pay at venue; a lost race returns `SLOT_TAKEN` from the database exclusion constraints, and the API re-runs the engine once to suggest the nearest alternatives. Request-to-book creates a held `REQUESTED` appointment that the business confirms or declines (hold lasts until the policy's response time).

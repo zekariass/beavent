@@ -3,7 +3,7 @@
 **Status:** v1, 19 Nov 2026. **Benchmark:** Fresha (see [DESIGN_REFERENCE_CATALOG.md §1](DESIGN_REFERENCE_CATALOG.md#1-fresha--services-marketplace)).
 **Builds on:** [MARKETPLACE_NAVIGATION.md](MARKETPLACE_NAVIGATION.md) (shared screens C-1…C-8), [COMPONENT_GUIDELINES.md](COMPONENT_GUIDELINES.md), [DESIGN_TOKENS.md](DESIGN_TOKENS.md).
 **Data sources:** catalog API on this branch (`services/backend/src/main/openapi/catalog`), tenancy (`Location`, `OpeningHours`), `db/migration/V1_09__scheduling.sql` (appointments, booking policies, holds), `V1_19__discovery_and_trust.sql` (listings, reviews, saved items), doc 03 §3.1 (booking workflow).
-**Current implementation:** none of these screens exist. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), venue page 2.2, consumer booking 2.4, calendar 2.5, clients and waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
+**Current implementation (24 Nov 2026):** S-04 venue profile exists on web (`/{lang}/b/{business}/{location}`) and in the consumer app (`/b/{business}/{location}`, deep link `beavent://b/…`), with services (disclosure rows instead of the S-05 sheet), team (no S-17 sheet yet), about, hours, policies and a Call action; formatting rules shared in `packages/venue`. Everything else here is not built. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), venue page 2.2, consumer booking 2.4, calendar 2.5, clients and waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
 
 ---
 
