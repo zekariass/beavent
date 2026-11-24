@@ -4,6 +4,7 @@ import { codeCount, codeFor, newPhone } from "../tests/support.ts";
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
 const MOBILE = process.env.MOBILE_URL ?? "http://localhost:19006";
+const BUSINESS_APP = process.env.BUSINESS_MOBILE_URL ?? "http://localhost:19007";
 const API = process.env.API_URL ?? "http://localhost:8080";
 
 const PHONE = { width: 360, height: 740 };
@@ -38,17 +39,24 @@ for (const scheme of SCHEMES) {
         await shot(page, `admin-sign-in-${scheme}`);
       }
 
-      // The mobile app's web build at phone width; language comes from the device locale.
+      // The mobile apps' web builds at phone width; language comes from the device locale.
       await page.setViewportSize(PHONE);
       for (const [route, name] of [
         ["/", "explore"],
         ["/bookings", "bookings"],
         ["/account", "account"],
-        ["/business", "business-signed-out"],
       ] as const) {
         await page.goto(`${MOBILE}${route}`);
         await page.waitForTimeout(800);
         await shot(page, `mobile-${name}-${language}-${scheme}`);
+      }
+      for (const [route, name] of [
+        ["/", "schedule-signed-out"],
+        ["/more", "more"],
+      ] as const) {
+        await page.goto(`${BUSINESS_APP}${route}`);
+        await page.waitForTimeout(800);
+        await shot(page, `business-app-${name}-${language}-${scheme}`);
       }
       await context.close();
     });
@@ -134,7 +142,7 @@ async function api(method: string, path: string, body?: unknown, token?: string)
   return response.status === 204 ? null : response.json();
 }
 
-test("mobile Business schedule and preferences", async ({ page }) => {
+test("business app schedule and preferences", async ({ page }) => {
   await page.setViewportSize(PHONE);
   const phone = newPhone();
   const challenge = await api("POST", "/v1/auth/otp/request", {
@@ -212,23 +220,23 @@ test("mobile Business schedule and preferences", async ({ page }) => {
   // Sign in on the phone (after the 30 s resend window of the first code).
   await page.waitForTimeout(31_000);
   const seen = codeCount(phone);
-  await page.goto(`${MOBILE}/business`);
-  await shot(page, "mobile-business-sign-in-en-light");
+  await page.goto(BUSINESS_APP);
+  await shot(page, "business-app-sign-in-en-light");
   await page.getByLabel("Phone number or email").fill(`0${phone.slice(4)}`);
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
-  await shot(page, "mobile-business-schedule-en-light");
+  await shot(page, "business-app-schedule-en-light");
 
-  // Preferences: Amharic + dark, chosen in Account, survive a reload and apply to the schedule.
-  await page.goto(`${MOBILE}/account`);
+  // Preferences: Amharic + dark, chosen in More, survive a reload and apply to the schedule.
+  await page.goto(`${BUSINESS_APP}/more`);
   await page.getByRole("radio", { name: "አማርኛ" }).click();
   await page.getByRole("radio", { name: "ጨለማ" }).click();
   await page.reload();
   await page.waitForTimeout(800);
-  await shot(page, "mobile-account-signed-in-am-dark");
-  await page.goto(`${MOBILE}/business`);
+  await shot(page, "business-app-more-signed-in-am-dark");
+  await page.goto(BUSINESS_APP);
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
-  await shot(page, "mobile-business-schedule-am-dark");
+  await shot(page, "business-app-schedule-am-dark");
 });

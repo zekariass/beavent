@@ -3,8 +3,8 @@ import { borderWidth, radius, size as sizes, space, textStyle } from "@beavent/u
 import { useState } from "react";
 import { TextInput, View, type TextInputProps } from "react-native";
 
-import { ETHIOPIC_FAMILY } from "@/constants/fonts";
-import { useApp } from "@/lib/app-context";
+import { ETHIOPIC_FAMILY } from "../constants/fonts";
+import { useApp } from "../app-context";
 
 import { Icon } from "./icon";
 import { Text } from "./text";

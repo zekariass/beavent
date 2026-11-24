@@ -2,7 +2,7 @@ import { size as sizes, type ColorToken } from "@beavent/ui";
 import { SymbolView } from "expo-symbols";
 import type { ComponentProps } from "react";
 
-import { useApp } from "@/lib/app-context";
+import { useApp } from "../app-context";
 
 type SymbolName = ComponentProps<typeof SymbolView>["name"];
 

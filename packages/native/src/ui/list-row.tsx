@@ -2,8 +2,8 @@ import { borderWidth, layout, radius, size as sizes, space } from "@beavent/ui";
 import { Children, Fragment, isValidElement, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { useApp } from "@/lib/app-context";
-import { selectionFeedback } from "@/lib/haptics";
+import { useApp } from "../app-context";
+import { selectionFeedback } from "../haptics";
 
 import { Icon } from "./icon";
 import { Text } from "./text";

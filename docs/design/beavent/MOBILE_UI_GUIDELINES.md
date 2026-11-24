@@ -131,7 +131,7 @@ Target: WCAG 2.2 AA equivalents on mobile (contrast pairs in [DESIGN_TOKENS.md �
 | Action menus | Native action sheet | Bottom sheet list |
 | Switches | `Switch` (iOS style) | `Switch` (Material) |
 | Share | System share sheet | System share sheet |
-| Haptics | `expo-haptics` (approved, installed): `selectionFeedback()` from `src/lib/haptics.ts` — a light tick when a choice changes (option rows, chips; later slot selection); success on booking confirmed when that screen exists. Never on scroll or every press | Same |
+| Haptics | `expo-haptics` (approved, installed): `selectionFeedback()` from `@beavent/native` — a light tick when a choice changes (option rows, chips; later slot selection); success on booking confirmed when that screen exists. Never on scroll or every press | Same |
 | Permissions | Ask in context with a one-line explanation sheet first: **push** after the first booking/ticket ("Get reminders and ticket updates"); **location** only when the user taps "Use my location"; **camera** only in Business mode check-in | Same; on Android 13+ push is a runtime permission — same timing |
 | Sign-in buttons | Apple + Google + phone (Apple required when Google is offered) | Google + phone |
 

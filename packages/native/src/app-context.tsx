@@ -12,9 +12,13 @@ import * as SecureStore from "expo-secure-store";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useColorScheme } from "./hooks/use-color-scheme";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
+/** Default API address (an app can pass `apiUrl` to <AppProvider>); `EXPO_PUBLIC_API_URL` is set per build. */
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
+
+/** The client app the API records for sign-ins (identity `ClientApp`). */
+export type ClientApp = "MOBILE_APP" | "WEB_MARKETPLACE" | "PARTNER_PORTAL" | "ADMIN_CONSOLE";
 const ACCESS = "beavent.access";
 const REFRESH = "beavent.refresh";
 const PREFERENCES = "beavent.preferences";
@@ -56,7 +60,10 @@ class Session {
   private refresh: string | null = null;
   private refreshing: Promise<string | null> | null = null;
 
-  constructor(private readonly onChange: (signedIn: boolean) => void) {}
+  constructor(
+    private readonly apiUrl: string,
+    private readonly onChange: (signedIn: boolean) => void,
+  ) {}
 
   async load(): Promise<void> {
     const [access, refresh] = await Promise.all([store.get(ACCESS), store.get(REFRESH)]);
@@ -78,7 +85,7 @@ class Session {
   accessToken = async (): Promise<string | null> => {
     const { access, refresh } = this;
     if (secondsLeft(access) > 60 || !refresh) return access;
-    this.refreshing ??= fetch(`${API_URL}/v1/auth/refresh`, {
+    this.refreshing ??= fetch(`${this.apiUrl}/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken: refresh }),
@@ -141,6 +148,8 @@ const preferenceStore = {
 };
 
 interface AppState {
+  /** Client app this build signs in as (sent with one-time-code requests). */
+  clientApp: ClientApp;
   /** False until the stored session and preferences are loaded (the splash screen stays up). */
   ready: boolean;
   language: Language;
@@ -172,11 +181,19 @@ function deviceLanguage(): Language {
   }
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({
+  children,
+  apiUrl = DEFAULT_API_URL,
+  clientApp = "MOBILE_APP",
+}: {
+  children: ReactNode;
+  apiUrl?: string;
+  clientApp?: ClientApp;
+}) {
   const [stored, setStored] = useState<StoredPreferences>({});
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [session] = useState(() => new Session(setSignedIn));
+  const [session] = useState(() => new Session(apiUrl, setSignedIn));
   const system = useColorScheme();
 
   useEffect(() => {
@@ -207,16 +224,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const api = useMemo(
     () =>
       createApiClient({
-        baseUrl: API_URL,
+        baseUrl: apiUrl,
         getAccessToken: session.accessToken,
         getLanguage: () => language,
       }),
-    [session, language],
+    [apiUrl, session, language],
   );
 
   const value = useMemo<AppState>(
     () => ({
       ready: preferencesLoaded && signedIn !== null,
+      clientApp,
       language,
       setLanguage: (next) => update({ language: next }),
       t: createTranslator(language),
@@ -241,7 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     // `update` and `display` are derived from the listed state each render (React Compiler memoises them).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [language, signedIn, api, session, preferencesLoaded, stored, scheme, appearance],
+    [language, signedIn, api, session, preferencesLoaded, stored, scheme, appearance, clientApp],
   );
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

@@ -7,6 +7,7 @@
     "@beavent/calendar": "*",
     "@beavent/i18n": "*",
     "@beavent/money": "*",
+    "@beavent/native": "*",
     "@beavent/ui": "*",
     "@expo-google-fonts/noto-sans-ethiopic": "0.4.2",
     "@expo/ui": "~58.0.29",
@@ -46,7 +47,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "node -e \"require('fs').existsSync('expo-env.d.ts')||require('fs').writeFileSync('expo-env.d.ts','/// <reference types=\\\"expo/types\\\" />\\n\\n// NOTE: This file should not be edited and should be in your git ignore\\n')\" && tsc --noEmit"
+    "typecheck": "node -e \"require('fs').existsSync('expo-env.d.ts')||require('fs').writeFileSync('expo-env.d.ts','/// <reference types=\\\"expo/types\\\" />\\n\\n// NOTE: This file should not be edited and should be in your git ignore\\n')\" && tsc --noEmit",
+    "bundle:check": "node ../../scripts/check-bundle.mjs"
   },
   "private": true
 }

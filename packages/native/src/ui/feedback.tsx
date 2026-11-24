@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { useApp } from "@/lib/app-context";
+import { useApp } from "../app-context";
 
 import { Button } from "./button";
 import { Icon, type IconName } from "./icon";

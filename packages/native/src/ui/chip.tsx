@@ -1,8 +1,8 @@
 import { borderWidth, radius, size as sizes } from "@beavent/ui";
 import { Pressable } from "react-native";
 
-import { useApp } from "@/lib/app-context";
-import { selectionFeedback } from "@/lib/haptics";
+import { useApp } from "../app-context";
+import { selectionFeedback } from "../haptics";
 
 import { Text } from "./text";
 

@@ -1,7 +1,7 @@
 import { radius, size as sizes, space, type ColorToken } from "@beavent/ui";
 import { ActivityIndicator, Pressable, View, type PressableProps } from "react-native";
 
-import { useApp } from "@/lib/app-context";
+import { useApp } from "../app-context";
 
 import { Text, type TextTone } from "./text";
 

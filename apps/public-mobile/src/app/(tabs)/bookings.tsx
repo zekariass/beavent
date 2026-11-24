@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 
-import { EmptyState, Screen, ScreenTitle, SkeletonRows } from "@/components/ui";
-import { useApp } from "@/lib/app-context";
+import { EmptyState, Screen, ScreenTitle, SkeletonRows, useApp } from "@beavent/native";
 
 /**
  * Bookings (C-4). Appointments and tickets share this tab; until the booking API exists (Stage 2.5) it shows the

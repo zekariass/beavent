@@ -41,7 +41,7 @@ readability, theme or usability problem) · **Template/placeholder** · **Not ye
 | Screen | Before | After | Notes |
 |---|---|---|---|
 | Mobile Explore | Template/placeholder (localisation demo; "Explore" was Expo starter content) | **Compliant** (interim content) | Real marketplace Explore is Stage 8 (not implemented) |
-| Mobile Bookings | Not implemented | **Compliant** (states only) | Signed-out, loading and empty states from C-4; data arrives with Stage 2.5 |
+| Mobile Bookings | Not implemented | **Compliant** (states only) | Signed-out, loading and empty states from C-4; data arrives with Stage 2.4 |
 | Mobile Account | Not implemented | **Compliant** | Preferences inline as option groups; profile editing, addresses not yet built |
 | Mobile sign-in (panel + modal) | Needs correction (hard-coded violet button, `#b42318` errors, "?" as error text) | **Compliant visually**; spec gaps | Single "phone or email" field instead of PhoneField + CodeField with resend timer, Google/Apple and the name step (C-6) |
 | Mobile Business "My schedule" | Needs restyling (template theme; Ethiopian time *only* for Amharic; no error state) | **Compliant** | 24-hour partner clock + Ethiopian time underneath; skeleton, error with retry. Placement is interim (DD13, §12) |
@@ -229,7 +229,7 @@ Still open:
    StickyActionBar, StepProgress, Toast.
 4. Q5 (image variants) before imagery-heavy screens.
 5. **Partner portal to spec** (P-01 … P-11) — it is the active stage.
-6. **Stage 2.5 consumer booking** (S-04 → S-10b, Bookings with data), then payments (C-7), events (E-), discovery.
+6. **Stage 2.2 venue page, then 2.4 consumer booking** (S-04 → S-10b, Bookings with data), then payments (C-7), events (E-), discovery.
 7. Add each new screen to `tools/e2e/visual/screens.spec.ts`; consider running the visual suite in CI once a hosted
    stack exists.
 

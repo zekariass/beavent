@@ -10,7 +10,7 @@
 
 | Implemented | Where |
 |---|---|
-| `Text`, `Icon`, `Button`, `TextField`, `Screen`, `ScreenTitle`, `Section`, `ListRow`, `OptionRow`, `Group`, `Divider`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `SkeletonRows`, `DualLine` | `apps/public-mobile/src/components/ui` |
+| `Text`, `Icon`, `Button`, `TextField`, `Screen`, `ScreenTitle`, `Section`, `ListRow`, `OptionRow`, `Group`, `Divider`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `SkeletonRows`, `DualLine` | `packages/native/src/ui` (`@beavent/native`) |
 | Native tab bar (token colours, translated labels, SF/Material symbols) and its web variant | `apps/public-mobile/src/components/app-tabs*.tsx` |
 | Partner-portal primitives (`inputClass`, `buttonClass`, `secondaryButtonClass`, `secondaryButtonLargeClass`, `listClass`, `rowLinkClass`, `Field`, `Section`, `FormMessage`) and `WorkspaceNav` (AppShell sidebar) | `apps/web/src/components/business` |
 | Admin primitives on tokens (`PageTitle`, `Badge` with readable labels, `Table`, `Empty`, `SearchForm`) | `apps/web/src/components/ops/ui.tsx` |
@@ -25,9 +25,9 @@ Build them to this spec when a screen first needs them (AI_AGENT_DESIGN_INSTRUCT
 |---|---|---|
 | Tokens and pure helpers | `packages/ui` (TypeScript only, no React — keep it that way, DD14) | Tokens, `lineHeightPx`, `fontSizePx`, `cssVariables`, contrast test |
 | Formatting | `packages/money`, `packages/calendar`, `packages/i18n` | Price, date, time, duration, plural formatting |
-| React Native components | `apps/public-mobile/src/components/ui/` (foundations, actions, inputs, overlays, states) and `apps/public-mobile/src/components/marketplace/` (cards, rows, pickers, summaries, ticket pass) | Everything in §2–§8 |
+| React Native components | `packages/native/src/ui/` (`@beavent/native`, shared by both mobile apps: foundations, actions, inputs, overlays, states) and `apps/public-mobile/src/components/marketplace/` (consumer-only cards, rows, pickers, summaries, ticket pass) | Everything in §2–§8 |
 | Web components | `apps/web/src/components/` (shared), `components/business/` and `components/ops/` — one web app, so no shared web package is needed | Web equivalents with the same names, props and rules |
-| Route files | `apps/public-mobile/src/app/**` | Composition only: data fetching, layout of components. No styling beyond layout |
+| Route files | `apps/public-mobile/src/app/**`, `apps/business-mobile/src/app/**` | Composition only: data fetching, layout of components. No styling beyond layout |
 
 **Naming:** PascalCase component, file in kebab-case (`venue-card.tsx` exports `VenueCard`), matching the existing mobile convention. Props use domain words from the API (`priceType`, `durationMinutes`, `deliveryModes`), not new synonyms.
 

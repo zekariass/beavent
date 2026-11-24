@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
-import { TAB_BAR_INSET } from "@/constants/layout";
-import { useApp } from "@/lib/app-context";
+import { TAB_BAR_INSET } from "../constants/layout";
+import { useApp } from "../app-context";
 
 import { Button } from "./button";
 import { Text } from "./text";

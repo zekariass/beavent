@@ -146,6 +146,10 @@ export const en = {
   "duration.minutes": "{m} min",
   "duration.hours": "{h} h",
   "duration.hoursMinutes": "{h} h {m} min",
+  "nav.schedule": "Schedule",
+  "nav.more": "More",
+  "business.createOnWeb": "Create a business on the web",
+  "account.business.row": "Beavent for business",
 } as const;
 
 export type MessageKey = keyof typeof en;

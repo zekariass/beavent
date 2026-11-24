@@ -146,4 +146,8 @@ export const am: Catalogue = {
   "duration.minutes": "{m} ደቂቃ",
   "duration.hours": "{h} ሰዓት",
   "duration.hoursMinutes": "{h} ሰዓት {m} ደቂቃ",
+  "nav.schedule": "ፕሮግራም",
+  "nav.more": "ተጨማሪ",
+  "business.createOnWeb": "በድር ንግድ ይመዝግቡ",
+  "account.business.row": "ቢቨንት ለንግድ",
 };

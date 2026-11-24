@@ -1,12 +1,12 @@
-// Bundle budget check (packages/ui performanceBudget.mobileBundleKb): exports the Android bundle and fails when the
+// Bundle budget check (packages/ui performanceBudget.mobileBundleKb): exports the current app's Android bundle and fails when the
 // gzip-compressed Hermes bytecode exceeds the budget. Raw bytecode and bundled assets are reported for visibility.
-// Run: npm run bundle:check -w @beavent/public-mobile (also in CI).
+// Run from an app folder (it exports that app): npm run bundle:check -w @beavent/public-mobile (also in CI).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { performanceBudget } from "../../../packages/ui/src/index.ts";
+import { performanceBudget } from "../packages/ui/src/index.ts";
 
 const out = mkdtempSync(join(tmpdir(), "beavent-bundle-"));
 try {

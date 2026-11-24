@@ -1,7 +1,7 @@
 # Beavent design philosophy
 
 **Status:** v1, 19 Nov 2026. Proposed design foundation for plan dependency **D9** (wireframes and visual design, [doc 07](../../07-implementation-plan.md#dependencies-and-decisions)).
-**Applies to:** the mobile app (consumer mode and Business mode), the one web platform (`apps/web/`: public site, business and organizer console). The admin console (`apps/admin-console/`) follows the tokens but not the marketplace patterns.
+**Applies to:** the two mobile apps (`public-mobile` for customers, `business-mobile` for owners, staff and organizers), the one web platform (`apps/web/`: public site, business and organizer console). The admin console (`apps/admin-console/`) follows the tokens but not the marketplace patterns.
 **Read with:** every other file in this folder. This one sets the direction and records the decisions; the others turn it into rules.
 
 | File | What it settles |
@@ -37,7 +37,7 @@ The two verticals have different rhythms, and the design respects that instead o
 
 ## 2. Who we design for
 
-Grounded in [doc 06](../../06-markets-and-localization.md) (Ethiopia launch) and [doc 03 §1.1](../../03-system-architecture.md#11-mobile-app-one-app-two-modes).
+Grounded in [doc 06](../../06-markets-and-localization.md) (Ethiopia launch) and [doc 03 §1.1](../../03-system-architecture.md#11-mobile-apps-two-apps-shared-code).
 
 | Person | Context that changes the design |
 |---|---|
@@ -208,8 +208,8 @@ Numbered so other docs and pull requests can cite them.
 | DD10 | **Sign-in is inline at the moment it is needed** (save, confirm booking, checkout), as a sheet; browsing is never gated. | Phone OTP is light enough to feel like a guest step; keeps discovery open for direct-link arrivals. |
 | DD11 | **System font for Latin on mobile; Noto Sans Ethiopic for Ge'ez everywhere; Noto Sans for Latin on web.** | Keeps app size and cold start down (budget), keeps Ge'ez consistent. |
 | DD12 | **A rail needs at least 3 items or it becomes part of a list.** | Pilot inventory is small (10–20 businesses, 3–5 organizers, doc 07 §10.1); one-card rails look broken. |
-| DD13 | **Business mode swaps the whole tab bar** (Today · Calendar · Check-in · Sales · More, filtered by capability); the switch lives in Account and in the Business header. | Clear mental model: you are either buying or working. |
-| DD14 | **RN components live in `apps/public-mobile/src/components/`; web components in each Next.js app until a shared-components decision is made.** `packages/ui` stays tokens + pure helpers. | No new dependencies in `packages/ui` (it has no React); avoids a premature cross-platform abstraction. |
+| DD13 | **Business is its own app with its own tab set** (Schedule · Calendar · Check-in · Sales · More, filtered by capability; today Schedule and More). *Revised 24 Nov 2026 (D20): originally Business mode swapped the consumer app's tab bar.* | Clear mental model: you are either buying (`public-mobile`) or working (`business-mobile`); same split as Fresha and Eventbrite. |
+| DD14 | **RN components shared by both mobile apps live in `packages/native` (`@beavent/native`), consumer-only ones in `apps/public-mobile/src/components/`; web components in each Next.js app until a shared-components decision is made.** `packages/ui` stays tokens + pure helpers. | No new dependencies in `packages/ui` (it has no React); avoids a premature cross-platform abstraction. |
 
 ## 8. Open questions
 

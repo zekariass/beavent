@@ -30,7 +30,7 @@ always-loaded version is the root [`AGENTS.md`](../../../AGENTS.md); this is the
 
 Do these, in order, before writing UI code. Put the answers in your plan or PR description.
 
-1. **Target:** which app and platform (mobile consumer, mobile Business mode, web marketplace, partner portal,
+1. **Target:** which app and platform (mobile consumer, mobile business app, web marketplace, partner portal,
    admin console)? Which screen ID (C-, S-, E-, B-, P-) and template (SCREEN_DESIGN_STANDARDS §2)?
 2. **Docs read:** the spec for that screen plus §1 above.
 3. **Tokens:** list the colour, spacing, type and size tokens the screen needs. All must exist in `@beavent/ui`.
@@ -87,7 +87,7 @@ Do these, in order, before writing UI code. Put the answers in your plan or PR d
 | `elevation`, `duration`, `easing` | Floating elements and motion |
 | `tokenStylesheet()` → `tokens.css` | Web stylesheet (generated; `npm run generate -w @beavent/ui`) |
 
-### 4.2 React Native components (`apps/public-mobile/src/components/ui`)
+### 4.2 React Native components (`@beavent/native`, source `packages/native/src/ui`)
 
 | Component | Use |
 |---|---|
@@ -100,11 +100,14 @@ Do these, in order, before writing UI code. Put the answers in your plan or PR d
 | `Banner` (`tone`), `EmptyState`, `Skeleton`, `SkeletonRows` | Feedback and states |
 | `DualLine` | A date/time in the preferred convention with the other one muted |
 | `Icon` | Documented symbols only (info, success, warning, error, chevron, check) |
+| `PreferencesSections`, `SignedInSummary` | Language, calendar, time and appearance option groups; who is signed in (Account in the consumer app, More in the business app) |
+| `BeaventTabs` (`tabs: TabSpec[]`) | The tab bar, native and web variants, from a list of tabs with translated labels and symbols |
+| `SignInPanel`, `useBeaventShell()`, `AppProvider`, `openWeb(path)` | Sign-in by one-time code; root-layout readiness and navigation theme; the provider (`apiUrl`, `clientApp` props); open a web-platform page in the in-app browser |
 
-Ge'ez text uses the bundled Noto Sans Ethiopic automatically (`src/constants/fonts.ts`; the root layout loads it
-before the first render). Choices give a haptic tick through `selectionFeedback()` (`src/lib/haptics.ts`).
+Ge'ez text uses the bundled Noto Sans Ethiopic automatically (`packages/native/src/constants/fonts.ts`; `useBeaventShell()`
+loads it before the first render). Choices give a haptic tick through `selectionFeedback()` (`packages/native/src/haptics.ts`).
 
-App state: `useApp()` from `apps/public-mobile/src/lib/app-context.tsx` → `t`, `language`, `display` (calendar/time
+App state: `useApp()` from `@beavent/native` (`packages/native/src/app-context.tsx`) → `t`, `language`, `display` (calendar/time
 preferences for formatters), `colors`, `scheme`, `signedIn`, `api`, setters for preferences, `ready`.
 
 ### 4.3 Web utilities (`@beavent/ui/tokens.css`)
@@ -204,7 +207,7 @@ npm run bundle:check -w @beavent/public-mobile                                 #
 **Adding a component or variant**
 
 1. Write its spec in COMPONENT_GUIDELINES.md first (purpose, anatomy, variants, states, a11y, do/don't).
-2. Implement it in `apps/public-mobile/src/components/ui/` (or `marketplace/`), export it from `index.ts`; web equivalents in the
+2. Implement it in `packages/native/src/ui/` (shared by both apps; marketplace components that only the consumer app needs go in `apps/public-mobile/src/components/marketplace/`), export it from `src/ui/index.ts`; web equivalents in the
    app's `src/components/` with the same name and rules.
 3. Use it in at least one screen; add that screen to the visual QA spec.
 
@@ -243,11 +246,11 @@ npm run bundle:check -w @beavent/public-mobile                                 #
 | 2 | Formatting helpers: display money, dual date/time, 12-hour clock (decided Q7), durations | **Done** |
 | 3 | App shell and primitives: preferences (persisted), token theme, tabs, core components, C-6 sign-in, C-5 account | **Done** for the components listed in §4.2; BottomSheet, PhoneField, CodeField, StickyActionBar, StepProgress still to build |
 | 4 | Partner portal catalogue P-01 … P-11 to spec (sidebar, editors, price matrix …) | Partly: existing screens restyled; spec features pending |
-| 5 | Stage 2.5 consumer booking: S-04 → S-10b, C-4 with data, S-11 … S-15 | Not started |
+| 5 | Stage 2.2 venue page (S-04, S-05, S-17), 2.4 consumer booking (S-06 → S-10b, C-4 with data, S-11 … S-14), 2.6 waitlist (S-15) | Not started |
 | 6 | Stage 3 payments: PaymentMethodList, PaymentWaiting, HoldTimer, C-7 | Not started |
 | 7 | Stage 6.8 events consumer UI: E-05 → E-19, TicketPass offline | Not started |
 | 8 | Stage 8 discovery: C-1 full, C-2, S-01 … S-03, E-01 … E-04, C-3 Saved, reviews, C-8 | Not started |
-| 9 | Business mode B-1 … B-5 with the swapped tab bar (DD13) | My schedule only (as a pushed screen, interim) |
+| 9 | Business app B-1 … B-5 in `apps/business-mobile` (DD13) | Schedule and More tabs done; Calendar, Check-in, Sales with their stages |
 
 ## 14. Definition of done (UI work)
 

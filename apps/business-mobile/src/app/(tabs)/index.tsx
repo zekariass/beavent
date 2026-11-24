@@ -9,9 +9,19 @@ import { space } from "@beavent/ui";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 
-import { SignInPanel } from "@/components/sign-in-panel";
-import { Chip, Divider, DualLine, EmptyState, Screen, SkeletonRows, Text } from "@/components/ui";
-import { useApp } from "@/lib/app-context";
+import {
+  Chip,
+  Divider,
+  DualLine,
+  EmptyState,
+  Screen,
+  ScreenTitle,
+  SignInPanel,
+  SkeletonRows,
+  Text,
+  openWeb,
+  useApp,
+} from "@beavent/native";
 
 const ZONE = "Africa/Addis_Ababa";
 
@@ -36,10 +46,10 @@ function fortnight(): { from: string; to: string } {
 }
 
 /**
- * Business mode: "My schedule" for the signed-in team member. Partner tools use the 24-hour clock; people who read
+ * Schedule tab: "My schedule" for the signed-in team member. Partner tools use the 24-hour clock; people who read
  * Ethiopian time also see it underneath (doc 06 §2.1, SERVICES_MARKETPLACE_DESIGN.md §9).
  */
-export default function BusinessScreen() {
+export default function ScheduleScreen() {
   const { signedIn, api, t, display } = useApp();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -99,7 +109,8 @@ export default function BusinessScreen() {
   };
 
   return (
-    <Screen edges={[]}>
+    <Screen inTabs>
+      <ScreenTitle>{t("mobile.schedule.title")}</ScreenTitle>
       {signedIn === false && (
         <View style={{ gap: space[4] }}>
           <Text role="body" tone="muted">
@@ -119,7 +130,14 @@ export default function BusinessScreen() {
         />
       )}
       {signedIn && load.state === "no-businesses" && (
-        <EmptyState title={t("mobile.schedule.noBusinesses")} />
+        <EmptyState
+          title={t("mobile.schedule.noBusinesses")}
+          action={{
+            label: t("business.createOnWeb"),
+            variant: "primary",
+            onPress: () => void openWeb("/business/onboarding"),
+          }}
+        />
       )}
       {signedIn &&
         (load.state === "no-profile" || load.state === "ready") &&

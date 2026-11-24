@@ -8,8 +8,8 @@ import {
   type TextStyle,
 } from "react-native";
 
-import { ETHIOPIC_FAMILY } from "@/constants/fonts";
-import { useApp } from "@/lib/app-context";
+import { ETHIOPIC_FAMILY } from "../constants/fonts";
+import { useApp } from "../app-context";
 
 export type TextTone =
   | "default"

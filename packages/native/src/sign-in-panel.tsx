@@ -3,8 +3,8 @@ import { space } from "@beavent/ui";
 import { useState } from "react";
 import { View } from "react-native";
 
-import { Button, TextField } from "@/components/ui";
-import { useApp } from "@/lib/app-context";
+import { Button, TextField } from "./ui";
+import { useApp } from "./app-context";
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/[^\d+]/g, "");
@@ -14,7 +14,7 @@ function normalizePhone(raw: string): string {
 
 /** Sign in with a code sent to a phone (SMS) or email address (C-6). */
 export function SignInPanel() {
-  const { api, t, language, signIn } = useApp();
+  const { api, t, language, signIn, clientApp } = useApp();
   const [destination, setDestination] = useState("");
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -34,14 +34,14 @@ export function SignInPanel() {
                 email: target,
                 purpose: "SIGN_IN",
                 channel: "EMAIL",
-                clientApp: "MOBILE_APP",
+                clientApp,
                 language,
               }
             : {
                 phone: target,
                 purpose: "SIGN_IN",
                 channel: "SMS",
-                clientApp: "MOBILE_APP",
+                clientApp,
                 language,
               },
         });
