@@ -192,6 +192,8 @@ paths:
     $ref: ./scheduling/paths.yaml#/customerSearch
   /v1/orgs/{orgId}/calendar:
     $ref: ./scheduling/paths.yaml#/calendar
+  /v1/orgs/{orgId}/calendar/stream:
+    $ref: ./scheduling/paths.yaml#/calendarStream
   /v1/orgs/{orgId}/appointments/{appointmentId}/status:
     $ref: ./scheduling/paths.yaml#/appointmentStatus
   /v1/orgs/{orgId}/appointments/{appointmentId}/accept:

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { bookAsCustomer, firstFreeStart, seedSalon } from "./seed.ts";
+import { bookAsCustomer, deskBook, firstFreeStart, seedSalon } from "./seed.ts";
 import { codeCount, codeFor } from "./support.ts";
 
 /** Plan step 2.5: the front desk sees today's bookings on the calendar and moves a visit through the day. */
@@ -74,6 +74,10 @@ test("the business sees a booking on its calendar and checks the customer in and
   await abel.getByLabel("New time").last().fill("14:00");
   await abel.getByRole("button", { name: "Move" }).last().click();
   await expect(page.getByRole("button", { name: /14:00.*Abel Girma/ })).toBeVisible();
+
+  // Live update: another desk books 18:00 the same day; the open calendar shows it without reloading.
+  await deskBook(salon, new Date(`${date}T15:00:00Z`).toISOString(), "Liya Bekele");
+  await expect(page.getByRole("button", { name: /Liya Bekele/ })).toBeVisible({ timeout: 15_000 });
 
   // The booking link page shows the QR code to print.
   await page.goto(`/en/business/o/${salon.orgId}/share`);

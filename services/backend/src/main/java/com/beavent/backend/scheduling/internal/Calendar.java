@@ -137,15 +137,23 @@ public class Calendar {
         return value == null ? Map.of() : json.readValue(value.data(), TEXT);
     }
 
-    /** The calendar of a location from {@code from} to {@code to} (local dates, at most a week). */
-    public Body read(OrgAccess access, UUID locationId, LocalDate from, LocalDate to) {
-        boolean all = access.can(VIEW_ALL);
-        if (!all && !access.can(VIEW_OWN)) {
+    /** @throws ApiException unless the person may see some of this location's calendar */
+    public void requireView(OrgAccess access, UUID locationId) {
+        if (!access.can(VIEW_ALL) && !access.can(VIEW_OWN)) {
             throw new ApiException(ProblemCode.FORBIDDEN, "Your role does not show the calendar.");
         }
-        if (!access.canAccessLocation(locationId)) {
+        // The location must be this business's (row-level security scopes the lookup) and one the member may use.
+        boolean ours = Boolean.TRUE.equals(
+                transactions.execute(status -> dsl.fetchExists(LOCATIONS, LOCATIONS.ID.eq(locationId))));
+        if (!ours || !access.canAccessLocation(locationId)) {
             throw new ApiException(ProblemCode.NOT_FOUND, "There is no such location.");
         }
+    }
+
+    /** The calendar of a location from {@code from} to {@code to} (local dates, at most a week). */
+    public Body read(OrgAccess access, UUID locationId, LocalDate from, LocalDate to) {
+        requireView(access, locationId);
+        boolean all = access.can(VIEW_ALL);
         if (to.isBefore(from) || from.plusDays(MAX_DAYS).isBefore(to.plusDays(1))) {
             throw new ApiException(ProblemCode.VALIDATION_FAILED, "Ask for one to " + MAX_DAYS + " days.");
         }

@@ -1143,19 +1143,33 @@ class Bookings {
                     .set(SCHEDULE_RESERVATIONS.STATUS, "BLOCKED")
                     .set(SCHEDULE_RESERVATIONS.CALENDAR_BLOCK_ID, id)
                     .execute(); // overlapping a booking fails here: 23P01 → SLOT_TAKEN
+            blockChanged(orgId, id, locationId);
             return id;
         });
     }
 
     void unblock(UUID blockId) {
         transactions.executeWithoutResult(status -> {
-            int removed = dsl.deleteFrom(CALENDAR_BLOCKS)
+            var block = dsl.selectFrom(CALENDAR_BLOCKS)
                     .where(CALENDAR_BLOCKS.ID.eq(blockId))
-                    .execute();
-            if (removed == 0) {
+                    .fetchOne();
+            if (block == null) {
                 throw new ApiException(ProblemCode.NOT_FOUND, "There is no such block.");
             }
+            block.delete();
+            blockChanged(block.getOrgId(), blockId, block.getLocationId());
         });
+    }
+
+    /** Calendars showing the location reload (live updates). */
+    private void blockChanged(UUID orgId, UUID blockId, UUID locationId) {
+        outbox.publish(new DomainEvent(
+                "scheduling.calendar_block",
+                blockId,
+                "calendar.block_changed",
+                1,
+                orgId,
+                Map.of("blockId", blockId, "locationId", locationId)));
     }
 
     // --- the business answers a request ----------------------------------------------------------------------------

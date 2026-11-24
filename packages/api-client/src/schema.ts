@@ -1195,6 +1195,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/calendar/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live updates for a location's calendar (server-sent events)
+         * @description Sends `ready`, then `changed` (data `{locationId, what, at}`) whenever an appointment or block at the location
+         *     changes; reload the calendar then. A comment every 25 s keeps the connection open; the stream closes after 30
+         *     minutes (reconnect). Needs calendar.view_all or calendar.view_own.
+         */
+        get: operations["streamCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/appointments/{appointmentId}/status": {
         parameters: {
             query?: never;
@@ -6443,6 +6465,33 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    streamCalendar: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An event stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

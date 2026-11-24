@@ -39,6 +39,15 @@ export default function TodayScreen() {
   const range = useRange(zone);
   const nameOf = useServiceName();
 
+  // While this screen is open it checks again every 15 seconds (live updates on the phone; the console streams them).
+  const [tick, setTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => setTick((n) => n + 1), 15_000);
+      return () => clearInterval(timer);
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (workspace.state !== "ready") return;
@@ -67,7 +76,8 @@ export default function TodayScreen() {
       return () => {
         cancelled = true;
       };
-    }, [api, workspace]),
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` re-runs the fetch on each poll
+    }, [api, workspace, tick]),
   );
 
   const today = todayIn(zone);

@@ -192,7 +192,7 @@ Exception, for atomicity: the checkout command coordinates *commerce*, *scheduli
 | Concurrency | `version` columns + `If-Match` on aggregates (orders, appointments) |
 | Pagination | Cursor-based (`?cursor=…&limit=…`) |
 | Errors | `application/problem+json` with stable `type` codes (`SOLD_OUT`, `SLOT_TAKEN`, `PAYMENT_PENDING`, `REFUND_EXCEEDS_CAPTURED`) mapped from SQLSTATEs (23P01 → `SLOT_TAKEN`, 23514 on buckets → `SOLD_OUT`) |
-| Realtime | WebSocket channels: calendar changes per location, check-in counters per occurrence, payment status per intent, inbox |
+| Realtime | Server-sent events per screen subject (calendar changes per location, built in plan 2.5; check-in counters per occurrence, payment status per intent next), fanned out from outbox events through a per-instance RabbitMQ queue; clients reload on a small `changed` event. Mobile polls while a screen is open. WebSocket only where two-way is needed (inbox) |
 | Outbound | Partner webhooks signed with HMAC-SHA256, retried with backoff (`platform.webhook_deliveries`) |
 | Rate limits | Redis token buckets per IP, user, org and API key; stricter on OTP, login and on-sale endpoints |
 

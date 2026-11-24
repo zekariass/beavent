@@ -227,18 +227,19 @@ export async function bookAsCustomer(salon: SeededSalon, start: string, name = "
   );
 }
 
-/** The first bookable start of the salon's first service from `from` (a local date) on. */
+/** The first (or `last`) bookable start of the salon's first service between two local dates. */
 export async function firstFreeStart(
   salon: SeededSalon,
   from: string,
   to: string,
+  last = false,
 ): Promise<string> {
   const result = await api("POST", `/v1/public/locations/${salon.locationId}/availability`, {
     items: [{ variantId: salon.variantId, staffId: salon.staffId }],
     from,
     to,
   });
-  return result.slots[0].start as string;
+  return result.slots[last ? result.slots.length - 1 : 0].start as string;
 }
 
 /** The front desk books `name` with the salon's stylist at `start` (overlapping on purpose when needed). */

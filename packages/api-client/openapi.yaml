@@ -3103,6 +3103,36 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/calendar/stream:
+    get:
+      tags:
+        - Calendar
+      operationId: streamCalendar
+      summary: Live updates for a location's calendar (server-sent events)
+      description: |
+        Sends `ready`, then `changed` (data `{locationId, what, at}`) whenever an appointment or block at the location
+        changes; reload the calendar then. A comment every 25 s keeps the connection open; the stream closes after 30
+        minutes (reconnect). Needs calendar.view_all or calendar.view_own.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: An event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/appointments/{appointmentId}/status:
     post:
       tags:

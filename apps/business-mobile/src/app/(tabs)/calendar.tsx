@@ -44,6 +44,15 @@ export default function CalendarScreen() {
   const nameOf = useServiceName();
   const key = workspace.state === "ready" ? `${workspace.location.id}|${date}` : "";
 
+  // While this screen is open it checks again every 15 seconds (live updates on the phone; the console streams them).
+  const [tick, setTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => setTick((n) => n + 1), 15_000);
+      return () => clearInterval(timer);
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (workspace.state !== "ready") return;
@@ -64,7 +73,8 @@ export default function CalendarScreen() {
       return () => {
         cancelled = true;
       };
-    }, [api, workspace, date]),
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` re-runs the fetch on each poll
+    }, [api, workspace, date, tick]),
   );
 
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];

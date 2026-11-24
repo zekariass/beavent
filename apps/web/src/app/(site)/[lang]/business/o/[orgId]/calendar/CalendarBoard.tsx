@@ -5,7 +5,7 @@ import { formatEthiopianTime, formatStandardTime, toEthiopianTime, zoned } from 
 import { createTranslator, type Language } from "@beavent/i18n";
 import { localDateOf, localToInstant } from "@beavent/venue";
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
 import { BlockPanel, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
 
@@ -64,6 +64,23 @@ export function CalendarBoard({
     setSlot(kind === "slot" ? (value as { staffId: string; start: string }) : null);
   };
   const minute = useMinute();
+
+  // Live updates: reload the board when anything changes at this location (another desk, an online booking).
+  const router = useRouter();
+  useEffect(() => {
+    const source = new EventSource(
+      `/${language}/business/o/${orgId}/calendar/stream?locationId=${calendar.locationId}`,
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    source.addEventListener("changed", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => router.refresh(), 300);
+    });
+    return () => {
+      clearTimeout(timer);
+      source.close();
+    };
+  }, [language, orgId, calendar.locationId, router]);
 
   /** Minutes after local midnight of `date` (clamped to the day). */
   const minutesOf = (instant: string) => {

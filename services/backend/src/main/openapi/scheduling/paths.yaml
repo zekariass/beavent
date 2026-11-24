@@ -659,3 +659,32 @@ customerSearch:
         $ref: ../common/responses.yaml#/Unauthorized
       '403':
         $ref: ../common/responses.yaml#/Forbidden
+calendarStream:
+  get:
+    tags: [Calendar]
+    operationId: streamCalendar
+    summary: Live updates for a location's calendar (server-sent events)
+    description: |
+      Sends `ready`, then `changed` (data `{locationId, what, at}`) whenever an appointment or block at the location
+      changes; reload the calendar then. A comment every 25 s keeps the connection open; the stream closes after 30
+      minutes (reconnect). Needs calendar.view_all or calendar.view_own.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: An event stream.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
