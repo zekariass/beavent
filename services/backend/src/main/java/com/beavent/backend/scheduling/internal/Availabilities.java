@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.jooq.Condition;
@@ -92,17 +93,61 @@ class Availabilities implements Availability {
         this.pricing = pricing;
     }
 
-    private record Place(ZoneId zone, String serviceMode, boolean closedOnHolidays, String countryCode, UUID areaId) {}
+    record Place(ZoneId zone, String serviceMode, boolean closedOnHolidays, String countryCode, UUID areaId) {}
 
     /** One requested service, ready for the engine. */
-    private record Planned(UUID variantId, UUID serviceId, AvailabilityEngine.Item engineItem, List<UUID> staff) {}
+    record Planned(
+            UUID variantId,
+            UUID serviceId,
+            List<UUID> addonIds,
+            boolean staffRequested,
+            AvailabilityEngine.Item engineItem,
+            List<UUID> staff) {}
+
+    /** Everything one question needs: what each item is, and the engine's request and facts. */
+    record Question(
+            Query query,
+            Place place,
+            int travelMinutes,
+            List<Planned> planned,
+            AvailabilityEngine.Request request,
+            AvailabilityEngine.Facts facts) {}
+
+    /** A bookable slot, laid out, with the question that found it. */
+    record Chosen(Question question, AvailabilityEngine.Slot slot, List<AvailabilityEngine.ItemLayout> layout) {}
 
     @Override
     public Result find(Query query, Instant now) {
-        return transactions.execute(status -> compute(query, now));
+        return transactions.execute(status -> {
+            Question q = question(query, now);
+            List<Offer> offers = new ArrayList<>();
+            for (AvailabilityEngine.Slot slot : AvailabilityEngine.slots(q.request(), q.facts())) {
+                List<Assigned> assigned = new ArrayList<>();
+                for (int i = 0; i < q.planned().size(); i++) {
+                    assigned.add(new Assigned(
+                            q.planned().get(i).variantId(),
+                            slot.assignments().get(i).staffId()));
+                }
+                offers.add(new Offer(slot.start(), slot.end(), assigned));
+            }
+            return new Result(q.place().zone(), offers);
+        });
     }
 
-    private Result compute(Query query, Instant now) {
+    /**
+     * The slot that starts exactly at {@code start}, if it can be booked now. Runs in the caller's transaction, so a
+     * booking checks and writes against one view of the calendar (the database constraints still decide races).
+     */
+    Optional<Chosen> at(UUID locationId, List<Item> items, UUID serviceAreaId, Instant start, Instant now) {
+        LocalDate date = start.atZone(place(locationId).zone()).toLocalDate();
+        Question q = question(new Query(locationId, items, date, date, serviceAreaId), now);
+        return AvailabilityEngine.slots(q.request(), q.facts()).stream()
+                .filter(slot -> slot.start().equals(start))
+                .findFirst()
+                .map(slot -> new Chosen(q, slot, AvailabilityEngine.layout(q.request(), slot)));
+    }
+
+    private Question question(Query query, Instant now) {
         if (query.items().isEmpty() || query.items().size() > MAX_ITEMS) {
             throw new ApiException(ProblemCode.VALIDATION_FAILED, "Choose between 1 and " + MAX_ITEMS + " services.");
         }
@@ -152,21 +197,12 @@ class Availabilities implements Availability {
                 slotInterval,
                 onPremises,
                 travelMinutes);
-        List<Offer> offers = new ArrayList<>();
-        for (AvailabilityEngine.Slot slot : AvailabilityEngine.slots(request, facts)) {
-            List<Assigned> assigned = new ArrayList<>();
-            for (int i = 0; i < planned.size(); i++) {
-                assigned.add(new Assigned(
-                        planned.get(i).variantId(), slot.assignments().get(i).staffId()));
-            }
-            offers.add(new Offer(slot.start(), slot.end(), assigned));
-        }
-        return new Result(zone, offers);
+        return new Question(query, place, travelMinutes, planned, request, facts);
     }
 
     // --- the location ----------------------------------------------------------------------------------------
 
-    private Place place(UUID locationId) {
+    Place place(UUID locationId) {
         return dsl.select(
                         LOCATIONS.TIMEZONE,
                         LOCATIONS.SERVICE_MODE,
@@ -279,6 +315,8 @@ class Availabilities implements Availability {
         return new Planned(
                 item.variantId(),
                 serviceId,
+                item.addonIds(),
+                item.staffId() != null,
                 new AvailabilityEngine.Item(shape, row.value3(), row.value4(), usable, requirements),
                 usable);
     }

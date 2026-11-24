@@ -61,4 +61,35 @@ class PublicLocationLookup implements PublicLocations {
                 .orderBy(LOCATIONS.CREATED_AT, LOCATIONS.ID)
                 .fetch(r -> r.value1().toString());
     }
+
+    @Override
+    public java.util.Map<UUID, Named> names(java.util.Collection<UUID> locationIds) {
+        if (locationIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return system.select(
+                        LOCATIONS.ID,
+                        ORGANIZATIONS.DISPLAY_NAME,
+                        ORGANIZATIONS.SLUG,
+                        LOCATIONS.NAME,
+                        LOCATIONS.SLUG,
+                        com.beavent.db.tenant.Tables.PLACES.LANDMARK,
+                        LOCATIONS.PHONE)
+                .from(LOCATIONS)
+                .join(ORGANIZATIONS)
+                .on(ORGANIZATIONS.ID.eq(LOCATIONS.ORG_ID))
+                .join(com.beavent.db.tenant.Tables.PLACES)
+                .on(com.beavent.db.tenant.Tables.PLACES.ID.eq(LOCATIONS.PLACE_ID))
+                .where(LOCATIONS.ID.in(locationIds))
+                .fetchMap(
+                        r -> r.value1(),
+                        r -> new Named(
+                                r.value1(),
+                                r.value2(),
+                                r.value3().toString(),
+                                r.value4(),
+                                r.value5().toString(),
+                                r.value6(),
+                                r.value7()));
+    }
 }

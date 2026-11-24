@@ -13,6 +13,7 @@ public enum ProblemCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "The resource was not found."),
     CONFLICT(HttpStatus.CONFLICT, "The request conflicts with existing data."),
     SLOT_TAKEN(HttpStatus.CONFLICT, "That time is no longer available."),
+    HOLD_EXPIRED(HttpStatus.CONFLICT, "The time you chose was held for a few minutes and has been released."),
     SOLD_OUT(HttpStatus.CONFLICT, "Not enough tickets are left."),
     IMMUTABLE(HttpStatus.CONFLICT, "This record can no longer be changed."),
     CONCURRENT_UPDATE(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please retry."),

@@ -33,4 +33,16 @@ public interface PublicLocations {
 
     /** Slugs of the business's active locations, in the order its team set them up. */
     java.util.List<String> locationSlugs(String orgSlug);
+
+    /** Public names of locations (whatever their status: a past booking still shows where it was). */
+    record Named(
+            UUID locationId,
+            String businessName,
+            String businessSlug,
+            String locationName,
+            String locationSlug,
+            String landmark,
+            String phone) {}
+
+    java.util.Map<UUID, Named> names(java.util.Collection<UUID> locationIds);
 }

@@ -36,7 +36,9 @@ public final class AvailabilityEngine {
         SERVICE,
         PROCESSING,
         FINISHING,
-        CONSULTATION
+        CONSULTATION,
+        /** At-home only: the person travelling to or from the customer (never part of a service template). */
+        TRAVEL
     }
 
     /** A part of a service. While {@code staffBusy} is false (e.g. colour processing) the person can serve others. */
@@ -169,6 +171,79 @@ public final class AvailabilityEngine {
             }
         }
         return result;
+    }
+
+    // --- what a slot occupies (for booking) -----------------------------------------------------------------------
+
+    /** A stage of a booked item in time. Travel appears as {@link StageKind#TRAVEL} stages before and after. */
+    public record StageWindow(int seq, StageKind kind, boolean staffBusy, Instant start, Instant end) {}
+
+    /** Time the item's person is blocked (a busy stage with its buffers, or travel), tagged with its stage. */
+    public record StaffBlock(int stageSeq, Instant start, Instant end) {}
+
+    /** A resource unit the item holds, over its window (buffers included), for the requirement at that index. */
+    public record UnitWindow(int requirementIndex, ResourceUnit unit, Instant start, Instant end) {}
+
+    /** One item of a slot laid out in time: customer-facing span, stages, the person's blocks and resource units. */
+    public record ItemLayout(
+            Instant start, Instant end, List<StageWindow> stages, List<StaffBlock> blocks, List<UnitWindow> units) {}
+
+    /**
+     * Lays out a slot that {@link #slots} offered for {@code request}: the exact windows it checked, so a booking writes
+     * the same reservations the engine reasoned about.
+     */
+    public static List<ItemLayout> layout(Request request, Slot slot) {
+        List<Item> items = request.items();
+        List<ItemLayout> out = new ArrayList<>();
+        long cursor = nanos(slot.start());
+        for (int k = 0; k < items.size(); k++) {
+            Item item = items.get(k);
+            long travelBefore = k == 0 && !request.onPremises() ? minutes(request.travelMinutes()) : 0;
+            long travelAfter = k == items.size() - 1 && !request.onPremises() ? minutes(request.travelMinutes()) : 0;
+            Timeline t = Timeline.of(item, cursor, travelBefore, travelAfter);
+            List<StageWindow> stages = new ArrayList<>();
+            List<StaffBlock> blocks = new ArrayList<>();
+            int seq = 1;
+            if (travelBefore > 0) {
+                stages.add(
+                        new StageWindow(seq, StageKind.TRAVEL, true, instant(cursor - travelBefore), instant(cursor)));
+                blocks.add(new StaffBlock(seq, instant(cursor - travelBefore), instant(cursor)));
+                seq++;
+            }
+            int busyIndex = 0;
+            int busyCount =
+                    (int) item.stages().stream().filter(Stage::staffBusy).count();
+            for (int i = 0; i < item.stages().size(); i++) {
+                Stage stage = item.stages().get(i);
+                long[] w = t.stageWindows[i];
+                stages.add(new StageWindow(seq, stage.kind(), stage.staffBusy(), instant(w[0]), instant(w[1])));
+                if (stage.staffBusy()) {
+                    long from = busyIndex == 0 ? w[0] - t.bufferBefore : w[0];
+                    long to = busyIndex == busyCount - 1 ? w[1] + t.bufferAfter : w[1];
+                    blocks.add(new StaffBlock(seq, instant(from), instant(to)));
+                    busyIndex++;
+                }
+                seq++;
+            }
+            if (travelAfter > 0) {
+                stages.add(new StageWindow(
+                        seq, StageKind.TRAVEL, true, instant(t.customerEnd), instant(t.customerEnd + travelAfter)));
+                blocks.add(new StaffBlock(seq, instant(t.customerEnd), instant(t.customerEnd + travelAfter)));
+            }
+            List<UnitWindow> units = new ArrayList<>();
+            List<ResourceUnit> assigned = slot.assignments().get(k).resourceUnits();
+            int u = 0;
+            for (int r = 0; r < item.requirements().size(); r++) {
+                Requirement requirement = item.requirements().get(r);
+                long[] window = t.resourceWindow(item, requirement);
+                for (int n = 0; n < requirement.units(); n++) {
+                    units.add(new UnitWindow(r, assigned.get(u++), instant(window[0]), instant(window[1])));
+                }
+            }
+            out.add(new ItemLayout(instant(t.customerStart), instant(t.customerEnd), stages, blocks, units));
+            cursor = t.customerEnd;
+        }
+        return out;
     }
 
     // --- one candidate start ---------------------------------------------------------------------------------------

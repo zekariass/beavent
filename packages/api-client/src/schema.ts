@@ -1107,6 +1107,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/locations/{locationId}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hold a time for a few minutes while the person signs in and confirms
+         * @description Public. Re-checks the time with the availability engine and reserves it for 10 minutes. Keep `holderKey`: it
+         *     proves the hold is yours when you confirm or release it. `SLOT_TAKEN` means the time was taken meanwhile: ask
+         *     availability again.
+         */
+        post: operations["holdTime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/locations/{locationId}/holds/{holdId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Let go of a hold early (unknown, expired or converted holds are ignored) */
+        delete: operations["releaseHold"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in person's appointments, newest first */
+        get: operations["listMyAppointments"];
+        put?: never;
+        /**
+         * Turn a hold into an appointment (pay at the venue)
+         * @description The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
+         *     each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
+         *     `HOLD_EXPIRED` means the hold ran out: hold a time again.
+         */
+        post: operations["bookAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the signed-in person's appointments, with what cancelling now would mean */
+        get: operations["getMyAppointment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel (free before the free-cancellation time, otherwise the late fee is recorded) */
+        post: operations["cancelMyAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move to another time with the same services (allowed until the free-cancellation time)
+         * @description Ask availability for the same services first. The person the customer chose stays; "anyone" may become someone
+         *     else. Prices stay as booked. `SLOT_TAKEN` leaves the appointment unchanged.
+         */
+        post: operations["rescheduleMyAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/venues/{businessSlug}/locations": {
         parameters: {
             query?: never;
@@ -1615,7 +1732,7 @@ export interface components {
              */
             instance?: string;
             /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
             requestId?: string;
             /** @description Field-level validation errors. */
             errors?: {
@@ -2605,6 +2722,143 @@ export interface components {
             timezone: string;
             slots: components["schemas"]["AvailabilitySlot"][];
         };
+        HoldInput: {
+            items: components["schemas"]["AvailabilityItem"][];
+            start: components["schemas"]["Instant"];
+            serviceAreaId?: components["schemas"]["Uuid"];
+        };
+        BookingAddon: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+        };
+        BookingItem: {
+            variantId: components["schemas"]["Uuid"];
+            serviceName: string;
+            variantName?: string | null;
+            staffId: components["schemas"]["Uuid"];
+            staffName: string;
+            staffRequested: boolean;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description The service's price for this person here; add-ons are listed separately.
+             */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            addons: components["schemas"]["BookingAddon"][];
+        };
+        /** @description The terms frozen in the appointment; several services apply the strictest rule of any. */
+        BookingTerms: {
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            /** @enum {string} */
+            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            cancellationWindowMinutes: number;
+            freeCancellationUntil: components["schemas"]["Instant"];
+            lateCancelFeePercent?: number;
+            noShowFeePercent?: number;
+        };
+        BookingSummary: {
+            locationId: components["schemas"]["Uuid"];
+            timezone: string;
+            /** @enum {string} */
+            deliveryMode: "ON_PREMISES" | "AT_CUSTOMER";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            items: components["schemas"]["BookingItem"][];
+            /**
+             * Format: int64
+             * @description All-in total (services and add-ons).
+             */
+            totalMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            policy: components["schemas"]["BookingTerms"];
+        };
+        Hold: {
+            holdId: components["schemas"]["Uuid"];
+            /** @description Proof that the hold is yours; send it to confirm or release. */
+            holderKey: string;
+            expiresAt: components["schemas"]["Instant"];
+            booking: components["schemas"]["BookingSummary"];
+        };
+        MyAppointmentPlace: {
+            locationId: components["schemas"]["Uuid"];
+            businessName: string;
+            businessSlug: string;
+            locationName: string;
+            locationSlug: string;
+            landmark?: string | null;
+            phone?: string | null;
+        };
+        MyAppointmentItem: {
+            serviceName: string;
+            variantName?: string | null;
+            staffName?: string | null;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+        };
+        MyAppointment: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            timezone: string;
+            place?: components["schemas"]["MyAppointmentPlace"];
+            items: components["schemas"]["MyAppointmentItem"][];
+        };
+        MyAppointmentList: {
+            items: components["schemas"]["MyAppointment"][];
+        };
+        BookInput: {
+            locationId: components["schemas"]["Uuid"];
+            holdId: components["schemas"]["Uuid"];
+            holderKey: string;
+            /** @description For the business ("first time, sensitive scalp"). */
+            note?: string;
+        };
+        Appointment: {
+            id: components["schemas"]["Uuid"];
+            /** @description Six characters people can read out over the phone. */
+            reference: string;
+            /** @enum {string} */
+            status: "REQUESTED" | "CONFIRMED";
+            booking: components["schemas"]["BookingSummary"];
+        };
+        CancellationPreview: {
+            /** @description False once the visit has started or the appointment is no longer active. */
+            allowed: boolean;
+            free: boolean;
+            freeUntil: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+             */
+            feeMinor: number;
+            currency?: string | null;
+        };
+        AppointmentDetail: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            timezone: string;
+            note?: string | null;
+            place?: components["schemas"]["MyAppointmentPlace"];
+            booking: components["schemas"]["BookingSummary"];
+            cancellation: components["schemas"]["CancellationPreview"];
+            canReschedule: boolean;
+        };
         VenueImage: {
             url: string;
             /** @description Smaller sizes by name (w320, w960). */
@@ -3114,6 +3368,7 @@ export interface components {
         IfMatch: string;
         Cursor: string;
         Limit: number;
+        AppointmentIdParam: components["schemas"]["Uuid"];
     };
     requestBodies: never;
     headers: never;
@@ -5769,6 +6024,201 @@ export interface operations {
             404: components["responses"]["NotFound"];
             422: components["responses"]["Unprocessable"];
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    holdTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldInput"];
+            };
+        };
+        responses: {
+            /** @description Held. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Hold"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    releaseHold: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Hold-Key": string;
+            };
+            path: {
+                locationId: components["schemas"]["Uuid"];
+                holdId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMyAppointments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Appointments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAppointmentList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    bookAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookInput"];
+            };
+        };
+        responses: {
+            /** @description Already booked with this hold. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description Booked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getMyAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The appointment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelMyAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rescheduleMyAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    start: components["schemas"]["Instant"];
+                };
+            };
+        };
+        responses: {
+            /** @description Moved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     listBusinessLocations: {

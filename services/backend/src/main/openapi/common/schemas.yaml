@@ -110,6 +110,7 @@ Problem:
         - NOT_FOUND
         - CONFLICT
         - SLOT_TAKEN
+        - HOLD_EXPIRED
         - SOLD_OUT
         - IMMUTABLE
         - CONCURRENT_UPDATE
