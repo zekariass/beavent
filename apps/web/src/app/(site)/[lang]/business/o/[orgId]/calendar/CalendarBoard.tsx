@@ -3,10 +3,11 @@
 import type { Schemas } from "@beavent/api-client";
 import { formatEthiopianTime, formatStandardTime, toEthiopianTime, zoned } from "@beavent/calendar";
 import { createTranslator, type Language } from "@beavent/i18n";
-import { localDateOf } from "@beavent/venue";
+import { localDateOf, localToInstant } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
+import { BlockPanel, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
 
 type Calendar = Schemas["Calendar"];
 type Appointment = Schemas["CalendarAppointment"];
@@ -39,16 +40,29 @@ export function CalendarBoard({
   calendar,
   date,
   isToday,
+  services,
 }: {
   language: Language;
   orgId: string;
   calendar: Calendar;
   date: string;
   isToday: boolean;
+  services: ServiceOption[];
 }) {
   const t = createTranslator(language);
   const zone = calendar.timezone;
   const [selected, setSelected] = useState<string | null>(null);
+  // An empty slot (to book or block there) or a block, when chosen.
+  const [slot, setSlot] = useState<{ staffId: string; start: string } | null>(null);
+  const [blockId, setBlockId] = useState<string | null>(null);
+  const choose = (
+    kind: "appointment" | "slot" | "block",
+    value: string | { staffId: string; start: string },
+  ) => {
+    setSelected(kind === "appointment" ? (value as string) : null);
+    setBlockId(kind === "block" ? (value as string) : null);
+    setSlot(kind === "slot" ? (value as { staffId: string; start: string }) : null);
+  };
   const minute = useMinute();
 
   /** Minutes after local midnight of `date` (clamped to the day). */
@@ -126,7 +140,21 @@ export function CalendarBoard({
                 <div className="bv-type-label flex h-12 items-center justify-center border-b border-border px-2 text-fg">
                   {person.name}
                 </div>
-                <div className="relative bg-surface" style={{ height }}>
+                <div
+                  className="relative cursor-pointer bg-surface"
+                  style={{ height }}
+                  onClick={(e) => {
+                    if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.slot)
+                      return;
+                    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                    const minutes = first + Math.floor(y / PX / 15) * 15;
+                    const hhmm = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+                    choose("slot", {
+                      staffId: person.staffId,
+                      start: localToInstant(date, hhmm, zone),
+                    });
+                  }}
+                >
                   {/* Working time on the page background; hour and quarter lines. */}
                   {person.working
                     .filter(
@@ -136,6 +164,7 @@ export function CalendarBoard({
                     .map((w) => (
                       <div
                         key={w.start}
+                        data-slot="1"
                         className="absolute inset-x-0 bg-background"
                         style={{ top: top(w.start), height: span(w.start, w.end) }}
                       />
@@ -143,6 +172,7 @@ export function CalendarBoard({
                   {hours.map((h) => (
                     <div
                       key={h}
+                      data-slot="1"
                       className="absolute inset-x-0 border-t border-border"
                       style={{ top: (h - first) * PX }}
                     />
@@ -153,13 +183,19 @@ export function CalendarBoard({
                     </p>
                   ) : null}
                   {blocks.map((b) => (
-                    <div
+                    <button
+                      type="button"
                       key={b.id}
-                      className="bv-type-caption absolute inset-x-1 overflow-hidden rounded-md border border-border bg-surface px-2 py-1 text-fg-muted"
+                      onClick={() => choose("block", b.id)}
+                      aria-pressed={blockId === b.id}
+                      className="bv-type-caption absolute inset-x-1 overflow-hidden rounded-md border border-border bg-surface px-2 py-1 text-start text-fg-muted focus-visible:outline-2 focus-visible:outline-focus"
                       style={{ top: top(b.start), height: span(b.start, b.end) }}
                     >
-                      {b.title ?? b.reason}
-                    </div>
+                      {b.title ??
+                        t(
+                          `portal.calendar.reason.${b.reason === "TIME_OFF" || b.reason === "MAINTENANCE" ? "OTHER" : b.reason}`,
+                        )}
+                    </button>
                   ))}
                   {items.map(({ appointment, item }) => {
                     const requested = appointment.status === "REQUESTED";
@@ -169,7 +205,7 @@ export function CalendarBoard({
                       <button
                         type="button"
                         key={item.id}
-                        onClick={() => setSelected(appointment.id)}
+                        onClick={() => choose("appointment", appointment.id)}
                         aria-pressed={selected === appointment.id}
                         className={`absolute inset-x-1 flex flex-col justify-start overflow-hidden rounded-md border-s-[3px] px-2 py-1 text-start focus-visible:outline-2 focus-visible:outline-focus ${
                           requested
@@ -228,6 +264,35 @@ export function CalendarBoard({
         <p className="bv-type-body text-fg-muted lg:w-80">{t("portal.calendar.empty")}</p>
       ) : null}
 
+      {slot ? (
+        <NewPanel
+          key={`${slot.staffId}${slot.start}`}
+          language={language}
+          orgId={orgId}
+          locationId={calendar.locationId}
+          staff={{
+            id: slot.staffId,
+            name: calendar.staff.find((s) => s.staffId === slot.staffId)?.name ?? "",
+          }}
+          start={slot.start}
+          zone={zone}
+          services={services}
+          onClose={() => setSlot(null)}
+        />
+      ) : null}
+      {blockId && calendar.blocks.some((b) => b.id === blockId) ? (
+        <BlockPanel
+          key={blockId}
+          language={language}
+          orgId={orgId}
+          block={calendar.blocks.find((b) => b.id === blockId)!}
+          label={(() => {
+            const b = calendar.blocks.find((x) => x.id === blockId)!;
+            return `${range(b.start, b.end).standard} · ${calendar.staff.find((s) => s.staffId === b.staffId)?.name ?? ""}`;
+          })()}
+          onClose={() => setBlockId(null)}
+        />
+      ) : null}
       {open ? (
         <AppointmentPanel
           key={open.id}
@@ -238,6 +303,8 @@ export function CalendarBoard({
           nameOf={nameOf}
           staffName={(id) => calendar.staff.find((s) => s.staffId === id)?.name ?? ""}
           onClose={() => setSelected(null)}
+          zone={zone}
+          staff={calendar.staff.map((s) => ({ id: s.staffId, name: s.name }))}
           started={minute != null && minute * 60_000 >= new Date(open.start).getTime()}
         />
       ) : null}
@@ -254,6 +321,8 @@ function AppointmentPanel({
   staffName,
   onClose,
   started,
+  zone,
+  staff,
 }: {
   language: Language;
   orgId: string;
@@ -263,6 +332,8 @@ function AppointmentPanel({
   staffName: (id: string | null | undefined) => string;
   onClose: () => void;
   started: boolean;
+  zone: string;
+  staff: { id: string; name: string }[];
 }) {
   const t = createTranslator(language);
   const router = useRouter();
@@ -388,6 +459,15 @@ function AppointmentPanel({
         {(s === "CONFIRMED" || s === "ARRIVED") && started
           ? statusButton("NO_SHOW", t("portal.calendar.noShow"))
           : null}
+        {s === "CONFIRMED" || s === "REQUESTED" || s === "ARRIVED" ? (
+          <MoveForm
+            language={language}
+            orgId={orgId}
+            appointment={appointment}
+            zone={zone}
+            staff={staff}
+          />
+        ) : null}
       </div>
     </aside>
   );

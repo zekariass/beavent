@@ -10,6 +10,7 @@ import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_ADDONS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_RESOURCES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_STAGES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_STATUS_HISTORY;
+import static com.beavent.db.scheduling.Tables.CALENDAR_BLOCKS;
 import static com.beavent.db.scheduling.Tables.HOLDS;
 import static com.beavent.db.scheduling.Tables.SCHEDULE_RESERVATIONS;
 import static com.beavent.db.team.Tables.STAFF;
@@ -495,6 +496,11 @@ class Bookings {
      * blocks recorded against the stage or resource row that starts them).
      */
     private void writeItems(UUID orgId, UUID appointmentId, Plan plan) {
+        writeItems(orgId, appointmentId, plan, false);
+    }
+
+    /** @param allowOverlap the front desk chose "book anyway": the reservations are deliberate overlaps */
+    private void writeItems(UUID orgId, UUID appointmentId, Plan plan, boolean allowOverlap) {
         // Rows the reservations are recorded against: stage per (item, seq), resource row per (item, unit index).
         Map<String, UUID> stageIds = new HashMap<>();
         Map<String, UUID> resourceIds = new HashMap<>();
@@ -568,6 +574,7 @@ class Bookings {
                             block.unit() == null ? null : block.unit().shortValue())
                     .set(Map.of(SCHEDULE_RESERVATIONS.DURING, range(block.start(), block.end())))
                     .set(SCHEDULE_RESERVATIONS.STATUS, "CONFIRMED")
+                    .set(SCHEDULE_RESERVATIONS.ALLOW_OVERLAP, allowOverlap)
                     .set(
                             SCHEDULE_RESERVATIONS.APPOINTMENT_STAGE_ID,
                             staff ? stageIds.get(block.item() + ":" + block.ref()) : null)
@@ -868,6 +875,286 @@ class Bookings {
                             "from", before.start().toString(),
                             "to", plan.start().toString())));
             return detailIn(userId, appointmentId, now, false);
+        });
+    }
+
+    // --- the front desk: walk-ins, phone bookings, moves, blocks ------------------------------------------------
+
+    /** Who the booking is for: an existing customer of the business, or a new one (name, phone optional). */
+    record Who(UUID customerId, String name, String phone) {}
+
+    record DeskBooked(UUID appointmentId, String reference, Plan plan) {}
+
+    /**
+     * The front desk books (walk-in or phone). The time must be free in the calendar's terms, unless {@code
+     * allowOverlap} ("book anyway"): then the reservations are deliberate overlaps the database lets through. Call with
+     * the business's context bound; the caller checked the permission.
+     */
+    DeskBooked deskBook(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            List<Availability.Item> items,
+            Instant start,
+            Who who,
+            String note,
+            String source,
+            boolean allowOverlap,
+            boolean notify,
+            Instant now) {
+        return transactions.execute(status -> {
+            releaseExpired(now);
+            Availabilities.Chosen chosen =
+                    availabilities.at(locationId, items, null, start, now, true).orElse(null);
+            boolean forced = false;
+            if (chosen == null) {
+                if (!allowOverlap) {
+                    throw new ApiException(
+                            ProblemCode.SLOT_TAKEN, "That time is not free for this person. Book anyway to overlap.");
+                }
+                chosen = availabilities.forced(locationId, items, start, now);
+                forced = true;
+            }
+            Plan plan = plan(orgId, locationId, chosen, now);
+            UUID customerId = deskCustomer(orgId, who, source);
+            UUID appointmentId = Ids.newId();
+            String reference = reference();
+            dsl.insertInto(APPOINTMENTS)
+                    .set(APPOINTMENTS.ID, appointmentId)
+                    .set(APPOINTMENTS.ORG_ID, orgId)
+                    .set(APPOINTMENTS.LOCATION_ID, locationId)
+                    .set(APPOINTMENTS.CUSTOMER_ID, customerId)
+                    .set(APPOINTMENTS.BOOKED_BY_USER_ID, actorUserId)
+                    .set(APPOINTMENTS.REFERENCE, reference)
+                    .set(APPOINTMENTS.SOURCE, source)
+                    .set(APPOINTMENTS.STATUS, "CONFIRMED")
+                    .set(APPOINTMENTS.DELIVERY_MODE, plan.deliveryMode())
+                    .set(APPOINTMENTS.STARTS_AT, utc(plan.start()))
+                    .set(APPOINTMENTS.ENDS_AT, utc(plan.end()))
+                    .set(APPOINTMENTS.TIMEZONE, plan.timezone())
+                    .set(APPOINTMENTS.POLICY_SNAPSHOT, JSONB.valueOf(json.writeValueAsString(plan.policy())))
+                    .set(APPOINTMENTS.INTERNAL_NOTE, note == null || note.isBlank() ? null : note.strip())
+                    .execute();
+            writeItems(orgId, appointmentId, plan, forced);
+            history(orgId, appointmentId, null, "CONFIRMED", actorUserId, forced ? "Booked anyway (overlap)" : null);
+            outbox.publish(new DomainEvent(
+                    "scheduling.appointment",
+                    appointmentId,
+                    "appointment.booked",
+                    1,
+                    orgId,
+                    Map.of("appointmentId", appointmentId, "notify", notify, "source", source)));
+            return new DeskBooked(appointmentId, reference, plan);
+        });
+    }
+
+    private UUID deskCustomer(UUID orgId, Who who, String source) {
+        if (who.customerId() != null) {
+            return dsl.select(CUSTOMERS.ID)
+                    .from(CUSTOMERS)
+                    .where(CUSTOMERS.ID.eq(who.customerId()), CUSTOMERS.STATUS.eq("ACTIVE"))
+                    .fetchOptional(CUSTOMERS.ID)
+                    .orElseThrow(() -> new ApiException(ProblemCode.REFERENCE_NOT_FOUND, "There is no such customer."));
+        }
+        if (who.phone() != null) {
+            UUID known = dsl.select(CUSTOMERS.ID)
+                    .from(CUSTOMERS)
+                    .where(CUSTOMERS.PHONE_E164.eq(who.phone()), CUSTOMERS.STATUS.eq("ACTIVE"))
+                    .orderBy(CUSTOMERS.FIRST_SEEN_AT)
+                    .limit(1)
+                    .fetchOne(CUSTOMERS.ID);
+            if (known != null) {
+                return known;
+            }
+        }
+        if (who.name() == null || who.name().isBlank()) {
+            throw new ApiException(ProblemCode.VALIDATION_FAILED, "Give the customer's name.");
+        }
+        UUID id = Ids.newId();
+        dsl.insertInto(CUSTOMERS)
+                .set(CUSTOMERS.ID, id)
+                .set(CUSTOMERS.ORG_ID, orgId)
+                .set(CUSTOMERS.DISPLAY_NAME, who.name().strip())
+                .set(CUSTOMERS.PHONE_E164, who.phone())
+                .set(CUSTOMERS.SOURCE, source)
+                .execute();
+        return id;
+    }
+
+    /**
+     * The front desk moves an appointment (a new time, optionally another person for every service). The old time is
+     * freed first in the same transaction; prices stay as booked. {@code allowOverlap} books anyway.
+     */
+    void deskMove(
+            UUID orgId,
+            UUID actorUserId,
+            UUID appointmentId,
+            Instant start,
+            UUID staffId,
+            boolean allowOverlap,
+            boolean notify,
+            Instant now) {
+        transactions.executeWithoutResult(status -> {
+            var a = dsl.selectFrom(APPOINTMENTS)
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .forUpdate()
+                    .fetchOne();
+            if (a == null) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+            }
+            if (!List.of("CONFIRMED", "REQUESTED", "ARRIVED").contains(a.getStatus())) {
+                throw new ApiException(ProblemCode.IMMUTABLE, "Only upcoming appointments can be moved.");
+            }
+            var rows = dsl.selectFrom(APPOINTMENT_ITEMS)
+                    .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))
+                    .orderBy(APPOINTMENT_ITEMS.SEQ)
+                    .fetch();
+            List<PlanItem> old = new ArrayList<>();
+            List<Availability.Item> items = new ArrayList<>();
+            for (var i : rows) {
+                List<PlanAddon> addons = dsl.selectFrom(APPOINTMENT_ITEM_ADDONS)
+                        .where(APPOINTMENT_ITEM_ADDONS.APPOINTMENT_ITEM_ID.eq(i.getId()))
+                        .orderBy(APPOINTMENT_ITEM_ADDONS.ADDON_ID)
+                        .fetch(x ->
+                                new PlanAddon(x.getAddonId(), x.getName(), x.getDurationMinutes(), x.getPriceMinor()));
+                old.add(new PlanItem(
+                        i.getServiceVariantId(),
+                        null,
+                        i.getStaffId(),
+                        i.getStaffName(),
+                        i.getStaffRequested(),
+                        i.getServiceName(),
+                        i.getVariantName(),
+                        null,
+                        null,
+                        i.getQuotedPriceMinor(),
+                        i.getCurrencyCode().trim(),
+                        addons,
+                        List.of(),
+                        List.of()));
+                items.add(new Availability.Item(
+                        i.getServiceVariantId(),
+                        addons.stream().map(PlanAddon::id).toList(),
+                        staffId != null ? staffId : i.getStaffId()));
+            }
+            releaseReservations(appointmentId);
+            Availabilities.Chosen chosen = availabilities
+                    .at(a.getLocationId(), items, null, start, now, true)
+                    .orElse(null);
+            boolean forced = false;
+            if (chosen == null) {
+                if (!allowOverlap) {
+                    throw new ApiException(
+                            ProblemCode.SLOT_TAKEN, "That time is not free for this person. Book anyway to overlap.");
+                }
+                chosen = availabilities.forced(a.getLocationId(), items, start, now);
+                forced = true;
+            }
+            Plan fresh = plan(orgId, a.getLocationId(), chosen, now);
+            List<PlanItem> kept = new ArrayList<>();
+            for (int k = 0; k < fresh.items().size(); k++) {
+                PlanItem n = fresh.items().get(k);
+                PlanItem o = old.get(k);
+                kept.add(new PlanItem(
+                        n.variantId(),
+                        n.serviceId(),
+                        n.staffId(),
+                        n.staffName(),
+                        o.staffRequested(),
+                        o.serviceName(),
+                        o.variantName(),
+                        n.start(),
+                        n.end(),
+                        o.priceMinor(),
+                        o.currency(),
+                        o.addons(),
+                        n.stages(),
+                        n.units()));
+            }
+            Plan plan = new Plan(
+                    fresh.locationId(),
+                    fresh.timezone(),
+                    fresh.deliveryMode(),
+                    fresh.start(),
+                    fresh.end(),
+                    kept,
+                    fresh.blocks(),
+                    fresh.policy(),
+                    fresh.totalMinor(),
+                    fresh.currency());
+            dsl.deleteFrom(APPOINTMENT_ITEMS)
+                    .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))
+                    .execute();
+            writeItems(orgId, appointmentId, plan, forced);
+            dsl.update(APPOINTMENTS)
+                    .set(APPOINTMENTS.STARTS_AT, utc(plan.start()))
+                    .set(APPOINTMENTS.ENDS_AT, utc(plan.end()))
+                    .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .execute();
+            history(
+                    orgId,
+                    appointmentId,
+                    a.getStatus(),
+                    a.getStatus(),
+                    actorUserId,
+                    "Moved by the business from " + a.getStartsAt().toInstant() + (forced ? " (overlap)" : ""));
+            outbox.publish(new DomainEvent(
+                    "scheduling.appointment",
+                    appointmentId,
+                    "appointment.rescheduled",
+                    1,
+                    orgId,
+                    Map.of("appointmentId", appointmentId, "notify", notify)));
+        });
+    }
+
+    /** A block of a person's time (break, meeting, …); refused ({@code SLOT_TAKEN}) when it overlaps their bookings. */
+    UUID block(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            UUID staffId,
+            Instant start,
+            Instant end,
+            String reason,
+            String title) {
+        if (!end.isAfter(start)) {
+            throw new ApiException(ProblemCode.VALIDATION_FAILED, "A block ends after it starts.");
+        }
+        return transactions.execute(status -> {
+            UUID id = Ids.newId();
+            dsl.insertInto(CALENDAR_BLOCKS)
+                    .set(CALENDAR_BLOCKS.ID, id)
+                    .set(CALENDAR_BLOCKS.ORG_ID, orgId)
+                    .set(CALENDAR_BLOCKS.LOCATION_ID, locationId)
+                    .set(CALENDAR_BLOCKS.STAFF_ID, staffId)
+                    .set(Map.of(CALENDAR_BLOCKS.DURING, range(start, end)))
+                    .set(CALENDAR_BLOCKS.REASON, reason)
+                    .set(CALENDAR_BLOCKS.TITLE, title == null || title.isBlank() ? null : title.strip())
+                    .set(CALENDAR_BLOCKS.CREATED_BY, actorUserId)
+                    .execute();
+            dsl.insertInto(SCHEDULE_RESERVATIONS)
+                    .set(SCHEDULE_RESERVATIONS.ORG_ID, orgId)
+                    .set(SCHEDULE_RESERVATIONS.LOCATION_ID, locationId)
+                    .set(SCHEDULE_RESERVATIONS.KIND, "STAFF")
+                    .set(SCHEDULE_RESERVATIONS.STAFF_ID, staffId)
+                    .set(Map.of(SCHEDULE_RESERVATIONS.DURING, range(start, end)))
+                    .set(SCHEDULE_RESERVATIONS.STATUS, "BLOCKED")
+                    .set(SCHEDULE_RESERVATIONS.CALENDAR_BLOCK_ID, id)
+                    .execute(); // overlapping a booking fails here: 23P01 → SLOT_TAKEN
+            return id;
+        });
+    }
+
+    void unblock(UUID blockId) {
+        transactions.executeWithoutResult(status -> {
+            int removed = dsl.deleteFrom(CALENDAR_BLOCKS)
+                    .where(CALENDAR_BLOCKS.ID.eq(blockId))
+                    .execute();
+            if (removed == 0) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "There is no such block.");
+            }
         });
     }
 

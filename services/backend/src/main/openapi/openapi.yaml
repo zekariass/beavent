@@ -180,6 +180,16 @@ paths:
     $ref: ./scheduling/paths.yaml#/effectivePolicy
   /v1/orgs/{orgId}/booking-policies/{policyId}:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
+  /v1/orgs/{orgId}/appointments:
+    $ref: ./scheduling/paths.yaml#/deskAppointments
+  /v1/orgs/{orgId}/appointments/{appointmentId}/move:
+    $ref: ./scheduling/paths.yaml#/deskMove
+  /v1/orgs/{orgId}/blocks:
+    $ref: ./scheduling/paths.yaml#/blocks
+  /v1/orgs/{orgId}/blocks/{blockId}:
+    $ref: ./scheduling/paths.yaml#/block
+  /v1/orgs/{orgId}/customers:
+    $ref: ./scheduling/paths.yaml#/customerSearch
   /v1/orgs/{orgId}/calendar:
     $ref: ./scheduling/paths.yaml#/calendar
   /v1/orgs/{orgId}/appointments/{appointmentId}/status:

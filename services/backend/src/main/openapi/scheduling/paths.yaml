@@ -486,3 +486,176 @@ appointmentStatus:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+deskAppointments:
+  post:
+    tags: [Calendar]
+    operationId: bookAtTheDesk
+    summary: Book a walk-in or phone customer (needs appointments.manage, or manage_own in your own column)
+    description: |
+      Front-desk rules: any five-minute start, no notice or horizon, services hidden from online booking allowed.
+      Working time, opening hours and the calendar apply: a busy time is `SLOT_TAKEN` unless `bookAnyway`, which
+      writes a deliberate overlap. `notifyCustomer` (default true) sends the confirmation; reminders follow anyway.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/DeskBookingInput
+    responses:
+      '201':
+        description: Booked.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/DeskBooking
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+deskMove:
+  post:
+    tags: [Calendar]
+    operationId: moveAppointment
+    summary: Move an appointment to another time (and optionally another person); prices stay as booked
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [start]
+            properties:
+              start:
+                $ref: ../common/schemas.yaml#/Instant
+              staffId:
+                $ref: ../common/schemas.yaml#/Uuid
+              bookAnyway:
+                type: boolean
+              notifyCustomer:
+                type: boolean
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+blocks:
+  post:
+    tags: [Calendar]
+    operationId: blockTime
+    summary: Block a person's time (break, meeting, …); refused when it overlaps their bookings
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [locationId, staffId, start, end, reason]
+            properties:
+              locationId:
+                $ref: ../common/schemas.yaml#/Uuid
+              staffId:
+                $ref: ../common/schemas.yaml#/Uuid
+              start:
+                $ref: ../common/schemas.yaml#/Instant
+              end:
+                $ref: ../common/schemas.yaml#/Instant
+              reason:
+                type: string
+                enum: [BREAK, MEETING, TRAINING, PERSONAL, MAINTENANCE, OTHER]
+              title:
+                type: string
+                maxLength: 120
+    responses:
+      '201':
+        description: Blocked.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+block:
+  delete:
+    tags: [Calendar]
+    operationId: unblockTime
+    summary: Remove a block
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: blockId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+customerSearch:
+  get:
+    tags: [Calendar]
+    operationId: findCustomers
+    summary: Customers whose name or phone matches (needs customers.view; phone numbers need contact details)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Up to 20 customers, most recent visitors first.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ./schemas.yaml#/CalendarCustomer
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden

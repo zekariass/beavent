@@ -1084,6 +1084,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book a walk-in or phone customer (needs appointments.manage, or manage_own in your own column)
+         * @description Front-desk rules: any five-minute start, no notice or horizon, services hidden from online booking allowed.
+         *     Working time, opening hours and the calendar apply: a busy time is `SLOT_TAKEN` unless `bookAnyway`, which
+         *     writes a deliberate overlap. `notifyCustomer` (default true) sends the confirmation; reminders follow anyway.
+         */
+        post: operations["bookAtTheDesk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move an appointment to another time (and optionally another person); prices stay as booked */
+        post: operations["moveAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Block a person's time (break, meeting, …); refused when it overlaps their bookings */
+        post: operations["blockTime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/blocks/{blockId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a block */
+        delete: operations["unblockTime"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customers whose name or phone matches (needs customers.view; phone numbers need contact details) */
+        get: operations["findCustomers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/calendar": {
         parameters: {
             query?: never;
@@ -2758,6 +2848,44 @@ export interface components {
             noShowFeePercent?: number;
             policyText?: components["schemas"]["LocalizedText"];
         };
+        DeskBookingInput: {
+            locationId: components["schemas"]["Uuid"];
+            start: components["schemas"]["Instant"];
+            items: {
+                variantId: components["schemas"]["Uuid"];
+                staffId: components["schemas"]["Uuid"];
+                addonIds?: components["schemas"]["Uuid"][];
+            }[];
+            /** @description An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused). */
+            customer: {
+                customerId?: components["schemas"]["Uuid"];
+                name?: string;
+                phone?: components["schemas"]["PhoneE164"];
+            };
+            /** @description For the team only. */
+            note?: string;
+            /**
+             * @default WALK_IN
+             * @enum {string}
+             */
+            source: "WALK_IN" | "PHONE";
+            /** @default false */
+            bookAnyway: boolean;
+            /** @default true */
+            notifyCustomer: boolean;
+        };
+        DeskBooking: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+        };
+        CalendarCustomer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description Only with customers.contact_details. */
+            phone?: string | null;
+        };
         CalendarSpan: {
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
@@ -2767,12 +2895,6 @@ export interface components {
             name: string;
             color?: string | null;
             working: components["schemas"]["CalendarSpan"][];
-        };
-        CalendarCustomer: {
-            id: components["schemas"]["Uuid"];
-            name: string;
-            /** @description Only with customers.contact_details. */
-            phone?: string | null;
         };
         CalendarStage: {
             /** @enum {string} */
@@ -6145,6 +6267,154 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    bookAtTheDesk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeskBookingInput"];
+            };
+        };
+        responses: {
+            /** @description Booked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeskBooking"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    moveAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    start: components["schemas"]["Instant"];
+                    staffId?: components["schemas"]["Uuid"];
+                    bookAnyway?: boolean;
+                    notifyCustomer?: boolean;
+                };
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    blockTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    locationId: components["schemas"]["Uuid"];
+                    staffId: components["schemas"]["Uuid"];
+                    start: components["schemas"]["Instant"];
+                    end: components["schemas"]["Instant"];
+                    /** @enum {string} */
+                    reason: "BREAK" | "MEETING" | "TRAINING" | "PERSONAL" | "MAINTENANCE" | "OTHER";
+                    title?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Blocked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unblockTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                blockId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    findCustomers: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to 20 customers, most recent visitors first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CalendarCustomer"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getCalendar: {

@@ -1,5 +1,5 @@
 import { formatDualDate } from "@beavent/calendar";
-import { addDays, calendarLanguage, todayIn } from "@beavent/venue";
+import { addDays, calendarLanguage, pick, todayIn } from "@beavent/venue";
 import { defaultDisplayPreferences } from "@beavent/calendar";
 import Link from "next/link";
 import { routeLanguage, translator } from "@/lib/i18n";
@@ -34,6 +34,22 @@ export default async function CalendarPage({
     await api.GET("/v1/orgs/{orgId}/calendar", {
       params: { path: { orgId }, query: { locationId: location.id, from: date } },
     }),
+  );
+  // What the desk can book here: every active service variant at this location and who does it.
+  const menu = unwrap(
+    await api.GET("/v1/orgs/{orgId}/services", {
+      params: { path: { orgId }, query: { locationId: location.id, status: "ACTIVE", limit: 100 } },
+    }),
+  );
+  const services = menu.items.flatMap((s) =>
+    s.variants.map((v) => ({
+      variantId: v.id!,
+      label: [pick(s.name, language), v.name ? pick(v.name, language) : ""]
+        .filter(Boolean)
+        .join(" · "),
+      durationMinutes: v.durationMinutes,
+      staffIds: s.staffIds,
+    })),
   );
   const prefs = defaultDisplayPreferences(calendarLanguage(language), zone);
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
@@ -95,6 +111,7 @@ export default async function CalendarPage({
           calendar={calendar}
           date={date}
           isToday={date === today}
+          services={services}
         />
       )}
     </>

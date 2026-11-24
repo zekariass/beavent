@@ -438,6 +438,13 @@ test("business console · calendar and booking link", async ({ browser }) => {
         await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${date}`);
         await page.getByRole("button", { name: /Meron Tesfaye/ }).click();
         await shot(page, `console-calendar-${language}-${scheme}-${viewport}`);
+        if (viewport === "desktop") {
+          const column = page.locator("div.relative.cursor-pointer").first();
+          const box = (await column.boundingBox())!;
+          await column.click({ position: { x: box.width / 2, y: (13 * 60 - 8 * 60) * 1.6 + 4 } });
+          await page.waitForTimeout(300);
+          await shot(page, `console-calendar-new-${language}-${scheme}`);
+        }
         await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/share`);
         await shot(page, `console-share-${language}-${scheme}-${viewport}`);
       }

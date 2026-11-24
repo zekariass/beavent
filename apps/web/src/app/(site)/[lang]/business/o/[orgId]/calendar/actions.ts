@@ -42,3 +42,114 @@ export async function answerRequest(
   revalidatePath(`/${language}/business/o/${orgId}/calendar`);
   return { ok: true };
 }
+
+type Coded = { ok: true } | { ok: false; code?: string; message: string };
+
+const failure = (error: unknown): Coded => ({
+  ok: false,
+  code: (error as { code?: string } | undefined)?.code,
+  message: problemText(error),
+});
+
+/** A walk-in or phone booking. `bookAnyway` overlaps a busy person on purpose. */
+export async function bookAtDesk(
+  language: string,
+  orgId: string,
+  input: {
+    locationId: string;
+    start: string;
+    variantId: string;
+    staffId: string;
+    customerId?: string;
+    name?: string;
+    phone?: string;
+    note?: string;
+    source: "WALK_IN" | "PHONE";
+    notifyCustomer: boolean;
+    bookAnyway: boolean;
+  },
+): Promise<Coded> {
+  const api = await portalApi(language);
+  const { data, error } = await api.POST("/v1/orgs/{orgId}/appointments", {
+    params: { path: { orgId } },
+    body: {
+      locationId: input.locationId,
+      start: input.start,
+      items: [{ variantId: input.variantId, staffId: input.staffId }],
+      customer: input.customerId
+        ? { customerId: input.customerId }
+        : { name: input.name, ...(input.phone ? { phone: input.phone } : {}) },
+      ...(input.note ? { note: input.note } : {}),
+      source: input.source,
+      notifyCustomer: input.notifyCustomer,
+      bookAnyway: input.bookAnyway,
+    },
+  });
+  if (!data) return failure(error);
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true };
+}
+
+export async function moveAppointment(
+  language: string,
+  orgId: string,
+  appointmentId: string,
+  input: { start: string; staffId?: string; notifyCustomer: boolean; bookAnyway: boolean },
+): Promise<Coded> {
+  const api = await portalApi(language);
+  const { error, response } = await api.POST("/v1/orgs/{orgId}/appointments/{appointmentId}/move", {
+    params: { path: { orgId, appointmentId } },
+    body: input,
+  });
+  if (response.status !== 204) return failure(error);
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true };
+}
+
+export async function blockTime(
+  language: string,
+  orgId: string,
+  input: {
+    locationId: string;
+    staffId: string;
+    start: string;
+    end: string;
+    reason: "BREAK" | "MEETING" | "TRAINING" | "PERSONAL" | "OTHER";
+    title?: string;
+  },
+): Promise<Coded> {
+  const api = await portalApi(language);
+  const { data, error } = await api.POST("/v1/orgs/{orgId}/blocks", {
+    params: { path: { orgId } },
+    body: { ...input, ...(input.title ? {} : { title: undefined }) },
+  });
+  if (!data) return failure(error);
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true };
+}
+
+export async function removeBlock(
+  language: string,
+  orgId: string,
+  blockId: string,
+): Promise<Coded> {
+  const api = await portalApi(language);
+  const { error, response } = await api.DELETE("/v1/orgs/{orgId}/blocks/{blockId}", {
+    params: { path: { orgId, blockId } },
+  });
+  if (response.status !== 204) return failure(error);
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true };
+}
+
+export async function findCustomers(
+  language: string,
+  orgId: string,
+  q: string,
+): Promise<{ id: string; name: string; phone?: string | null }[]> {
+  const api = await portalApi(language);
+  const { data } = await api.GET("/v1/orgs/{orgId}/customers", {
+    params: { path: { orgId }, query: { q } },
+  });
+  return data?.items ?? [];
+}

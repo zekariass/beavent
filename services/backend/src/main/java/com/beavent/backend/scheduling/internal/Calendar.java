@@ -301,6 +301,69 @@ public class Calendar {
         });
     }
 
+    // --- who may change whose time --------------------------------------------------------------------------
+
+    /**
+     * The front desk ({@code appointments.manage}) may book, move and block for anyone; a professional ({@code
+     * appointments.manage_own}) only in their own column.
+     */
+    public void requireDesk(OrgAccess access, java.util.Collection<UUID> staffIds) {
+        if (access.can(MANAGE)) {
+            return;
+        }
+        boolean own = access.can(MANAGE_OWN)
+                && transactions.execute(status ->
+                        dsl.fetchCount(STAFF, STAFF.ID.in(staffIds).and(STAFF.MEMBER_ID.eq(access.memberId())))
+                                == new HashSet<>(staffIds).size());
+        if (!own) {
+            throw new ApiException(ProblemCode.FORBIDDEN, "You can change only your own calendar.");
+        }
+    }
+
+    /** The people an appointment is with (for {@link #requireDesk}). */
+    public List<UUID> staffOf(UUID appointmentId) {
+        return transactions.execute(status -> dsl.selectDistinct(APPOINTMENT_ITEMS.STAFF_ID)
+                .from(APPOINTMENT_ITEMS)
+                .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId), APPOINTMENT_ITEMS.STAFF_ID.isNotNull())
+                .fetch(APPOINTMENT_ITEMS.STAFF_ID));
+    }
+
+    /** The person a block is for. */
+    public UUID staffOfBlock(UUID blockId) {
+        return transactions.execute(status -> dsl.select(CALENDAR_BLOCKS.STAFF_ID)
+                .from(CALENDAR_BLOCKS)
+                .where(CALENDAR_BLOCKS.ID.eq(blockId))
+                .fetchOptional(CALENDAR_BLOCKS.STAFF_ID)
+                .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "There is no such block.")));
+    }
+
+    public record CustomerHit(UUID id, String name, String phone) {}
+
+    /** Customers whose name or phone matches {@code query} (the front desk picking who a booking is for). */
+    public List<CustomerHit> findCustomers(OrgAccess access, String query) {
+        access.require("customers.view");
+        String q = query == null ? "" : query.strip();
+        if (q.length() < 2) {
+            return List.of();
+        }
+        boolean contact = access.can(CONTACT);
+        String digits = q.replaceAll("[^0-9]", "");
+        return transactions.execute(status -> dsl.select(CUSTOMERS.ID, CUSTOMERS.DISPLAY_NAME, CUSTOMERS.PHONE_E164)
+                .from(CUSTOMERS)
+                .where(
+                        CUSTOMERS.STATUS.eq("ACTIVE"),
+                        CUSTOMERS
+                                .DISPLAY_NAME
+                                .containsIgnoreCase(q)
+                                .or(
+                                        digits.length() >= 4
+                                                ? CUSTOMERS.PHONE_E164.contains(digits.replaceFirst("^0", ""))
+                                                : DSL.falseCondition()))
+                .orderBy(CUSTOMERS.LAST_VISIT_AT.desc().nullsLast(), CUSTOMERS.DISPLAY_NAME)
+                .limit(20)
+                .fetch(r -> new CustomerHit(r.value1(), r.value2(), contact ? r.value3() : null)));
+    }
+
     // --- status at the front desk ----------------------------------------------------------------------------
 
     /** Allowed moves from each status (undoing a mistake goes through the history, not here). */

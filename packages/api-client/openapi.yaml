@@ -2867,6 +2867,198 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments:
+    post:
+      tags:
+        - Calendar
+      operationId: bookAtTheDesk
+      summary: Book a walk-in or phone customer (needs appointments.manage, or manage_own in your own column)
+      description: |
+        Front-desk rules: any five-minute start, no notice or horizon, services hidden from online booking allowed.
+        Working time, opening hours and the calendar apply: a busy time is `SLOT_TAKEN` unless `bookAnyway`, which
+        writes a deliberate overlap. `notifyCustomer` (default true) sends the confirmation; reminders follow anyway.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeskBookingInput'
+      responses:
+        '201':
+          description: Booked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeskBooking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/move:
+    post:
+      tags:
+        - Calendar
+      operationId: moveAppointment
+      summary: Move an appointment to another time (and optionally another person); prices stay as booked
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - start
+              properties:
+                start:
+                  $ref: '#/components/schemas/Instant'
+                staffId:
+                  $ref: '#/components/schemas/Uuid'
+                bookAnyway:
+                  type: boolean
+                notifyCustomer:
+                  type: boolean
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/blocks:
+    post:
+      tags:
+        - Calendar
+      operationId: blockTime
+      summary: Block a person's time (break, meeting, …); refused when it overlaps their bookings
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - locationId
+                - staffId
+                - start
+                - end
+                - reason
+              properties:
+                locationId:
+                  $ref: '#/components/schemas/Uuid'
+                staffId:
+                  $ref: '#/components/schemas/Uuid'
+                start:
+                  $ref: '#/components/schemas/Instant'
+                end:
+                  $ref: '#/components/schemas/Instant'
+                reason:
+                  type: string
+                  enum:
+                    - BREAK
+                    - MEETING
+                    - TRAINING
+                    - PERSONAL
+                    - MAINTENANCE
+                    - OTHER
+                title:
+                  type: string
+                  maxLength: 120
+      responses:
+        '201':
+          description: Blocked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/blocks/{blockId}:
+    delete:
+      tags:
+        - Calendar
+      operationId: unblockTime
+      summary: Remove a block
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: blockId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/customers:
+    get:
+      tags:
+        - Calendar
+      operationId: findCustomers
+      summary: Customers whose name or phone matches (needs customers.view; phone numbers need contact details)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Up to 20 customers, most recent visitors first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CalendarCustomer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/orgs/{orgId}/calendar:
     get:
       tags:
@@ -6600,6 +6792,95 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    DeskBookingInput:
+      type: object
+      required:
+        - locationId
+        - start
+        - items
+        - customer
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        start:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            type: object
+            required:
+              - variantId
+              - staffId
+            properties:
+              variantId:
+                $ref: '#/components/schemas/Uuid'
+              staffId:
+                $ref: '#/components/schemas/Uuid'
+              addonIds:
+                type: array
+                maxItems: 10
+                items:
+                  $ref: '#/components/schemas/Uuid'
+        customer:
+          type: object
+          description: An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused).
+          properties:
+            customerId:
+              $ref: '#/components/schemas/Uuid'
+            name:
+              type: string
+              maxLength: 120
+            phone:
+              $ref: '#/components/schemas/PhoneE164'
+        note:
+          type: string
+          maxLength: 500
+          description: For the team only.
+        source:
+          type: string
+          enum:
+            - WALK_IN
+            - PHONE
+          default: WALK_IN
+        bookAnyway:
+          type: boolean
+          default: false
+        notifyCustomer:
+          type: boolean
+          default: true
+    DeskBooking:
+      type: object
+      required:
+        - id
+        - reference
+        - start
+        - end
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+    CalendarCustomer:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+          description: Only with customers.contact_details.
     CalendarSpan:
       type: object
       required:
@@ -6629,21 +6910,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarSpan'
-    CalendarCustomer:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        name:
-          type: string
-        phone:
-          type:
-            - string
-            - 'null'
-          description: Only with customers.contact_details.
     CalendarStage:
       type: object
       required:

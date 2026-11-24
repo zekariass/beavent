@@ -38,6 +38,43 @@ test("the business sees a booking on its calendar and checks the customer in and
   await panel.getByRole("button", { name: "Complete" }).click();
   await expect(panel.getByText("Completed")).toBeVisible();
 
+  // A walk-in at 13:00 in Hana's column (3 h 30 min, so it ends 16:30 inside her day): click the empty slot, name the customer, book without a text message.
+  const column = page.locator("div.relative.cursor-pointer").first();
+  const at = async (hour: number) => {
+    const box = (await column.boundingBox())!;
+    await column.click({ position: { x: box.width / 2, y: (hour * 60 - 8 * 60) * 1.6 + 4 } });
+  };
+  await at(13);
+  const fresh = page.getByRole("complementary", { name: /New at 13:00/ });
+  await fresh.getByLabel("Name", { exact: true }).fill("Abel Girma");
+  await fresh.getByLabel("Send the customer a text message").uncheck();
+  await fresh.getByRole("button", { name: "Book" }).click();
+  await expect(page.getByRole("button", { name: /Abel Girma/ })).toBeVisible();
+
+  // A meeting: block 17:00 for an hour, then remove it.
+  await at(17);
+  const lunch = page.getByRole("complementary", { name: /New at 17:00/ });
+  await lunch.getByRole("tab", { name: "Block time" }).click();
+  await lunch.getByLabel("Length").selectOption("60");
+  await lunch.getByLabel("Label (optional)").fill("Lunch");
+  await lunch.getByRole("button", { name: "Save" }).click();
+  const lunchBlock = page.getByRole("button", { name: "Lunch" });
+  await expect(lunchBlock).toBeVisible();
+  await lunchBlock.click();
+  await page
+    .getByRole("complementary", { name: "Lunch" })
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await expect(page.getByRole("button", { name: "Lunch" })).toHaveCount(0);
+
+  // Move Abel to 14:00 (over his own time: the old time is freed first).
+  await page.getByRole("button", { name: /Abel Girma/ }).click();
+  const abel = page.getByRole("complementary", { name: "Abel Girma" });
+  await abel.getByRole("button", { name: "Move" }).click();
+  await abel.getByLabel("New time").last().fill("14:00");
+  await abel.getByRole("button", { name: "Move" }).last().click();
+  await expect(page.getByRole("button", { name: /14:00.*Abel Girma/ })).toBeVisible();
+
   // The booking link page shows the QR code to print.
   await page.goto(`/en/business/o/${salon.orgId}/share`);
   await expect(page.getByRole("img", { name: "Download QR code" })).toBeVisible();

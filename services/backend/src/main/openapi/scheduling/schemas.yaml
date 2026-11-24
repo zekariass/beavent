@@ -592,3 +592,65 @@ Calendar:
       type: array
       items:
         $ref: '#/CalendarBlock'
+DeskBookingInput:
+  type: object
+  required: [locationId, start, items, customer]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      items:
+        type: object
+        required: [variantId, staffId]
+        properties:
+          variantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          staffId:
+            $ref: ../common/schemas.yaml#/Uuid
+          addonIds:
+            type: array
+            maxItems: 10
+            items:
+              $ref: ../common/schemas.yaml#/Uuid
+    customer:
+      type: object
+      description: An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused).
+      properties:
+        customerId:
+          $ref: ../common/schemas.yaml#/Uuid
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          $ref: ../common/schemas.yaml#/PhoneE164
+    note:
+      type: string
+      maxLength: 500
+      description: For the team only.
+    source:
+      type: string
+      enum: [WALK_IN, PHONE]
+      default: WALK_IN
+    bookAnyway:
+      type: boolean
+      default: false
+    notifyCustomer:
+      type: boolean
+      default: true
+DeskBooking:
+  type: object
+  required: [id, reference, start, end]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
