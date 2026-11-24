@@ -34,6 +34,35 @@ public final class ClientBodies {
 
     public record Stats(int visits, int noShows, int cancellations) {}
 
+    /** A patch test on file (valid until a date when it passed). */
+    public record PatchTest(
+            UUID id,
+            UUID serviceId,
+            Map<String, String> serviceName,
+            Instant performedAt,
+            String result,
+            Instant validUntil,
+            String notes) {}
+
+    /** A form the client answered. */
+    public record Answered(UUID id, UUID formId, Map<String, String> title, Instant submittedAt, UUID appointmentId) {}
+
+    public record NewPatchTest(UUID serviceId, Instant performedAt, String result, String notes) {}
+
+    public record Signature(String name, Instant signedAt) {}
+
+    /** One set of answers with the questions they answered (that version of the form). */
+    public record Submission(
+            UUID id,
+            UUID formId,
+            Map<String, String> title,
+            String purpose,
+            Instant submittedAt,
+            UUID appointmentId,
+            List<FormModel.Field> fields,
+            Map<String, Object> answers,
+            Signature signature) {}
+
     /** What the caller may do here (so screens show only what works). */
     public record Abilities(boolean edit, boolean contactDetails) {}
 
@@ -55,6 +84,8 @@ public final class ClientBodies {
             Stats stats,
             List<Visit> upcoming,
             List<Visit> past,
+            List<Answered> forms,
+            List<PatchTest> patchTests,
             Abilities you) {}
 
     public record Tag(UUID id, String name, int clients) {}

@@ -637,3 +637,250 @@ test("business app · client", async ({ browser }) => {
     await context.close();
   }
 });
+
+test("forms and patch tests · console, web, consumer app, business app", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const salon = await seedSalon("Abeba Beauty");
+  const org = `/v1/orgs/${salon.orgId}`;
+  await api(
+    "PUT",
+    `${org}/services/${salon.serviceId}`,
+    await (async () => {
+      const s = await api("GET", `${org}/services/${salon.serviceId}`, undefined, salon.token);
+      return { ...s, requiresPatchTest: true, patchTestValidityDays: 90 };
+    })(),
+    salon.token,
+  ).catch(() => undefined);
+  const form = await api(
+    "POST",
+    `${org}/forms`,
+    {
+      title: { en: "Hair consultation", am: "የጸጉር ምክክር" },
+      purpose: "CONSULTATION",
+      intro: { en: "Help us look after your hair.", am: "ጸጉርዎን በደንብ እንድንንከባከብ ይርዱን።" },
+      fields: [
+        {
+          id: "allergies",
+          kind: "YES_NO",
+          label: { en: "Do you have any allergies?", am: "አለርጂ አለብዎት?" },
+          required: true,
+        },
+        {
+          id: "type",
+          kind: "SINGLE_CHOICE",
+          label: { en: "Hair type", am: "የጸጉር ዓይነት" },
+          required: true,
+          options: [
+            { id: "straight", label: { en: "Straight", am: "ቀጥ ያለ" } },
+            { id: "curly", label: { en: "Curly", am: "ከርዳዳ" } },
+          ],
+        },
+        {
+          id: "treatments",
+          kind: "MULTI_CHOICE",
+          label: { en: "Recent treatments", am: "በቅርቡ የተደረጉ ሕክምናዎች" },
+          required: false,
+          options: [
+            { id: "colour", label: { en: "Colour", am: "ቀለም" } },
+            { id: "relaxer", label: { en: "Relaxer", am: "ማለስለሻ" } },
+          ],
+        },
+        {
+          id: "details",
+          kind: "LONG_TEXT",
+          label: { en: "Anything else we should know", am: "ልናውቀው የሚገባ ሌላ ነገር" },
+          required: false,
+        },
+        {
+          id: "agree",
+          kind: "CHECKBOX",
+          label: { en: "I have told you everything relevant.", am: "ተገቢውን ሁሉ ነግሬአለሁ።" },
+          required: true,
+        },
+      ],
+      signature: true,
+      serviceIds: [salon.serviceId],
+      frequency: "EVERY_TIME",
+    },
+    salon.token,
+  );
+  const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, today, in6);
+  const booked = await bookAsCustomer(salon, start, "Meron Tesfaye");
+  const date = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  // A second visit whose form is already answered (for the answers page and the "filled in" state).
+  const later = await firstFreeStart(salon, today, in6, true);
+  const second = await fetch(`${API}/v1/public/locations/${salon.locationId}/holds`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+      start: later,
+    }),
+  }).then((r) => r.json());
+  const visit2 = await api(
+    "POST",
+    "/v1/me/appointments",
+    { locationId: salon.locationId, holdId: second.holdId, holderKey: second.holderKey },
+    booked.token,
+  );
+  await api(
+    "POST",
+    `/v1/me/appointments/${visit2.id}/forms/${form.id}`,
+    {
+      answers: {
+        allergies: true,
+        type: "curly",
+        treatments: ["colour"],
+        details: "Sensitive scalp",
+        agree: true,
+      },
+      signature: "Meron Tesfaye",
+    },
+    booked.token,
+  );
+  const customer = (await api("GET", `${org}/customers?q=Meron`, undefined, salon.token)).items[0]
+    .id;
+  await api(
+    "POST",
+    `${org}/customers/${customer}/patch-tests`,
+    { serviceId: salon.serviceId, result: "PASS", notes: "Behind the ear" },
+    salon.token,
+  );
+  const client = await api("GET", `${org}/customers/${customer}`, undefined, salon.token);
+
+  // Console.
+  const desk = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const page = await desk.newPage();
+  await page.waitForTimeout(31_000);
+  await page.goto(`${WEB}/en/business/sign-in`);
+  await page.getByLabel("Phone number or email").fill(salon.phone);
+  let seen = codeCount(salon.phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("heading", { name: "Your businesses" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        const base = `${WEB}/${language}/business/o/${salon.orgId}`;
+        await page.goto(`${base}/forms`);
+        await shot(page, `console-forms-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base}/forms/${form.id}`);
+        await shot(page, `console-form-edit-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base}/clients/${customer}`);
+        await shot(page, `console-client-forms-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base}/clients/${customer}/forms/${client.forms[0].id}`);
+        await shot(page, `console-form-answers-${language}-${scheme}-${viewport}`);
+        if (viewport === "desktop") {
+          await page.goto(`${base}/calendar?date=${date}`);
+          await page
+            .getByRole("button", { name: /Meron Tesfaye/ })
+            .first()
+            .click();
+          await shot(page, `console-calendar-forms-${language}-${scheme}`);
+          await page.goto(`${base}/services/${salon.serviceId}`);
+          await shot(page, `console-service-patch-${language}-${scheme}`);
+        }
+      }
+    }
+  }
+  await desk.close();
+
+  // The client on the web.
+  const web = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const wp = await web.newPage();
+  await wp.goto(`${WEB}/en/account/bookings`);
+  await wp.getByLabel("Phone number").fill(booked.phone);
+  seen = codeCount(booked.phone);
+  await wp.getByRole("button", { name: "Send code" }).click();
+  await wp.getByLabel(/Code sent to/).fill(await codeFor(booked.phone, seen));
+  await wp.getByRole("button", { name: "Sign in" }).click();
+  await wp.getByRole("button", { name: "Sign out" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await wp.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await wp.setViewportSize(size);
+        await wp.goto(`${WEB}/${language}/account/bookings/${booked.id}`);
+        await shot(wp, `web-appointment-forms-${language}-${scheme}-${viewport}`);
+        await wp.goto(`${WEB}/${language}/account/bookings/${booked.id}/forms/${form.id}`);
+        await shot(wp, `web-form-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await web.close();
+
+  // The consumer app (web build) and the business app.
+  for (const language of LANGUAGES) {
+    const app = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1200 },
+    });
+    const ap = await app.newPage();
+    await ap.waitForTimeout(31_000);
+    await ap.goto(`${MOBILE}/bookings`);
+    await ap.getByRole("textbox").first().fill(booked.phone);
+    seen = codeCount(booked.phone);
+    await ap
+      .getByRole("button")
+      .filter({ hasText: language === "am" ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await ap
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(booked.phone, seen));
+    await ap.getByRole("button").filter({ visible: true }).last().click();
+    await ap.waitForTimeout(1500);
+    for (const scheme of SCHEMES) {
+      await ap.emulateMedia({ colorScheme: scheme });
+      await ap.goto(`${MOBILE}/appointment/${booked.id}`);
+      await ap.waitForTimeout(1500);
+      await shot(ap, `mobile-appointment-forms-${language}-${scheme}`);
+      await ap.goto(`${MOBILE}/appointment/${booked.id}/form/${form.id}`);
+      await ap.waitForTimeout(1500);
+      await shot(ap, `mobile-form-${language}-${scheme}`);
+    }
+    await app.close();
+
+    const biz = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1000 },
+    });
+    const bp = await biz.newPage();
+    await bp.waitForTimeout(31_000);
+    await bp.goto(BUSINESS_APP);
+    await bp.getByRole("textbox").first().fill(salon.phone);
+    seen = codeCount(salon.phone);
+    await bp
+      .getByRole("button")
+      .filter({ hasText: language === "am" ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await bp
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(salon.phone, seen));
+    await bp.getByRole("button").filter({ visible: true }).last().click();
+    await bp.waitForTimeout(1500);
+    for (const scheme of SCHEMES) {
+      await bp.emulateMedia({ colorScheme: scheme });
+      await bp.goto(`${BUSINESS_APP}/visit/${booked.id}?date=${date}`);
+      await bp.getByText("Meron Tesfaye").filter({ visible: true }).first().waitFor();
+      await shot(bp, `business-app-visit-forms-${language}-${scheme}`);
+    }
+    await biz.close();
+  }
+});

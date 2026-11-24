@@ -52,6 +52,10 @@ export default async function EditServicePage({
             durationMinutes: v.durationMinutes,
             priceBirr: toBirr(v.priceMinor),
           })),
+          requiresPatchTest: service.requiresPatchTest,
+          patchTestValidityDays: service.patchTestValidityDays
+            ? String(service.patchTestValidityDays)
+            : "",
         }}
       />
       <StaffPrices

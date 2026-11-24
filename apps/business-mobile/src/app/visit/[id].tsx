@@ -20,7 +20,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 /** One visit for the team (B-1 detail): who, what, with whom, the note, and the next steps. */
 export default function VisitScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date: string }>();
-  const { api, t } = useApp();
+  const { api, t, language } = useApp();
   const router = useRouter();
   const workspace = useWorkspace();
   const [attempt, setAttempt] = useState(0);
@@ -95,6 +95,17 @@ export default function VisitScreen() {
             .map((a) => `${t(`portal.clients.note.${a.kind}`)}: ${a.body}`)
             .join("\n")}
         </Banner>
+      ) : null}
+      {visit.forms.length > 0 ? (
+        <View style={{ gap: space[1] }}>
+          {visit.forms.map((f) => (
+            <Text key={f.formId} role="body" tone={f.done ? "muted" : "default"}>
+              {t(f.done ? "portal.calendar.formDone" : "portal.calendar.formMissing", {
+                name: f.title[language] ?? f.title.en ?? Object.values(f.title)[0] ?? "",
+              })}
+            </Text>
+          ))}
+        </View>
       ) : null}
       {visit.customer.phone ? (
         <View style={{ alignSelf: "flex-start" }}>

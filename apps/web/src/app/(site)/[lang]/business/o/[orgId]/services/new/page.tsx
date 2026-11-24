@@ -26,6 +26,8 @@ export default async function NewServicePage({
           groupId: "",
           locationIds: data.locations.map((l) => l.id),
           variants: [{ name: "", durationMinutes: 30, priceBirr: "" }],
+          requiresPatchTest: false,
+          patchTestValidityDays: "",
         }}
       />
     </>

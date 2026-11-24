@@ -1,5 +1,5 @@
 import type { Schemas } from "@beavent/api-client";
-import type { Language, MessageKey } from "@beavent/i18n";
+import { localized, type Language, type MessageKey } from "@beavent/i18n";
 import { localDateOf } from "@beavent/venue";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -8,8 +8,11 @@ import { dayOf, visitWhen } from "@/components/business/when";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { portalApi, unwrap } from "@/lib/business/session";
 import { DetailsForm, NoteForm, RemoveNote, TagsForm } from "./ClientForms";
+import { PatchTestForm, RemovePatchTest } from "./PatchTestForm";
 
 const ALERTS = new Set(["ALERT", "ALLERGY", "MEDICAL"]);
+/** Whether an instant has passed (read when the page is rendered on the server). */
+const isPast = (instant: string) => Date.parse(instant) < Date.now();
 
 /**
  * A client (P-13): contact, alerts and allergies first (a warning banner), then upcoming visits, notes, past visits,
@@ -22,11 +25,23 @@ export default async function ClientPage({
   const language = routeLanguage(lang);
   const t = translator(language);
   const api = await portalApi(language);
-  const client = unwrap(
-    await api.GET("/v1/orgs/{orgId}/customers/{customerId}", {
-      params: { path: { orgId, customerId } },
-    }),
-  );
+  const [client, menu] = await Promise.all([
+    api
+      .GET("/v1/orgs/{orgId}/customers/{customerId}", {
+        params: { path: { orgId, customerId } },
+      })
+      .then(unwrap),
+    api
+      .GET("/v1/orgs/{orgId}/services", {
+        params: { path: { orgId }, query: { status: "ACTIVE", limit: 100 } },
+      })
+      .then(unwrap),
+  ]);
+  // Services that need a patch test (recording one is offered for these).
+  const patchServices = menu.items
+    .filter((s) => s.requiresPatchTest)
+    .map((s) => ({ id: s.id, label: localized(s.name, language) }));
+
   const base = `/${language}/business/o/${orgId}`;
   if (client.id !== customerId) redirect(`${base}/clients/${client.id}`);
   const alerts = client.notes.filter((n) => ALERTS.has(n.kind));
@@ -147,6 +162,83 @@ export default async function ClientPage({
       <Section title={t("portal.clients.past")}>
         <Visits visits={client.past} empty={t("portal.clients.noPast")} language={language} />
       </Section>
+
+      <Section title={t("portal.clients.forms")}>
+        {client.forms.length === 0 ? (
+          <p className="bv-type-body text-fg-muted">{t("portal.clients.noForms")}</p>
+        ) : (
+          <ul className={listClass}>
+            {client.forms.map((f) => (
+              <li key={f.id}>
+                <Link
+                  href={`${base}/clients/${client.id}/forms/${f.id}`}
+                  className="flex min-h-14 items-center justify-between gap-4 px-3 py-3 hover:bg-surface"
+                >
+                  <span className="bv-type-body text-fg">{localized(f.title, language)}</span>
+                  <span className="bv-type-caption shrink-0 text-fg-muted">
+                    {dayOf(f.submittedAt, zone, language).primary}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {client.patchTests.length > 0 || (client.you.edit && patchServices.length > 0) ? (
+        <Section title={t("portal.clients.patchTests")}>
+          {client.patchTests.length === 0 ? (
+            <p className="bv-type-body text-fg-muted">{t("portal.clients.noPatchTests")}</p>
+          ) : (
+            <ul className={listClass}>
+              {client.patchTests.map((p) => {
+                const expired = p.validUntil != null && isPast(p.validUntil);
+                return (
+                  <li key={p.id} className="flex items-start justify-between gap-4 px-3 py-3">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="bv-type-body text-fg">
+                        {localized(p.serviceName, language)}
+                      </span>
+                      <span className="bv-type-caption text-fg-muted">
+                        {[
+                          dayOf(p.performedAt, zone, language).primary,
+                          t(`portal.clients.patch.${p.result}`),
+                          p.validUntil
+                            ? expired
+                              ? t("portal.clients.patch.expired")
+                              : t("portal.clients.patch.validUntil", {
+                                  date: dayOf(p.validUntil, zone, language).primary,
+                                })
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      {p.notes ? <p className="bv-type-body text-fg">{p.notes}</p> : null}
+                    </div>
+                    {client.you.edit ? (
+                      <RemovePatchTest
+                        language={language}
+                        orgId={orgId}
+                        customerId={client.id}
+                        testId={p.id}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {client.you.edit && patchServices.length > 0 ? (
+            <PatchTestForm
+              language={language}
+              orgId={orgId}
+              customerId={client.id}
+              services={patchServices}
+            />
+          ) : null}
+        </Section>
+      ) : null}
 
       <Section title={t("portal.clients.tags")}>
         {client.you.edit ? (

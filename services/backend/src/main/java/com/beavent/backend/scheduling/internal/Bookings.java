@@ -4,6 +4,7 @@ import static com.beavent.db.catalog.Tables.ADDONS;
 import static com.beavent.db.catalog.Tables.SERVICES;
 import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
+import static com.beavent.db.crm.Tables.PATCH_TESTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_ADDONS;
@@ -435,6 +436,8 @@ class Bookings {
             }
             People.Person person = people.find(userId).orElseThrow(() -> new ApiException(ProblemCode.UNAUTHENTICATED));
             UUID customerId = customer(orgId, person);
+            requirePatchTests(
+                    customerId, plan.items().stream().map(PlanItem::variantId).toList(), plan.start());
 
             String appointmentStatus = plan.policy().requiresApproval() ? "REQUESTED" : "CONFIRMED";
             UUID appointmentId = Ids.newId();
@@ -802,6 +805,13 @@ class Bookings {
                         ProblemCode.IMMUTABLE,
                         "This appointment can no longer be moved online. Please call the business.");
             }
+            requirePatchTests(
+                    dsl.select(APPOINTMENTS.CUSTOMER_ID)
+                            .from(APPOINTMENTS)
+                            .where(APPOINTMENTS.ID.eq(appointmentId))
+                            .fetchSingle(APPOINTMENTS.CUSTOMER_ID),
+                    before.plan().items().stream().map(PlanItem::variantId).toList(),
+                    start);
             List<Availability.Item> items = new ArrayList<>();
             for (PlanItem i : before.plan().items()) {
                 items.add(new Availability.Item(
@@ -1329,6 +1339,32 @@ class Bookings {
                 .set(CUSTOMERS.SOURCE, "DIRECT_LINK")
                 .execute();
         return id;
+    }
+
+    /**
+     * Online, a service that needs a patch test is booked only with a passed test on file that is still valid at the
+     * visit (crm.patch_tests, plan step 2.6). The front desk is not held to this.
+     */
+    private void requirePatchTests(UUID customerId, List<UUID> variantIds, Instant at) {
+        var needed = dsl.selectDistinct(SERVICES.ID)
+                .from(SERVICES)
+                .join(SERVICE_VARIANTS)
+                .on(SERVICE_VARIANTS.SERVICE_ID.eq(SERVICES.ID))
+                .where(SERVICE_VARIANTS.ID.in(variantIds), SERVICES.REQUIRES_PATCH_TEST.isTrue())
+                .fetch(SERVICES.ID);
+        for (UUID service : needed) {
+            boolean valid = dsl.fetchExists(
+                    PATCH_TESTS,
+                    PATCH_TESTS
+                            .CUSTOMER_ID
+                            .eq(customerId)
+                            .and(PATCH_TESTS.SERVICE_ID.eq(service))
+                            .and(PATCH_TESTS.RESULT.eq("PASS"))
+                            .and(PATCH_TESTS.VALID_UNTIL.ge(utc(at))));
+            if (!valid) {
+                throw new ApiException(ProblemCode.PATCH_TEST_REQUIRED);
+            }
+        }
     }
 
     /** A client the business blocked books by phone only (P-13), never online. */

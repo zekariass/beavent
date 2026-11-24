@@ -335,3 +335,301 @@ clientImport:
         $ref: ../common/responses.yaml#/Unauthorized
       '403':
         $ref: ../common/responses.yaml#/Forbidden
+clientSubmission:
+  get:
+    tags: [Clients]
+    operationId: getClientFormSubmission
+    summary: One set of a client's answers, with the questions of the version they answered
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: submissionId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The answers.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FormSubmission
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+clientPatchTests:
+  post:
+    tags: [Clients]
+    operationId: recordPatchTest
+    summary: Record a patch test (customers.manage)
+    description: |
+      A pass is valid for the service's patch-test validity days (180 when the service does not say). Online booking
+      of a service that needs a patch test requires a pass valid on the day of the visit (`PATCH_TEST_REQUIRED`).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ClientPatchTestInput
+    responses:
+      '201':
+        description: Recorded.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+clientPatchTest:
+  delete:
+    tags: [Clients]
+    operationId: deletePatchTest
+    summary: Remove a patch test recorded by mistake (customers.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: testId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+forms:
+  get:
+    tags: [Clients]
+    operationId: listForms
+    summary: The business's consultation, intake and consent forms (active first)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Forms.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FormList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  post:
+    tags: [Clients]
+    operationId: createForm
+    summary: Create a form, live at once, attached to services (customers.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/FormInput
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Form
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+form:
+  parameters:
+    - $ref: ../common/parameters.yaml#/OrgId
+    - name: formId
+      in: path
+      required: true
+      schema:
+        $ref: ../common/schemas.yaml#/Uuid
+  get:
+    tags: [Clients]
+    operationId: getForm
+    summary: A form with its current questions
+    responses:
+      '200':
+        description: The form.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Form
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Clients]
+    operationId: updateForm
+    summary: Save a form; changed questions become a new version (customers.manage)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/FormInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Form
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Clients]
+    operationId: archiveForm
+    summary: Archive a form (no longer asked for; answers stay with the clients)
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myForms:
+  get:
+    tags: [Booking]
+    operationId: listMyAppointmentForms
+    summary: The forms to fill in before one of the person's visits, and whether they have
+    parameters:
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Forms (none when the visit's services have none).
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ./schemas.yaml#/MyFormDue
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myForm:
+  parameters:
+    - name: appointmentId
+      in: path
+      required: true
+      schema:
+        $ref: ../common/schemas.yaml#/Uuid
+    - name: formId
+      in: path
+      required: true
+      schema:
+        $ref: ../common/schemas.yaml#/Uuid
+  get:
+    tags: [Booking]
+    operationId: getMyAppointmentForm
+    summary: The questions of one form for one of the person's visits
+    responses:
+      '200':
+        description: The questions.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyFormQuestions
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Booking]
+    operationId: answerMyAppointmentForm
+    summary: Send the answers (again, until the visit starts; the newest answers count)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/MyFormAnswers
+    responses:
+      '201':
+        description: Sent.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, submittedAt]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+                submittedAt:
+                  $ref: ../common/schemas.yaml#/Instant
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict

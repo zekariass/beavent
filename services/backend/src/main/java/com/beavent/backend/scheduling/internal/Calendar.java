@@ -12,6 +12,7 @@ import static com.beavent.db.team.Tables.STAFF;
 import static com.beavent.db.team.Tables.STAFF_LOCATIONS;
 import static com.beavent.db.tenant.Tables.LOCATIONS;
 
+import com.beavent.backend.crm.AppointmentForms;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Outbox;
@@ -101,7 +102,11 @@ public class Calendar {
             Instant end,
             String note,
             CustomerBody customer,
-            List<ItemBody> items) {}
+            List<ItemBody> items,
+            List<FormBody> forms) {}
+
+    /** A form the client fills in before this visit, and whether they have. */
+    public record FormBody(UUID formId, Map<String, String> title, boolean required, boolean done) {}
 
     public record BlockBody(
             UUID id, UUID staffId, UUID resourceId, Instant start, Instant end, String reason, String title) {}
@@ -123,18 +128,21 @@ public class Calendar {
     private final Rota rota;
     private final Outbox outbox;
     private final tools.jackson.databind.json.JsonMapper json;
+    private final AppointmentForms forms;
 
     Calendar(
             DSLContext dsl,
             TransactionTemplate transactions,
             Rota rota,
             Outbox outbox,
-            tools.jackson.databind.json.JsonMapper json) {
+            tools.jackson.databind.json.JsonMapper json,
+            AppointmentForms forms) {
         this.dsl = dsl;
         this.transactions = transactions;
         this.rota = rota;
         this.outbox = outbox;
         this.json = json;
+        this.forms = forms;
     }
 
     private Map<String, String> text(org.jooq.JSONB value) {
@@ -272,6 +280,7 @@ public class Calendar {
                                     stages.getOrDefault(i.getId(), List.of()))));
             boolean contact = access.can(CONTACT);
             Map<UUID, List<AlertBody>> alerts = alertsOf(access, appointments.map(r -> r.value8()));
+            Map<UUID, List<AppointmentForms.Due>> due = forms.due(ids);
             List<AppointmentBody> appointmentBodies = appointments.map(r -> new AppointmentBody(
                     r.value1(),
                     r.value2(),
@@ -285,7 +294,10 @@ public class Calendar {
                             r.value9(),
                             contact ? r.value10() : null,
                             alerts.getOrDefault(r.value8(), List.of())),
-                    items.getOrDefault(r.value1(), List.of())));
+                    items.getOrDefault(r.value1(), List.of()),
+                    due.getOrDefault(r.value1(), List.of()).stream()
+                            .map(f -> new FormBody(f.formId(), f.title(), f.required(), f.done()))
+                            .toList()));
 
             Condition blockWhere = CALENDAR_BLOCKS
                     .LOCATION_ID

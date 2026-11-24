@@ -5,6 +5,9 @@ import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
 import static com.beavent.db.crm.Tables.CUSTOMER_NOTES;
 import static com.beavent.db.crm.Tables.CUSTOMER_TAGS;
+import static com.beavent.db.crm.Tables.FORM_SUBMISSIONS;
+import static com.beavent.db.crm.Tables.FORM_VERSIONS;
+import static com.beavent.db.crm.Tables.PATCH_TESTS;
 import static com.beavent.db.crm.Tables.TAGS;
 import static com.beavent.db.ref.Tables.LANGUAGES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
@@ -285,7 +288,100 @@ public class Clients {
                 new ClientBodies.Stats(visits, noShows, cancellations),
                 upcoming,
                 past,
+                answered(id),
+                patchTests(id),
                 new ClientBodies.Abilities(access.can(MANAGE), contact));
+    }
+
+    /** Forms the client answered (the current answers, newest first). */
+    private List<ClientBodies.Answered> answered(UUID customerId) {
+        return dsl.select(
+                        FORM_SUBMISSIONS.ID,
+                        FORM_VERSIONS.FORM_ID,
+                        FORM_VERSIONS.SCHEMA,
+                        FORM_SUBMISSIONS.SUBMITTED_AT,
+                        FORM_SUBMISSIONS.APPOINTMENT_ID)
+                .from(FORM_SUBMISSIONS)
+                .join(FORM_VERSIONS)
+                .on(FORM_VERSIONS.ID.eq(FORM_SUBMISSIONS.FORM_VERSION_ID))
+                .where(FORM_SUBMISSIONS.CUSTOMER_ID.eq(customerId), FORM_SUBMISSIONS.STATUS.in("SUBMITTED", "REVIEWED"))
+                .orderBy(FORM_SUBMISSIONS.SUBMITTED_AT.desc())
+                .limit(50)
+                .fetch(r -> new ClientBodies.Answered(
+                        r.value1(),
+                        r.value2(),
+                        json.readValue(r.value3().data(), FormModel.Schema.class)
+                                .title(),
+                        r.value4().toInstant(),
+                        r.value5()));
+    }
+
+    private List<ClientBodies.PatchTest> patchTests(UUID customerId) {
+        return dsl.select(
+                        PATCH_TESTS.ID,
+                        PATCH_TESTS.SERVICE_ID,
+                        SERVICES.NAME_I18N,
+                        PATCH_TESTS.PERFORMED_AT,
+                        PATCH_TESTS.RESULT,
+                        PATCH_TESTS.VALID_UNTIL,
+                        PATCH_TESTS.NOTES)
+                .from(PATCH_TESTS)
+                .join(SERVICES)
+                .on(SERVICES.ID.eq(PATCH_TESTS.SERVICE_ID))
+                .where(PATCH_TESTS.CUSTOMER_ID.eq(customerId))
+                .orderBy(PATCH_TESTS.PERFORMED_AT.desc())
+                .fetch(r -> new ClientBodies.PatchTest(
+                        r.value1(),
+                        r.value2(),
+                        text(r.value3()),
+                        r.value4().toInstant(),
+                        r.value5(),
+                        r.value6() == null ? null : r.value6().toInstant(),
+                        r.value7()));
+    }
+
+    /** One set of the client's answers, with the questions of the version they answered. */
+    public ClientBodies.Submission submission(OrgAccess access, UUID customerId, UUID submissionId) {
+        access.require(VIEW);
+        return transactions.execute(status -> {
+            var r = dsl.select(
+                            FORM_SUBMISSIONS.ID,
+                            FORM_VERSIONS.FORM_ID,
+                            FORM_VERSIONS.SCHEMA,
+                            FORM_SUBMISSIONS.SUBMITTED_AT,
+                            FORM_SUBMISSIONS.APPOINTMENT_ID,
+                            FORM_SUBMISSIONS.ANSWERS,
+                            com.beavent.db.crm.Tables.FORMS.PURPOSE)
+                    .from(FORM_SUBMISSIONS)
+                    .join(FORM_VERSIONS)
+                    .on(FORM_VERSIONS.ID.eq(FORM_SUBMISSIONS.FORM_VERSION_ID))
+                    .join(com.beavent.db.crm.Tables.FORMS)
+                    .on(com.beavent.db.crm.Tables.FORMS.ID.eq(FORM_VERSIONS.FORM_ID))
+                    .where(FORM_SUBMISSIONS.ID.eq(submissionId), FORM_SUBMISSIONS.CUSTOMER_ID.eq(resolve(customerId)))
+                    .fetchOne();
+            if (r == null) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "There are no such answers.");
+            }
+            FormModel.Schema schema = json.readValue(r.value3().data(), FormModel.Schema.class);
+            JsonNode stored = json.readTree(r.value6().data());
+            Map<String, Object> values = json.convertValue(
+                    stored.get("values"), new tools.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            JsonNode signature = stored.get("signature");
+            return new ClientBodies.Submission(
+                    r.value1(),
+                    r.value2(),
+                    schema.title(),
+                    r.value7(),
+                    r.value4().toInstant(),
+                    r.value5(),
+                    schema.fields(),
+                    values == null ? Map.of() : values,
+                    signature == null
+                            ? null
+                            : new ClientBodies.Signature(
+                                    signature.get("name").asString(),
+                                    Instant.parse(signature.get("signedAt").asString())));
+        });
     }
 
     /** Team notes for everyone; manager-only notes for those who manage clients; private notes for their author. */

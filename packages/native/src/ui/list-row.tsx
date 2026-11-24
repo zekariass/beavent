@@ -175,3 +175,64 @@ export function OptionRow({
     </Pressable>
   );
 }
+
+/**
+ * A multiple-choice or agreement row with a checkbox on the trailing edge (forms, switches such as "text the
+ * customer"). Same size and press feedback as OptionRow; the box is filled with the primary colour when checked.
+ */
+export function CheckRow({
+  title,
+  subtitle,
+  checked,
+  onPress,
+}: {
+  title: string;
+  subtitle?: string;
+  checked: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useApp();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+      onPress={() => {
+        selectionFeedback();
+        onPress();
+      }}
+      style={({ pressed }) => ({
+        minHeight: layout.rowMinHeight,
+        paddingVertical: layout.rowPaddingY,
+        paddingHorizontal: space[4],
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space[3],
+        backgroundColor: pressed ? colors.surfacePressed : "transparent",
+      })}
+    >
+      <View style={{ flex: 1, gap: space[1] }}>
+        <Text role="body">{title}</Text>
+        {subtitle && (
+          <Text role="label" tone="muted">
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      <View
+        style={{
+          width: sizes.icon.lg,
+          height: sizes.icon.lg,
+          borderRadius: radius.sm,
+          borderWidth: borderWidth.selected,
+          borderColor: checked ? colors.primary : colors.borderStrong,
+          backgroundColor: checked ? colors.primary : "transparent",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {checked && <Icon name="check" size="sm" tone="onPrimary" />}
+      </View>
+    </Pressable>
+  );
+}

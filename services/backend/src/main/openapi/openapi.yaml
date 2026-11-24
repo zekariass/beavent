@@ -45,7 +45,7 @@ tags:
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
   - name: Clients
-    description: The business's clients — details, notes and alerts, tags, history, merging and importing
+    description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
   - name: Files
@@ -217,6 +217,20 @@ paths:
     $ref: ./crm/paths.yaml#/clientMerge
   /v1/orgs/{orgId}/customer-tags:
     $ref: ./crm/paths.yaml#/tags
+  /v1/orgs/{orgId}/customers/{customerId}/form-submissions/{submissionId}:
+    $ref: ./crm/paths.yaml#/clientSubmission
+  /v1/orgs/{orgId}/customers/{customerId}/patch-tests:
+    $ref: ./crm/paths.yaml#/clientPatchTests
+  /v1/orgs/{orgId}/customers/{customerId}/patch-tests/{testId}:
+    $ref: ./crm/paths.yaml#/clientPatchTest
+  /v1/orgs/{orgId}/forms:
+    $ref: ./crm/paths.yaml#/forms
+  /v1/orgs/{orgId}/forms/{formId}:
+    $ref: ./crm/paths.yaml#/form
+  /v1/me/appointments/{appointmentId}/forms:
+    $ref: ./crm/paths.yaml#/myForms
+  /v1/me/appointments/{appointmentId}/forms/{formId}:
+    $ref: ./crm/paths.yaml#/myForm
   # --- public booking (no sign-in) --------------------------------------------------------------------------
   /v1/public/locations/{locationId}/availability:
     $ref: ./scheduling/paths.yaml#/publicAvailability

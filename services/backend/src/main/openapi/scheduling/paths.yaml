@@ -226,7 +226,8 @@ myAppointments:
       The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
       each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
       `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
-      booking online (they book by phone).
+      booking online (they book by phone). `PATCH_TEST_REQUIRED` (422) when a service needs a patch test and the
+      person has no passed test valid on the day.
     requestBody:
       required: true
       content:
@@ -256,6 +257,8 @@ myAppointments:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 myAppointment:
   get:
     tags: [Booking]

@@ -217,6 +217,8 @@ export function BookingFlow({
         setChosen(null);
         go("time");
         setError(t("booking.review.expired"));
+      } else if (r.code === "PATCH_TEST_REQUIRED") {
+        setError(t("booking.patchTest"));
       } else {
         setError(r.message || t("booking.error"));
       }

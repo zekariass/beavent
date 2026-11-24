@@ -276,6 +276,8 @@ If no single professional can do everything: notice `info` Banner "No one person
 
 ### S-09 Details (conditional)
 
+**Implementation note (plan 2.6, 24 Nov 2026):** forms are filled in after booking, from the appointment (S-11 "Before your visit" → full-screen form with a typed signature), as Fresha does; the booking flow stays short. A business that needs answers before confirming is a later option. Patch tests: online booking without a valid pass is refused with "This service needs a patch test at the venue first. Call them to book one."
+
 **Shown only when** the booking is at the customer's place, or the service has required forms (consultation/intake/consent forms assigned via `crm.form_assignments`, plan 2.4), or a patch test confirmation is needed.
 **Sections.**
 - **Where:** AddressPicker (COMPONENT 6.21). After choosing, a line "Travel fee Br 150 · about 25 min travel" (from `tenant.service_areas`). Outside the service area: `danger` inline message "This address is outside Abeba Beauty's area" + "Choose another address".

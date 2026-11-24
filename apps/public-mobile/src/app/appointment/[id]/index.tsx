@@ -1,12 +1,13 @@
 import type { Schemas } from "@beavent/api-client";
 import { defaultDisplayPreferences, formatDualDate, formatDualTime } from "@beavent/calendar";
-import { formatDuration } from "@beavent/i18n";
+import { formatDuration, localized } from "@beavent/i18n";
 import {
   Banner,
   Button,
   Divider,
   ListRow,
   Screen,
+  Section,
   SkeletonRows,
   Text,
   useApp,
@@ -25,6 +26,7 @@ export default function AppointmentScreen() {
   const { api, t, language, colors } = useApp();
   const router = useRouter();
   const [a, setA] = useState<Schemas["AppointmentDetail"] | null | "error">(null);
+  const [forms, setForms] = useState<Schemas["MyFormDue"][]>([]);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,13 @@ export default function AppointmentScreen() {
         .GET("/v1/me/appointments/{appointmentId}", { params: { path: { appointmentId: id! } } })
         .then(({ data }) => !cancelled && setA(data ?? "error"))
         .catch(() => !cancelled && setA("error"));
+      // Forms to fill in before the visit (refreshed when coming back from one).
+      api
+        .GET("/v1/me/appointments/{appointmentId}/forms", {
+          params: { path: { appointmentId: id! } },
+        })
+        .then(({ data }) => !cancelled && setForms(data?.items ?? []))
+        .catch(() => undefined);
       return () => {
         cancelled = true;
       };
@@ -111,6 +120,25 @@ export default function AppointmentScreen() {
       </View>
       {banner ? <Banner tone={banner.tone}>{banner.text}</Banner> : null}
       {error ? <Banner tone="danger">{error}</Banner> : null}
+
+      {!finished && forms.length > 0 ? (
+        <Section title={t("appointment.forms.title")}>
+          <View style={{ marginHorizontal: -space[4] }}>
+            {forms.map((f, k) => (
+              <View key={f.formId}>
+                {k > 0 && <Divider />}
+                <ListRow
+                  title={localized(f.title, language)}
+                  subtitle={f.required ? undefined : t("appointment.forms.optional")}
+                  trailing={f.done ? t("appointment.forms.done") : t("appointment.forms.todo")}
+                  chevron
+                  onPress={() => router.push(`/appointment/${a.id}/form/${f.formId}`)}
+                />
+              </View>
+            ))}
+          </View>
+        </Section>
+      ) : null}
 
       {a.place ? (
         <View style={{ gap: space[3] }}>

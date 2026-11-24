@@ -45,7 +45,7 @@ tags:
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
   - name: Clients
-    description: The business's clients — details, notes and alerts, tags, history, merging and importing
+    description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
   - name: Files
@@ -3569,6 +3569,319 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/customers/{customerId}/form-submissions/{submissionId}:
+    get:
+      tags:
+        - Clients
+      operationId: getClientFormSubmission
+      summary: One set of a client's answers, with the questions of the version they answered
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The answers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormSubmission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/customers/{customerId}/patch-tests:
+    post:
+      tags:
+        - Clients
+      operationId: recordPatchTest
+      summary: Record a patch test (customers.manage)
+      description: |
+        A pass is valid for the service's patch-test validity days (180 when the service does not say). Online booking
+        of a service that needs a patch test requires a pass valid on the day of the visit (`PATCH_TEST_REQUIRED`).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientPatchTestInput'
+      responses:
+        '201':
+          description: Recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/customers/{customerId}/patch-tests/{testId}:
+    delete:
+      tags:
+        - Clients
+      operationId: deletePatchTest
+      summary: Remove a patch test recorded by mistake (customers.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: testId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/forms:
+    get:
+      tags:
+        - Clients
+      operationId: listForms
+      summary: The business's consultation, intake and consent forms (active first)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Forms.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Clients
+      operationId: createForm
+      summary: Create a form, live at once, attached to services (customers.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormInput'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Form'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/forms/{formId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - name: formId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      tags:
+        - Clients
+      operationId: getForm
+      summary: A form with its current questions
+      responses:
+        '200':
+          description: The form.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Form'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Clients
+      operationId: updateForm
+      summary: Save a form; changed questions become a new version (customers.manage)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Form'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Clients
+      operationId: archiveForm
+      summary: Archive a form (no longer asked for; answers stay with the clients)
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/appointments/{appointmentId}/forms:
+    get:
+      tags:
+        - Booking
+      operationId: listMyAppointmentForms
+      summary: The forms to fill in before one of the person's visits, and whether they have
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Forms (none when the visit's services have none).
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyFormDue'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/appointments/{appointmentId}/forms/{formId}:
+    parameters:
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: formId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      tags:
+        - Booking
+      operationId: getMyAppointmentForm
+      summary: The questions of one form for one of the person's visits
+      responses:
+        '200':
+          description: The questions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyFormQuestions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Booking
+      operationId: answerMyAppointmentForm
+      summary: Send the answers (again, until the visit starts; the newest answers count)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MyFormAnswers'
+      responses:
+        '201':
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - submittedAt
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+                  submittedAt:
+                    $ref: '#/components/schemas/Instant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/public/locations/{locationId}/availability:
     post:
       tags:
@@ -3700,7 +4013,8 @@ paths:
         The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
         each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
         `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
-        booking online (they book by phone).
+        booking online (they book by phone). `PATCH_TEST_REQUIRED` (422) when a service needs a patch test and the
+        person has no passed test valid on the day.
       requestBody:
         required: true
         content:
@@ -3730,6 +4044,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/me/appointments/{appointmentId}:
     get:
       tags:
@@ -4664,6 +4980,7 @@ components:
             - IDEMPOTENCY_KEY_REUSED
             - REFERENCE_NOT_FOUND
             - CONSTRAINT_VIOLATION
+            - PATCH_TEST_REQUIRED
             - PRECONDITION_REQUIRED
             - RATE_LIMITED
             - INTERNAL
@@ -7366,6 +7683,7 @@ components:
         - end
         - customer
         - items
+        - forms
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -7397,6 +7715,27 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarItem'
+        forms:
+          type: array
+          description: Forms the client fills in before this visit (attached to its services), and whether they have.
+          items:
+            type: object
+            required:
+              - formId
+              - title
+              - required
+              - done
+            properties:
+              formId:
+                $ref: '#/components/schemas/Uuid'
+              title:
+                type: object
+                additionalProperties:
+                  type: string
+              required:
+                type: boolean
+              done:
+                type: boolean
     CalendarBlock:
       type: object
       required:
@@ -7700,6 +8039,57 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ClientVisitItem'
+    ClientAnsweredForm:
+      type: object
+      required:
+        - id
+        - formId
+        - title
+        - submittedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        formId:
+          $ref: '#/components/schemas/Uuid'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        submittedAt:
+          $ref: '#/components/schemas/Instant'
+        appointmentId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+    ClientPatchTest:
+      type: object
+      required:
+        - id
+        - serviceId
+        - serviceName
+        - performedAt
+        - result
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        performedAt:
+          $ref: '#/components/schemas/Instant'
+        result:
+          type: string
+          enum:
+            - PASS
+            - FAIL
+            - PENDING
+        validUntil:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        notes:
+          type:
+            - string
+            - 'null'
     Client:
       type: object
       description: A client's page. Phone and email only with customers.contact_details.
@@ -7715,6 +8105,8 @@ components:
         - stats
         - upcoming
         - past
+        - forms
+        - patchTests
         - you
       properties:
         id:
@@ -7784,6 +8176,16 @@ components:
           description: Newest first, at most 50.
           items:
             $ref: '#/components/schemas/ClientVisit'
+        forms:
+          type: array
+          description: Forms the client answered (current answers, newest first, at most 50).
+          items:
+            $ref: '#/components/schemas/ClientAnsweredForm'
+        patchTests:
+          type: array
+          description: Newest first.
+          items:
+            $ref: '#/components/schemas/ClientPatchTest'
         you:
           type: object
           description: What the caller may do with this client.
@@ -7849,6 +8251,297 @@ components:
           type: string
         clients:
           type: integer
+    FormPurpose:
+      type: string
+      enum:
+        - CONSULTATION
+        - INTAKE
+        - CONSENT
+        - AFTERCARE
+    FormFieldKind:
+      type: string
+      enum:
+        - TEXT
+        - LONG_TEXT
+        - YES_NO
+        - SINGLE_CHOICE
+        - MULTI_CHOICE
+        - DATE
+        - CHECKBOX
+      description: |
+        TEXT a line (500 characters); LONG_TEXT up to 4,000; YES_NO true or false; SINGLE_CHOICE one option id;
+        MULTI_CHOICE a list of option ids; DATE yyyy-MM-dd; CHECKBOX a statement to agree to (when required, it must be
+        ticked).
+    FormField:
+      type: object
+      required:
+        - id
+        - kind
+        - label
+        - required
+      properties:
+        id:
+          type: string
+          pattern: ^[a-z0-9_-]{1,40}$
+        kind:
+          $ref: '#/components/schemas/FormFieldKind'
+        label:
+          $ref: '#/components/schemas/LocalizedText'
+        help:
+          $ref: '#/components/schemas/LocalizedText'
+        required:
+          type: boolean
+        options:
+          type: array
+          description: For SINGLE_CHOICE and MULTI_CHOICE (2 to 30).
+          items:
+            type: object
+            required:
+              - id
+              - label
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9_-]{1,40}$
+              label:
+                $ref: '#/components/schemas/LocalizedText'
+    FormSubmission:
+      type: object
+      required:
+        - id
+        - formId
+        - title
+        - purpose
+        - submittedAt
+        - fields
+        - answers
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        formId:
+          $ref: '#/components/schemas/Uuid'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        purpose:
+          $ref: '#/components/schemas/FormPurpose'
+        submittedAt:
+          $ref: '#/components/schemas/Instant'
+        appointmentId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        fields:
+          type: array
+          description: The questions of the version that was answered.
+          items:
+            $ref: '#/components/schemas/FormField'
+        answers:
+          type: object
+          description: Answers by question id (see FormFieldKind for the shape of each).
+          additionalProperties: true
+        signature:
+          oneOf:
+            - type: object
+              required:
+                - name
+                - signedAt
+              properties:
+                name:
+                  type: string
+                signedAt:
+                  $ref: '#/components/schemas/Instant'
+            - type: 'null'
+    ClientPatchTestInput:
+      type: object
+      required:
+        - serviceId
+        - result
+      properties:
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        performedAt:
+          $ref: '#/components/schemas/Instant'
+        result:
+          type: string
+          enum:
+            - PASS
+            - FAIL
+            - PENDING
+        notes:
+          type:
+            - string
+            - 'null'
+          maxLength: 1000
+    FormFrequency:
+      type: string
+      enum:
+        - EVERY_TIME
+        - ONCE
+        - EVERY_N_DAYS
+      description: EVERY_TIME before each visit; ONCE ever; EVERY_N_DAYS again after that many days.
+    Form:
+      type: object
+      required:
+        - id
+        - title
+        - purpose
+        - status
+        - version
+        - fields
+        - signature
+        - serviceIds
+        - frequency
+        - required
+        - submissions
+        - updatedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        purpose:
+          $ref: '#/components/schemas/FormPurpose'
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - ACTIVE
+            - ARCHIVED
+        version:
+          type: integer
+          description: Changing the questions makes a new version; answers keep the version they answered.
+        intro:
+          $ref: '#/components/schemas/LocalizedText'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormField'
+        signature:
+          type: boolean
+        serviceIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        frequency:
+          $ref: '#/components/schemas/FormFrequency'
+        frequencyDays:
+          type:
+            - integer
+            - 'null'
+        required:
+          type: boolean
+        submissions:
+          type: integer
+        updatedAt:
+          $ref: '#/components/schemas/Instant'
+    FormList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Form'
+    FormInput:
+      type: object
+      required:
+        - title
+        - purpose
+        - fields
+        - signature
+      properties:
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        purpose:
+          $ref: '#/components/schemas/FormPurpose'
+        intro:
+          $ref: '#/components/schemas/LocalizedText'
+        fields:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            $ref: '#/components/schemas/FormField'
+        signature:
+          type: boolean
+          description: The client signs by typing their full name.
+        serviceIds:
+          type: array
+          description: Services whose clients fill it in before the visit.
+          items:
+            $ref: '#/components/schemas/Uuid'
+        frequency:
+          $ref: '#/components/schemas/FormFrequency'
+        frequencyDays:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 3650
+        required:
+          type: boolean
+          description: Asked for before the visit (default) rather than only offered.
+    MyFormDue:
+      type: object
+      required:
+        - formId
+        - title
+        - purpose
+        - required
+        - done
+      properties:
+        formId:
+          $ref: '#/components/schemas/Uuid'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        purpose:
+          $ref: '#/components/schemas/FormPurpose'
+        required:
+          type: boolean
+        done:
+          type: boolean
+    MyFormQuestions:
+      type: object
+      required:
+        - formId
+        - title
+        - purpose
+        - fields
+        - signature
+        - done
+      properties:
+        formId:
+          $ref: '#/components/schemas/Uuid'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        intro:
+          $ref: '#/components/schemas/LocalizedText'
+        purpose:
+          $ref: '#/components/schemas/FormPurpose'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormField'
+        signature:
+          type: boolean
+        done:
+          type: boolean
+    MyFormAnswers:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: object
+          description: Answers by question id.
+          additionalProperties: true
+        signature:
+          type:
+            - string
+            - 'null'
+          maxLength: 120
+          description: The person's full name, typed, when the form asks for a signature.
     AvailabilityItem:
       type: object
       required:

@@ -534,7 +534,7 @@ CalendarCustomer:
             type: string
 CalendarAppointment:
   type: object
-  required: [id, reference, status, source, start, end, customer, items]
+  required: [id, reference, status, source, start, end, customer, items, forms]
   properties:
     id:
       $ref: ../common/schemas.yaml#/Uuid
@@ -557,6 +557,23 @@ CalendarAppointment:
       type: array
       items:
         $ref: '#/CalendarItem'
+    forms:
+      type: array
+      description: Forms the client fills in before this visit (attached to its services), and whether they have.
+      items:
+        type: object
+        required: [formId, title, required, done]
+        properties:
+          formId:
+            $ref: ../common/schemas.yaml#/Uuid
+          title:
+            type: object
+            additionalProperties:
+              type: string
+          required:
+            type: boolean
+          done:
+            type: boolean
 CalendarBlock:
   type: object
   required: [id, start, end, reason]

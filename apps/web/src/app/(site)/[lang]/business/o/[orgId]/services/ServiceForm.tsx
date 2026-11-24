@@ -25,6 +25,8 @@ export interface ServiceFormProps {
     groupId: string;
     locationIds: string[];
     variants: VariantRow[];
+    requiresPatchTest: boolean;
+    patchTestValidityDays: string;
   };
   labels: Record<string, string>;
 }
@@ -165,6 +167,36 @@ export function ServiceForm(props: ServiceFormProps) {
         >
           {labels.addVariant}
         </button>
+      </fieldset>
+      <fieldset className="flex flex-col gap-3">
+        <legend className="bv-type-label mb-1">{labels.requirements}</legend>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={value.requiresPatchTest}
+            onChange={(e) => setValue({ ...value, requiresPatchTest: e.target.checked })}
+            className="mt-1 size-5 accent-primary"
+          />
+          <span className="flex flex-col">
+            <span className="bv-type-body text-fg">{labels.patchTest}</span>
+            <span className="bv-type-caption text-fg-muted">{labels.patchTestHint}</span>
+          </span>
+        </label>
+        {value.requiresPatchTest ? (
+          <div className="w-48">
+            <Field label={labels.patchTestDays!}>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                placeholder="180"
+                value={value.patchTestValidityDays}
+                onChange={(e) => setValue({ ...value, patchTestValidityDays: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        ) : null}
       </fieldset>
       <FormMessage error={state.error} done={state.done} />
       <button disabled={pending} className={`${buttonClass} self-start`}>

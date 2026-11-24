@@ -180,3 +180,39 @@ export async function importClients(
   if (save) revalidatePath(`/${language}/business/o/${orgId}/clients`);
   return { stage: save ? "saved" : "preview", csv, result: data };
 }
+
+export async function recordPatchTest(
+  language: string,
+  orgId: string,
+  customerId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const { data, error } = await (
+    await portalApi(language)
+  ).POST("/v1/orgs/{orgId}/customers/{customerId}/patch-tests", {
+    params: { path: { orgId, customerId } },
+    body: {
+      serviceId: text(form, "serviceId"),
+      result: text(form, "result") as "PASS" | "FAIL" | "PENDING",
+      notes: text(form, "notes") || null,
+    },
+  });
+  if (!data) return { error: problemText(error) };
+  revalidatePath(clientPath(language, orgId, customerId));
+  return { done: true };
+}
+
+export async function removePatchTest(
+  language: string,
+  orgId: string,
+  customerId: string,
+  testId: string,
+): Promise<void> {
+  await (
+    await portalApi(language)
+  ).DELETE("/v1/orgs/{orgId}/customers/{customerId}/patch-tests/{testId}", {
+    params: { path: { orgId, customerId, testId } },
+  });
+  revalidatePath(clientPath(language, orgId, customerId));
+}

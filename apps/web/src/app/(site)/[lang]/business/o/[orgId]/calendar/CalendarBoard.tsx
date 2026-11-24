@@ -460,6 +460,21 @@ function AppointmentPanel({
           </li>
         ))}
       </ul>
+      {appointment.forms.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {appointment.forms.map((f) => (
+            <li key={f.formId} className="bv-type-body flex items-center gap-2 text-fg">
+              <span
+                aria-hidden
+                className={`size-2 shrink-0 rounded-full ${f.done ? "bg-success" : "bg-warning"}`}
+              />
+              {t(f.done ? "portal.calendar.formDone" : "portal.calendar.formMissing", {
+                name: f.title[language] ?? f.title.en ?? Object.values(f.title)[0] ?? "",
+              })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {appointment.note ? (
         <div className="flex flex-col gap-1">
           <span className="bv-type-label text-fg-muted">{t("portal.calendar.note")}</span>

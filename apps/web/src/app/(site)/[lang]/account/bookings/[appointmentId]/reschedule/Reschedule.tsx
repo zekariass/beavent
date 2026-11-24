@@ -111,7 +111,8 @@ export function Reschedule({
                     setError(t("booking.time.taken"));
                     setChosen(null);
                     setAttempt((n) => n + 1);
-                  } else setError(r.message || t("booking.error"));
+                  } else if (r.code === "PATCH_TEST_REQUIRED") setError(t("booking.patchTest"));
+                  else setError(r.message || t("booking.error"));
                 })
               }
             >

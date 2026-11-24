@@ -1408,6 +1408,139 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/customers/{customerId}/form-submissions/{submissionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One set of a client's answers, with the questions of the version they answered */
+        get: operations["getClientFormSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/patch-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a patch test (customers.manage)
+         * @description A pass is valid for the service's patch-test validity days (180 when the service does not say). Online booking
+         *     of a service that needs a patch test requires a pass valid on the day of the visit (`PATCH_TEST_REQUIRED`).
+         */
+        post: operations["recordPatchTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/patch-tests/{testId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a patch test recorded by mistake (customers.manage) */
+        delete: operations["deletePatchTest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/forms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The business's consultation, intake and consent forms (active first) */
+        get: operations["listForms"];
+        put?: never;
+        /** Create a form, live at once, attached to services (customers.manage) */
+        post: operations["createForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/forms/{formId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /** A form with its current questions */
+        get: operations["getForm"];
+        /** Save a form; changed questions become a new version (customers.manage) */
+        put: operations["updateForm"];
+        post?: never;
+        /** Archive a form (no longer asked for; answers stay with the clients) */
+        delete: operations["archiveForm"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/forms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The forms to fill in before one of the person's visits, and whether they have */
+        get: operations["listMyAppointmentForms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/forms/{formId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /** The questions of one form for one of the person's visits */
+        get: operations["getMyAppointmentForm"];
+        put?: never;
+        /** Send the answers (again, until the visit starts; the newest answers count) */
+        post: operations["answerMyAppointmentForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/locations/{locationId}/availability": {
         parameters: {
             query?: never;
@@ -1485,7 +1618,8 @@ export interface paths {
          * @description The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
          *     each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
          *     `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
-         *     booking online (they book by phone).
+         *     booking online (they book by phone). `PATCH_TEST_REQUIRED` (422) when a service needs a patch test and the
+         *     person has no passed test valid on the day.
          */
         post: operations["bookAppointment"];
         delete?: never;
@@ -2057,7 +2191,7 @@ export interface components {
              */
             instance?: string;
             /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
             requestId?: string;
             /** @description Field-level validation errors. */
             errors?: {
@@ -3099,6 +3233,15 @@ export interface components {
             note?: string | null;
             customer: components["schemas"]["CalendarCustomer"];
             items: components["schemas"]["CalendarItem"][];
+            /** @description Forms the client fills in before this visit (attached to its services), and whether they have. */
+            forms: {
+                formId: components["schemas"]["Uuid"];
+                title: {
+                    [key: string]: string;
+                };
+                required: boolean;
+                done: boolean;
+            }[];
         };
         CalendarBlock: {
             id: components["schemas"]["Uuid"];
@@ -3213,6 +3356,23 @@ export interface components {
             locationName: string;
             items: components["schemas"]["ClientVisitItem"][];
         };
+        ClientAnsweredForm: {
+            id: components["schemas"]["Uuid"];
+            formId: components["schemas"]["Uuid"];
+            title: components["schemas"]["LocalizedText"];
+            submittedAt: components["schemas"]["Instant"];
+            appointmentId?: components["schemas"]["Uuid"] | null;
+        };
+        ClientPatchTest: {
+            id: components["schemas"]["Uuid"];
+            serviceId: components["schemas"]["Uuid"];
+            serviceName: components["schemas"]["LocalizedText"];
+            performedAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            result: "PASS" | "FAIL" | "PENDING";
+            validUntil?: components["schemas"]["Instant"] | null;
+            notes?: string | null;
+        };
         /** @description A client's page. Phone and email only with customers.contact_details. */
         Client: {
             id: components["schemas"]["Uuid"];
@@ -3241,6 +3401,10 @@ export interface components {
             upcoming: components["schemas"]["ClientVisit"][];
             /** @description Newest first, at most 50. */
             past: components["schemas"]["ClientVisit"][];
+            /** @description Forms the client answered (current answers, newest first, at most 50). */
+            forms: components["schemas"]["ClientAnsweredForm"][];
+            /** @description Newest first. */
+            patchTests: components["schemas"]["ClientPatchTest"][];
             /** @description What the caller may do with this client. */
             you: {
                 /** @description customers.manage (details, notes, tags, merge). */
@@ -3267,6 +3431,116 @@ export interface components {
             id: components["schemas"]["Uuid"];
             name: string;
             clients: number;
+        };
+        /** @enum {string} */
+        FormPurpose: "CONSULTATION" | "INTAKE" | "CONSENT" | "AFTERCARE";
+        /**
+         * @description TEXT a line (500 characters); LONG_TEXT up to 4,000; YES_NO true or false; SINGLE_CHOICE one option id;
+         *     MULTI_CHOICE a list of option ids; DATE yyyy-MM-dd; CHECKBOX a statement to agree to (when required, it must be
+         *     ticked).
+         * @enum {string}
+         */
+        FormFieldKind: "TEXT" | "LONG_TEXT" | "YES_NO" | "SINGLE_CHOICE" | "MULTI_CHOICE" | "DATE" | "CHECKBOX";
+        FormField: {
+            id: string;
+            kind: components["schemas"]["FormFieldKind"];
+            label: components["schemas"]["LocalizedText"];
+            help?: components["schemas"]["LocalizedText"];
+            required: boolean;
+            /** @description For SINGLE_CHOICE and MULTI_CHOICE (2 to 30). */
+            options?: {
+                id: string;
+                label: components["schemas"]["LocalizedText"];
+            }[];
+        };
+        FormSubmission: {
+            id: components["schemas"]["Uuid"];
+            formId: components["schemas"]["Uuid"];
+            title: components["schemas"]["LocalizedText"];
+            purpose: components["schemas"]["FormPurpose"];
+            submittedAt: components["schemas"]["Instant"];
+            appointmentId?: components["schemas"]["Uuid"] | null;
+            /** @description The questions of the version that was answered. */
+            fields: components["schemas"]["FormField"][];
+            /** @description Answers by question id (see FormFieldKind for the shape of each). */
+            answers: {
+                [key: string]: unknown;
+            };
+            signature?: {
+                name: string;
+                signedAt: components["schemas"]["Instant"];
+            } | null;
+        };
+        ClientPatchTestInput: {
+            serviceId: components["schemas"]["Uuid"];
+            performedAt?: components["schemas"]["Instant"];
+            /** @enum {string} */
+            result: "PASS" | "FAIL" | "PENDING";
+            notes?: string | null;
+        };
+        /**
+         * @description EVERY_TIME before each visit; ONCE ever; EVERY_N_DAYS again after that many days.
+         * @enum {string}
+         */
+        FormFrequency: "EVERY_TIME" | "ONCE" | "EVERY_N_DAYS";
+        Form: {
+            id: components["schemas"]["Uuid"];
+            title: components["schemas"]["LocalizedText"];
+            purpose: components["schemas"]["FormPurpose"];
+            /** @enum {string} */
+            status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+            /** @description Changing the questions makes a new version; answers keep the version they answered. */
+            version: number;
+            intro?: components["schemas"]["LocalizedText"];
+            fields: components["schemas"]["FormField"][];
+            signature: boolean;
+            serviceIds: components["schemas"]["Uuid"][];
+            frequency: components["schemas"]["FormFrequency"];
+            frequencyDays?: number | null;
+            required: boolean;
+            submissions: number;
+            updatedAt: components["schemas"]["Instant"];
+        };
+        FormList: {
+            items: components["schemas"]["Form"][];
+        };
+        FormInput: {
+            title: components["schemas"]["LocalizedText"];
+            purpose: components["schemas"]["FormPurpose"];
+            intro?: components["schemas"]["LocalizedText"];
+            fields: components["schemas"]["FormField"][];
+            /** @description The client signs by typing their full name. */
+            signature: boolean;
+            /** @description Services whose clients fill it in before the visit. */
+            serviceIds?: components["schemas"]["Uuid"][];
+            frequency?: components["schemas"]["FormFrequency"];
+            frequencyDays?: number | null;
+            /** @description Asked for before the visit (default) rather than only offered. */
+            required?: boolean;
+        };
+        MyFormDue: {
+            formId: components["schemas"]["Uuid"];
+            title: components["schemas"]["LocalizedText"];
+            purpose: components["schemas"]["FormPurpose"];
+            required: boolean;
+            done: boolean;
+        };
+        MyFormQuestions: {
+            formId: components["schemas"]["Uuid"];
+            title: components["schemas"]["LocalizedText"];
+            intro?: components["schemas"]["LocalizedText"];
+            purpose: components["schemas"]["FormPurpose"];
+            fields: components["schemas"]["FormField"][];
+            signature: boolean;
+            done: boolean;
+        };
+        MyFormAnswers: {
+            /** @description Answers by question id. */
+            answers: {
+                [key: string]: unknown;
+            };
+            /** @description The person's full name, typed, when the form asks for a signature. */
+            signature?: string | null;
         };
         AvailabilityItem: {
             variantId: components["schemas"]["Uuid"];
@@ -7156,6 +7430,303 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    getClientFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+                submissionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSubmission"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    recordPatchTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientPatchTestInput"];
+            };
+        };
+        responses: {
+            /** @description Recorded. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deletePatchTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+                testId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listForms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forms. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormInput"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Form"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The form. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Form"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Form"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    archiveForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMyAppointmentForms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forms (none when the visit's services have none). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["MyFormDue"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMyAppointmentForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The questions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyFormQuestions"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    answerMyAppointmentForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+                formId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyFormAnswers"];
+            };
+        };
+        responses: {
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                        submittedAt: components["schemas"]["Instant"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     searchAvailability: {
         parameters: {
             query?: never;
@@ -7292,6 +7863,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     getMyAppointment: {

@@ -200,7 +200,10 @@ export async function seedSalon(name: string): Promise<SeededSalon> {
   };
 }
 
-/** Signs a new customer in (phone code) and books the salon's first service with its stylist at `start`. */
+/**
+ * Signs a new customer in (phone code) and books the salon's first service with its stylist at `start`; returns the
+ * appointment with the customer's phone and token.
+ */
 export async function bookAsCustomer(salon: SeededSalon, start: string, name = "Meron") {
   const phone = newPhone();
   const challenge = await api("POST", "/v1/auth/otp/request", {
@@ -219,12 +222,13 @@ export async function bookAsCustomer(salon: SeededSalon, start: string, name = "
     items: [{ variantId: salon.variantId, staffId: salon.staffId }],
     start,
   });
-  return api(
+  const booked = await api(
     "POST",
     "/v1/me/appointments",
     { locationId: salon.locationId, holdId: hold.holdId, holderKey: hold.holderKey },
     token,
   );
+  return { ...booked, phone, token };
 }
 
 /** The first (or `last`) bookable start of the salon's first service between two local dates. */

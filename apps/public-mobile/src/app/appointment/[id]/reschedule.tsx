@@ -94,6 +94,8 @@ function Picker({ appointment }: { appointment: Schemas["AppointmentDetail"] }) 
       setError(t("booking.time.taken"));
       setChosen(null);
       setAttempt((n) => n + 1);
+    } else if (problem && "code" in problem && problem.code === "PATCH_TEST_REQUIRED") {
+      setError(t("booking.patchTest"));
     } else setError(t("booking.error"));
   }
 
