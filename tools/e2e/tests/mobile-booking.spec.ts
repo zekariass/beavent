@@ -48,7 +48,10 @@ test("the consumer app books, shows, moves and cancels an appointment", async ({
   await expect(page.getByText(/Free cancellation until/).filter({ visible: true })).toBeVisible();
   await page.getByRole("button", { name: "Reschedule" }).filter({ visible: true }).click();
   // Another day next week (moving inside the free-cancellation window would end online changes).
-  await page.getByRole("button", { name: /Later dates/ }).filter({ visible: true }).click();
+  await page
+    .getByRole("button", { name: /Later dates/ })
+    .filter({ visible: true })
+    .click();
   await page
     .getByRole("button", { name: /AM,|PM,/ })
     .nth(1)

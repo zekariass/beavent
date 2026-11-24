@@ -55,7 +55,7 @@ dependencies {
 
 	// Coordination & messaging
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+	implementation 'org.springframework.boot:spring-boot-starter-rabbitmq'
 
 	// Module boundaries (one module per database schema; see docs/03 §2.2)
 	implementation 'org.springframework.modulith:spring-modulith-starter-core'
