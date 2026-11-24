@@ -184,6 +184,8 @@ paths:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
   /v1/orgs/{orgId}/appointments:
     $ref: ./scheduling/paths.yaml#/deskAppointments
+  /v1/orgs/{orgId}/appointments/{appointmentId}/cancel:
+    $ref: ./scheduling/paths.yaml#/deskCancel
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     $ref: ./scheduling/paths.yaml#/deskMove
   /v1/orgs/{orgId}/blocks:

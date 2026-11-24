@@ -67,8 +67,11 @@ export async function bookAtDesk(
     source: "WALK_IN" | "PHONE";
     notifyCustomer: boolean;
     bookAnyway: boolean;
+    guests?: { name: string; phone?: string; variantId: string; staffId: string }[];
+    repeat?: { everyWeeks: number; count: number };
+    skipTaken?: boolean;
   },
-): Promise<Coded> {
+): Promise<Coded & { skipped?: string[] }> {
   const api = await portalApi(language);
   const { data, error } = await api.POST("/v1/orgs/{orgId}/appointments", {
     params: { path: { orgId } },
@@ -83,6 +86,36 @@ export async function bookAtDesk(
       source: input.source,
       notifyCustomer: input.notifyCustomer,
       bookAnyway: input.bookAnyway,
+      ...(input.guests?.length
+        ? {
+            guests: input.guests.map((g) => ({
+              customer: { name: g.name, ...(g.phone ? { phone: g.phone } : {}) },
+              items: [{ variantId: g.variantId, staffId: g.staffId }],
+            })),
+          }
+        : {}),
+      ...(input.repeat ? { repeat: input.repeat, skipTaken: input.skipTaken ?? false } : {}),
+    },
+  });
+  if (!data) return failure(error);
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true, skipped: data.skipped ?? [] };
+}
+
+/** Cancels a visit, the rest of its series, or its whole group. */
+export async function cancelAtDesk(
+  language: string,
+  orgId: string,
+  appointmentId: string,
+  input: { scope: "ONE" | "FOLLOWING" | "GROUP"; reason?: string; notifyCustomer: boolean },
+): Promise<Coded> {
+  const api = await portalApi(language);
+  const { data, error } = await api.POST("/v1/orgs/{orgId}/appointments/{appointmentId}/cancel", {
+    params: { path: { orgId, appointmentId } },
+    body: {
+      scope: input.scope,
+      ...(input.reason ? { reason: input.reason } : {}),
+      notifyCustomer: input.notifyCustomer,
     },
   });
   if (!data) return failure(error);

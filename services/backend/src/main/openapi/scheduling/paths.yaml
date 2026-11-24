@@ -528,6 +528,56 @@ deskAppointments:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+deskCancel:
+  post:
+    tags: [Calendar]
+    operationId: cancelAtTheDesk
+    summary: Cancel a visit, the rest of its series, or its whole group (no fee; the business cancels)
+    description: |
+      `scope` ONE (default), FOLLOWING (this and the later visits of the series; the customer gets one message) or GROUP.
+      Booked visits that have not started can be cancelled. The times are freed at once.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              scope:
+                type: string
+                enum: [ONE, FOLLOWING, GROUP]
+              reason:
+                type: string
+                maxLength: 500
+              notifyCustomer:
+                type: boolean
+                default: true
+    responses:
+      '200':
+        description: Cancelled.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cancelled]
+              properties:
+                cancelled:
+                  type: array
+                  items:
+                    $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
 deskMove:
   post:
     tags: [Calendar]

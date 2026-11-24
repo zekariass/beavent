@@ -1076,3 +1076,104 @@ test("waitlist · web, console, consumer app", async ({ browser }) => {
     await app.close();
   }
 });
+
+test("front desk · group, series, cancelling", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty");
+  const org = `/v1/orgs/${salon.orgId}`;
+  const sara = await api(
+    "POST",
+    `${org}/staff`,
+    { displayName: "Sara", locationIds: [salon.locationId], serviceIds: [salon.serviceId] },
+    salon.token,
+  );
+  await api(
+    "PUT",
+    `${org}/staff/${sara.id}/working-pattern`,
+    {
+      effectiveFrom: new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10),
+      repeatWeeks: 1,
+      entries: [1, 2, 3, 4, 5, 6].map((isoWeekday) => ({
+        week: 1,
+        locationId: salon.locationId,
+        isoWeekday,
+        startsAt: "09:00",
+        endsAt: "18:00",
+      })),
+    },
+    salon.token,
+  );
+  const tomorrow = new Date(Date.now() + 27 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, tomorrow, in6);
+  const date = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  const item = (staffId: string) => [{ variantId: salon.variantId, staffId }];
+  await api(
+    "POST",
+    `${org}/appointments`,
+    {
+      locationId: salon.locationId,
+      start,
+      items: item(salon.staffId),
+      customer: { name: "Selam Tesfaye" },
+      guests: [{ customer: { name: "Liya Bekele" }, items: item(sara.id) }],
+      notifyCustomer: false,
+    },
+    salon.token,
+  );
+  await api(
+    "POST",
+    `${org}/appointments`,
+    {
+      locationId: salon.locationId,
+      start: new Date(new Date(start).getTime() + 4 * 3600_000).toISOString(),
+      items: item(salon.staffId),
+      customer: { name: "Hiwot Alemu" },
+      repeat: { everyWeeks: 2, count: 4 },
+      notifyCustomer: false,
+    },
+    salon.token,
+  );
+
+  const context = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const page = await context.newPage();
+  await page.waitForTimeout(31_000);
+  await page.goto(`${WEB}/en/business/sign-in`);
+  await page.getByLabel("Phone number or email").fill(salon.phone);
+  const seen = codeCount(salon.phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("heading", { name: "Your businesses" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${date}`);
+      await page.getByText("Sara", { exact: true }).first().waitFor();
+      await page.getByRole("button", { name: /Selam Tesfaye/ }).click();
+      await shot(page, `console-group-${language}-${scheme}`);
+      await page.getByRole("button", { name: /Hiwot Alemu/ }).click();
+      await page
+        .getByRole("complementary", { name: "Hiwot Alemu" })
+        .getByRole("button")
+        .filter({ hasText: language === "am" ? "ጉብኝቱን ሰርዝ" : "Cancel visit" })
+        .click();
+      await shot(page, `console-series-cancel-${language}-${scheme}`);
+      // A new booking in Sara's column at 18:00-ish: repeat and another person.
+      const column = page.locator("div.relative.cursor-pointer").nth(1);
+      const box = (await column.boundingBox())!;
+      await column.click({ position: { x: box.width / 2, y: (8 * 60 - 8 * 60) * 1.6 + 4 } });
+      const add = page.getByRole("button", {
+        name: language === "am" ? "ሌላ ሰው ጨምር" : "Add another person",
+      });
+      await add.click();
+      await shot(page, `console-new-group-${language}-${scheme}`);
+      await page.reload();
+      await page.getByText("Sara", { exact: true }).first().waitFor();
+      await column.click({ position: { x: box.width / 2, y: (8 * 60 - 8 * 60) * 1.6 + 4 } });
+      await page.getByLabel(language === "am" ? "ድገም" : "Repeat").selectOption("2");
+      await shot(page, `console-new-repeat-${language}-${scheme}`);
+    }
+  }
+  await context.close();
+});

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { deskBook, seedSalon } from "./seed.ts";
+import { deskBook, laterToday, seedSalon } from "./seed.ts";
 import { codeCount, codeFor } from "./support.ts";
 
 const BUSINESS_APP = process.env.BUSINESS_MOBILE_URL ?? "http://localhost:19007";
@@ -10,7 +10,7 @@ test("the business app shows today, moves a visit along and books a walk-in", as
 }) => {
   const salon = await seedSalon("Abeba Beauty");
   // A visit later today (whatever the hour: the desk books anyway).
-  const start = new Date(Math.ceil((Date.now() + 30 * 60_000) / 300_000) * 300_000).toISOString();
+  const start = laterToday();
   await deskBook(salon, start, "Meron Tesfaye");
 
   const context = await browser.newContext({

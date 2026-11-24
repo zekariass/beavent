@@ -172,7 +172,83 @@ public class BookingApi {
                 .toList());
     }
 
-    public record DeskBookedBody(UUID id, String reference, Instant start, Instant end) {}
+    /**
+     * A desk booking: the first appointment's id, reference and time (as before), and for a group or a series every
+     * appointment made and the series dates skipped as taken.
+     */
+    public record DeskBookedBody(
+            UUID id,
+            String reference,
+            Instant start,
+            Instant end,
+            UUID groupId,
+            UUID seriesId,
+            List<BookedBody> appointments,
+            List<Instant> skipped) {}
+
+    public record BookedBody(UUID id, String reference, Instant start, Instant end) {}
+
+    /** One person of a desk group booking. */
+    public record DeskParty(UUID customerId, String name, String phone, List<Availability.Item> items) {}
+
+    /** The front desk books a group (several people at once) or a series (one person every few weeks). */
+    public DeskBookedBody deskBookMany(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            List<DeskParty> parties,
+            List<Instant> starts,
+            Integer everyWeeks,
+            String note,
+            String source,
+            boolean allowOverlap,
+            boolean skipTaken,
+            boolean notify,
+            Instant now) {
+        Bookings.DeskMany many = bookings.deskBookMany(
+                orgId,
+                actorUserId,
+                locationId,
+                parties.stream()
+                        .map(p -> new Bookings.Party(new Bookings.Who(p.customerId(), p.name(), p.phone()), p.items()))
+                        .toList(),
+                starts,
+                everyWeeks,
+                note,
+                source,
+                allowOverlap,
+                skipTaken,
+                notify,
+                now);
+        Bookings.DeskBooked first = many.booked().getFirst();
+        return new DeskBookedBody(
+                first.appointmentId(),
+                first.reference(),
+                first.plan().start(),
+                first.plan().end(),
+                many.groupId(),
+                many.seriesId(),
+                many.booked().stream()
+                        .map(b -> new BookedBody(
+                                b.appointmentId(),
+                                b.reference(),
+                                b.plan().start(),
+                                b.plan().end()))
+                        .toList(),
+                many.skipped());
+    }
+
+    /** The appointments a desk cancellation would touch. */
+    public List<UUID> deskCancelTargets(UUID appointmentId, String scope) {
+        return bookings.deskCancelTargets(appointmentId, Bookings.CancelScope.valueOf(scope));
+    }
+
+    /** The front desk cancels one visit, the rest of a series, or a whole group; returns the cancelled ids. */
+    public List<UUID> deskCancel(
+            UUID orgId, UUID actorUserId, UUID appointmentId, String scope, String reason, boolean notify) {
+        return bookings.deskCancel(
+                orgId, actorUserId, appointmentId, Bookings.CancelScope.valueOf(scope), reason, notify);
+    }
 
     /** The front desk books a walk-in or phone customer (see {@link Bookings#deskBook}). */
     public DeskBookedBody deskBook(
@@ -205,7 +281,15 @@ public class BookingApi {
                 booked.appointmentId(),
                 booked.reference(),
                 booked.plan().start(),
-                booked.plan().end());
+                booked.plan().end(),
+                null,
+                null,
+                List.of(new BookedBody(
+                        booked.appointmentId(),
+                        booked.reference(),
+                        booked.plan().start(),
+                        booked.plan().end())),
+                List.of());
     }
 
     public void deskMove(

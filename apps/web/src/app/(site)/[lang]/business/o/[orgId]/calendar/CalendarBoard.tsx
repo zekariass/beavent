@@ -7,7 +7,7 @@ import { localDateOf, localToInstant } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
-import { BlockPanel, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
+import { BlockPanel, CancelForm, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
 
 type Calendar = Schemas["Calendar"];
 type Appointment = Schemas["CalendarAppointment"];
@@ -305,6 +305,7 @@ export function CalendarBoard({
           start={slot.start}
           zone={zone}
           services={services}
+          team={calendar.staff.map((s) => ({ id: s.staffId, name: s.name }))}
           onClose={() => setSlot(null)}
         />
       ) : null}
@@ -334,6 +335,13 @@ export function CalendarBoard({
           zone={zone}
           staff={calendar.staff.map((s) => ({ id: s.staffId, name: s.name }))}
           started={minute != null && minute * 60_000 >= new Date(open.start).getTime()}
+          groupNames={
+            open.groupId
+              ? calendar.appointments
+                  .filter((a) => a.groupId === open.groupId)
+                  .map((a) => a.customer.name)
+              : []
+          }
         />
       ) : null}
     </div>
@@ -351,6 +359,7 @@ function AppointmentPanel({
   started,
   zone,
   staff,
+  groupNames,
 }: {
   language: Language;
   orgId: string;
@@ -362,6 +371,7 @@ function AppointmentPanel({
   started: boolean;
   zone: string;
   staff: { id: string; name: string }[];
+  groupNames: string[];
 }) {
   const t = createTranslator(language);
   const router = useRouter();
@@ -460,6 +470,26 @@ function AppointmentPanel({
           </li>
         ))}
       </ul>
+      {appointment.series || groupNames.length > 1 ? (
+        <div className="flex flex-col gap-1">
+          {appointment.series ? (
+            <p className="bv-type-body text-fg">
+              {t("portal.calendar.series", {
+                every: appointment.series.everyWeeks,
+                index: appointment.series.index,
+                count: appointment.series.count,
+              })}
+            </p>
+          ) : null}
+          {groupNames.length > 1 ? (
+            <p className="bv-type-body text-fg">
+              {t("portal.calendar.group", {
+                names: groupNames.join(language === "am" ? "፣ " : ", "),
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {appointment.forms.length > 0 ? (
         <ul className="flex flex-col gap-1">
           {appointment.forms.map((f) => (
@@ -526,6 +556,9 @@ function AppointmentPanel({
             zone={zone}
             staff={staff}
           />
+        ) : null}
+        {s === "CONFIRMED" || s === "REQUESTED" ? (
+          <CancelForm language={language} orgId={orgId} appointment={appointment} />
         ) : null}
       </div>
     </aside>

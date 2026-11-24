@@ -7,6 +7,7 @@ import static com.beavent.db.crm.Tables.CUSTOMER_NOTES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_STAGES;
+import static com.beavent.db.scheduling.Tables.APPOINTMENT_SERIES;
 import static com.beavent.db.scheduling.Tables.CALENDAR_BLOCKS;
 import static com.beavent.db.team.Tables.STAFF;
 import static com.beavent.db.team.Tables.STAFF_LOCATIONS;
@@ -103,7 +104,12 @@ public class Calendar {
             String note,
             CustomerBody customer,
             List<ItemBody> items,
-            List<FormBody> forms) {}
+            List<FormBody> forms,
+            UUID groupId,
+            SeriesBody series) {}
+
+    /** Where a visit sits in its series: every {@code everyWeeks} weeks, number {@code index} of {@code count}. */
+    public record SeriesBody(UUID id, int everyWeeks, int index, int count) {}
 
     /** A form the client fills in before this visit, and whether they have. */
     public record FormBody(UUID formId, Map<String, String> title, boolean required, boolean done) {}
@@ -226,7 +232,9 @@ public class Calendar {
                             APPOINTMENTS.CUSTOMER_NOTE,
                             CUSTOMERS.ID,
                             CUSTOMERS.DISPLAY_NAME,
-                            CUSTOMERS.PHONE_E164)
+                            CUSTOMERS.PHONE_E164,
+                            APPOINTMENTS.GROUP_ID,
+                            APPOINTMENTS.SERIES_ID)
                     .from(APPOINTMENTS)
                     .join(CUSTOMERS)
                     .on(CUSTOMERS.ID.eq(APPOINTMENTS.CUSTOMER_ID))
@@ -281,6 +289,7 @@ public class Calendar {
             boolean contact = access.can(CONTACT);
             Map<UUID, List<AlertBody>> alerts = alertsOf(access, appointments.map(r -> r.value8()));
             Map<UUID, List<AppointmentForms.Due>> due = forms.due(ids);
+            Map<UUID, SeriesBody> series = seriesOf(appointments.map(r -> r.value12()));
             List<AppointmentBody> appointmentBodies = appointments.map(r -> new AppointmentBody(
                     r.value1(),
                     r.value2(),
@@ -297,7 +306,9 @@ public class Calendar {
                     items.getOrDefault(r.value1(), List.of()),
                     due.getOrDefault(r.value1(), List.of()).stream()
                             .map(f -> new FormBody(f.formId(), f.title(), f.required(), f.done()))
-                            .toList()));
+                            .toList(),
+                    r.value11(),
+                    series.get(r.value1())));
 
             Condition blockWhere = CALENDAR_BLOCKS
                     .LOCATION_ID
@@ -328,6 +339,37 @@ public class Calendar {
                             r.value7()));
             return new Body(locationId, timezone, from, to, columns, appointmentBodies, blocks);
         });
+    }
+
+    /** Each series visit's place in its series (active visits, in time order). */
+    private Map<UUID, SeriesBody> seriesOf(List<UUID> seriesIds) {
+        Map<UUID, SeriesBody> out = new HashMap<>();
+        Set<UUID> ids = new HashSet<>(seriesIds);
+        ids.remove(null);
+        if (ids.isEmpty()) {
+            return out;
+        }
+        Map<UUID, Integer> every = new HashMap<>();
+        dsl.select(APPOINTMENT_SERIES.ID, APPOINTMENT_SERIES.RRULE)
+                .from(APPOINTMENT_SERIES)
+                .where(APPOINTMENT_SERIES.ID.in(ids))
+                .forEach(r -> {
+                    var m = java.util.regex.Pattern.compile("INTERVAL=(\\d+)").matcher(r.value2());
+                    every.put(r.value1(), m.find() ? Integer.parseInt(m.group(1)) : 1);
+                });
+        dsl.fetch(
+                        "select id, series_id, row_number() over (partition by series_id order by starts_at), "
+                                + "count(*) over (partition by series_id) from scheduling.appointments "
+                                + "where series_id = any(?) and status not in ('CANCELLED','EXPIRED','DECLINED')",
+                        (Object) ids.toArray(UUID[]::new))
+                .forEach(r -> out.put(
+                        r.get(0, UUID.class),
+                        new SeriesBody(
+                                r.get(1, UUID.class),
+                                every.getOrDefault(r.get(1, UUID.class), 1),
+                                r.get(2, Integer.class),
+                                r.get(3, Integer.class))));
+        return out;
     }
 
     /** Alerts, allergies and medical notes of these clients that the member may read (crm.customer_notes). */

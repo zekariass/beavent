@@ -1106,6 +1106,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a visit, the rest of its series, or its whole group (no fee; the business cancels)
+         * @description `scope` ONE (default), FOLLOWING (this and the later visits of the series; the customer gets one message) or GROUP.
+         *     Booked visits that have not started can be cancelled. The times are freed at once.
+         */
+        post: operations["cancelAtTheDesk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/appointments/{appointmentId}/move": {
         parameters: {
             query?: never;
@@ -3241,6 +3262,17 @@ export interface components {
             noShowFeePercent?: number;
             policyText?: components["schemas"]["LocalizedText"];
         };
+        /** @description An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused). */
+        customer: {
+            customerId?: components["schemas"]["Uuid"];
+            name?: string;
+            phone?: components["schemas"]["PhoneE164"];
+        };
+        items: {
+            variantId: components["schemas"]["Uuid"];
+            staffId: components["schemas"]["Uuid"];
+            addonIds?: components["schemas"]["Uuid"][];
+        }[];
         DeskBookingInput: {
             locationId: components["schemas"]["Uuid"];
             start: components["schemas"]["Instant"];
@@ -3266,12 +3298,41 @@ export interface components {
             bookAnyway: boolean;
             /** @default true */
             notifyCustomer: boolean;
+            /**
+             * @description A group: more people at the same time, one appointment each, booked all together or not at all (the first
+             *     customer leads the group). Not with `repeat`.
+             */
+            guests?: {
+                customer: components["schemas"]["customer"];
+                items: components["schemas"]["items"];
+            }[];
+            /**
+             * @description A series: the same visit every `everyWeeks` weeks, `count` times in all, at the same local time. Only the first
+             *     visit sends a confirmation; reminders follow each. Not with `guests`.
+             */
+            repeat?: {
+                everyWeeks: number;
+                count: number;
+            };
+            /** @description In a series, leave out the dates that are not free instead of failing (false when absent). */
+            skipTaken?: boolean;
         };
         DeskBooking: {
             id: components["schemas"]["Uuid"];
             reference: string;
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
+            groupId?: components["schemas"]["Uuid"] | null;
+            seriesId?: components["schemas"]["Uuid"] | null;
+            /** @description Every appointment made (one for a single booking). */
+            appointments?: {
+                id: components["schemas"]["Uuid"];
+                reference: string;
+                start: components["schemas"]["Instant"];
+                end: components["schemas"]["Instant"];
+            }[];
+            /** @description Series dates left out because they were not free. */
+            skipped?: components["schemas"]["Instant"][];
         };
         CalendarSpan: {
             start: components["schemas"]["Instant"];
@@ -3329,6 +3390,15 @@ export interface components {
             note?: string | null;
             customer: components["schemas"]["CalendarCustomer"];
             items: components["schemas"]["CalendarItem"][];
+            /** @description Booked together with the other appointments of this group (same time). */
+            groupId?: components["schemas"]["Uuid"] | null;
+            series?: {
+                id: components["schemas"]["Uuid"];
+                everyWeeks: number;
+                /** @description This visit's number among the series' active visits. */
+                index: number;
+                count: number;
+            } | null;
             /** @description Forms the client fills in before this visit (attached to its services), and whether they have. */
             forms: {
                 formId: components["schemas"]["Uuid"];
@@ -7023,6 +7093,46 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    cancelAtTheDesk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope?: "ONE" | "FOLLOWING" | "GROUP";
+                    reason?: string;
+                    /** @default true */
+                    notifyCustomer?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        cancelled: components["schemas"]["Uuid"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     moveAppointment: {

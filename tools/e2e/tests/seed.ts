@@ -263,3 +263,13 @@ export async function deskBook(salon: SeededSalon, start: string, name: string) 
     salon.token,
   );
 }
+
+/**
+ * A five-minute start that is still today in Addis Ababa: half an hour from now, or an hour ago late in the evening
+ * (the desk may book a time that has passed).
+ */
+export function laterToday(): string {
+  const addisHour = new Date(Date.now() + 3 * 3600_000).getUTCHours();
+  const offset = addisHour >= 22 ? -60 : 30;
+  return new Date(Math.ceil((Date.now() + offset * 60_000) / 300_000) * 300_000).toISOString();
+}

@@ -557,6 +557,26 @@ CalendarAppointment:
       type: array
       items:
         $ref: '#/CalendarItem'
+    groupId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+      description: Booked together with the other appointments of this group (same time).
+    series:
+      oneOf:
+        - type: object
+          required: [id, everyWeeks, index, count]
+          properties:
+            id:
+              $ref: ../common/schemas.yaml#/Uuid
+            everyWeeks:
+              type: integer
+            index:
+              type: integer
+              description: This visit's number among the series' active visits.
+            count:
+              type: integer
+        - type: 'null'
     forms:
       type: array
       description: Forms the client fills in before this visit (attached to its services), and whether they have.
@@ -671,6 +691,38 @@ DeskBookingInput:
     notifyCustomer:
       type: boolean
       default: true
+    guests:
+      type: array
+      maxItems: 9
+      description: |
+        A group: more people at the same time, one appointment each, booked all together or not at all (the first
+        customer leads the group). Not with `repeat`.
+      items:
+        type: object
+        required: [customer, items]
+        properties:
+          customer:
+            $ref: '#/DeskBookingInput/properties/customer'
+          items:
+            $ref: '#/DeskBookingInput/properties/items'
+    repeat:
+      type: object
+      description: |
+        A series: the same visit every `everyWeeks` weeks, `count` times in all, at the same local time. Only the first
+        visit sends a confirmation; reminders follow each. Not with `guests`.
+      required: [everyWeeks, count]
+      properties:
+        everyWeeks:
+          type: integer
+          minimum: 1
+          maximum: 4
+        count:
+          type: integer
+          minimum: 2
+          maximum: 12
+    skipTaken:
+      type: boolean
+      description: In a series, leave out the dates that are not free instead of failing (false when absent).
 DeskBooking:
   type: object
   required: [id, reference, start, end]
@@ -683,6 +735,34 @@ DeskBooking:
       $ref: ../common/schemas.yaml#/Instant
     end:
       $ref: ../common/schemas.yaml#/Instant
+    groupId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    seriesId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    appointments:
+      type: array
+      description: Every appointment made (one for a single booking).
+      items:
+        type: object
+        required: [id, reference, start, end]
+        properties:
+          id:
+            $ref: ../common/schemas.yaml#/Uuid
+          reference:
+            type: string
+          start:
+            $ref: ../common/schemas.yaml#/Instant
+          end:
+            $ref: ../common/schemas.yaml#/Instant
+    skipped:
+      type: array
+      description: Series dates left out because they were not free.
+      items:
+        $ref: ../common/schemas.yaml#/Instant
 WaitlistJoin:
   type: object
   required: [locationId, variantId, days, parts]

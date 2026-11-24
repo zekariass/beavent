@@ -170,7 +170,7 @@ class Notifier {
             case "appointment.expired" -> add(orgId, customerId, userId, EXPIRED, data, now, start);
             case "appointment.cancelled" -> {
                 withdrawReminders(appointmentId);
-                add(orgId, customerId, userId, CANCELLED, data, now, start);
+                if (notify) add(orgId, customerId, userId, CANCELLED, data, now, start);
             }
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);

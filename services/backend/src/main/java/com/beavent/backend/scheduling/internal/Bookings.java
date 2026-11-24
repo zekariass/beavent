@@ -6,15 +6,18 @@ import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
 import static com.beavent.db.crm.Tables.PATCH_TESTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
+import static com.beavent.db.scheduling.Tables.APPOINTMENT_GROUPS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_ADDONS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_RESOURCES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_STAGES;
+import static com.beavent.db.scheduling.Tables.APPOINTMENT_SERIES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_STATUS_HISTORY;
 import static com.beavent.db.scheduling.Tables.CALENDAR_BLOCKS;
 import static com.beavent.db.scheduling.Tables.HOLDS;
 import static com.beavent.db.scheduling.Tables.SCHEDULE_RESERVATIONS;
 import static com.beavent.db.team.Tables.STAFF;
+import static com.beavent.db.tenant.Tables.LOCATIONS;
 import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 
 import com.beavent.backend.catalog.ServicePricing;
@@ -32,6 +35,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -924,49 +928,280 @@ class Bookings {
             boolean allowOverlap,
             boolean notify,
             Instant now) {
+        return deskBookMany(
+                        orgId,
+                        actorUserId,
+                        locationId,
+                        List.of(new Party(who, items)),
+                        List.of(start),
+                        null,
+                        note,
+                        source,
+                        allowOverlap,
+                        false,
+                        notify,
+                        now)
+                .booked()
+                .getFirst();
+    }
+
+    /** One person in a desk booking: who it is for, and their services with whom. */
+    record Party(Who who, List<Availability.Item> items) {}
+
+    /** What a desk booking made: the appointments, and the dates of a series that were skipped as taken. */
+    record DeskMany(UUID groupId, UUID seriesId, List<DeskBooked> booked, List<Instant> skipped) {}
+
+    /**
+     * The front desk books one person, several people at the same time (a group: one appointment each, all or none),
+     * or one person on several dates (a series, every {@code everyWeeks} weeks). Everything happens in one
+     * transaction, so the people and dates see each other's reservations. A time that is not free fails the whole
+     * booking, unless {@code allowOverlap} (book anyway) or, for a series, {@code skipTaken} (leave that date out). In a
+     * series only the first visit sends the customer a confirmation; reminders follow each visit.
+     */
+    DeskMany deskBookMany(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            List<Party> parties,
+            List<Instant> starts,
+            Integer everyWeeks,
+            String note,
+            String source,
+            boolean allowOverlap,
+            boolean skipTaken,
+            boolean notify,
+            Instant now) {
         return transactions.execute(status -> {
             releaseExpired(now);
-            Availabilities.Chosen chosen =
-                    availabilities.at(locationId, items, null, start, now, true).orElse(null);
-            boolean forced = false;
-            if (chosen == null) {
-                if (!allowOverlap) {
-                    throw new ApiException(
-                            ProblemCode.SLOT_TAKEN, "That time is not free for this person. Book anyway to overlap.");
-                }
-                chosen = availabilities.forced(locationId, items, start, now);
-                forced = true;
+            List<UUID> customers = new ArrayList<>();
+            for (Party party : parties) {
+                customers.add(deskCustomer(orgId, party.who(), source));
             }
-            Plan plan = plan(orgId, locationId, chosen, now);
-            UUID customerId = deskCustomer(orgId, who, source);
-            UUID appointmentId = Ids.newId();
-            String reference = reference();
-            dsl.insertInto(APPOINTMENTS)
-                    .set(APPOINTMENTS.ID, appointmentId)
-                    .set(APPOINTMENTS.ORG_ID, orgId)
-                    .set(APPOINTMENTS.LOCATION_ID, locationId)
-                    .set(APPOINTMENTS.CUSTOMER_ID, customerId)
-                    .set(APPOINTMENTS.BOOKED_BY_USER_ID, actorUserId)
-                    .set(APPOINTMENTS.REFERENCE, reference)
-                    .set(APPOINTMENTS.SOURCE, source)
-                    .set(APPOINTMENTS.STATUS, "CONFIRMED")
-                    .set(APPOINTMENTS.DELIVERY_MODE, plan.deliveryMode())
-                    .set(APPOINTMENTS.STARTS_AT, utc(plan.start()))
-                    .set(APPOINTMENTS.ENDS_AT, utc(plan.end()))
-                    .set(APPOINTMENTS.TIMEZONE, plan.timezone())
-                    .set(APPOINTMENTS.POLICY_SNAPSHOT, JSONB.valueOf(json.writeValueAsString(plan.policy())))
-                    .set(APPOINTMENTS.INTERNAL_NOTE, note == null || note.isBlank() ? null : note.strip())
-                    .execute();
-            writeItems(orgId, appointmentId, plan, forced);
-            history(orgId, appointmentId, null, "CONFIRMED", actorUserId, forced ? "Booked anyway (overlap)" : null);
-            outbox.publish(new DomainEvent(
-                    "scheduling.appointment",
-                    appointmentId,
-                    "appointment.booked",
-                    1,
-                    orgId,
-                    Map.of("appointmentId", appointmentId, "notify", notify, "source", source)));
-            return new DeskBooked(appointmentId, reference, plan);
+            UUID groupId = null;
+            if (parties.size() > 1) {
+                groupId = Ids.newId();
+                dsl.insertInto(APPOINTMENT_GROUPS)
+                        .set(APPOINTMENT_GROUPS.ID, groupId)
+                        .set(APPOINTMENT_GROUPS.ORG_ID, orgId)
+                        .set(APPOINTMENT_GROUPS.LEAD_CUSTOMER_ID, customers.getFirst())
+                        .execute();
+            }
+            UUID seriesId = null;
+            String timezone = dsl.select(LOCATIONS.TIMEZONE)
+                    .from(LOCATIONS)
+                    .where(LOCATIONS.ID.eq(locationId))
+                    .fetchSingle(LOCATIONS.TIMEZONE);
+            if (starts.size() > 1) {
+                seriesId = Ids.newId();
+                dsl.insertInto(APPOINTMENT_SERIES)
+                        .set(APPOINTMENT_SERIES.ID, seriesId)
+                        .set(APPOINTMENT_SERIES.ORG_ID, orgId)
+                        .set(APPOINTMENT_SERIES.CUSTOMER_ID, customers.getFirst())
+                        .set(
+                                APPOINTMENT_SERIES.RRULE,
+                                "FREQ=WEEKLY;INTERVAL=" + (everyWeeks == null ? 1 : everyWeeks) + ";COUNT="
+                                        + starts.size())
+                        .set(APPOINTMENT_SERIES.TIMEZONE, timezone)
+                        .execute();
+            }
+            List<DeskBooked> booked = new ArrayList<>();
+            List<Instant> skipped = new ArrayList<>();
+            for (Instant start : starts) {
+                for (int k = 0; k < parties.size(); k++) {
+                    Party party = parties.get(k);
+                    Availabilities.Chosen chosen = availabilities
+                            .at(locationId, party.items(), null, start, now, true)
+                            .orElse(null);
+                    boolean forced = false;
+                    if (chosen == null) {
+                        if (allowOverlap) {
+                            chosen = availabilities.forced(locationId, party.items(), start, now);
+                            forced = true;
+                        } else if (skipTaken && seriesId != null) {
+                            skipped.add(start);
+                            continue;
+                        } else {
+                            String when = start.atZone(ZoneId.of(timezone))
+                                    .toLocalDate()
+                                    .toString();
+                            throw new ApiException(
+                                    ProblemCode.SLOT_TAKEN,
+                                    seriesId != null
+                                            ? "The time on " + when + " is not free. Skip it or book anyway."
+                                            : parties.size() > 1
+                                                    ? "The time is not free for person " + (k + 1)
+                                                            + ". Book anyway to overlap."
+                                                    : "That time is not free for this person. Book anyway to overlap.");
+                        }
+                    }
+                    Plan plan = plan(orgId, locationId, chosen, now);
+                    boolean tell = notify && (seriesId == null || booked.isEmpty());
+                    booked.add(insertDesk(
+                            orgId,
+                            actorUserId,
+                            locationId,
+                            plan,
+                            customers.get(k),
+                            note,
+                            source,
+                            forced,
+                            groupId,
+                            seriesId,
+                            tell));
+                }
+            }
+            if (booked.isEmpty()) {
+                throw new ApiException(ProblemCode.SLOT_TAKEN, "None of these times are free.");
+            }
+            return new DeskMany(groupId, seriesId, booked, skipped);
+        });
+    }
+
+    private DeskBooked insertDesk(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            Plan plan,
+            UUID customerId,
+            String note,
+            String source,
+            boolean forced,
+            UUID groupId,
+            UUID seriesId,
+            boolean notify) {
+        UUID appointmentId = Ids.newId();
+        String reference = reference();
+        dsl.insertInto(APPOINTMENTS)
+                .set(APPOINTMENTS.ID, appointmentId)
+                .set(APPOINTMENTS.ORG_ID, orgId)
+                .set(APPOINTMENTS.LOCATION_ID, locationId)
+                .set(APPOINTMENTS.CUSTOMER_ID, customerId)
+                .set(APPOINTMENTS.BOOKED_BY_USER_ID, actorUserId)
+                .set(APPOINTMENTS.GROUP_ID, groupId)
+                .set(APPOINTMENTS.SERIES_ID, seriesId)
+                .set(APPOINTMENTS.REFERENCE, reference)
+                .set(APPOINTMENTS.SOURCE, source)
+                .set(APPOINTMENTS.STATUS, "CONFIRMED")
+                .set(APPOINTMENTS.DELIVERY_MODE, plan.deliveryMode())
+                .set(APPOINTMENTS.STARTS_AT, utc(plan.start()))
+                .set(APPOINTMENTS.ENDS_AT, utc(plan.end()))
+                .set(APPOINTMENTS.TIMEZONE, plan.timezone())
+                .set(APPOINTMENTS.POLICY_SNAPSHOT, JSONB.valueOf(json.writeValueAsString(plan.policy())))
+                .set(APPOINTMENTS.INTERNAL_NOTE, note == null || note.isBlank() ? null : note.strip())
+                .execute();
+        writeItems(orgId, appointmentId, plan, forced);
+        history(orgId, appointmentId, null, "CONFIRMED", actorUserId, forced ? "Booked anyway (overlap)" : null);
+        outbox.publish(new DomainEvent(
+                "scheduling.appointment",
+                appointmentId,
+                "appointment.booked",
+                1,
+                orgId,
+                Map.of("appointmentId", appointmentId, "notify", notify, "source", source)));
+        return new DeskBooked(appointmentId, reference, plan);
+    }
+
+    /** What the front desk cancels: this visit, this and the following ones of its series, or its whole group. */
+    enum CancelScope {
+        ONE,
+        FOLLOWING,
+        GROUP
+    }
+
+    /** The appointments a desk cancellation would touch (still active ones), for the permission check. */
+    List<UUID> deskCancelTargets(UUID appointmentId, CancelScope scope) {
+        return transactions.execute(status -> targets(appointmentId, scope));
+    }
+
+    private List<UUID> targets(UUID appointmentId, CancelScope scope) {
+        var a = dsl.selectFrom(APPOINTMENTS)
+                .where(APPOINTMENTS.ID.eq(appointmentId))
+                .fetchOne();
+        if (a == null) {
+            throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+        }
+        var active = APPOINTMENTS.STATUS.in("CONFIRMED", "REQUESTED");
+        return switch (scope) {
+            case ONE -> List.of(appointmentId);
+            case FOLLOWING ->
+                a.getSeriesId() == null
+                        ? List.of(appointmentId)
+                        : dsl.select(APPOINTMENTS.ID)
+                                .from(APPOINTMENTS)
+                                .where(
+                                        APPOINTMENTS.SERIES_ID.eq(a.getSeriesId()),
+                                        APPOINTMENTS.STARTS_AT.ge(a.getStartsAt()),
+                                        active)
+                                .orderBy(APPOINTMENTS.STARTS_AT)
+                                .fetch(APPOINTMENTS.ID);
+            case GROUP ->
+                a.getGroupId() == null
+                        ? List.of(appointmentId)
+                        : dsl.select(APPOINTMENTS.ID)
+                                .from(APPOINTMENTS)
+                                .where(APPOINTMENTS.GROUP_ID.eq(a.getGroupId()), active)
+                                .orderBy(APPOINTMENTS.STARTS_AT, APPOINTMENTS.ID)
+                                .fetch(APPOINTMENTS.ID);
+        };
+    }
+
+    /**
+     * The front desk cancels (no fee: the business cancels). The times are freed at once. Customers are told unless
+     * the desk says not to; when the rest of a series is cancelled, the customer gets one message.
+     */
+    List<UUID> deskCancel(
+            UUID orgId, UUID actorUserId, UUID appointmentId, CancelScope scope, String reason, boolean notify) {
+        return transactions.execute(status -> {
+            var first = dsl.selectFrom(APPOINTMENTS)
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .forUpdate()
+                    .fetchOne();
+            if (first == null) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+            }
+            if (!List.of("CONFIRMED", "REQUESTED").contains(first.getStatus())) {
+                throw new ApiException(
+                        ProblemCode.IMMUTABLE, "Only a booked visit that has not started can be cancelled.");
+            }
+            List<UUID> ids = targets(appointmentId, scope);
+            OffsetDateTime at = OffsetDateTime.now(ZoneOffset.UTC);
+            for (int k = 0; k < ids.size(); k++) {
+                UUID id = ids.get(k);
+                String from = dsl.select(APPOINTMENTS.STATUS)
+                        .from(APPOINTMENTS)
+                        .where(APPOINTMENTS.ID.eq(id))
+                        .forUpdate()
+                        .fetchSingle(APPOINTMENTS.STATUS);
+                releaseReservations(id);
+                dsl.update(APPOINTMENT_ITEMS)
+                        .set(APPOINTMENT_ITEMS.STATUS, "CANCELLED")
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(id))
+                        .execute();
+                dsl.update(APPOINTMENTS)
+                        .set(APPOINTMENTS.STATUS, "CANCELLED")
+                        .set(APPOINTMENTS.CANCELLED_AT, at)
+                        .set(APPOINTMENTS.CANCELLED_BY, "ORGANIZATION")
+                        .set(APPOINTMENTS.CANCEL_REASON, reason == null || reason.isBlank() ? null : reason.strip())
+                        .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                        .where(APPOINTMENTS.ID.eq(id))
+                        .execute();
+                history(orgId, id, from, "CANCELLED", actorUserId, reason);
+                boolean tell = notify && (scope != CancelScope.FOLLOWING || k == 0);
+                outbox.publish(new DomainEvent(
+                        "scheduling.appointment",
+                        id,
+                        "appointment.cancelled",
+                        1,
+                        orgId,
+                        Map.of("appointmentId", id, "notify", tell, "by", "ORGANIZATION")));
+            }
+            if (scope == CancelScope.FOLLOWING && first.getSeriesId() != null) {
+                dsl.update(APPOINTMENT_SERIES)
+                        .set(APPOINTMENT_SERIES.STATUS, "ENDED")
+                        .where(APPOINTMENT_SERIES.ID.eq(first.getSeriesId()))
+                        .execute();
+            }
+            return ids;
         });
     }
 
