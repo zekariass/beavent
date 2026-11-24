@@ -240,3 +240,21 @@ export async function firstFreeStart(
   });
   return result.slots[0].start as string;
 }
+
+/** The front desk books `name` with the salon's stylist at `start` (overlapping on purpose when needed). */
+export async function deskBook(salon: SeededSalon, start: string, name: string) {
+  return api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/appointments`,
+    {
+      locationId: salon.locationId,
+      start,
+      items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+      customer: { name },
+      source: "PHONE",
+      notifyCustomer: false,
+      bookAnyway: true,
+    },
+    salon.token,
+  );
+}

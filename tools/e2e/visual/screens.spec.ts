@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
-import { bookAsCustomer, firstFreeStart, seedSalon } from "../tests/seed.ts";
+import { bookAsCustomer, deskBook, firstFreeStart, seedSalon } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
@@ -227,6 +227,8 @@ test("business app schedule and preferences", async ({ page }) => {
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByText("Walk-in", { exact: true }).filter({ visible: true }).first().waitFor();
+  await page.goto(`${BUSINESS_APP}/schedule`);
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
   await shot(page, "business-app-schedule-en-light");
 
@@ -237,7 +239,7 @@ test("business app schedule and preferences", async ({ page }) => {
   await page.reload();
   await page.waitForTimeout(800);
   await shot(page, "business-app-more-signed-in-am-dark");
-  await page.goto(BUSINESS_APP);
+  await page.goto(`${BUSINESS_APP}/schedule`);
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
   await shot(page, "business-app-schedule-am-dark");
 });
@@ -451,4 +453,48 @@ test("business console · calendar and booking link", async ({ browser }) => {
     }
   }
   await context.close();
+});
+
+test("business app · today, calendar, visit", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  const soon = (minutes: number) =>
+    new Date(Math.ceil((Date.now() + minutes * 60_000) / 300_000) * 300_000).toISOString();
+  await deskBook(salon, soon(30), "Meron Tesfaye");
+  await deskBook(salon, soon(-120), "Abel Girma");
+  for (const language of LANGUAGES) {
+    const context = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1000 },
+    });
+    const page = await context.newPage();
+    await page.waitForTimeout(31_000);
+    await page.goto(BUSINESS_APP);
+    await page.getByRole("textbox").first().fill(salon.phone);
+    const seen = codeCount(salon.phone);
+    await page
+      .getByRole("button")
+      .filter({ hasText: language === "am" ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await page
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(salon.phone, seen));
+    await page.getByRole("button").filter({ visible: true }).last().click();
+    await page.getByText("Meron Tesfaye").filter({ visible: true }).first().waitFor();
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(BUSINESS_APP);
+      await page.getByText("Meron Tesfaye").filter({ visible: true }).first().waitFor();
+      await shot(page, `business-app-today-${language}-${scheme}`);
+      await page.getByText("Meron Tesfaye").filter({ visible: true }).first().click();
+      await page.waitForTimeout(800);
+      await shot(page, `business-app-visit-${language}-${scheme}`);
+      await page.goto(`${BUSINESS_APP}/calendar`);
+      await page.getByText("Meron Tesfaye").filter({ visible: true }).first().waitFor();
+      await shot(page, `business-app-calendar-${language}-${scheme}`);
+    }
+    await context.close();
+  }
 });

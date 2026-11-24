@@ -4200,6 +4200,7 @@ components:
       type: string
       enum:
         - MOBILE_APP
+        - BUSINESS_APP
         - WEB_MARKETPLACE
         - PARTNER_PORTAL
         - ADMIN_CONSOLE

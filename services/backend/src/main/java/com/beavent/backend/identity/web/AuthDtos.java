@@ -18,7 +18,7 @@ final class AuthDtos {
     private AuthDtos() {}
 
     static final String PHONE = "^\\+[1-9][0-9]{6,14}$";
-    static final String CLIENT_APP = "MOBILE_APP|WEB_MARKETPLACE|PARTNER_PORTAL|ADMIN_CONSOLE";
+    static final String CLIENT_APP = "MOBILE_APP|BUSINESS_APP|WEB_MARKETPLACE|PARTNER_PORTAL|ADMIN_CONSOLE";
 
     record DeviceInfo(
             @NotBlank @Size(max = 200) String installationId,

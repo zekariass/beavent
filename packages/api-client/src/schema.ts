@@ -1846,7 +1846,7 @@ export interface components {
         /** @enum {string} */
         OtpChannel: "SMS" | "TELEGRAM" | "WHATSAPP" | "VOICE" | "EMAIL";
         /** @enum {string} */
-        ClientApp: "MOBILE_APP" | "WEB_MARKETPLACE" | "PARTNER_PORTAL" | "ADMIN_CONSOLE";
+        ClientApp: "MOBILE_APP" | "BUSINESS_APP" | "WEB_MARKETPLACE" | "PARTNER_PORTAL" | "ADMIN_CONSOLE";
         /**
          * @description BCP 47 language code (am, om, ti, so, en, sw, ...).
          * @example am
