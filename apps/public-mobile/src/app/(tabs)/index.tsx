@@ -3,8 +3,7 @@ import { space } from "@beavent/ui";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 
-import { DualLine, EmptyState, Screen, ScreenTitle, Section, Text } from "@/components/ui";
-import { useApp } from "@/lib/app-context";
+import { DualLine, EmptyState, Screen, ScreenTitle, Section, Text, useApp } from "@beavent/native";
 
 /**
  * Explore (C-1), interim until discovery ships in Stage 8: today's date and time in both conventions, and an honest

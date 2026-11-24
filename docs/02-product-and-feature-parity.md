@@ -7,7 +7,7 @@ Every row maps a feature to the **schema module** that implements it (`db/migrat
 
 | Code | Surface |
 |---|---|
-| **APP** | Mobile app (Expo). Consumer experience plus *Business mode* for organization members |
+| **APP** | Mobile apps (Expo): `public-mobile` for customers; *Business mode* = the `business-mobile` app for owners, staff and organizers |
 | **WEB** | Web marketplace (Next.js): discovery, booking, checkout, account, embeds, mini-sites |
 | **PP** | Partner portal (Next.js): one workspace for salons, spas, freelancers and event organizers |
 | **ADM** | Admin console (Next.js, internal) |

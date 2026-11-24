@@ -5,7 +5,7 @@ One platform for **booking services** (salons, barbers, spas, clinics, gyms, fre
 | Deliverable | What it is |
 |---|---|
 | Backend | `beavent-api`: one Java/Spring Boot modular monolith (API + worker processes), PostgreSQL + PostGIS |
-| Mobile app | One Expo app: consumer experience + **Business mode** for organization members (calendar, check-in scanner, POS) |
+| Mobile apps | Two Expo apps sharing `@beavent/native`: `public-mobile` (customers) and `business-mobile` (owners, staff, organizers: calendar, check-in scanner, POS) |
 | Web marketplace | Next.js: discovery, booking, ticket checkout, account, embeddable widgets, mini-sites |
 | Partner portal | Next.js: one workspace for salons, spas, freelancers **and** event organizers |
 | Admin console | Next.js: internal operations, risk, finance, markets, moderation, support |
@@ -21,6 +21,7 @@ One platform for **booking services** (salons, barbers, spas, clinics, gyms, fre
 | 05 | [Data model](05-data-model.md) | Conventions, schema map, table dictionary, RLS model, invariants and tests, migration practice |
 | 06 | [Markets, localization and compliance](06-markets-and-localization.md) | Ethiopia specifics, expansion playbook, market activation checklist, i18n engineering, data residency |
 | 07 | [Implementation plan](07-implementation-plan.md) | Step-by-step plan to the Addis Ababa pilot (Chapa-only, Chapa holds the money, hosting TBD), dependencies, risks |
+| 08 | [Availability engine](08-availability-engine.md) | Spec for plan step 2.1: which times can be booked and with whom (inputs, rules, algorithm, edge cases, tests) |
 
 The database baseline is in [`../db/migration`](../db/migration) (Flyway order). Validate it with:
 

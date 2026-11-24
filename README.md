@@ -8,7 +8,7 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
 | `services/backend/`     | API + workers (one Spring Boot modular monolith)                                                                                                       | Java 21, Spring Boot 4.1, Gradle       |
 | `apps/public-mobile/`   | Consumer app (customers booking services and buying tickets)                                                                                           | Expo SDK 58, React Native, Expo Router |
-| `apps/business-mobile/` | Business app for owners, staff and organizers (scaffolded; Business mode moves here from `apps/public-mobile/`)                                        | Expo SDK 58, React Native, Expo Router |
+| `apps/business-mobile/` | Business app for owners, staff and organizers (Schedule and More tabs; Business mode lives here)                                                       | Expo SDK 58, React Native, Expo Router |
 | `apps/web/`             | The one web platform (port 3000): public site `/[lang]`, business and organizer console `/[lang]/business`, admin console at the secret `/$ADMIN_PATH` | Next.js 16                             |
 | `packages/`             | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`                                                      | TypeScript                             |
 | `tools/chapa-stub/`     | Local stand-in for the Chapa API (port 8090) — development and CI only; see its README                                                                 | Node 26 (TypeScript)                   |
@@ -84,7 +84,7 @@ is **mandatory** for people and AI agents alike:
   checklists, component APIs and the definition of done for UI work.
 
 In code: tokens live in `packages/ui` (`npm run generate -w @beavent/ui` rebuilds `tokens.css` for the web apps; a
-test checks contrast and that the CSS is current); React Native primitives in `apps/public-mobile/src/components/ui`; visual QA
+test checks contrast and that the CSS is current); React Native primitives and app shell in `packages/native` (`@beavent/native`, used by both mobile apps); how a venue page reads (prices, hours, policies) in `packages/venue` (`@beavent/venue`, web and mobile); visual QA
 with `npm run visual -w @beavent/e2e` against a running stack.
 
 ## Conventions

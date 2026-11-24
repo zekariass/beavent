@@ -1,8 +1,48 @@
 # 07 — Implementation plan
 
-**Status:** v2 of the plan. **Scope:** from an empty repository to a pilot in Addis Ababa, then what follows.
+**Status:** v3 of the plan (reviewed 24 Nov 2026). **Scope:** from an empty repository to a pilot in Addis Ababa, then what follows.
 **How to use it:** work through the stages **in order**. A stage starts when the previous stage's "done when" checks pass. Steps inside a stage are listed in a sensible order but can overlap if more people are available. There are no dates: move on when ready.
-**Read with:** [03 architecture](03-system-architecture.md), [04 payments](04-payments-and-money.md), [05 data model](05-data-model.md), [06 markets](06-markets-and-localization.md).
+**Read with:** [03 architecture](03-system-architecture.md), [04 payments](04-payments-and-money.md), [05 data model](05-data-model.md), [06 markets](06-markets-and-localization.md), [08 availability engine](08-availability-engine.md), and for every screen the design set in [`design/beavent/`](design/beavent/) (benchmarks: Fresha for services, Eventbrite for events).
+
+## 0. Where we are, and what the v3 review changed
+
+### 0.1 Status
+
+| Stage | State | Notes |
+|---|---|---|
+| 0 Foundation | ✅ Done | API (identity, tenancy, files, admin), design system, two mobile apps and one web platform (D20). Hosted CI runs on PR #8: all green |
+| 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
+| 2 Appointments | **In progress** | 2.1–2.4 done: availability, venue page, booking core with messages, and the booking screens on web and in the app. A customer can find a place by link, book, move and cancel. Next: 2.5 the business calendar |
+| 3–10 | Not started | Unchanged except where noted in §0.2 |
+
+### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
+
+| # | Finding | Change in v3 |
+|---|---|---|
+| R1 | Stage 2 was ordered by *feature* (engine, booking, calendar, CRM, consumer UI, waitlist). The consumer UI came fifth, so nothing could be seen or tried end to end until late, and UI quality was left to the end. | Stage 2 is re-cut into **vertical slices**. Each slice ships API + UI + tests + visual QA and ends with something demonstrable. Every slice names the benchmark screens (Fresha-based IDs from [SERVICES_MARKETPLACE_DESIGN](design/beavent/SERVICES_MARKETPLACE_DESIGN.md)). |
+| R2 | **No public read surface.** The design set needs public endpoints for a venue profile (gap G1), but v2 only builds discovery in Stage 8. Customers could not reach a venue to book. The design says direct links and QR codes are the main way in during Stages 2–7. | New step **2.2 Public venue page** (read API, web page, share link and QR, app deep link) before booking. Search and Explore stay in Stage 8. |
+| R3 | Booking needs a customer record in the business (`crm.customers`), but CRM was step 2.4, after booking. | Booking (2.3) creates or links a minimal customer. Notes, alerts, tags, merge and forms are step 2.6. |
+| R4 | Confirmations, reminders and waitlist offers are in Stage 2's "done when", but notifications were Stage 8.4. | A **minimal transactional messaging** layer ships in 2.3 (templates in Amharic and English, SMS and email through the existing gateways). Stage 8.4 extends it (push, quiet hours, preferences, campaigns). |
+| R5 | A durable scheduler was promised "with the first time-based job (Stage 2)" but not placed. Hold expiry, reminders and waitlist-offer expiry all need it. | Step 2.3 builds it without a generic jobs table (decided while building): time-outs are idempotent sweeps claimed with `SKIP LOCKED`, and messages due later are rows in `comms.notifications` (`send_after`), delivered with leases and retries. No new dependency. |
+| R6 | Realtime (WebSocket) was a bullet inside calendar operations, but it is shared infrastructure (calendar, payment status, check-in counters). | Built once in 2.5 as a platform capability (authenticated channels per location, Redis fan-out), reused by Stages 3 and 7. |
+| R7 | The business app signs in as `MOBILE_APP`. Tokens carry the client app as audience, so business and consumer sessions are not told apart. | Decision in 2.5: add `BUSINESS_APP` to the `ClientApp` contract (breaking change to the enum, done before any external client exists). |
+| R8 | Wording had gone stale: "mobile Business mode", "partner portal", `apps/mobile`, separate admin-console app. | Updated: **business app** (`apps/business-mobile`), **business console** (`apps/web`, `/[lang]/business`), **admin console** (`apps/web`, secret `ADMIN_PATH`). |
+| R9 | UI work had no per-step design reference or definition of done, and gaps such as the Saved tab, account screens and the map were not placed. | §2 adds UI rules to the definition of done; each UI step lists its screens; the Saved tab, account screens and map are placed in Stage 8 with their dependency installs (§0.3). |
+| R10 | The SMS gateway (D4) is only a log provider, but Stage 2 now sends real confirmations. | D4 now blocks Stage 2 *acceptance with real phones*, not only step 0.7. |
+| R11 | Risk list had nothing about the new surfaces. | Added risks: public booking abuse (bots holding slots), realtime fan-out, translation quality. |
+
+### 0.3 Dependencies by step
+
+Approved (2026-11-19). Installed only in the step that builds the screen, with `npx expo install`:
+
+| Package | Installed in | Used for |
+|---|---|---|
+| `expo-haptics`, Noto Sans Ethiopic | ✅ installed | Feedback; Ge'ez text |
+| `expo-camera` | 7.3 | Ticket scanner (business app) |
+| `expo-brightness` | 6.5 | Ticket pass screen |
+| `expo-maps` (mobile), MapLibre GL JS (web) | 8.1 | Venue map and search map; tile provider and keys decided first (G8) |
+
+Anything else needs approval first. No new backend dependency is planned for Stage 2.
 
 ---
 
@@ -43,6 +83,12 @@ From [developer.chapa.co](https://developer.chapa.co/): [split payments](https:/
 - Amharic and English strings; Ethiopian date/time display where dates are shown.
 - Audit events for sensitive actions; metrics/alerts for new background jobs.
 - Docs updated when behaviour differs from docs 03–06.
+- **Every UI step** (also see [`AGENTS.md`](../AGENTS.md)):
+  - Built from `@beavent/ui` tokens and `@beavent/native` components, to the screen spec named in the step. The screen specs follow Fresha for services and Eventbrite for events; when a spec is missing, write it in `design/beavent/` first.
+  - Every state is designed: loading skeleton, empty, error with retry, offline, signed out, success.
+  - Checked in light and dark, Amharic and English, phone and desktop widths, with screenshots reviewed (`npm run visual -w @beavent/e2e`), and the journey covered by a Playwright test in `tools/e2e`.
+  - `npm run bundle:check` passes for the mobile apps.
+- **Every slice ends demonstrable:** it is run on the local stack, and the result is reported with what was and was not verified.
 
 ## 3. Money rules under "Chapa holds the money"
 
@@ -96,7 +142,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 *Done when:* the full suite passes on PostGIS locally and in CI.
 
 **0.3 Monorepo and toolchain.** ✅ *Done* (CODEOWNERS pending GitHub usernames).
-- Layout (doc 03 §1): `services/backend/`, `apps/public-mobile/`, `apps/web/` (public site, business console, admin console), `packages/{api-client,ui,i18n,calendar,money,config}`, `db/`, `docs/`.
+- Layout (doc 03 §1): `services/backend/`, `apps/public-mobile/` (customers), `apps/business-mobile/` (business owners, staff, organizers), `apps/web/` (public site, business console, admin console), `packages/{api-client,ui,native,i18n,calendar,money,config}`, `db/`, `docs/`.
 - npm workspaces + Turborepo for TypeScript; Gradle for the API (Flyway packages `db/migration`; jOOQ, Spring Modulith, AMQP, Actuator, Testcontainers).
 - Pinned: Java 21 LTS (move to 25 later without code change); Node 26 / npm 11; Spring Boot 4.1; Expo SDK 58; Next.js 16.
 - Formatters and linters (Prettier, ESLint, Expo lint, Spotless/Palantir Java Format), PR template with the definition of done; CODEOWNERS once GitHub usernames are known.
@@ -123,7 +169,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 **0.6 API contract workflow.** ✅ *Done* — `services/backend/src/main/openapi` (identity, tenancy, reference specs for steps 0.7–0.8), `packages/api-client`.
 - Spec-first OpenAPI 3.1, one folder per module (`common`, `identity`, `tenancy`, `reference`), linted with Redocly (`redocly.yaml`) and bundled to `packages/api-client/openapi.yaml`.
-- `packages/api-client`: generated types (`openapi-typescript`), typed fetch client (`openapi-fetch`) adding auth, language and `X-Request-Id`, React Query hooks (`openapi-react-query`), idempotency-key and problem helpers; used by web, business, admin-console and mobile (`src/lib/api.ts`).
+- `packages/api-client`: generated types (`openapi-typescript`), typed fetch client (`openapi-fetch`) adding auth, language and `X-Request-Id`, React Query hooks (`openapi-react-query`), idempotency-key and problem helpers; used by the web platform and both mobile apps (`src/lib/api.ts`).
 - Backend serves the bundle at `/v1/openapi.yaml`; a test keeps `ProblemCode` identical to the contract's error codes. Request/response validation against the spec is added with the first endpoints (0.7: `swagger-request-validator-mockmvc` checks every request and response in the API tests).
 - CI job `api-contract`: lint + regenerate, fail if the committed client is stale, and on pull requests fail on breaking changes against the base branch (`oasdiff`).
 - Rule: every module starts with its spec, reviewed by backend, web and mobile.
@@ -173,7 +219,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 - `packages/i18n`: Amharic and English catalogues complete for the shells, Afaan Oromo started (missing keys fall back to English); ICU-style placeholders and plurals, Accept-Language negotiation, localized-text fallback. The Amharic and Afaan Oromo copy needs review by native-speaking editors before launch.
 - `packages/calendar`: Ethiopian ⇄ Gregorian conversion, Ethiopian local time (hours from 06:00/18:00) and formatting in am/en/om; tested on shared vectors (holidays, leap years) and every day from 1900 to 2200. The Java twin `EthiopianCalendar` runs the same vectors.
 - `packages/money`: exact decimal parsing/printing, localized formatting, allocation without lost minor units, basis-point percentages rounded half up, cash rounding.
-- Shells: web and partner portal under `/am`, `/en`, `/om` (language from the URL, remembered in a cookie, otherwise the browser's languages, defaulting to Amharic) and the mobile home screen (device language, switchable) show today's Ethiopian date and Ethiopian/international time for Addis Ababa.
+- Shells: the web platform (public site and business console) under `/am`, `/en`, `/om` (language from the URL, remembered in a cookie, otherwise the browser's languages, defaulting to Amharic) and the mobile home screen (device language, switchable) show today's Ethiopian date and Ethiopian/international time for Addis Ababa.
 - Open: wireframes for the pilot journeys (D9).
 
 *Done when:* the web, partner and mobile shells render in Amharic and English with Ethiopian dates and times. ✅
@@ -186,20 +232,20 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 **Goal:** a business can describe what it sells and who does it.
 
-**1.1 Services.** ✅ *Done* (API + partner portal) — `backend/.../catalog`.
+**1.1 Services.** ✅ *Done* (API + business console) — `backend/.../catalog`.
 - Menu sections; services with variants (duration, buffers, price type), stage templates (e.g. apply / process / rinse; the stages must add up to the variant's duration), resource needs, add-ons, bundles (sum, fixed price or percent off).
 - Price overrides per location, team member, pricing level or combinations, effective-dated (history kept). `ServicePricing` resolves the most specific price and duration for booking.
 - Resources (rooms, chairs, beds, stations; parallel units); galleries using processed public images.
-- Partner portal: menu with sections, service editor (Amharic and English names, options, durations, prices in birr, locations), staff-specific prices.
+- Business console: menu with sections, service editor (Amharic and English names, options, durations, prices in birr, locations), staff-specific prices.
 
-**1.2 Team.** ✅ *Done* (API, partner portal, mobile) — `backend/.../team`, `apps/public-mobile/src/app/business.tsx`.
+**1.2 Team.** ✅ *Done* (API, business console, business app) — `backend/.../team`; "My schedule" is now the Schedule tab of `apps/business-mobile` (moved from the consumer app, 24 Nov 2026).
 - Team profiles with or without a login (one profile per login), locations, services performed, pricing levels.
 - Regular hours as weekly or multi-week rotations, effective-dated; one-off shifts replace the pattern for a day; time off recorded by managers or requested by the person and then decided.
 - `Rota` computes working intervals per person and local day; managers and people who see every calendar see everyone, others only themselves.
-- Partner portal: team list, add a team member, regular hours editor, weekly rota (Ethiopian dates and Ethiopian time in Amharic).
-- Mobile Business mode: sign-in by phone or email code (tokens in the phone's secure storage, one refresh at a time), "My schedule" for this week and next from the team profile linked to the login (`GET /staff/me`).
+- Business console: team list, add a team member, regular hours editor, weekly rota (Ethiopian dates and Ethiopian time in Amharic).
+- Business app: sign-in by phone or email code (tokens in the phone's secure storage, one refresh at a time), "My schedule" for this week and next from the team profile linked to the login (`GET /staff/me`).
 
-**1.3 Booking policies.** ✅ *Done* (API + partner portal) — `backend/.../scheduling`.
+**1.3 Booking policies.** ✅ *Done* (API + business console) — `backend/.../scheduling`.
 - Notice period, booking horizon, slot interval, request-to-book, pay at venue.
 - Deposit rules (none/percent/fixed/full; who they apply to), cancellation window, no-show and late-cancel fees, policy text.
 - Most-specific-wins resolution (service + location, service, location, organization, platform default) via `BookingPolicies`.
@@ -208,44 +254,96 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 - Opening hours (0.8), closures, a "closed on public holidays" switch; Ethiopian public holidays 2026–2027 as reference data (to be confirmed by a local adviser like other legal facts).
 - Service areas (administrative area or circle) with travel fee and travel time.
 
-*Done when:* a salon builds a menu with staff-specific prices and a weekly rota for its team in the partner portal. ✅ (`tools/e2e/tests/partner-portal.spec.ts`: a real browser signs in by code, onboards a business, builds the menu, adds a stylist with regular hours, sets her price and checks the rota in English and Amharic; `mobile-schedule.spec.ts`: a team member signs in on the mobile app (web build) and sees two weeks of their hours; plus `CatalogApiTests`, `TeamApiTests`, `PoliciesAndLocationsApiTests`.)
+*Done when:* a salon builds a menu with staff-specific prices and a weekly rota for its team in the business console. ✅ (`tools/e2e/tests/partner-portal.spec.ts`: a real browser signs in by code, onboards a business, builds the menu, adds a stylist with regular hours, sets her price and checks the rota in English and Amharic; `mobile-schedule.spec.ts`: a team member signs in on the mobile app (web build) and sees two weeks of their hours; plus `CatalogApiTests`, `TeamApiTests`, `PoliciesAndLocationsApiTests`.)
 
 ---
 
 ## Stage 2 — Appointments (pay at venue)
 
-**Goal:** end-to-end booking without online payment, so the scheduling core is proven before money is involved.
+**Goal:** end-to-end booking without online payment, so the scheduling core is proven before money is involved. **Benchmark:** Fresha. A person who has never used Beavent goes from a shared link to a confirmed appointment in under a minute, with no account made in advance ([design §1](design/beavent/SERVICES_MARKETPLACE_DESIGN.md#1-journey)); the front desk sees it on the calendar at once.
 
-**2.1 Availability engine.**
-- Write a half-page spec first (inputs, algorithm, edge cases), then implement.
-- Inputs: patterns, shifts, time off, closures, holidays, existing reservations, stage occupancy, resources, buffers, travel time, service areas.
-- Cache with invalidation on calendar changes.
+**How the stage is cut.** Six slices, each vertical (database → API → UI → tests → visual QA) and each ending with something you can run. Screen IDs refer to [SERVICES_MARKETPLACE_DESIGN](design/beavent/SERVICES_MARKETPLACE_DESIGN.md) (S-xx consumer, P-xx business console, B-x business app).
 
-*Done when:* property tests show no offered slot ever overlaps a reservation, and one location/day with 10 staff returns in under 300 ms.
+| Slice | Delivers | Screens (benchmark) | Surfaces |
+|---|---|---|---|
+| 2.1 | Availability engine and API | — (API only; slot picker uses it in 2.4) | backend |
+| 2.2 | Public venue page and share link | S-04 venue, S-05 service sheet, S-17 professional sheet | web, consumer app |
+| 2.3 | Booking core | — (API; first UI in 2.4) | backend |
+| 2.4 | Consumer booking flow and "my appointments" | S-06 … S-10b, S-11 … S-13, C-4 | web, consumer app |
+| 2.5 | Calendar operations | P-12 calendar, B-1 Today, B-2 Calendar | business console, business app |
+| 2.6 | Clients, forms, waitlist, front-desk bookings | P-13 clients, S-15 waitlist | business console, business app, web, consumer app |
 
-**2.2 Booking.**
-- Hold → order (pay at venue) → appointment → reservations, in one transaction; a conflict returns `SLOT_TAKEN`.
-- Hold-expiry job; reschedule; cancellation with policy evaluation; group bookings; booking for someone else.
+Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 needs bookings to exist; 2.6 builds on all of them. Steps inside a slice can overlap.
 
-*Done when:* two users racing for the same slot through the API get exactly one booking.
+**2.1 Availability engine.** ✅ *Done* — spec: [08](08-availability-engine.md).
+- Slice 1 ✅ (24 Nov 2026): the algorithm as a pure function, 28 hand-built tests and 3 property tests (oracle, safety, monotonicity), mutation-checked.
+- Slice 2 ✅ (24 Nov 2026): **facts loaded from the database** (rota, location hours, closures, holidays, live reservations, resources, policy and travel) behind the public `scheduling.Availability` interface; the **public endpoint** `POST /v1/public/locations/{locationId}/availability` (OpenAPI, no sign-in, rate limited) and `tenancy.PublicLocations`; API tests against PostGIS (hours, closures, holidays, blocks, live and expired holds, processing stages, add-ons, resources, several services, at-home travel, refusals). Details and decisions: [08 §9](08-availability-engine.md#9-the-database-loader-and-the-endpoint-slice-2).
+- **Cache: not built, on purpose.** Measured uncached: 10 people, 60 reservations, a 3-service booking, median about 60 ms (budget 300 ms). A cache with outbox invalidation is added when a measurement needs it (Stage 8 search by time window). `next_available_at` per location comes with the venue page (2.2).
 
-**2.3 Calendar operations.**
-- Day/week calendar by staff and resource; drag-to-move; walk-ins; blocks; staff-only forced overlap.
-- Statuses: arrived/started/completed/no-show.
-- Realtime updates over WebSocket, in the partner portal and in mobile Business mode.
+*Done when:* ✅ property tests show no offered slot ever overlaps a reservation, and one location/day with 10 staff returns in under 300 ms including loading (an API test against PostGIS measures it).
 
-**2.4 CRM basics.**
-- Customer profiles, notes/alerts/allergies, tags, history, merge.
-- Consultation/consent forms with e-signature; patch-test enforcement.
+**2.2 Public venue page.** ✅ *Done* (24 Nov 2026), with the deviations below. The first thing a customer sees; Fresha's venue profile.
+- Backend: `GET /v1/public/venues/{business}/{location}` (and `…/{business}/locations`) in the new `marketplace` module: profile, photos, landmark-first address, hours, upcoming closures, services grouped as on the menu with price ranges (standard price and any lower per-person, level or location price) and durations, add-ons, bookable team, the effective policy, other locations. Only active, online-bookable services offered at the location are exposed; a business that is suspended or closed, or an archived location, is `404`. Reads run in the business's context (RLS); cacheable for 30 s; 240 requests per minute per address. API tests cover content, hidden services, multi-branch, phone-only and removed places.
+- Web: the S-04 page at `/{lang}/b/{business}/{location}` (a link without a language follows the browser): gallery or initial, title, open status in both time conventions, anchor tabs, service rows that open in place (variants, add-ons, aftercare, patch-test note), team, about (hours with today in bold, closures, policy sentences), other locations, Call action, loading skeleton, "not on Beavent" and error states, noindex unless the business is approved for the marketplace. The business console has a **Booking link** page (copy link, open page).
+- Consumer app: the same screen at `/b/{business}/{location}` (`beavent://b/…`), with the same wording from the shared `@beavent/venue` package.
+- Tests: unit tests of the shared formatting (`packages/venue`), Playwright for the web page (both languages), the console link and the app screen; screenshots reviewed in both languages, both themes, phone and desktop.
+- **Deviations from the plan and what moves where:**
+  - No **Book now** button yet: the booking flow is 2.4; the action is **Call** until then. The sticky booking box on desktop and the bar on phones are ready for it.
+  - **QR code** for the booking link needs a QR library: not on the approved list. Ask for approval, then add it to the Booking link page in 2.4 (the link and copy work now).
+  - **S-05 service sheet and S-17 professional sheet** arrive with the basket in 2.4 (rows open in place until then). `next_available_at` and "Next available today" also need a chosen service, so they come with 2.4.
+  - Open status uses hours and announced closures; **public holidays** are not applied to the "Open" label yet (availability does apply them).
+  - Reviews, rating and the map preview wait for Stage 8; the Explore tab still shows no venues.
 
-**2.5 Consumer booking UI.**
-- Web marketplace: location page and booking flow.
-- Mobile app: same flow, plus "my appointments" (reschedule/cancel).
+**2.3 Booking core.** ✅ *Done* (24 Nov 2026) except the `.ics` file, moved to 2.4.
+- Done: `POST /v1/public/locations/{id}/holds` (public, 10-minute hold, re-checked by the engine, rate limited), `DELETE …/holds/{holdId}` (holder key), `POST /v1/me/appointments` (signed-in person; hold → appointment, items, add-ons, stages, resource units and reservations in one transaction; `REQUESTED` when the business confirms each booking; repeat returns the same appointment) and `GET /v1/me/appointments`. The business's customer record is created or linked (an earlier walk-in with the same verified phone is reused). Terms are frozen in the appointment (strictest rule across services, exact free-cancellation time). A person's own back-to-back services are one merged reservation. Expired holds are released before a new hold. Problem code `HOLD_EXPIRED`. API tests include an 8-way race (exactly one hold) and a mutation check of the merge.
+- Decisions: guests book by the inline phone code (DD10), which signs them in, so there is no separate guest-claim flow. No `commerce.orders` row yet: orders arrive with tax, fees and payments in Stage 3, and pay-at-venue visits are settled at the counter (Stage 4). `SLOT_TAKEN` returns no alternatives; the client asks availability again (cheap, about 60 ms).
+- Slice 2 done: `GET /v1/me/appointments/{id}` with a **cancellation preview** (gap G4: allowed, free, free-until, fee), `POST …/cancel` (free before the frozen free-cancellation time or while a request is unanswered; otherwise the late fee on the all-in total is recorded; the time is freed at once) and `POST …/reschedule` (same services, same chosen person, prices kept as booked; one transaction frees the old time first, so a 15-minute move with the same person works; a taken time changes nothing; allowed until the free-cancellation time, at-home visits by phone for now).
+- Slice 3 done: **request-to-book answers** (`POST /v1/orgs/{orgId}/appointments/{id}/accept|decline`, `appointments.manage`); **sweeps** every 30 s across businesses (holds that ran out; requests not answered within 24 h or 2 h before the visit expire and free the time); a new **`comms` module**: booking events become notifications for the customer (confirmed, request received, declined, expired, cancelled, moved; reminders 24 h and 2 h before), withdrawn when the visit moves or is cancelled, suppressed when stale, delivered by SMS and email with leases and five attempts, in the person's language (else the business's) with Ethiopian and international time (`EthiopianCalendar.formatTime`, same output as the TypeScript formatter). Tests cover the whole message flow, both languages and the sweep.
+- Still open: the Amharic message texts need the native-speaker review (doc 06); a real SMS provider (D4) before testing with real phones; `.ics` moves to 2.4 (it needs a link that works without a sign-in header).
 
-**2.6 Waitlist.**
-- Waitlist for time windows; an automatic offer with a held slot when an appointment is cancelled.
+- **Hold → appointment → reservations in one transaction**, pay at venue; a lost race returns `SLOT_TAKEN` from the database exclusion constraints, and the API re-runs the engine once to suggest the nearest alternatives. Request-to-book creates a held `REQUESTED` appointment that the business confirms or declines (hold lasts until the policy's response time).
+- Booking identity: signed-in customers, or **guest by phone** (inline one-time code, DD10; the guest is claimed to the account on first sign-in with the same verified number). A **minimal customer record** (`crm.customers`: name, phone, source `DIRECT_LINK` or `MARKETPLACE`) is created or matched in the business (R3).
+- **Durable jobs** (R5): `platform.jobs` claimed with `SKIP LOCKED`, idempotent handlers, metrics and alerts. First jobs: hold expiry, appointment reminders (24 h and 2 h), request-to-book response deadline.
+- **Minimal transactional messaging** (R4): template catalogue (am/en) for booking confirmed, request received/approved/declined, reminder, cancelled, rescheduled; sent by SMS and email through the existing gateways, with Ethiopian date and time next to the international one; delivery log. Real SMS provider before acceptance with real phones (D4).
+- Cancellation with policy evaluation (free until the deadline, late-cancel fee as a recorded amount, no money moves until Stage 3), a **cancellation preview** endpoint (G4), reschedule (new hold, old slot released in the same transaction), and booking for someone else (guest name and phone separate from the booker).
+- Calendar file: `.ics` endpoint for "Add to calendar" (G6: no new dependency).
+- Abuse controls: per-IP and per-phone limits on holds, at most N live holds per person, short hold time (policy-driven, default 10 minutes).
 
-*Done when:* a customer books a pay-at-venue appointment on web or mobile, it appears on the stylist's calendar instantly, the front desk completes it, and a cancellation triggers a waitlist offer.
+*Done when:* two people racing for the same slot through the API get exactly one booking and one `SLOT_TAKEN` (concurrency test); hold expiry frees the slot; a booking with a guest phone creates exactly one customer.
+
+**2.4 Consumer booking flow and "my appointments".** ✅ *Done* (24 Nov 2026) on web and in the consumer app, except "Add to calendar" (`.ics`) and Book again with the same services preselected (S-14).
+- Done (web): **Book now** on the venue page opens `/{lang}/b/{business}/{location}/book`: services (S-06: add several, choose an option and add-ons), professional (S-07, skipped when only one person does every chosen service), time (S-08: a week of days with the reader's calendar first, times grouped into morning, afternoon and evening in both time conventions, opening on the first day with times, "Times are in Addis Ababa time" when the device's zone differs, the next free day when a day is empty), review (S-10: items with the person, all-in total, pay at the venue, the exact free-cancellation time, the late fee, request-to-book wording, a 10-minute hold with its end time, note) with **inline sign-in by phone code** (DD10; customer sessions in httpOnly cookies, client app `WEB_MARKETPLACE`, kept alive by the proxy like the console's), confirmation (S-10b: reference, time, people, what happens next). A taken time shows a message and fresh times; a run-out hold sends the person back to choose again. Summary column on desktop, bar on phones. Playwright: a newcomer books with the inline code and books again signed in; screenshots of every step in both languages, both themes, phone and desktop were reviewed (they caught afternoon times repeating the morning's, and names shown in the business's language instead of the reader's; both fixed).
+- Done (web, slice 2): **Bookings** (C-4) at `/{lang}/account/bookings` (sign in inline when signed out; Upcoming and Past, grouped by day in the reader's calendar, a status label when not simply confirmed; sign out), **appointment detail** (S-11: status, banner for requests, declines, expiry and cancellation, date and time in both conventions, duration, reference, the place with Call, items with the person and add-ons, total, the exact free-cancellation time; Reschedule when allowed, otherwise "Changes this close to the visit need a call"; Cancel stating the cost first (S-13); Book again or Find another time when it is over), **reschedule** (S-12: the same time picker, "Move to …?", prices kept, a taken time refreshes the list). Service names come from the place's menu in the reader's language (the list API now returns the variant). A "See my bookings" action on the confirmation; the site header has Bookings and a language switch that keeps the page. Playwright: book → list → detail → reschedule → cancel → Past; screenshots in both languages and themes, phone and desktop, reviewed (header crowding on phones fixed).
+- Done (consumer app, slice 3): **Book now** on the venue screen opens the same flow as a full-screen modal (DD4): services with options and add-ons, professional when more than one, a time picker with the same rules (`src/components/time-picker.tsx`), review with the shared phone-code panel (DD10), confirmation with "See my bookings". The **Bookings tab** (C-4) lists upcoming and past appointments (refreshed whenever the tab comes into view); **appointment detail** (S-11) with Call, cancel after seeing the cost (S-13), reschedule (S-12) and Book again. Day and part-of-day rules moved into `@beavent/venue` so web and app count days in the venue's zone the same way (unit-tested). Playwright on the app's web build: book (signing in on the way), see, move, cancel; screenshots of the booking steps in both languages and themes reviewed. Bundle 1,697 KB gzip (budget 4,000 KB).
+- Local development: `application-local.properties` raises the per-address hold and sign-in-code limits (every local request comes from one address); production keeps 30 holds an hour per address.
+- Left for later: `.ics` "Add to calendar" (needs a signed link that works without a sign-in header); Book again opening at the time step with the same services (S-14; today it opens the services step); native iOS/Android rendering checked only through the web build.
+
+- Web and consumer app: Services (S-06, multiple services in sequence, add-ons) → Professional (S-07, "any available" default; skipped when there is only one) → Time (S-08: week strip, dual Ethiopian/international time, "Times are in Addis Ababa time" caption when the device differs, nearest-day suggestions when a day is empty, waitlist entry point) → Details (S-09: at-home address and travel estimate G5, notes; skipped when not needed) → Review and confirm (S-10: all-in price, policy sentences as dates and amounts, cancellation deadline, request-to-book wording) → Confirmation (S-10b: add to calendar, directions, share).
+- Inline sign-in (DD10) by phone code at the review step; guests supported. Deposit and prepayment steps appear in Stage 3 (the screens leave room; the flow already branches on the policy).
+- **Bookings tab** (C-4: upcoming, past) and **appointment detail** S-11 with reschedule (S-12) and cancel (S-13) using the preview endpoint; Book again (S-14).
+- States: no slots (waitlist link until 2.6), slot just taken (inline message and nearest times, never a dead end), offline, expired hold.
+
+*Done when:* a Playwright journey books, reschedules and cancels a pay-at-venue appointment on web, and the same flow runs on the consumer app's web build; screenshots reviewed in both languages, both themes, phone and desktop.
+
+**2.5 Calendar operations.** Fresha's calendar, the core of the business tools.
+- Calendar API: day and week by staff and resource, create appointment (walk-in or by phone), move (drag), resize, change status (arrived, started, completed, no-show; every change in `appointment_status_history`), blocks and breaks, staff-only forced overlap (`allow_overlap` after an explicit "Book anyway"), "notify the customer" switch on every change.
+- **Realtime** (R6): authenticated WebSocket channel per location with Redis fan-out; event = "calendar changed" with the affected ids (clients refetch the range); reconnect with backfill; fallback to polling every 15 s.
+- Business console **P-12 Calendar**: day view with a column per team member (15-minute grid, 'now' line, processing stages drawn lighter, requested bookings in `warningSubtle`, blocks), week view, drag to move, click empty slot to create, appointment drawer with customer, services, status actions, history.
+- Business app **B-1 Today** and **B-2 Calendar**: timeline with a 'now' line, status actions by swipe or row actions, walk-in button, 2-column staff day view, cached view offline with queued status changes labelled "Waiting to sync".
+- **`BUSINESS_APP` client app** (R7): added to the contract; business sessions use it.
+- Permissions: seeing everyone's calendar vs own, per the existing roles and location scope.
+
+*Done when:* a booking made on the consumer web appears on the stylist's calendar in the console and the business app within a second without refreshing; the front desk moves it, marks it arrived and completed; the customer gets the reschedule message; two staff editing the same day never double-book unless the forced overlap is chosen.
+
+**2.6 Clients, forms, waitlist, front-desk groups.**
+- **Clients (P-13)**: profile, notes, alerts and allergies (warning banner on the customer and their appointments), tags, history, merge duplicates, import from CSV. Business app: client screen from an appointment.
+- **Consultation and consent forms** with e-signature and patch-test enforcement (blocks online booking of a service until a valid patch test is on file).
+- **Waitlist (S-15)**: customer joins for a time window; on a cancellation the engine finds the match, the customer gets an offer with a held slot (SMS + in-app, a few minutes to accept); expiry moves to the next person (durable jobs).
+- **Group bookings** (several people, same time or parallel items) and series (repeat weekly) from the front desk; consumer-side group booking only after the pilot feedback.
+
+*Done when:* a customer books a pay-at-venue appointment on web or mobile, it appears on the stylist's calendar instantly, the front desk completes it, a cancellation triggers a waitlist offer that another customer accepts, and the allergy alert shows on that customer's next booking.
+
+**Stage 2 exit:** the journey above runs end to end on the local stack with real SMS in a rehearsal (D4), the 300 ms availability budget is met, and there are no open Sev-1 bugs.
 
 ---
 
@@ -290,7 +388,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 *Done when:* the fault-injection suite passes: duplicate and out-of-order webhooks, missing webhook (poll path), timeout, customer cancels, double approval, late success, and a Chapa error on initialize.
 
 **3.5 Seller "Get paid" onboarding.**
-- Partner portal flow: legal entity → bank account (Chapa bank list; name must match) → step-up OTP → Chapa subaccount created → online payments enabled.
+- Business console flow: legal entity → bank account (Chapa bank list; name must match) → step-up OTP → Chapa subaccount created → online payments enabled.
 - Gate: online payments only after KYB is approved **and** the subaccount exists. Until then, pay-at-venue only.
 - Changing the bank account creates a new subaccount, starts a 72 h cooling-off before routing to it, and notifies the owner.
 
@@ -321,7 +419,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 **Goal:** the front desk can take every payment at the counter.
 
 **4.1 POS.**
-- In mobile Business mode and the partner portal: services, products, gift cards, tips (with staff allocation), discounts, split tender.
+- In the business app and the business console: services, products, gift cards, tips (with staff allocation), discounts, split tender.
 
 **4.2 Payment methods at the counter.**
 - **Chapa**: a direct-charge prompt to the customer's phone, or a payment link/QR the customer opens.
@@ -423,7 +521,7 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 - A signed manifest of credential hashes, updated incrementally.
 
 **7.3 Scanning.**
-- Camera scanner in mobile Business mode.
+- Camera scanner in the business app (`expo-camera`, installed in this step).
 - Idempotent scan sync; authoritative admissions; re-entry; conflict flagging.
 - Search by name, phone or serial.
 
@@ -442,17 +540,18 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 **Goal:** customers find businesses and events, and everyone is kept informed.
 
 **8.1 Discovery projector and search.**
-- Projector builds `discovery.listings` for locations and events.
-- Search API: full-text + trigram + map, with Amharic/Latin transliteration aliases.
-- Web: home, city and category landing pages (SEO) and search with map. Mobile: discover tab.
+- Projector builds `discovery.listings` for locations and events (venue pages already exist from 2.2; this makes them findable).
+- Search API: full-text + trigram + map, with Amharic/Latin transliteration aliases; availability-aware "when" filter (G2) using the 2.1 engine and `next_available_at`.
+- Web: home, city and category landing pages (SEO) and search with map (MapLibre GL JS). Consumer app: Explore tab (S-01, S-02) and map (S-03, `expo-maps`), installed in this step.
 
-**8.2 Profiles.**
-- Organization and organizer profile pages; follow organizer, plus auto-follow after purchase.
+**8.2 Profiles and saved.**
+- Organization and organizer profile pages (brand page S-18 for multi-location businesses); follow organizer, plus auto-follow after purchase.
+- The **Saved** tab (DD2) in the consumer app and on web, backed by `discovery.saved_items`; Book again shelf (S-01) from appointment history.
 
 **8.3 Reviews.**
 - Verified reviews after completed visits and events; organization responses; moderation queue in the admin console.
 
-**8.4 Notifications.**
+**8.4 Notifications.** Extends the minimal messaging built in step 2.3.
 - Amharic/English templates for every transactional event.
 - Channels: SMS, email and push (Telegram bot when ready).
 - Reminders 24 h and 2 h before, showing Ethiopian local time.
@@ -543,12 +642,12 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 | D1 | Chapa business account, split enabled, test keys | Founders/finance | Stage 3 (start early; the stub covers development meanwhile) |
 | D2 | Chapa terms: fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement | Finance + Chapa | Stage 3 go-live certification (3.9) |
 | D3 | Legal confirmation that the split model needs no platform payment licence; consumer and partner terms (am/en) | Counsel | Stage 9 |
-| D4 | SMS gateway for OTP and notifications; sender ID registration | Ops | Stage 0, step 0.7 |
+| D4 | SMS gateway for OTP and notifications; sender ID registration | Ops | Only the `log` provider exists today. Needed before Stage 2 acceptance with real phones (2.3 sends confirmations and reminders), and before any pilot |
 | D5 | Hosting provider and region for **staging** | Founders + engineering | Stage 3 (public webhook URL) |
 | D6 | Production hosting, backups/DR, data-protection review | Founders + counsel | Stage 9 |
 | D7 | Tax rates and regimes verified (VAT/TOT); receipt rules; whether pilot sellers need MoR e-invoicing | Tax adviser | Stage 9 |
 | D8 | Fee rates and plan prices for Ethiopia | Commercial | Stage 3 (configuration), final before Stage 9 |
-| D9 | Wireframes and visual design for the pilot journeys | Designer | Stage 0, step 0.11, then ahead of each stage's UI |
+| D9 | Wireframes and visual design for the pilot journeys | Designer | Stage 0, step 0.11, then ahead of each stage's UI. Until a designer is engaged the screen specs in `design/beavent/` (Fresha- and Eventbrite-benchmarked) are the reference; each UI slice is reviewed on rendered screenshots |
 | D10 | Pilot partner list and their bank accounts | Business development | Stage 10 |
 | D11 | Apple/Google developer accounts; app names in Amharic and English | Ops | Stage 9 |
 | D12 | Google OAuth client ids (web, Android, iOS) and Apple Services ID for the iOS app | Ops | Before the first app release with Google sign-in (Stage 9 at the latest) |
@@ -565,3 +664,6 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 | SMS cost and deliverability | OTP failures | Telegram channel; delivery monitoring; per-message cost tracking |
 | Scope creep into growth features | Pilot slips | Stages 0–10 are the pilot scope; new requests go to Stage 11 unless a pilot partner is blocked |
 | Availability engine complexity | Wrong slots offered | Spec first; property tests; DB exclusion constraint as the backstop |
+| Public booking abuse (bots holding slots, fake bookings) | Lost sales, annoyed businesses | Short holds, per-IP and per-phone limits, a cap on live holds per person, phone verification before a booking is confirmed, business can block a customer |
+| Realtime fan-out (calendar, payment status, check-in) | Stale calendars, load spikes | One platform channel with Redis fan-out, refetch-on-notify (small messages), polling fallback, load test in 9.1 |
+| Amharic and Afaan Oromo copy quality | Mistrust of messages and screens | Native-speaking editor review before pilot; templates kept in `@beavent/i18n` with fallbacks |

@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
+import { seedSalon } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
 const MOBILE = process.env.MOBILE_URL ?? "http://localhost:19006";
+const BUSINESS_APP = process.env.BUSINESS_MOBILE_URL ?? "http://localhost:19007";
 const API = process.env.API_URL ?? "http://localhost:8080";
 
 const PHONE = { width: 360, height: 740 };
@@ -38,17 +40,24 @@ for (const scheme of SCHEMES) {
         await shot(page, `admin-sign-in-${scheme}`);
       }
 
-      // The mobile app's web build at phone width; language comes from the device locale.
+      // The mobile apps' web builds at phone width; language comes from the device locale.
       await page.setViewportSize(PHONE);
       for (const [route, name] of [
         ["/", "explore"],
         ["/bookings", "bookings"],
         ["/account", "account"],
-        ["/business", "business-signed-out"],
       ] as const) {
         await page.goto(`${MOBILE}${route}`);
         await page.waitForTimeout(800);
         await shot(page, `mobile-${name}-${language}-${scheme}`);
+      }
+      for (const [route, name] of [
+        ["/", "schedule-signed-out"],
+        ["/more", "more"],
+      ] as const) {
+        await page.goto(`${BUSINESS_APP}${route}`);
+        await page.waitForTimeout(800);
+        await shot(page, `business-app-${name}-${language}-${scheme}`);
       }
       await context.close();
     });
@@ -134,7 +143,7 @@ async function api(method: string, path: string, body?: unknown, token?: string)
   return response.status === 204 ? null : response.json();
 }
 
-test("mobile Business schedule and preferences", async ({ page }) => {
+test("business app schedule and preferences", async ({ page }) => {
   await page.setViewportSize(PHONE);
   const phone = newPhone();
   const challenge = await api("POST", "/v1/auth/otp/request", {
@@ -212,23 +221,191 @@ test("mobile Business schedule and preferences", async ({ page }) => {
   // Sign in on the phone (after the 30 s resend window of the first code).
   await page.waitForTimeout(31_000);
   const seen = codeCount(phone);
-  await page.goto(`${MOBILE}/business`);
-  await shot(page, "mobile-business-sign-in-en-light");
+  await page.goto(BUSINESS_APP);
+  await shot(page, "business-app-sign-in-en-light");
   await page.getByLabel("Phone number or email").fill(`0${phone.slice(4)}`);
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
-  await shot(page, "mobile-business-schedule-en-light");
+  await shot(page, "business-app-schedule-en-light");
 
-  // Preferences: Amharic + dark, chosen in Account, survive a reload and apply to the schedule.
-  await page.goto(`${MOBILE}/account`);
+  // Preferences: Amharic + dark, chosen in More, survive a reload and apply to the schedule.
+  await page.goto(`${BUSINESS_APP}/more`);
   await page.getByRole("radio", { name: "አማርኛ" }).click();
   await page.getByRole("radio", { name: "ጨለማ" }).click();
   await page.reload();
   await page.waitForTimeout(800);
-  await shot(page, "mobile-account-signed-in-am-dark");
-  await page.goto(`${MOBILE}/business`);
+  await shot(page, "business-app-more-signed-in-am-dark");
+  await page.goto(BUSINESS_APP);
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10);
-  await shot(page, "mobile-business-schedule-am-dark");
+  await shot(page, "business-app-schedule-am-dark");
+});
+
+test("venue page · both languages, both themes, phone and desktop", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: language === "am" ? "am-ET" : "en-US",
+        viewport: DESKTOP,
+      });
+      const page = await context.newPage();
+      const url = `${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}`;
+      await page.goto(url);
+      await page
+        .getByText(language === "am" ? "ቦክስ ሹሩባ" : "Box braids", { exact: true })
+        .first()
+        .click();
+      await shot(page, `venue-${language}-${scheme}-desktop`);
+      await page.setViewportSize(PHONE);
+      await shot(page, `venue-${language}-${scheme}-phone`);
+      // The same place in the consumer app (web build), language from the device locale.
+      await page.setViewportSize({ width: 390, height: 2600 });
+      await page.goto(`${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}`);
+      await page
+        .getByText(language === "am" ? "ቦክስ ሹሩባ" : "Box braids", { exact: true })
+        .first()
+        .click();
+      await page.waitForTimeout(600);
+      await shot(page, `mobile-venue-${language}-${scheme}`);
+      await context.close();
+    }
+  }
+});
+
+test("booking flow · services, time, review", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        const context = await browser.newContext({
+          colorScheme: scheme,
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          viewport: size,
+        });
+        const page = await context.newPage();
+        await page.goto(`${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+        const add = language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids";
+        await page.getByRole("button", { name: add }).click();
+        await page.screenshot({
+          path: `test-results/visual/book-services-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page
+          .getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" })
+          .first()
+          .click();
+        await page.locator("fieldset button[aria-pressed]").first().waitFor();
+        await page.screenshot({
+          path: `test-results/visual/book-time-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page.locator("fieldset button[aria-pressed]").first().click();
+        await page
+          .getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" })
+          .first()
+          .click();
+        await page
+          .locator("h1")
+          .filter({ hasText: language === "am" ? "ይገምግሙ" : "Review" })
+          .waitFor();
+        await page.screenshot({
+          path: `test-results/visual/book-review-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page.getByRole("button", { name: language === "am" ? "ተመለስ" : "Back" }).click();
+        await context.close();
+      }
+    }
+  }
+});
+
+test("bookings · list, detail, reschedule", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  const context = await browser.newContext({
+    locale: "en-US",
+    timezoneId: "Africa/Addis_Ababa",
+    viewport: DESKTOP,
+  });
+  const page = await context.newPage();
+  // Book once (signing in inline), a week ahead.
+  await page.goto(`${WEB}/en/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+  await page.getByRole("button", { name: "Add Box braids" }).click();
+  await page.getByRole("button", { name: "Continue" }).first().click();
+  await page.getByRole("button", { name: /Later dates/ }).click();
+  await page.locator("fieldset button[aria-pressed]").first().click();
+  await page.getByRole("button", { name: "Continue" }).first().click();
+  const phone = newPhone();
+  await page.getByLabel("Phone number").fill(phone);
+  const seen = codeCount(phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
+  await page.getByRole("button", { name: "Confirm and book" }).click();
+  await page.getByRole("link", { name: "See my bookings" }).click();
+  await page.locator("main ul li a").first().click();
+  await page.waitForURL(/\/account\/bookings\/[0-9a-f-]{36}$/);
+  const detail = page.url().replace(`${WEB}/en`, "");
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/account/bookings`);
+        await shot(page, `bookings-list-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}${detail}`);
+        await shot(page, `bookings-detail-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}${detail}/reschedule`);
+        await page.locator("fieldset button[aria-pressed]").first().waitFor();
+        await shot(page, `bookings-reschedule-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await context.close();
+});
+
+test("consumer app · booking flow and bookings", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: language === "am" ? "am-ET" : "en-US",
+        timezoneId: "Africa/Addis_Ababa",
+        viewport: { width: 390, height: 1100 },
+      });
+      const page = await context.newPage();
+      const visible = (text: string | RegExp) =>
+        page.getByText(text).filter({ visible: true }).first();
+      await page.goto(`${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+      const add = language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids";
+      await page.getByRole("button", { name: add }).click();
+      await page.waitForTimeout(300);
+      await shot(page, `mobile-book-services-${language}-${scheme}`);
+      await page.getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" }).click();
+      await page
+        .getByRole("button", { name: /\d:\d\d.*, / })
+        .filter({ visible: true })
+        .first()
+        .waitFor();
+      await shot(page, `mobile-book-time-${language}-${scheme}`);
+      await page
+        .getByRole("button", { name: /\d:\d\d.*, / })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await page.getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" }).click();
+      await visible(language === "am" ? "ይገምግሙ እና ይያዙ" : "Review and book").waitFor();
+      await shot(page, `mobile-book-review-${language}-${scheme}`);
+      await context.close();
+    }
+  }
 });

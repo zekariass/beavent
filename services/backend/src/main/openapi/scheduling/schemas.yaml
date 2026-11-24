@@ -108,3 +108,336 @@ BookingPolicyList:
       type: array
       items:
         $ref: '#/BookingPolicy'
+AvailabilityItem:
+  type: object
+  required: [variantId]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    addonIds:
+      type: array
+      maxItems: 10
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      description: The chosen person; leave out for anyone available.
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilityQuery:
+  type: object
+  required: [items, from, to]
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      description: Services in the order they are done, back to back.
+      items:
+        $ref: '#/AvailabilityItem'
+    from:
+      type: string
+      format: date
+      description: First local date (the location's time zone).
+    to:
+      type: string
+      format: date
+      description: Last local date, inclusive. At most 14 days from `from`.
+    serviceAreaId:
+      description: Set for a visit at the customer's place; leave out for the venue.
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilityAssignment:
+  type: object
+  required: [variantId, staffId]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilitySlot:
+  type: object
+  required: [start, end, items]
+  properties:
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    items:
+      type: array
+      items:
+        $ref: '#/AvailabilityAssignment'
+AvailabilityResult:
+  type: object
+  required: [timezone, slots]
+  properties:
+    timezone:
+      type: string
+      example: Africa/Addis_Ababa
+    slots:
+      type: array
+      items:
+        $ref: '#/AvailabilitySlot'
+HoldInput:
+  type: object
+  required: [items, start]
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      items:
+        $ref: '#/AvailabilityItem'
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    serviceAreaId:
+      $ref: ../common/schemas.yaml#/Uuid
+BookingAddon:
+  type: object
+  required: [id, name, durationMinutes, priceMinor]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    durationMinutes:
+      type: integer
+    priceMinor:
+      type: integer
+      format: int64
+BookingItem:
+  type: object
+  required: [variantId, serviceName, staffId, staffName, staffRequested, start, end, priceMinor, currency, addons]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceName:
+      type: string
+    variantName:
+      type: [string, 'null']
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffName:
+      type: string
+    staffRequested:
+      type: boolean
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    priceMinor:
+      type: integer
+      format: int64
+      description: The service's price for this person here; add-ons are listed separately.
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    addons:
+      type: array
+      items:
+        $ref: '#/BookingAddon'
+BookingTerms:
+  type: object
+  required: [requiresApproval, allowPayAtVenue, depositMode, cancellationWindowMinutes, freeCancellationUntil]
+  description: The terms frozen in the appointment; several services apply the strictest rule of any.
+  properties:
+    requiresApproval:
+      type: boolean
+    allowPayAtVenue:
+      type: boolean
+    depositMode:
+      type: string
+      enum: [NONE, PERCENT, FIXED, FULL]
+    cancellationWindowMinutes:
+      type: integer
+    freeCancellationUntil:
+      $ref: ../common/schemas.yaml#/Instant
+    lateCancelFeePercent:
+      type: number
+    noShowFeePercent:
+      type: number
+BookingSummary:
+  type: object
+  required: [locationId, timezone, deliveryMode, start, end, items, totalMinor, currency, policy]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    timezone:
+      type: string
+    deliveryMode:
+      type: string
+      enum: [ON_PREMISES, AT_CUSTOMER]
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    items:
+      type: array
+      items:
+        $ref: '#/BookingItem'
+    totalMinor:
+      type: integer
+      format: int64
+      description: All-in total (services and add-ons).
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    policy:
+      $ref: '#/BookingTerms'
+Hold:
+  type: object
+  required: [holdId, holderKey, expiresAt, booking]
+  properties:
+    holdId:
+      $ref: ../common/schemas.yaml#/Uuid
+    holderKey:
+      type: string
+      description: Proof that the hold is yours; send it to confirm or release.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    booking:
+      $ref: '#/BookingSummary'
+BookInput:
+  type: object
+  required: [locationId, holdId, holderKey]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    holdId:
+      $ref: ../common/schemas.yaml#/Uuid
+    holderKey:
+      type: string
+    note:
+      type: string
+      maxLength: 500
+      description: For the business ("first time, sensitive scalp").
+Appointment:
+  type: object
+  required: [id, reference, status, booking]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+      description: Six characters people can read out over the phone.
+    status:
+      type: string
+      enum: [REQUESTED, CONFIRMED]
+    booking:
+      $ref: '#/BookingSummary'
+MyAppointmentPlace:
+  type: object
+  required: [locationId, businessName, businessSlug, locationName, locationSlug]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessName:
+      type: string
+    businessSlug:
+      type: string
+    locationName:
+      type: string
+    locationSlug:
+      type: string
+    landmark:
+      type: [string, 'null']
+    phone:
+      type: [string, 'null']
+MyAppointmentItem:
+  type: object
+  required: [variantId, serviceName, start, end, priceMinor, currency]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceName:
+      type: string
+    variantName:
+      type: [string, 'null']
+    staffName:
+      type: [string, 'null']
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    priceMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+MyAppointment:
+  type: object
+  required: [id, reference, status, start, end, timezone, items]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+      enum: [PENDING_PAYMENT, REQUESTED, CONFIRMED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW, EXPIRED, DECLINED]
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    timezone:
+      type: string
+    place:
+      $ref: '#/MyAppointmentPlace'
+    items:
+      type: array
+      items:
+        $ref: '#/MyAppointmentItem'
+MyAppointmentList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MyAppointment'
+CancellationPreview:
+  type: object
+  required: [allowed, free, freeUntil, feeMinor]
+  properties:
+    allowed:
+      type: boolean
+      description: False once the visit has started or the appointment is no longer active.
+    free:
+      type: boolean
+    freeUntil:
+      $ref: ../common/schemas.yaml#/Instant
+    feeMinor:
+      type: integer
+      format: int64
+      description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+    currency:
+      type: [string, 'null']
+AppointmentDetail:
+  type: object
+  required: [id, reference, status, start, end, timezone, booking, cancellation, canReschedule]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+      enum: [PENDING_PAYMENT, REQUESTED, CONFIRMED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW, EXPIRED, DECLINED]
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    timezone:
+      type: string
+    note:
+      type: [string, 'null']
+    place:
+      $ref: '#/MyAppointmentPlace'
+    booking:
+      $ref: '#/BookingSummary'
+    cancellation:
+      $ref: '#/CancellationPreview'
+    canReschedule:
+      type: boolean
+AppointmentStatus:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [CONFIRMED, DECLINED]

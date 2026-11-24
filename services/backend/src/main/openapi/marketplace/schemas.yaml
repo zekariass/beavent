@@ -1,0 +1,276 @@
+VenueImage:
+  type: object
+  required: [url, variants, alt]
+  properties:
+    url:
+      type: string
+    variants:
+      type: object
+      description: Smaller sizes by name (w320, w960).
+      additionalProperties:
+        type: string
+    alt:
+      $ref: ../common/schemas.yaml#/LocalizedText
+VenueHours:
+  type: object
+  required: [isoWeekday, opensAt, closesAt]
+  properties:
+    isoWeekday:
+      type: integer
+      minimum: 1
+      maximum: 7
+    opensAt:
+      type: string
+      description: Local time, HH:mm:ss, in the location's zone.
+    closesAt:
+      type: string
+VenueClosure:
+  type: object
+  required: [startsAt, endsAt]
+  properties:
+    startsAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    endsAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    reason:
+      type: [string, 'null']
+VenueVariant:
+  type: object
+  required: [id, name, durationMinutes, priceType, priceMinMinor, priceMaxMinor, currency]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    priceType:
+      type: string
+      enum: [FIXED, FROM, FREE, ON_CONSULTATION]
+    priceMinMinor:
+      type: integer
+      format: int64
+      description: Lowest price anyone pays (standard price, or a lower price for a person, level or location).
+    priceMaxMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+VenueAddOn:
+  type: object
+  required: [id, name, durationMinutes, priceMinor, currency]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    priceMinor:
+      type: integer
+      format: int64
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+VenueService:
+  type: object
+  required: [id, name, description, aftercare, audience, deliveryModes, requiresPatchTest, variants, addOns]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    aftercare:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    audience:
+      type: string
+      enum: [EVERYONE, WOMEN, MEN, CHILDREN]
+    deliveryModes:
+      type: array
+      items:
+        type: string
+        enum: [ON_PREMISES, AT_CUSTOMER, ONLINE]
+    requiresPatchTest:
+      type: boolean
+    patchTestValidityDays:
+      type: [integer, 'null']
+    variants:
+      type: array
+      items:
+        $ref: '#/VenueVariant'
+    addOns:
+      type: array
+      items:
+        $ref: '#/VenueAddOn'
+VenueGroup:
+  type: object
+  required: [name, services]
+  properties:
+    id:
+      type: [string, 'null']
+      format: uuid
+      description: Null for services that are not in a menu section.
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    services:
+      type: array
+      items:
+        $ref: '#/VenueService'
+VenuePerson:
+  type: object
+  required: [id, displayName, languages, serviceIds]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    displayName:
+      type: string
+    jobTitle:
+      type: [string, 'null']
+    photo:
+      oneOf:
+        - $ref: '#/VenueImage'
+        - type: 'null'
+    languages:
+      type: array
+      items:
+        type: string
+    serviceIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+VenuePolicy:
+  type: object
+  required: [requiresApproval, allowPayAtVenue, depositMode, cancellationWindowMinutes]
+  properties:
+    requiresApproval:
+      type: boolean
+    allowPayAtVenue:
+      type: boolean
+    depositMode:
+      type: string
+      enum: [NONE, PERCENT, FIXED, FULL]
+    depositPercent:
+      type: [number, 'null']
+    depositFixedMinor:
+      type: [integer, 'null']
+      format: int64
+    depositAppliesTo:
+      type: [string, 'null']
+    currency:
+      type: [string, 'null']
+    cancellationWindowMinutes:
+      type: integer
+    lateCancelFeePercent:
+      type: [number, 'null']
+    noShowFeePercent:
+      type: [number, 'null']
+VenueOther:
+  type: object
+  required: [slug, name]
+  properties:
+    slug:
+      type: string
+    name:
+      type: string
+    landmark:
+      type: [string, 'null']
+Venue:
+  type: object
+  required:
+    - businessSlug
+    - businessName
+    - description
+    - category
+    - locationId
+    - locationSlug
+    - locationName
+    - timezone
+    - serviceMode
+    - area
+    - closedOnPublicHolidays
+    - hours
+    - upcomingClosures
+    - onlineBooking
+    - listed
+    - gallery
+    - groups
+    - team
+    - policy
+    - otherLocations
+  properties:
+    businessSlug:
+      type: string
+    businessName:
+      type: string
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logo:
+      oneOf:
+        - $ref: '#/VenueImage'
+        - type: 'null'
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationSlug:
+      type: string
+    locationName:
+      type: string
+    phone:
+      type: [string, 'null']
+    timezone:
+      type: string
+    serviceMode:
+      type: string
+      enum: [ON_PREMISES, MOBILE_ONLY, BOTH]
+    landmark:
+      type: [string, 'null']
+    addressLine:
+      type: [string, 'null']
+    city:
+      type: [string, 'null']
+    area:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    latitude:
+      type: [number, 'null']
+    longitude:
+      type: [number, 'null']
+    closedOnPublicHolidays:
+      type: boolean
+    hours:
+      type: array
+      items:
+        $ref: '#/VenueHours'
+    upcomingClosures:
+      type: array
+      items:
+        $ref: '#/VenueClosure'
+    onlineBooking:
+      type: boolean
+      description: False when the venue takes bookings by phone only (or has nothing bookable yet).
+    listed:
+      type: boolean
+      description: Approved for the marketplace. Pages that are not listed should not be indexed by search engines.
+    gallery:
+      type: array
+      items:
+        $ref: '#/VenueImage'
+    groups:
+      type: array
+      items:
+        $ref: '#/VenueGroup'
+    team:
+      type: array
+      items:
+        $ref: '#/VenuePerson'
+    policy:
+      $ref: '#/VenuePolicy'
+    otherLocations:
+      type: array
+      items:
+        $ref: '#/VenueOther'

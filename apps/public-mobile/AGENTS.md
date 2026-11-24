@@ -46,16 +46,16 @@ Every screen follows the Beavent design system: read the root [`AGENTS.md`](../.
 [`docs/design/beavent/AI_AGENT_DESIGN_INSTRUCTIONS.md`](../../docs/design/beavent/AI_AGENT_DESIGN_INSTRUCTIONS.md)
 first.
 
-- Build screens from `src/components/ui` (`Text`, `Button`, `TextField`, `Screen`, `Section`, `ListRow`,
+- Build screens from `@beavent/native` (shared with the business app; source in `packages/native/src/ui`: `Text`, `Button`, `TextField`, `Screen`, `Section`, `ListRow`,
   `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`). Colours, language, display
-  preferences and the resolved theme come from `useApp()` (`src/lib/app-context.tsx`).
+  preferences and the resolved theme come from `useApp()` (`packages/native/src/app-context.tsx`).
 - Values come from `@beavent/ui` (spacing `space`/`layout`, `radius`, `size`, type roles). No hex colours, raw font
   sizes or off-scale spacing in screens; `Text` refuses font/colour styles by type.
 - Format money with `@beavent/money` `formatDisplay`, dates and times with `@beavent/calendar`
   (`formatDualDate`, `formatDualTime` — international time is 12-hour; partner tools use 24-hour
   `formatStandardTime`).
-- Ge'ez text uses the bundled Noto Sans Ethiopic (`src/constants/fonts.ts`; import weights by subpath, never the
-  package's main entry, which bundles all nine). Haptics only through `src/lib/haptics.ts`.
+- Ge'ez text uses the bundled Noto Sans Ethiopic (`packages/native/src/constants/fonts.ts`; import weights by subpath, never the
+  package's main entry, which bundles all nine). Haptics only through `selectionFeedback()` from `@beavent/native`.
 - `npm run bundle:check` keeps the Hermes bundle within `performanceBudget.mobileBundleKb` (CI runs it).
 - The web build is server-rendered: nothing that depends on the device (language, theme, clock) may render before
   `useApp().ready` (the root layout already waits), or hydration fails.

@@ -9,7 +9,7 @@ Beavent (working name) is one platform for **booking services** (salons, barbers
 ```mermaid
 flowchart LR
   subgraph Clients
-    M["Mobile app<br/>(Expo) consumer + Business mode"]
+    M["Mobile apps<br/>(Expo) public + business"]
     W["Web marketplace<br/>(Next.js) + embeds + mini-sites"]
     P["Partner portal<br/>(Next.js)"]
     A["Admin console<br/>(Next.js, internal)"]
@@ -31,7 +31,7 @@ flowchart LR
 | # | Deliverable | Audience | Technology |
 |---|---|---|---|
 | 1 | **Backend** `beavent-api` (`services/backend/`) | All clients, providers' webhooks, partner API | Java 25 (LTS), Spring Boot 4, Spring Modulith, jOOQ, Flyway, PostgreSQL 18 + PostGIS, Redis, RabbitMQ |
-| 2 | **Mobile app** | Consumers; organization members in Business mode | Expo / React Native, TypeScript, EAS builds + OTA updates |
+| 2 | **Mobile apps** (`public-mobile`, `business-mobile`) | Consumers; business owners, staff and organizers | Expo / React Native, TypeScript, EAS builds + OTA updates |
 | 3 | **Web marketplace** | Consumers (SEO discovery, booking, checkout, account), embeddable widgets, organization mini-sites | Next.js (App Router), TypeScript |
 | 4 | **Partner portal** | Owners, managers, front desk, event organizers, finance | Next.js, TypeScript |
 | 5 | **Admin console** | Platform staff: ops, support, risk, finance, moderation, market managers | Next.js, TypeScript, internal network; code or Google sign-in, 12-hour sessions, step-up codes |
@@ -63,11 +63,11 @@ docker-compose.yml  local PostGIS, Redis, RabbitMQ, SeaweedFS (S3), Mailpit, Cha
 .github/workflows/  CI
 ```
 
-### 1.1 Mobile app (one app, two modes)
+### 1.1 Mobile apps (two apps, shared code)
 
-One store listing keeps acquisition and support simple: the same person often books a hairdresser and buys a concert ticket, and a stylist is also a consumer. **Business mode** appears only when the signed-in user has an active membership. It is a lazy-loaded bundle and is re-authorised by the backend on every call.
+**Two apps (decision D20, 24 Nov 2026):** `public-mobile` for customers and `business-mobile` for owners, staff and organizers (what this section calls *Business mode*). A person can have both installed with one account; a stylist is also a consumer. Each app has its own tabs, store listing and release; both are built on `@beavent/native` (token-based components, session and preferences, Ge'ez font, sign-in). The business app is re-authorised by the backend on every call, and its tabs are filtered by the member's capabilities and permissions.
 
-| Consumer mode | Business mode |
+| Consumer app (`public-mobile`) | Business app (`business-mobile`) |
 |---|---|
 | **Discover**: one search across places to book and things to do; map; filters (near me, open now, price, rating, women-only/men-only, at-home, date, category, free events) | **Today**: day timeline across staff; arrivals; unpaid balances; quick actions |
 | **Book**: services, variants, add-ons, professional, time; group booking; at-home address and travel fee; deposit or pay at venue | **Calendar**: day/week by staff or resource; drag to move; walk-in; block time; waitlist offers |

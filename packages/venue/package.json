@@ -1,0 +1,27 @@
+{
+  "name": "@beavent/venue",
+  "version": "0.0.0",
+  "private": true,
+  "description": "How a venue page reads: prices, durations, opening hours and status, policy sentences. Shared by web and mobile.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@beavent/api-client": "*",
+    "@beavent/calendar": "*",
+    "@beavent/i18n": "*",
+    "@beavent/money": "*"
+  },
+  "devDependencies": {
+    "@beavent/config": "*",
+    "typescript": "^5",
+    "@types/node": "^24.19.2"
+  }
+}

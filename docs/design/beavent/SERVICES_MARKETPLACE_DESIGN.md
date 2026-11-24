@@ -3,7 +3,7 @@
 **Status:** v1, 19 Nov 2026. **Benchmark:** Fresha (see [DESIGN_REFERENCE_CATALOG.md §1](DESIGN_REFERENCE_CATALOG.md#1-fresha--services-marketplace)).
 **Builds on:** [MARKETPLACE_NAVIGATION.md](MARKETPLACE_NAVIGATION.md) (shared screens C-1…C-8), [COMPONENT_GUIDELINES.md](COMPONENT_GUIDELINES.md), [DESIGN_TOKENS.md](DESIGN_TOKENS.md).
 **Data sources:** catalog API on this branch (`services/backend/src/main/openapi/catalog`), tenancy (`Location`, `OpeningHours`), `db/migration/V1_09__scheduling.sql` (appointments, booking policies, holds), `V1_19__discovery_and_trust.sql` (listings, reviews, saved items), doc 03 §3.1 (booking workflow).
-**Current implementation:** none of these screens exist. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), consumer booking 2.5, waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
+**Current implementation (24 Nov 2026):** S-04 venue profile exists on web (`/{lang}/b/{business}/{location}`) and in the consumer app (`/b/{business}/{location}`, deep link `beavent://b/…`), with services (disclosure rows instead of the S-05 sheet), team (no S-17 sheet yet), about, hours, policies and a Call action; formatting rules shared in `packages/venue`. The booking flow (S-06 → S-10b), Bookings (C-4), appointment detail (S-11), reschedule (S-12) and cancel (S-13) exist on web and in the consumer app (24 Nov 2026); S-05 and S-17 sheets, S-14 with preselection, S-15 waitlist and S-16 reviews are not built. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), venue page 2.2, consumer booking 2.4, calendar 2.5, clients and waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
 
 ---
 
@@ -426,11 +426,14 @@ The business console (`apps/web`, area `/[lang]/business`; "partner portal" in t
 | **P-10** | Booking policies (1.3) | `/booking-policies`, `/booking-policies/{policyId}`, `/booking-policies/effective` (use it for the live preview) | One page with organization defaults and per-location / per-service overrides ("most specific wins" shown as an inheritance tree). Fields in plain language: "Customers can book at least [1 hour] ahead and up to [90 days] ahead", slot interval, "Confirm each booking myself" (request-to-book), deposit (none / % / fixed / full, and who it applies to: everyone, new customers, marketplace customers, flagged), cancellation window, late-cancel and no-show fees, pay at venue, policy text (localized). A live sentence preview shows exactly what customers will read on S-10. |
 | **P-11** | Locations, hours, service areas (1.4) | `/locations`, `/locations/{locationId}/closures`, `/locations/{locationId}/service-areas`, `GET /v1/ref/public-holidays` | Location editor (landmark-first address following the country format, map pin), opening hours with split shifts, closures and public holidays ("Closed for Meskel?" prompts from `ref.public_holidays`, never automatic), at-home service areas (radius or sub-cities, travel fee, travel time). |
 
+| **P-12** | Calendar (Stage 2.5) | `/calendar`, `/appointments`, `/blocks` | Fresha's calendar: day view with a column per team member (avatar header), 15-minute grid lines in `border`, 'now' line (`danger`, 1 px with dot), appointment blocks `primarySubtle` with a 3 dp `primary` leading bar, requested bookings `warningSubtle`, processing stages as a lighter section ("staff free"), blocks/time off as `surface` with a label. Toolbar: date stepper with Ethiopian date, location, team filter, day/week switch, `primary` "New appointment" (menu: Appointment · Block time). Click an empty slot → new appointment drawer; drag a block to move (confirmation with "Notify customer" switch); "Book anyway" for staff-forced overlap. Appointment drawer: customer (alerts as `warning` Banner), services, professional, status actions, history, payment line (Stage 3+). Real-time highlight of changed blocks. Keyboard: arrows move the day, `n` new appointment |
+| **P-13** | Clients (Stage 2.6) | `/customers`, `/customers/{id}` | DataTable (name, phone, last visit, visits, tags) with search; client page: contact, alerts and allergies on top (`warning` Banner), notes, tags, upcoming and past appointments, forms; merge duplicates flow (side-by-side, irreversible warning); CSV import with a preview and error list |
+
 **Partner portal states.** Every list has a skeleton table, an explanatory empty state with one action, and inline errors per field; saves show a toast "Saved"; failures keep the form and show a Banner. Sensitive actions (none in the catalogue; later "Get paid") use step-up (C-6 step-up sheet pattern on web).
 
 ## 9. Provider-facing: mobile Business mode
 
-Requirements (full specs when Stage 2.3 starts). Navigation: [MARKETPLACE_NAVIGATION.md §6](MARKETPLACE_NAVIGATION.md#6-business-mode-navigation).
+Requirements (full specs when Stage 2.5 starts). Navigation: [MARKETPLACE_NAVIGATION.md §6](MARKETPLACE_NAVIGATION.md#6-business-app-navigation-appsbusiness-mobile).
 
 | Screen | Must do | Design requirements |
 |---|---|---|
@@ -443,11 +446,11 @@ Requirements (full specs when Stage 2.3 starts). Navigation: [MARKETPLACE_NAVIGA
 
 | # | Needed by | Need | Owner |
 |---|---|---|---|
-| G1 | S-02, S-04 | Public marketplace endpoints (listing search, location profile with services and resolved price ranges per service, staff for the location) — not yet in the OpenAPI spec | Backend (Stages 2.5, 8.1) |
+| G1 | S-02, S-04 | Public marketplace endpoints (listing search, location profile with services and resolved price ranges per service, staff for the location) — not yet in the OpenAPI spec | Backend (2.2, 8.1) |
 | G2 | S-02 "When" filter | Availability-aware search (date/time window → venues with slots) beyond `next_available_at` | Backend (8.1) |
 | G3 | S-04 Popular group | Booking counts per service (or a `popular` flag) on the profile payload | Backend |
-| G4 | S-13 | Cancellation preview endpoint returning fee, deposit kept, refund amount and method for *now* | Backend (2.2/5.1) |
-| G5 | S-09 | Travel fee/time estimate for an address against `tenant.service_areas` | Backend (1.4/2.1) |
+| G4 | S-13 | Cancellation preview endpoint returning fee, deposit kept, refund amount and method for *now* | Backend (2.3/5.1) |
+| G5 | S-09 | Travel fee/time estimate for an address against `tenant.service_areas` | Backend (1.4/2.1, used by 2.4) |
 | G6 | S-10b | Add-to-calendar: either `expo-calendar` (new Expo module) or an `.ics` endpoint shared via the share sheet | Decision (recommend `.ics` endpoint: no dependency, works on web) |
 | G7 | All prices | Display money helper and dual-time helper in `@beavent/money` / `@beavent/calendar` (A12) | Frontend foundation |
 | G8 | S-03 | Map: **approved** — `expo-maps` on mobile, MapLibre GL JS on web; tile/maps provider and API keys still to choose | Ops + engineering |

@@ -38,6 +38,12 @@ tags:
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Booking policies
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
+  - name: Availability
+    description: Which times can be booked, and with whom (public)
+  - name: Booking
+    description: Holding a time, booking it, and the person's own appointments
+  - name: Marketplace
+    description: What the public sees of a business (venue pages)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -2859,6 +2865,374 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
+    post:
+      tags:
+        - Booking
+      operationId: acceptBookingRequest
+      summary: Accept a booking request (needs appointments.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/decline:
+    post:
+      tags:
+        - Booking
+      operationId: declineBookingRequest
+      summary: Decline a booking request; the time is freed (needs appointments.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Declined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/locations/{locationId}/availability:
+    post:
+      tags:
+        - Availability
+      operationId: searchAvailability
+      summary: Which start times can be booked at a location, and with whom
+      description: |
+        Public (no sign-in). Plans one person's ordered services back to back and lists the start times that work, in
+        start order, with the person assigned to each service ("anyone" picks the first available). The answer is
+        advisory: booking can still return `SLOT_TAKEN` if someone else is faster. Times are instants; the grid and the
+        days are in the location's time zone.
+      security: []
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityQuery'
+      responses:
+        '200':
+          description: Bookable times.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/locations/{locationId}/holds:
+    post:
+      tags:
+        - Booking
+      operationId: holdTime
+      summary: Hold a time for a few minutes while the person signs in and confirms
+      description: |
+        Public. Re-checks the time with the availability engine and reserves it for 10 minutes. Keep `holderKey`: it
+        proves the hold is yours when you confirm or release it. `SLOT_TAKEN` means the time was taken meanwhile: ask
+        availability again.
+      security: []
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldInput'
+      responses:
+        '201':
+          description: Held.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/locations/{locationId}/holds/{holdId}:
+    delete:
+      tags:
+        - Booking
+      operationId: releaseHold
+      summary: Let go of a hold early (unknown, expired or converted holds are ignored)
+      security: []
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: holdId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: X-Hold-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/appointments:
+    get:
+      tags:
+        - Booking
+      operationId: listMyAppointments
+      summary: The signed-in person's appointments, newest first
+      responses:
+        '200':
+          description: Appointments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAppointmentList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Booking
+      operationId: bookAppointment
+      summary: Turn a hold into an appointment (pay at the venue)
+      description: |
+        The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
+        each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
+        `HOLD_EXPIRED` means the hold ran out: hold a time again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+      responses:
+        '200':
+          description: Already booked with this hold.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '201':
+          description: Booked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}:
+    get:
+      tags:
+        - Booking
+      operationId: getMyAppointment
+      summary: One of the signed-in person's appointments, with what cancelling now would mean
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The appointment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/appointments/{appointmentId}/cancel:
+    post:
+      tags:
+        - Booking
+      operationId: cancelMyAppointment
+      summary: Cancel (free before the free-cancellation time, otherwise the late fee is recorded)
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/reschedule:
+    post:
+      tags:
+        - Booking
+      operationId: rescheduleMyAppointment
+      summary: Move to another time with the same services (allowed until the free-cancellation time)
+      description: |
+        Ask availability for the same services first. The person the customer chose stays; "anyone" may become someone
+        else. Prices stay as booked. `SLOT_TAKEN` leaves the appointment unchanged.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - start
+              properties:
+                start:
+                  $ref: '#/components/schemas/Instant'
+      responses:
+        '200':
+          description: Moved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/public/venues/{businessSlug}/locations:
+    get:
+      tags:
+        - Marketplace
+      operationId: listBusinessLocations
+      summary: Location slugs of a business, to open its page when you only know the business
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Slugs, in the order the business set its locations up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - locationSlugs
+                properties:
+                  locationSlugs:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/venues/{businessSlug}/{locationSlug}:
+    get:
+      tags:
+        - Marketplace
+      operationId: getVenue
+      summary: The public page of a location (profile, photos, hours, services, team, policy)
+      description: |
+        Public, for shared links and the marketplace. Only active, online-bookable services offered at the location are
+        listed. A business that is suspended or closed, or a location that is not active, is `404`.
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: locationSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The venue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -3631,6 +4005,7 @@ components:
             - NOT_FOUND
             - CONFLICT
             - SLOT_TAKEN
+            - HOLD_EXPIRED
             - SOLD_OUT
             - IMMUTABLE
             - CONCURRENT_UPDATE
@@ -6125,6 +6500,837 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    AppointmentStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - CONFIRMED
+            - DECLINED
+    AvailabilityItem:
+      type: object
+      required:
+        - variantId
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        addonIds:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Uuid'
+        staffId:
+          description: The chosen person; leave out for anyone available.
+          $ref: '#/components/schemas/Uuid'
+    AvailabilityQuery:
+      type: object
+      required:
+        - items
+        - from
+        - to
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 6
+          description: Services in the order they are done, back to back.
+          items:
+            $ref: '#/components/schemas/AvailabilityItem'
+        from:
+          type: string
+          format: date
+          description: First local date (the location's time zone).
+        to:
+          type: string
+          format: date
+          description: Last local date, inclusive. At most 14 days from `from`.
+        serviceAreaId:
+          description: Set for a visit at the customer's place; leave out for the venue.
+          $ref: '#/components/schemas/Uuid'
+    AvailabilityAssignment:
+      type: object
+      required:
+        - variantId
+        - staffId
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+    AvailabilitySlot:
+      type: object
+      required:
+        - start
+        - end
+        - items
+      properties:
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityAssignment'
+    AvailabilityResult:
+      type: object
+      required:
+        - timezone
+        - slots
+      properties:
+        timezone:
+          type: string
+          example: Africa/Addis_Ababa
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilitySlot'
+    HoldInput:
+      type: object
+      required:
+        - items
+        - start
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/AvailabilityItem'
+        start:
+          $ref: '#/components/schemas/Instant'
+        serviceAreaId:
+          $ref: '#/components/schemas/Uuid'
+    BookingAddon:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+    BookingItem:
+      type: object
+      required:
+        - variantId
+        - serviceName
+        - staffId
+        - staffName
+        - staffRequested
+        - start
+        - end
+        - priceMinor
+        - currency
+        - addons
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: string
+        variantName:
+          type:
+            - string
+            - 'null'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        staffName:
+          type: string
+        staffRequested:
+          type: boolean
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        priceMinor:
+          type: integer
+          format: int64
+          description: The service's price for this person here; add-ons are listed separately.
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingAddon'
+    BookingTerms:
+      type: object
+      required:
+        - requiresApproval
+        - allowPayAtVenue
+        - depositMode
+        - cancellationWindowMinutes
+        - freeCancellationUntil
+      description: The terms frozen in the appointment; several services apply the strictest rule of any.
+      properties:
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        depositMode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        cancellationWindowMinutes:
+          type: integer
+        freeCancellationUntil:
+          $ref: '#/components/schemas/Instant'
+        lateCancelFeePercent:
+          type: number
+        noShowFeePercent:
+          type: number
+    BookingSummary:
+      type: object
+      required:
+        - locationId
+        - timezone
+        - deliveryMode
+        - start
+        - end
+        - items
+        - totalMinor
+        - currency
+        - policy
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
+        deliveryMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - AT_CUSTOMER
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingItem'
+        totalMinor:
+          type: integer
+          format: int64
+          description: All-in total (services and add-ons).
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        policy:
+          $ref: '#/components/schemas/BookingTerms'
+    Hold:
+      type: object
+      required:
+        - holdId
+        - holderKey
+        - expiresAt
+        - booking
+      properties:
+        holdId:
+          $ref: '#/components/schemas/Uuid'
+        holderKey:
+          type: string
+          description: Proof that the hold is yours; send it to confirm or release.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+    MyAppointmentPlace:
+      type: object
+      required:
+        - locationId
+        - businessName
+        - businessSlug
+        - locationName
+        - locationSlug
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        businessName:
+          type: string
+        businessSlug:
+          type: string
+        locationName:
+          type: string
+        locationSlug:
+          type: string
+        landmark:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+    MyAppointmentItem:
+      type: object
+      required:
+        - variantId
+        - serviceName
+        - start
+        - end
+        - priceMinor
+        - currency
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: string
+        variantName:
+          type:
+            - string
+            - 'null'
+        staffName:
+          type:
+            - string
+            - 'null'
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    MyAppointment:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - start
+        - end
+        - timezone
+        - items
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_PAYMENT
+            - REQUESTED
+            - CONFIRMED
+            - ARRIVED
+            - IN_PROGRESS
+            - COMPLETED
+            - CANCELLED
+            - NO_SHOW
+            - EXPIRED
+            - DECLINED
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type: string
+        place:
+          $ref: '#/components/schemas/MyAppointmentPlace'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyAppointmentItem'
+    MyAppointmentList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyAppointment'
+    BookInput:
+      type: object
+      required:
+        - locationId
+        - holdId
+        - holderKey
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        holdId:
+          $ref: '#/components/schemas/Uuid'
+        holderKey:
+          type: string
+        note:
+          type: string
+          maxLength: 500
+          description: For the business ("first time, sensitive scalp").
+    Appointment:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - booking
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+          description: Six characters people can read out over the phone.
+        status:
+          type: string
+          enum:
+            - REQUESTED
+            - CONFIRMED
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+    CancellationPreview:
+      type: object
+      required:
+        - allowed
+        - free
+        - freeUntil
+        - feeMinor
+      properties:
+        allowed:
+          type: boolean
+          description: False once the visit has started or the appointment is no longer active.
+        free:
+          type: boolean
+        freeUntil:
+          $ref: '#/components/schemas/Instant'
+        feeMinor:
+          type: integer
+          format: int64
+          description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+        currency:
+          type:
+            - string
+            - 'null'
+    AppointmentDetail:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - start
+        - end
+        - timezone
+        - booking
+        - cancellation
+        - canReschedule
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_PAYMENT
+            - REQUESTED
+            - CONFIRMED
+            - ARRIVED
+            - IN_PROGRESS
+            - COMPLETED
+            - CANCELLED
+            - NO_SHOW
+            - EXPIRED
+            - DECLINED
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type: string
+        note:
+          type:
+            - string
+            - 'null'
+        place:
+          $ref: '#/components/schemas/MyAppointmentPlace'
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+        cancellation:
+          $ref: '#/components/schemas/CancellationPreview'
+        canReschedule:
+          type: boolean
+    VenueImage:
+      type: object
+      required:
+        - url
+        - variants
+        - alt
+      properties:
+        url:
+          type: string
+        variants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        alt:
+          $ref: '#/components/schemas/LocalizedText'
+    VenueHours:
+      type: object
+      required:
+        - isoWeekday
+        - opensAt
+        - closesAt
+      properties:
+        isoWeekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+        opensAt:
+          type: string
+          description: Local time, HH:mm:ss, in the location's zone.
+        closesAt:
+          type: string
+    VenueClosure:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+      properties:
+        startsAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        endsAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        reason:
+          type:
+            - string
+            - 'null'
+    VenueVariant:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceType
+        - priceMinMinor
+        - priceMaxMinor
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceType:
+          type: string
+          enum:
+            - FIXED
+            - FROM
+            - FREE
+            - ON_CONSULTATION
+        priceMinMinor:
+          type: integer
+          format: int64
+          description: Lowest price anyone pays (standard price, or a lower price for a person, level or location).
+        priceMaxMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    VenueAddOn:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    VenueService:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - aftercare
+        - audience
+        - deliveryModes
+        - requiresPatchTest
+        - variants
+        - addOns
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        aftercare:
+          $ref: '#/components/schemas/LocalizedText'
+        audience:
+          type: string
+          enum:
+            - EVERYONE
+            - WOMEN
+            - MEN
+            - CHILDREN
+        deliveryModes:
+          type: array
+          items:
+            type: string
+            enum:
+              - ON_PREMISES
+              - AT_CUSTOMER
+              - ONLINE
+        requiresPatchTest:
+          type: boolean
+        patchTestValidityDays:
+          type:
+            - integer
+            - 'null'
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueVariant'
+        addOns:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueAddOn'
+    VenueGroup:
+      type: object
+      required:
+        - name
+        - services
+      properties:
+        id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Null for services that are not in a menu section.
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueService'
+    VenuePerson:
+      type: object
+      required:
+        - id
+        - displayName
+        - languages
+        - serviceIds
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        displayName:
+          type: string
+        jobTitle:
+          type:
+            - string
+            - 'null'
+        photo:
+          oneOf:
+            - $ref: '#/components/schemas/VenueImage'
+            - type: 'null'
+        languages:
+          type: array
+          items:
+            type: string
+        serviceIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+    VenuePolicy:
+      type: object
+      required:
+        - requiresApproval
+        - allowPayAtVenue
+        - depositMode
+        - cancellationWindowMinutes
+      properties:
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        depositMode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        depositPercent:
+          type:
+            - number
+            - 'null'
+        depositFixedMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        depositAppliesTo:
+          type:
+            - string
+            - 'null'
+        currency:
+          type:
+            - string
+            - 'null'
+        cancellationWindowMinutes:
+          type: integer
+        lateCancelFeePercent:
+          type:
+            - number
+            - 'null'
+        noShowFeePercent:
+          type:
+            - number
+            - 'null'
+    VenueOther:
+      type: object
+      required:
+        - slug
+        - name
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        landmark:
+          type:
+            - string
+            - 'null'
+    Venue:
+      type: object
+      required:
+        - businessSlug
+        - businessName
+        - description
+        - category
+        - locationId
+        - locationSlug
+        - locationName
+        - timezone
+        - serviceMode
+        - area
+        - closedOnPublicHolidays
+        - hours
+        - upcomingClosures
+        - onlineBooking
+        - listed
+        - gallery
+        - groups
+        - team
+        - policy
+        - otherLocations
+      properties:
+        businessSlug:
+          type: string
+        businessName:
+          type: string
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logo:
+          oneOf:
+            - $ref: '#/components/schemas/VenueImage'
+            - type: 'null'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        locationSlug:
+          type: string
+        locationName:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+        timezone:
+          type: string
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+        landmark:
+          type:
+            - string
+            - 'null'
+        addressLine:
+          type:
+            - string
+            - 'null'
+        city:
+          type:
+            - string
+            - 'null'
+        area:
+          $ref: '#/components/schemas/LocalizedText'
+        latitude:
+          type:
+            - number
+            - 'null'
+        longitude:
+          type:
+            - number
+            - 'null'
+        closedOnPublicHolidays:
+          type: boolean
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueHours'
+        upcomingClosures:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueClosure'
+        onlineBooking:
+          type: boolean
+          description: False when the venue takes bookings by phone only (or has nothing bookable yet).
+        listed:
+          type: boolean
+          description: Approved for the marketplace. Pages that are not listed should not be indexed by search engines.
+        gallery:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueImage'
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueGroup'
+        team:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenuePerson'
+        policy:
+          $ref: '#/components/schemas/VenuePolicy'
+        otherLocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueOther'
     FilePurpose:
       type: string
       enum:
@@ -6979,3 +8185,9 @@ components:
         minimum: 1
         maximum: 100
         default: 25
+    AppointmentIdParam:
+      name: appointmentId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'

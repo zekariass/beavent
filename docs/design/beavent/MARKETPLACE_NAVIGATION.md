@@ -1,7 +1,7 @@
 # Beavent marketplace navigation and information architecture
 
 **Status:** v1, 19 Nov 2026.
-**Scope:** the consumer app (mobile), its Business mode, and the web marketplace's navigation. Screen IDs: `C-` shared screens (specified here), `S-` services ([SERVICES_MARKETPLACE_DESIGN.md](SERVICES_MARKETPLACE_DESIGN.md)), `E-` events ([EVENTS_MARKETPLACE_DESIGN.md](EVENTS_MARKETPLACE_DESIGN.md)), `B-` Business mode, `P-` partner portal.
+**Scope:** the consumer app (`public-mobile`), the business app (`business-mobile`, "Business mode" below) and the web platform's navigation. Screen IDs: `C-` shared screens (specified here), `S-` services ([SERVICES_MARKETPLACE_DESIGN.md](SERVICES_MARKETPLACE_DESIGN.md)), `E-` events ([EVENTS_MARKETPLACE_DESIGN.md](EVENTS_MARKETPLACE_DESIGN.md)), `B-` Business mode, `P-` partner portal.
 **Current code:** `apps/public-mobile/src/app/_layout.tsx` renders `AppTabs` (native tabs *Home*, *Explore*) with no stacks; `index.tsx` is a localisation demo, `explore.tsx` is template content. Everything below is new.
 
 ---
@@ -22,9 +22,9 @@ Beavent (one account, one app)
 │   │   ├── Appointment ─────── S-11 → Reschedule S-12, Cancel S-13, Review S-16
 │   │   └── Ticket order ────── E-12 → Ticket pass E-11, Transfer E-13, Refund E-14, Review E-18
 │   ├── (Inbox) ─────────────── added when messaging ships (§2.4)
-│   └── Account ─────────────── C-5  → Profile, Addresses, Preferences, Notifications C-8, Help, Business mode switch
+│   └── Account ─────────────── C-5  → Profile, Addresses, Preferences, Notifications C-8, Help, "Beavent for business" (opens the web console)
 ├── Sign-in (sheet, on demand) ─ C-6
-└── Business mode (members only) ─ B-1 Today · B-2 Calendar · B-3 Check-in · B-4 Sales · B-5 More
+(separate app, apps/business-mobile) Business: B-1 Today/Schedule · B-2 Calendar · B-3 Check-in · B-4 Sales · B-5 More
 ```
 
 Three ideas carry the structure:
@@ -110,12 +110,12 @@ apps/public-mobile/src/app/
 ├── ticket/[id].tsx                     E-11 ticket pass (full-screen)
 ├── review/[kind]/[id].tsx              S-16 / E-18 write a review (kind = appointment | order)
 ├── sign-in.tsx                         C-6 (modal sheet presentation)
-└── (business)/
-    ├── _layout.tsx                     NativeTabs for Business mode (lazy bundle, members only)
-    └── {today,calendar,check-in,sales,more}/…
 ```
 
-**Implemented so far (19 Nov 2026):** `(tabs)/index.tsx` (Explore, interim), `(tabs)/bookings.tsx`, `(tabs)/account.tsx`, `business.tsx` (My schedule — **interim**: a screen pushed over the consumer tabs and reached from Account → For business, until Business mode has enough screens to swap the tab bar as DD13 requires), `sign-in.tsx` (modal). The tab group is named `(tabs)` rather than `(consumer)`.
+The business app is a separate project (`apps/business-mobile`): `src/app/(tabs)/{index (Schedule), more}.tsx` today,
+with `calendar`, `check-in` and `sales` added by their stages (§6).
+
+**Implemented so far:** `(tabs)/index.tsx` (Explore, interim), `(tabs)/bookings.tsx`, `(tabs)/account.tsx`, `sign-in.tsx` (modal) in `public-mobile`; Business mode (Schedule, More) moved to `apps/business-mobile` on 24 Nov 2026. The tab group is named `(tabs)` rather than `(consumer)`.
 
 Template files removed in that change (kept here for the record): `src/app/explore.tsx`, `src/components/app-tabs.web.tsx` "Expo Starter" bar, `hint-row.tsx`, `web-badge.tsx`, starter images (A4).
 
@@ -338,9 +338,9 @@ Payment *method choice* is part of each flow's review step ([S-10](SERVICES_MARK
 
 List of notifications (booking confirmed, reminder, ticket delivered, event changed, request answered, review request, refund status) grouped Today / Earlier; each row: one-line title `bodyStrong`, one-line body `label` `textMuted`, time `caption`; unread rows have an 8 dp `primary` dot. Tapping deep-links (§3.3). Settings link at the top right ("Settings" tertiary → notification preferences: channels SMS/Telegram/email/push per category, quiet hours — `comms.preferences`). Empty: "No notifications yet".
 
-## 6. Business mode navigation
+## 6. Business app navigation (`apps/business-mobile`)
 
-Shown only when the signed-in user has an active membership (doc 03 §1.1). Entry: Account → "Switch to {Org}" or the app opening last in Business mode.
+A separate app (decision D20): owners, staff and organizers install it and sign in with the same account. People who aren't in a business yet see "Create a business on the web". Implemented tabs today: **Schedule** (B-1, as "My schedule") and **More** (B-5: preferences, sign out); the rest are built with their stages.
 
 | Tab | Shown when | Root |
 |---|---|---|
@@ -350,7 +350,7 @@ Shown only when the signed-in user has an active membership (doc 03 §1.1). Entr
 | Sales (B-4) | POS permission (Stage 4) | Checkout/POS |
 | More (B-5) | Always | Customers, messages, sales snapshot, own schedule, settings, "Switch to personal" |
 
-Rules: tab bar is replaced entirely (DD13); a persistent header shows the organization name and location (switchable when the member has several); every Business mode screen shows a thin `primary` 2 px line at the very top of the header so screenshots and staff can tell the mode at a glance; switching back is always in More and in the header's org menu. Door staff with only an event assignment see only Check-in and More. Requirements per screen: [SERVICES §9](SERVICES_MARKETPLACE_DESIGN.md#9-provider-facing-mobile-business-mode) and [EVENTS §9](EVENTS_MARKETPLACE_DESIGN.md#9-organizer-facing-requirements).
+Rules: the app has its own tab bar (DD13); a persistent header shows the organization name and location (switchable when the member has several); every Business mode screen shows a thin `primary` 2 px line at the very top of the header so screenshots and staff can tell the mode at a glance; switching back is always in More and in the header's org menu. Door staff with only an event assignment see only Check-in and More. Requirements per screen: [SERVICES §9](SERVICES_MARKETPLACE_DESIGN.md#9-provider-facing-mobile-business-mode) and [EVENTS §9](EVENTS_MARKETPLACE_DESIGN.md#9-organizer-facing-requirements).
 
 ## 7. Account and preferences
 

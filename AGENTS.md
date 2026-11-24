@@ -18,8 +18,10 @@ optional styling advice. **Do not invent a visual style.**
    light / `#5CC8A1` dark) for actions and selection, gold `accent` at most once per screen. No violet or orange
    primaries, no new brand colours.
 3. **Use the design tokens only** — `@beavent/ui` (`packages/ui/src/index.ts`) is the single source of truth.
-   - React Native: build screens from `apps/public-mobile/src/components/ui` (`Text`, `Button`, `TextField`, `Screen`,
-     `Section`, `ListRow`, `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`);
+   - Venue and price wording (prices, durations, opening hours, policy sentences) comes from `@beavent/venue`, shared by web and mobile.
+   - React Native: build screens from `@beavent/native` (`packages/native/src/ui`, shared by both mobile apps: `Text`, `Button`, `TextField`, `Screen`,
+     `Section`, `ListRow`, `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`,
+     `PreferencesSections`, `BeaventTabs`; shell: `AppProvider`, `useBeaventShell`);
      colours come from `useApp().colors`.
    - Web: `@import "@beavent/ui/tokens.css"` gives Tailwind utilities (`bg-background`, `bg-surface`, `text-fg`,
      `text-fg-muted`, `border-border`, `border-border-strong`, `bg-primary`, `text-on-primary`, `bg-primary-subtle`,
@@ -32,7 +34,7 @@ optional styling advice. **Do not invent a visual style.**
    gold on warm neutrals (DD1); tabs Explore · Saved · Bookings · Account (DD2); details and flows cover the tab bar
    (DD3); all-in prices (DD6); dual Ethiopian/international time (DD7); no uppercase (DD8); cards only for image-led
    tappable objects, rows with dividers otherwise (DD9); sign-in inline when needed (DD10); rails need ≥ 3 items
-   (DD12); Business mode swaps the tab bar (DD13).
+   (DD12); the business app has its own tab set (DD13).
 5. **Typography:** type roles only; nothing above 28 px in the apps (34 px only for web marketing headings); weights
    400/500/600; Ge'ez text gets line height 1.7 (headings 1.5) and is never below 14 px — the `Text` component and
    the `bv-type-*` classes do this for you. No uppercase, letter-spacing or italics as hierarchy.

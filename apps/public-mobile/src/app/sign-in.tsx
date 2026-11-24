@@ -1,9 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 
-import { SignInPanel } from "@/components/sign-in-panel";
-import { Screen, Text } from "@/components/ui";
-import { useApp } from "@/lib/app-context";
+import { Screen, SignInPanel, Text, useApp } from "@beavent/native";
 
 /** Sign-in (C-6) as a modal: closes itself once the person is signed in, returning to what they were doing. */
 export default function SignInScreen() {

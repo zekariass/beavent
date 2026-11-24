@@ -1,49 +1,25 @@
-import { LANGUAGE_NAMES, LANGUAGES } from "@beavent/i18n";
-import { space } from "@beavent/ui";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { View } from "react-native";
-
 import {
   Button,
   Group,
   ListRow,
-  OptionRow,
+  PreferencesSections,
   Screen,
   ScreenTitle,
   Section,
-  Skeleton,
+  SignedInSummary,
   Text,
-} from "@/components/ui";
-import { useApp, type Appearance } from "@/lib/app-context";
+  openWeb,
+  useApp,
+} from "@beavent/native";
+import { space } from "@beavent/ui";
+import { useRouter } from "expo-router";
+import { View } from "react-native";
 
-/** Account (C-5): who is signed in, display preferences (MARKETPLACE_NAVIGATION.md §7), business tools, sign out. */
+/** Account (C-5): who is signed in, display preferences (MARKETPLACE_NAVIGATION.md §7), business link, sign out. */
 export default function AccountScreen() {
   const app = useApp();
-  const { t, signedIn, api, display } = app;
+  const { t, signedIn } = app;
   const router = useRouter();
-  const [who, setWho] = useState<{ name?: string; contact?: string } | null>(null);
-
-  useEffect(() => {
-    if (!signedIn) return;
-    let cancelled = false;
-    void api.GET("/v1/me").then(({ data }) => {
-      if (cancelled || !data) return;
-      setWho({
-        name: data.displayName ?? data.firstName,
-        contact: data.phone ?? data.email,
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn, api]);
-
-  const appearances: { value: Appearance; label: string }[] = [
-    { value: "system", label: t("account.appearance.system") },
-    { value: "light", label: t("account.appearance.light") },
-    { value: "dark", label: t("account.appearance.dark") },
-  ];
 
   return (
     <Screen inTabs>
@@ -58,85 +34,17 @@ export default function AccountScreen() {
           <Button label={t("nav.signIn")} onPress={() => router.push("/sign-in")} />
         </View>
       )}
-      {signedIn && (
-        <View style={{ gap: space[1] }}>
-          {who ? (
-            <>
-              <Text role="title2">{who.name ?? t("account.signedIn")}</Text>
-              {who.contact && (
-                <Text role="label" tone="muted" numeric>
-                  {who.contact}
-                </Text>
-              )}
-            </>
-          ) : (
-            <Skeleton width="50%" height={24} />
-          )}
-        </View>
-      )}
+      <SignedInSummary />
 
-      <Section title={t("language.label")}>
-        <Group>
-          {LANGUAGES.map((language) => (
-            <OptionRow
-              key={language}
-              title={LANGUAGE_NAMES[language]}
-              selected={app.language === language}
-              onPress={() => app.setLanguage(language)}
-            />
-          ))}
-        </Group>
-      </Section>
-
-      <Section title={t("account.calendar")}>
-        <Group>
-          <OptionRow
-            title={t("calendar.ethiopian")}
-            selected={display.calendar === "ETHIOPIAN"}
-            onPress={() => app.setCalendar("ETHIOPIAN")}
-          />
-          <OptionRow
-            title={t("calendar.gregorian")}
-            selected={display.calendar === "GREGORIAN"}
-            onPress={() => app.setCalendar("GREGORIAN")}
-          />
-        </Group>
-      </Section>
-
-      <Section title={t("account.time")}>
-        <Group>
-          <OptionRow
-            title={t("time.ethiopian")}
-            selected={display.timeConvention === "ETHIOPIAN"}
-            onPress={() => app.setTimeConvention("ETHIOPIAN")}
-          />
-          <OptionRow
-            title={t("time.standard")}
-            selected={display.timeConvention === "STANDARD"}
-            onPress={() => app.setTimeConvention("STANDARD")}
-          />
-        </Group>
-      </Section>
-
-      <Section title={t("account.appearance")}>
-        <Group>
-          {appearances.map((option) => (
-            <OptionRow
-              key={option.value}
-              title={option.label}
-              selected={app.appearance === option.value}
-              onPress={() => app.setAppearance(option.value)}
-            />
-          ))}
-        </Group>
-      </Section>
+      <PreferencesSections />
 
       <Section title={t("account.forBusiness")}>
         <Group>
+          {/* Business tools live in the separate Beavent Business app; the web console is the way in from here. */}
           <ListRow
-            title={t("mobile.schedule.title")}
+            title={t("account.business.row")}
             chevron
-            onPress={() => router.push("/business")}
+            onPress={() => void openWeb("/business")}
           />
         </Group>
       </Section>

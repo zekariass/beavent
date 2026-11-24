@@ -38,6 +38,12 @@ tags:
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Booking policies
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
+  - name: Availability
+    description: Which times can be booked, and with whom (public)
+  - name: Booking
+    description: Holding a time, booking it, and the person's own appointments
+  - name: Marketplace
+    description: What the public sees of a business (venue pages)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -172,6 +178,29 @@ paths:
     $ref: ./scheduling/paths.yaml#/effectivePolicy
   /v1/orgs/{orgId}/booking-policies/{policyId}:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
+  /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
+    $ref: ./scheduling/paths.yaml#/requestAccept
+  /v1/orgs/{orgId}/appointments/{appointmentId}/decline:
+    $ref: ./scheduling/paths.yaml#/requestDecline
+  # --- public booking (no sign-in) --------------------------------------------------------------------------
+  /v1/public/locations/{locationId}/availability:
+    $ref: ./scheduling/paths.yaml#/publicAvailability
+  /v1/public/locations/{locationId}/holds:
+    $ref: ./scheduling/paths.yaml#/publicHolds
+  /v1/public/locations/{locationId}/holds/{holdId}:
+    $ref: ./scheduling/paths.yaml#/publicHold
+  /v1/me/appointments:
+    $ref: ./scheduling/paths.yaml#/myAppointments
+  /v1/me/appointments/{appointmentId}:
+    $ref: ./scheduling/paths.yaml#/myAppointment
+  /v1/me/appointments/{appointmentId}/cancel:
+    $ref: ./scheduling/paths.yaml#/myAppointmentCancel
+  /v1/me/appointments/{appointmentId}/reschedule:
+    $ref: ./scheduling/paths.yaml#/myAppointmentReschedule
+  /v1/public/venues/{businessSlug}/locations:
+    $ref: ./marketplace/paths.yaml#/businessLocations
+  /v1/public/venues/{businessSlug}/{locationSlug}:
+    $ref: ./marketplace/paths.yaml#/venue
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles

@@ -17,7 +17,8 @@
     "@beavent/i18n": "*",
     "@beavent/calendar": "*",
     "@beavent/money": "*",
-    "@beavent/ui": "*"
+    "@beavent/ui": "*",
+    "@beavent/venue": "*"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

@@ -27,8 +27,10 @@ jobs:
       - run: npm ci --no-fund --no-audit
       - run: npm run format:check
       - run: npx turbo run lint typecheck test build
-      - name: Mobile bundle within budget (packages/ui performanceBudget)
-        run: npm run bundle:check -w @beavent/public-mobile
+      - name: Mobile bundles within budget (packages/ui performanceBudget)
+        run: |
+          npm run bundle:check -w @beavent/public-mobile
+          npm run bundle:check -w @beavent/business-mobile
 
   api-contract:
     name: API contract (lint, generated client up to date, breaking changes)

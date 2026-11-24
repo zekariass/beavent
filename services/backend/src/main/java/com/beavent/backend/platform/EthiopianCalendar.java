@@ -94,6 +94,50 @@ public final class EthiopianCalendar {
         return LocalTime.of((blockStart + time.hour() % 12) % 24, time.minute());
     }
 
+    private static final java.util.Map<String, java.util.Map<DayPeriod, String>> PERIODS = java.util.Map.of(
+            "am",
+            java.util.Map.of(
+                    DayPeriod.MORNING,
+                    "ጠዋት",
+                    DayPeriod.AFTERNOON,
+                    "ከሰዓት",
+                    DayPeriod.EVENING,
+                    "ማታ",
+                    DayPeriod.NIGHT,
+                    "ሌሊት"),
+            "en",
+            java.util.Map.of(
+                    DayPeriod.MORNING,
+                    "in the morning",
+                    DayPeriod.AFTERNOON,
+                    "in the afternoon",
+                    DayPeriod.EVENING,
+                    "in the evening",
+                    DayPeriod.NIGHT,
+                    "at night"),
+            "om",
+            java.util.Map.of(
+                    DayPeriod.MORNING,
+                    "ganama",
+                    DayPeriod.AFTERNOON,
+                    "waaree booda",
+                    DayPeriod.EVENING,
+                    "galgala",
+                    DayPeriod.NIGHT,
+                    "halkan"));
+
+    /**
+     * "ጠዋት 3:00" (Amharic puts the period first) or "3:00 in the morning"; same output as
+     * {@code formatEthiopianTime} in packages/calendar.
+     */
+    public static String formatTime(Time time, String language) {
+        String clock = time.hour() + ":" + String.format("%02d", time.minute());
+        String lang = PERIODS.containsKey(language) ? language : "en";
+        return "am".equals(lang)
+                ? PERIODS.get("am").get(time.period()) + " " + clock
+                : clock + " " + PERIODS.get(lang).get(time.period());
+    }
+
     /** "መስከረም 1 ቀን 2017 ዓ.ም." (am) or "Meskerem 1, 2017 E.C." (other languages). */
     public static String format(Date date, String language) {
         return "am".equals(language)

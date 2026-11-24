@@ -100,3 +100,303 @@ effectivePolicy:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+publicAvailability:
+  post:
+    tags: [Availability]
+    operationId: searchAvailability
+    summary: Which start times can be booked at a location, and with whom
+    description: |
+      Public (no sign-in). Plans one person's ordered services back to back and lists the start times that work, in
+      start order, with the person assigned to each service ("anyone" picks the first available). The answer is
+      advisory: booking can still return `SLOT_TAKEN` if someone else is faster. Times are instants; the grid and the
+      days are in the location's time zone.
+    security: []
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/AvailabilityQuery
+    responses:
+      '200':
+        description: Bookable times.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AvailabilityResult
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+publicHolds:
+  post:
+    tags: [Booking]
+    operationId: holdTime
+    summary: Hold a time for a few minutes while the person signs in and confirms
+    description: |
+      Public. Re-checks the time with the availability engine and reserves it for 10 minutes. Keep `holderKey`: it
+      proves the hold is yours when you confirm or release it. `SLOT_TAKEN` means the time was taken meanwhile: ask
+      availability again.
+    security: []
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/HoldInput
+    responses:
+      '201':
+        description: Held.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Hold
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+publicHold:
+  delete:
+    tags: [Booking]
+    operationId: releaseHold
+    summary: Let go of a hold early (unknown, expired or converted holds are ignored)
+    security: []
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: holdId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: X-Hold-Key
+        in: header
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myAppointments:
+  get:
+    tags: [Booking]
+    operationId: listMyAppointments
+    summary: The signed-in person's appointments, newest first
+    responses:
+      '200':
+        description: Appointments.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyAppointmentList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+  post:
+    tags: [Booking]
+    operationId: bookAppointment
+    summary: Turn a hold into an appointment (pay at the venue)
+    description: |
+      The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
+      each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
+      `HOLD_EXPIRED` means the hold ran out: hold a time again.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/BookInput
+    responses:
+      '200':
+        description: Already booked with this hold.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Appointment
+      '201':
+        description: Booked.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Appointment
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+myAppointment:
+  get:
+    tags: [Booking]
+    operationId: getMyAppointment
+    summary: One of the signed-in person's appointments, with what cancelling now would mean
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The appointment.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myAppointmentCancel:
+  post:
+    tags: [Booking]
+    operationId: cancelMyAppointment
+    summary: Cancel (free before the free-cancellation time, otherwise the late fee is recorded)
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                maxLength: 500
+    responses:
+      '200':
+        description: Cancelled.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+myAppointmentReschedule:
+  post:
+    tags: [Booking]
+    operationId: rescheduleMyAppointment
+    summary: Move to another time with the same services (allowed until the free-cancellation time)
+    description: |
+      Ask availability for the same services first. The person the customer chose stays; "anyone" may become someone
+      else. Prices stay as booked. `SLOT_TAKEN` leaves the appointment unchanged.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [start]
+            properties:
+              start:
+                $ref: ../common/schemas.yaml#/Instant
+    responses:
+      '200':
+        description: Moved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+AppointmentIdParam:
+  name: appointmentId
+  in: path
+  required: true
+  schema:
+    $ref: ../common/schemas.yaml#/Uuid
+requestAccept:
+  post:
+    tags: [Booking]
+    operationId: acceptBookingRequest
+    summary: Accept a booking request (needs appointments.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: Accepted.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+requestDecline:
+  post:
+    tags: [Booking]
+    operationId: declineBookingRequest
+    summary: Decline a booking request; the time is freed (needs appointments.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                maxLength: 500
+    responses:
+      '200':
+        description: Declined.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict

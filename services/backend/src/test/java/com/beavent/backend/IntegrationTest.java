@@ -17,7 +17,11 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(
         properties = {
             // All test requests come from 127.0.0.1; per-phone limits stay as configured.
-            "beavent.auth.otp.per-ip-per-hour=100000"
+            "beavent.auth.otp.per-ip-per-hour=100000",
+            "beavent.booking.holds-per-ip-per-hour=100000",
+            // Messages and booking time-outs run often enough for tests to wait on them.
+            "beavent.comms.dispatch-interval-ms=300",
+            "beavent.scheduling.sweep-interval-ms=500"
         })
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("local")

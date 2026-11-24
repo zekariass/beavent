@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "./support.ts";
 
 const API = process.env.API_URL ?? "http://localhost:8080";
-const MOBILE = process.env.MOBILE_URL ?? "http://localhost:8081";
+const BUSINESS_APP = process.env.BUSINESS_MOBILE_URL ?? "http://localhost:19007";
 
 async function json(method: string, path: string, body?: unknown, token?: string) {
   const response = await fetch(`${API}${path}`, {
@@ -26,8 +26,8 @@ function thisMonday(): string {
     .slice(0, 10);
 }
 
-/** Plan step 1.2: "My schedule" in the mobile app's Business mode (web build of the same app). */
-test("a team member sees their own schedule in the mobile app", async ({ page }) => {
+/** Plan step 1.2: "My schedule" in the Beavent Business app (web build of apps/business-mobile). */
+test("a team member sees their own schedule in the business app", async ({ page }) => {
   // The business sets up a salon and links a team profile with regular hours to the member's login.
   const phone = newPhone();
   const challenge = await json("POST", "/v1/auth/otp/request", {
@@ -99,7 +99,7 @@ test("a team member sees their own schedule in the mobile app", async ({ page })
 
   // The member opens Business mode on the phone and signs in with a code (after the 30 s resend window).
   await page.waitForTimeout(31_000);
-  await page.goto(`${MOBILE}/business`);
+  await page.goto(BUSINESS_APP);
   await page.getByLabel("Phone number or email").fill(`0${phone.slice(4)}`);
   const seen = codeCount(phone);
   await page.getByRole("button", { name: "Send code" }).click();

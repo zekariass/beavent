@@ -1,39 +1,24 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
+import { AppProvider, useBeaventShell } from "@beavent/native";
+import { Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
 
-import { useBrand } from "@/lib/brand";
-
-void SplashScreen.preventAutoHideAsync();
-
-/** Root of the Beavent Business app (owners, staff and organizers). Theme comes from @beavent/ui tokens. */
+/** Root of Beavent Business (owners, staff and organizers); shell, theme and session come from @beavent/native. */
 export default function RootLayout() {
-  const { scheme, colors } = useBrand();
-  useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
-  const base = scheme === "dark" ? DarkTheme : DefaultTheme;
-  const theme = {
-    ...base,
-    colors: {
-      ...base.colors,
-      background: colors.background,
-      card: colors.background,
-      text: colors.text,
-      border: colors.border,
-      primary: colors.primary,
-      notification: colors.danger,
-    },
-  };
+  return (
+    <AppProvider>
+      <Shell />
+    </AppProvider>
+  );
+}
+
+function Shell() {
+  const { ready, theme, scheme, colors } = useBeaventShell();
+  if (!ready) return null;
   return (
     <ThemeProvider value={theme}>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
-        }}
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
       />
     </ThemeProvider>
   );
