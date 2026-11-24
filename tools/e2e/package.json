@@ -12,7 +12,7 @@
   "devDependencies": {
     "@playwright/test": "1.65.1",
     "@types/node": "^24.19.2",
-    "typescript": "^5",
+    "typescript": "^7",
     "@beavent/config": "*"
   }
 }
