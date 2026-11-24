@@ -40,6 +40,8 @@ tags:
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Availability
     description: Which times can be booked, and with whom (public)
+  - name: Calendar
+    description: The business's calendar and front-desk status changes
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
   - name: Marketplace
@@ -2865,6 +2867,104 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/calendar:
+    get:
+      tags:
+        - Calendar
+      operationId: getCalendar
+      summary: A location's calendar for one to seven days (team, working time, appointments, blocks)
+      description: |
+        `calendar.view_all` sees everyone at the location; `calendar.view_own` only their own column and appointments.
+        Customer phone numbers need `customers.contact_details`. Cancelled, expired and declined appointments are left out.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Last local date, inclusive (default `from`).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: The calendar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Calendar'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/status:
+    post:
+      tags:
+        - Calendar
+      operationId: changeAppointmentStatus
+      summary: Arrived, started, completed or no-show (needs appointments.manage, or manage_own for your own)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - ARRIVED
+                    - IN_PROGRESS
+                    - COMPLETED
+                    - NO_SHOW
+      responses:
+        '200':
+          description: Changed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ARRIVED
+                      - IN_PROGRESS
+                      - COMPLETED
+                      - NO_SHOW
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
     post:
       tags:
@@ -6500,6 +6600,232 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    CalendarSpan:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+    CalendarColumn:
+      type: object
+      required:
+        - staffId
+        - name
+        - working
+      properties:
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        color:
+          type:
+            - string
+            - 'null'
+        working:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarSpan'
+    CalendarCustomer:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+          description: Only with customers.contact_details.
+    CalendarStage:
+      type: object
+      required:
+        - kind
+        - staffBusy
+        - start
+        - end
+      properties:
+        kind:
+          type: string
+          enum:
+            - SERVICE
+            - PROCESSING
+            - FINISHING
+            - CONSULTATION
+            - TRAVEL
+        staffBusy:
+          type: boolean
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+    CalendarItem:
+      type: object
+      required:
+        - id
+        - serviceName
+        - names
+        - start
+        - end
+        - status
+        - stages
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        serviceName:
+          type: string
+        variantName:
+          type:
+            - string
+            - 'null'
+        names:
+          type: object
+          description: Current menu names per language (`service`, `variant`); `serviceName` is the name as booked.
+          properties:
+            service:
+              $ref: '#/components/schemas/LocalizedText'
+            variant:
+              $ref: '#/components/schemas/LocalizedText'
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        status:
+          type: string
+          enum:
+            - BOOKED
+            - STARTED
+            - DONE
+            - CANCELLED
+            - NO_SHOW
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarStage'
+    CalendarAppointment:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - source
+        - start
+        - end
+        - customer
+        - items
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_PAYMENT
+            - REQUESTED
+            - CONFIRMED
+            - ARRIVED
+            - IN_PROGRESS
+            - COMPLETED
+            - NO_SHOW
+        source:
+          type: string
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        note:
+          type:
+            - string
+            - 'null'
+        customer:
+          $ref: '#/components/schemas/CalendarCustomer'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarItem'
+    CalendarBlock:
+      type: object
+      required:
+        - id
+        - start
+        - end
+        - reason
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        resourceId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        reason:
+          type: string
+          enum:
+            - BREAK
+            - MEETING
+            - TRAINING
+            - TIME_OFF
+            - PERSONAL
+            - MAINTENANCE
+            - OTHER
+        title:
+          type:
+            - string
+            - 'null'
+    Calendar:
+      type: object
+      required:
+        - locationId
+        - timezone
+        - from
+        - to
+        - staff
+        - appointments
+        - blocks
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        staff:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarColumn'
+        appointments:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarAppointment'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarBlock'
     AppointmentStatus:
       type: object
       required:

@@ -6,7 +6,7 @@ export async function api(method: string, path: string, body?: unknown, token?: 
   const response = await fetch(`${API}${path}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": method === "PATCH" ? "application/merge-patch+json" : "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -18,6 +18,7 @@ export async function api(method: string, path: string, body?: unknown, token?: 
 
 export interface SeededSalon {
   token: string;
+  phone: string;
   orgId: string;
   orgSlug: string;
   locationId: string;
@@ -188,6 +189,7 @@ export async function seedSalon(name: string): Promise<SeededSalon> {
   const places = await api("GET", `/v1/orgs/${org.id}/locations/${location.id}`, undefined, token);
   return {
     token,
+    phone,
     orgId: org.id,
     orgSlug: fresh.slug,
     locationId: location.id,
@@ -196,4 +198,45 @@ export async function seedSalon(name: string): Promise<SeededSalon> {
     variantId: service.variants[0].id,
     staffId: staff.id,
   };
+}
+
+/** Signs a new customer in (phone code) and books the salon's first service with its stylist at `start`. */
+export async function bookAsCustomer(salon: SeededSalon, start: string, name = "Meron") {
+  const phone = newPhone();
+  const challenge = await api("POST", "/v1/auth/otp/request", {
+    phone,
+    purpose: "SIGN_IN",
+    clientApp: "MOBILE_APP",
+    channel: "SMS",
+  });
+  const signedIn = await api("POST", "/v1/auth/otp/verify", {
+    challengeId: challenge.challengeId,
+    code: await codeFor(phone),
+  });
+  const token = signedIn.accessToken as string;
+  await api("PATCH", "/v1/me", { displayName: name }, token).catch(() => undefined);
+  const hold = await api("POST", `/v1/public/locations/${salon.locationId}/holds`, {
+    items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+    start,
+  });
+  return api(
+    "POST",
+    "/v1/me/appointments",
+    { locationId: salon.locationId, holdId: hold.holdId, holderKey: hold.holderKey },
+    token,
+  );
+}
+
+/** The first bookable start of the salon's first service from `from` (a local date) on. */
+export async function firstFreeStart(
+  salon: SeededSalon,
+  from: string,
+  to: string,
+): Promise<string> {
+  const result = await api("POST", `/v1/public/locations/${salon.locationId}/availability`, {
+    items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+    from,
+    to,
+  });
+  return result.slots[0].start as string;
 }

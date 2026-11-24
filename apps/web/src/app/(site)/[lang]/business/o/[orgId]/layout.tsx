@@ -21,6 +21,7 @@ export default async function WorkspaceLayout({
   );
   const base = `/${language}/business/o/${orgId}`;
   const links = [
+    [`${base}/calendar`, t("portal.nav.calendar")],
     [`${base}/services`, t("portal.nav.menu")],
     [`${base}/team`, t("portal.nav.team")],
     [`${base}/rota`, t("portal.nav.rota")],

@@ -40,6 +40,8 @@ tags:
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Availability
     description: Which times can be booked, and with whom (public)
+  - name: Calendar
+    description: The business's calendar and front-desk status changes
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
   - name: Marketplace
@@ -178,6 +180,10 @@ paths:
     $ref: ./scheduling/paths.yaml#/effectivePolicy
   /v1/orgs/{orgId}/booking-policies/{policyId}:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
+  /v1/orgs/{orgId}/calendar:
+    $ref: ./scheduling/paths.yaml#/calendar
+  /v1/orgs/{orgId}/appointments/{appointmentId}/status:
+    $ref: ./scheduling/paths.yaml#/appointmentStatus
   /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
     $ref: ./scheduling/paths.yaml#/requestAccept
   /v1/orgs/{orgId}/appointments/{appointmentId}/decline:

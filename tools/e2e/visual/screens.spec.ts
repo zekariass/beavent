@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
-import { seedSalon } from "../tests/seed.ts";
+import { bookAsCustomer, firstFreeStart, seedSalon } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
@@ -408,4 +408,40 @@ test("consumer app · booking flow and bookings", async ({ browser }) => {
       await context.close();
     }
   }
+});
+
+test("business console · calendar and booking link", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, today, in6);
+  await bookAsCustomer(salon, start, "Meron Tesfaye");
+  const date = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  const context = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const page = await context.newPage();
+  await page.waitForTimeout(31_000);
+  await page.goto(`${WEB}/en/business/sign-in`);
+  await page.getByLabel("Phone number or email").fill(salon.phone);
+  const seen = codeCount(salon.phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("heading", { name: "Your businesses" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${date}`);
+        await page.getByRole("button", { name: /Meron Tesfaye/ }).click();
+        await shot(page, `console-calendar-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/share`);
+        await shot(page, `console-share-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await context.close();
 });

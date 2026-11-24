@@ -400,3 +400,89 @@ requestDecline:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+calendar:
+  get:
+    tags: [Calendar]
+    operationId: getCalendar
+    summary: A location's calendar for one to seven days (team, working time, appointments, blocks)
+    description: |
+      `calendar.view_all` sees everyone at the location; `calendar.view_own` only their own column and appointments.
+      Customer phone numbers need `customers.contact_details`. Cancelled, expired and declined appointments are left out.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        description: Last local date, inclusive (default `from`).
+        schema:
+          type: string
+          format: date
+    responses:
+      '200':
+        description: The calendar.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Calendar
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+appointmentStatus:
+  post:
+    tags: [Calendar]
+    operationId: changeAppointmentStatus
+    summary: Arrived, started, completed or no-show (needs appointments.manage, or manage_own for your own)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                type: string
+                enum: [ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW]
+    responses:
+      '200':
+        description: Changed.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW]
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

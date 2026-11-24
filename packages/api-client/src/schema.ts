@@ -1084,6 +1084,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A location's calendar for one to seven days (team, working time, appointments, blocks)
+         * @description `calendar.view_all` sees everyone at the location; `calendar.view_own` only their own column and appointments.
+         *     Customer phone numbers need `customers.contact_details`. Cancelled, expired and declined appointments are left out.
+         */
+        get: operations["getCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Arrived, started, completed or no-show (needs appointments.manage, or manage_own for your own) */
+        post: operations["changeAppointmentStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/appointments/{appointmentId}/accept": {
         parameters: {
             query?: never;
@@ -2719,6 +2757,80 @@ export interface components {
             lateCancelFeePercent?: number;
             noShowFeePercent?: number;
             policyText?: components["schemas"]["LocalizedText"];
+        };
+        CalendarSpan: {
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+        };
+        CalendarColumn: {
+            staffId: components["schemas"]["Uuid"];
+            name: string;
+            color?: string | null;
+            working: components["schemas"]["CalendarSpan"][];
+        };
+        CalendarCustomer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description Only with customers.contact_details. */
+            phone?: string | null;
+        };
+        CalendarStage: {
+            /** @enum {string} */
+            kind: "SERVICE" | "PROCESSING" | "FINISHING" | "CONSULTATION" | "TRAVEL";
+            staffBusy: boolean;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+        };
+        CalendarItem: {
+            id: components["schemas"]["Uuid"];
+            staffId?: components["schemas"]["Uuid"] | null;
+            serviceName: string;
+            variantName?: string | null;
+            /** @description Current menu names per language (`service`, `variant`); `serviceName` is the name as booked. */
+            names: {
+                service?: components["schemas"]["LocalizedText"];
+                variant?: components["schemas"]["LocalizedText"];
+            };
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /** @enum {string} */
+            status: "BOOKED" | "STARTED" | "DONE" | "CANCELLED" | "NO_SHOW";
+            stages: components["schemas"]["CalendarStage"][];
+        };
+        CalendarAppointment: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "NO_SHOW";
+            source: string;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            note?: string | null;
+            customer: components["schemas"]["CalendarCustomer"];
+            items: components["schemas"]["CalendarItem"][];
+        };
+        CalendarBlock: {
+            id: components["schemas"]["Uuid"];
+            /** Format: uuid */
+            staffId?: string | null;
+            /** Format: uuid */
+            resourceId?: string | null;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /** @enum {string} */
+            reason: "BREAK" | "MEETING" | "TRAINING" | "TIME_OFF" | "PERSONAL" | "MAINTENANCE" | "OTHER";
+            title?: string | null;
+        };
+        Calendar: {
+            locationId: components["schemas"]["Uuid"];
+            timezone: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            staff: components["schemas"]["CalendarColumn"][];
+            appointments: components["schemas"]["CalendarAppointment"][];
+            blocks: components["schemas"]["CalendarBlock"][];
         };
         AppointmentStatus: {
             /** @enum {string} */
@@ -6033,6 +6145,76 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getCalendar: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+                from: string;
+                /** @description Last local date, inclusive (default `from`). */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The calendar. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Calendar"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeAppointmentStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "NO_SHOW";
+                };
+            };
+        };
+        responses: {
+            /** @description Changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "NO_SHOW";
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     acceptBookingRequest: {
