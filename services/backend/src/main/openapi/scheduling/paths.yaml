@@ -225,7 +225,8 @@ myAppointments:
     description: |
       The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
       each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
-      `HOLD_EXPIRED` means the hold ran out: hold a time again.
+      `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
+      booking online (they book by phone).
     requestBody:
       required: true
       content:
@@ -249,6 +250,8 @@ myAppointments:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
       '409':
@@ -630,35 +633,6 @@ block:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
-customerSearch:
-  get:
-    tags: [Calendar]
-    operationId: findCustomers
-    summary: Customers whose name or phone matches (needs customers.view; phone numbers need contact details)
-    parameters:
-      - $ref: ../common/parameters.yaml#/OrgId
-      - name: q
-        in: query
-        required: false
-        schema:
-          type: string
-    responses:
-      '200':
-        description: Up to 20 customers, most recent visitors first.
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [items]
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: ./schemas.yaml#/CalendarCustomer
-      '401':
-        $ref: ../common/responses.yaml#/Unauthorized
-      '403':
-        $ref: ../common/responses.yaml#/Forbidden
 calendarStream:
   get:
     tags: [Calendar]

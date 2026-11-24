@@ -44,6 +44,8 @@ tags:
     description: The business's calendar and front-desk status changes
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
+  - name: Clients
+    description: The business's clients — details, notes and alerts, tags, history, merging and importing
   - name: Marketplace
     description: What the public sees of a business (venue pages)
   - name: Files
@@ -3028,37 +3030,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /v1/orgs/{orgId}/customers:
-    get:
-      tags:
-        - Calendar
-      operationId: findCustomers
-      summary: Customers whose name or phone matches (needs customers.view; phone numbers need contact details)
-      parameters:
-        - $ref: '#/components/parameters/OrgId'
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Up to 20 customers, most recent visitors first.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - items
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CalendarCustomer'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
   /v1/orgs/{orgId}/calendar:
     get:
       tags:
@@ -3245,6 +3216,359 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/customers:
+    get:
+      tags:
+        - Clients
+      operationId: listClients
+      summary: The business's clients, by name; or the best matches for a search
+      description: |
+        Without `q`: every active client by name, a page at a time. With `q` (a name, or at least four digits of the
+        phone number): up to 20 matches, most recent visitors first, no further pages. Needs customers.view; phone
+        numbers need customers.contact_details.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+        - name: tagId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Clients.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Clients
+      operationId: createClient
+      summary: Add a client by hand (customers.manage; contact details need customers.contact_details)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientInput'
+      responses:
+        '201':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/customers/import:
+    post:
+      tags:
+        - Clients
+      operationId: importClients
+      summary: Preview, then save, a CSV list of clients (customers.manage and contact details)
+      description: |
+        The first row names the columns: name (or given name and father's name), phone, email — in English or
+        Amharic, or as other booking systems export them. Comma, semicolon or tab separated; up to 5,000 rows. Without
+        `save` nothing changes; with `save: true` the new clients are added. A phone number the business already has
+        is left alone.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - csv
+              properties:
+                csv:
+                  type: string
+                  maxLength: 2000000
+                save:
+                  type: boolean
+      responses:
+        '200':
+          description: What the file holds (and, when saved, what was added).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/customers/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      tags:
+        - Clients
+      operationId: getClient
+      summary: A client's page (a merged record answers with the client it was merged into)
+      responses:
+        '200':
+          description: The client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Clients
+      operationId: updateClient
+      summary: Change a client's details, or block them from booking online (customers.manage)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientUpdate'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/customers/{customerId}/notes:
+    post:
+      tags:
+        - Clients
+      operationId: addClientNote
+      summary: Add a note, alert or allergy (customers.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientNoteInput'
+      responses:
+        '201':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/customers/{customerId}/notes/{noteId}:
+    delete:
+      tags:
+        - Clients
+      operationId: deleteClientNote
+      summary: Remove a note (customers.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/customers/{customerId}/tags:
+    put:
+      tags:
+        - Clients
+      operationId: setClientTags
+      summary: Replace a client's tags; new names become tags of the business (customers.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tags
+              properties:
+                tags:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: string
+                    maxLength: 40
+      responses:
+        '200':
+          description: The client's tags now.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - tags
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/customers/{customerId}/merge:
+    post:
+      tags:
+        - Clients
+      operationId: mergeClients
+      summary: Merge a duplicate into this client (cannot be undone; customers.manage)
+      description: |
+        Appointments, notes, tags, files, forms and patch tests move to this client; blank contact details are filled
+        from the duplicate, which is kept as `MERGED` so links to it still work. Refused (422) when both have their own
+        Beavent account, or when the duplicate has payments, balances or memberships (later stages).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - duplicateId
+              properties:
+                duplicateId:
+                  $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The client after the merge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/customer-tags:
+    get:
+      tags:
+        - Clients
+      operationId: listClientTags
+      summary: The business's client tags, with how many clients carry each
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Tags.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ClientTag'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/public/locations/{locationId}/availability:
     post:
       tags:
@@ -3375,7 +3699,8 @@ paths:
       description: |
         The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
         each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
-        `HOLD_EXPIRED` means the hold ran out: hold a time again.
+        `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
+        booking online (they book by phone).
       requestBody:
         required: true
         content:
@@ -3399,6 +3724,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -6897,21 +7224,6 @@ components:
           $ref: '#/components/schemas/Instant'
         end:
           $ref: '#/components/schemas/Instant'
-    CalendarCustomer:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        name:
-          type: string
-        phone:
-          type:
-            - string
-            - 'null'
-          description: Only with customers.contact_details.
     CalendarSpan:
       type: object
       required:
@@ -6941,6 +7253,39 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarSpan'
+    CalendarCustomer:
+      type: object
+      required:
+        - id
+        - name
+        - alerts
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+          description: Only with customers.contact_details.
+        alerts:
+          type: array
+          description: The client's alert, allergy and medical notes (pinned first), to show before serving them.
+          items:
+            type: object
+            required:
+              - kind
+              - body
+            properties:
+              kind:
+                type: string
+                enum:
+                  - ALERT
+                  - ALLERGY
+                  - MEDICAL
+              body:
+                type: string
     CalendarStage:
       type: object
       required:
@@ -7133,6 +7478,377 @@ components:
           enum:
             - CONFIRMED
             - DECLINED
+    ClientSummary:
+      type: object
+      description: A row of the client list (and of the front desk's search).
+      required:
+        - id
+        - name
+        - visits
+        - tags
+        - alerts
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+          description: Only with customers.contact_details.
+        lastVisitAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        visits:
+          type: integer
+          description: Completed appointments.
+        tags:
+          type: array
+          items:
+            type: string
+        alerts:
+          type: integer
+          description: How many alert, allergy and medical notes the client has.
+    ClientPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientSummary'
+        nextCursor:
+          type:
+            - string
+            - 'null'
+    ClientInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          type:
+            - string
+            - 'null'
+          description: As typed; Ethiopian local numbers (09…, 07…) are accepted.
+        email:
+          type:
+            - string
+            - 'null'
+        preferredLanguage:
+          type:
+            - string
+            - 'null'
+        note:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+    ClientImportRow:
+      type: object
+      required:
+        - line
+        - outcome
+      properties:
+        line:
+          type: integer
+          description: Line in the file (the header is line 1).
+        name:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+        email:
+          type:
+            - string
+            - 'null'
+        outcome:
+          type: string
+          enum:
+            - NEW
+            - EXISTING
+            - ERROR
+          description: EXISTING when the business (or an earlier row) already has the phone number; it is left alone.
+        problem:
+          oneOf:
+            - type: string
+              enum:
+                - NAME
+                - PHONE
+                - EMAIL
+            - type: 'null'
+          description: NAME missing or longer than 120 characters; PHONE not a phone number; EMAIL not an email address.
+    ClientImportResult:
+      type: object
+      required:
+        - saved
+        - created
+        - existing
+        - errors
+        - rows
+      properties:
+        saved:
+          type: boolean
+        created:
+          type: integer
+          description: New clients (added when saved).
+        existing:
+          type: integer
+        errors:
+          type: integer
+        rows:
+          type: array
+          description: Every row with a problem (up to 500) and the first 100 others.
+          items:
+            $ref: '#/components/schemas/ClientImportRow'
+    ClientNoteKind:
+      type: string
+      enum:
+        - GENERAL
+        - ALERT
+        - ALLERGY
+        - MEDICAL
+        - PREFERENCE
+      description: ALERT, ALLERGY and MEDICAL show as a warning on the client and on their appointments.
+    ClientNote:
+      type: object
+      required:
+        - id
+        - kind
+        - body
+        - pinned
+        - mine
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          $ref: '#/components/schemas/ClientNoteKind'
+        body:
+          type: string
+        pinned:
+          type: boolean
+        mine:
+          type: boolean
+          description: Written by the caller.
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    ClientVisitItem:
+      type: object
+      required:
+        - serviceName
+        - names
+      properties:
+        serviceName:
+          type: string
+          description: As booked (in the business's language then).
+        variantName:
+          type:
+            - string
+            - 'null'
+        names:
+          type: object
+          description: The service's and option's current names per language (`service`, `variant`).
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+        staffName:
+          type:
+            - string
+            - 'null'
+    ClientVisit:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - start
+        - end
+        - timezone
+        - locationId
+        - locationName
+        - items
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type: string
+          description: The location's IANA time zone.
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        locationName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientVisitItem'
+    Client:
+      type: object
+      description: A client's page. Phone and email only with customers.contact_details.
+      required:
+        - id
+        - name
+        - source
+        - firstSeenAt
+        - blocked
+        - hasAccount
+        - tags
+        - notes
+        - stats
+        - upcoming
+        - past
+        - you
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+        email:
+          type:
+            - string
+            - 'null'
+        preferredLanguage:
+          type:
+            - string
+            - 'null'
+        source:
+          type: string
+        firstSeenAt:
+          $ref: '#/components/schemas/Instant'
+        lastVisitAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        blocked:
+          type: boolean
+          description: A blocked client cannot book online (the team can still book them).
+        blockReason:
+          type:
+            - string
+            - 'null'
+        hasAccount:
+          type: boolean
+          description: Linked to a Beavent account.
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: array
+          description: Pinned first, then newest first.
+          items:
+            $ref: '#/components/schemas/ClientNote'
+        stats:
+          type: object
+          required:
+            - visits
+            - noShows
+            - cancellations
+          properties:
+            visits:
+              type: integer
+            noShows:
+              type: integer
+            cancellations:
+              type: integer
+              description: Cancelled by the client.
+        upcoming:
+          type: array
+          description: Soonest first.
+          items:
+            $ref: '#/components/schemas/ClientVisit'
+        past:
+          type: array
+          description: Newest first, at most 50.
+          items:
+            $ref: '#/components/schemas/ClientVisit'
+        you:
+          type: object
+          description: What the caller may do with this client.
+          required:
+            - edit
+            - contactDetails
+          properties:
+            edit:
+              type: boolean
+              description: customers.manage (details, notes, tags, merge).
+            contactDetails:
+              type: boolean
+              description: customers.contact_details (phone and email).
+    ClientUpdate:
+      type: object
+      description: JSON merge-patch; absent fields are unchanged, null clears.
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          type:
+            - string
+            - 'null'
+        email:
+          type:
+            - string
+            - 'null'
+        preferredLanguage:
+          type:
+            - string
+            - 'null'
+        blocked:
+          type: boolean
+        blockReason:
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+    ClientNoteInput:
+      type: object
+      required:
+        - body
+      properties:
+        kind:
+          $ref: '#/components/schemas/ClientNoteKind'
+        body:
+          type: string
+          maxLength: 2000
+        pinned:
+          type: boolean
+    ClientTag:
+      type: object
+      required:
+        - id
+        - name
+        - clients
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        clients:
+          type: integer
     AvailabilityItem:
       type: object
       required:

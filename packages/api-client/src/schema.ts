@@ -1157,23 +1157,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/orgs/{orgId}/customers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Customers whose name or phone matches (needs customers.view; phone numbers need contact details) */
-        get: operations["findCustomers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/orgs/{orgId}/calendar": {
         parameters: {
             query?: never;
@@ -1268,6 +1251,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The business's clients, by name; or the best matches for a search
+         * @description Without `q`: every active client by name, a page at a time. With `q` (a name, or at least four digits of the
+         *     phone number): up to 20 matches, most recent visitors first, no further pages. Needs customers.view; phone
+         *     numbers need customers.contact_details.
+         */
+        get: operations["listClients"];
+        put?: never;
+        /** Add a client by hand (customers.manage; contact details need customers.contact_details) */
+        post: operations["createClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview, then save, a CSV list of clients (customers.manage and contact details)
+         * @description The first row names the columns: name (or given name and father's name), phone, email — in English or
+         *     Amharic, or as other booking systems export them. Comma, semicolon or tab separated; up to 5,000 rows. Without
+         *     `save` nothing changes; with `save: true` the new clients are added. A phone number the business already has
+         *     is left alone.
+         */
+        post: operations["importClients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /** A client's page (a merged record answers with the client it was merged into) */
+        get: operations["getClient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a client's details, or block them from booking online (customers.manage) */
+        patch: operations["updateClient"];
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a note, alert or allergy (customers.manage) */
+        post: operations["addClientNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/notes/{noteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a note (customers.manage) */
+        delete: operations["deleteClientNote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a client's tags; new names become tags of the business (customers.manage) */
+        put: operations["setClientTags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge a duplicate into this client (cannot be undone; customers.manage)
+         * @description Appointments, notes, tags, files, forms and patch tests move to this client; blank contact details are filled
+         *     from the duplicate, which is kept as `MERGED` so links to it still work. Refused (422) when both have their own
+         *     Beavent account, or when the duplicate has payments, balances or memberships (later stages).
+         */
+        post: operations["mergeClients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customer-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The business's client tags, with how many clients carry each */
+        get: operations["listClientTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/locations/{locationId}/availability": {
         parameters: {
             query?: never;
@@ -1344,7 +1484,8 @@ export interface paths {
          * Turn a hold into an appointment (pay at the venue)
          * @description The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
          *     each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
-         *     `HOLD_EXPIRED` means the hold ran out: hold a time again.
+         *     `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
+         *     booking online (they book by phone).
          */
         post: operations["bookAppointment"];
         delete?: never;
@@ -2902,12 +3043,6 @@ export interface components {
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
         };
-        CalendarCustomer: {
-            id: components["schemas"]["Uuid"];
-            name: string;
-            /** @description Only with customers.contact_details. */
-            phone?: string | null;
-        };
         CalendarSpan: {
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
@@ -2917,6 +3052,18 @@ export interface components {
             name: string;
             color?: string | null;
             working: components["schemas"]["CalendarSpan"][];
+        };
+        CalendarCustomer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description Only with customers.contact_details. */
+            phone?: string | null;
+            /** @description The client's alert, allergy and medical notes (pinned first), to show before serving them. */
+            alerts: {
+                /** @enum {string} */
+                kind: "ALERT" | "ALLERGY" | "MEDICAL";
+                body: string;
+            }[];
         };
         CalendarStage: {
             /** @enum {string} */
@@ -2979,6 +3126,147 @@ export interface components {
         AppointmentStatus: {
             /** @enum {string} */
             status: "CONFIRMED" | "DECLINED";
+        };
+        /** @description A row of the client list (and of the front desk's search). */
+        ClientSummary: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description Only with customers.contact_details. */
+            phone?: string | null;
+            lastVisitAt?: components["schemas"]["Instant"] | null;
+            /** @description Completed appointments. */
+            visits: number;
+            tags: string[];
+            /** @description How many alert, allergy and medical notes the client has. */
+            alerts: number;
+        };
+        ClientPage: {
+            items: components["schemas"]["ClientSummary"][];
+            nextCursor?: string | null;
+        };
+        ClientInput: {
+            name: string;
+            /** @description As typed; Ethiopian local numbers (09…, 07…) are accepted. */
+            phone?: string | null;
+            email?: string | null;
+            preferredLanguage?: string | null;
+            note?: string | null;
+        };
+        ClientImportRow: {
+            /** @description Line in the file (the header is line 1). */
+            line: number;
+            name?: string | null;
+            phone?: string | null;
+            email?: string | null;
+            /**
+             * @description EXISTING when the business (or an earlier row) already has the phone number; it is left alone.
+             * @enum {string}
+             */
+            outcome: "NEW" | "EXISTING" | "ERROR";
+            /** @description NAME missing or longer than 120 characters; PHONE not a phone number; EMAIL not an email address. */
+            problem?: ("NAME" | "PHONE" | "EMAIL") | null;
+        };
+        ClientImportResult: {
+            saved: boolean;
+            /** @description New clients (added when saved). */
+            created: number;
+            existing: number;
+            errors: number;
+            /** @description Every row with a problem (up to 500) and the first 100 others. */
+            rows: components["schemas"]["ClientImportRow"][];
+        };
+        /**
+         * @description ALERT, ALLERGY and MEDICAL show as a warning on the client and on their appointments.
+         * @enum {string}
+         */
+        ClientNoteKind: "GENERAL" | "ALERT" | "ALLERGY" | "MEDICAL" | "PREFERENCE";
+        ClientNote: {
+            id: components["schemas"]["Uuid"];
+            kind: components["schemas"]["ClientNoteKind"];
+            body: string;
+            pinned: boolean;
+            /** @description Written by the caller. */
+            mine: boolean;
+            createdAt: components["schemas"]["Instant"];
+        };
+        ClientVisitItem: {
+            /** @description As booked (in the business's language then). */
+            serviceName: string;
+            variantName?: string | null;
+            /** @description The service's and option's current names per language (`service`, `variant`). */
+            names: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            staffName?: string | null;
+        };
+        ClientVisit: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            status: string;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /** @description The location's IANA time zone. */
+            timezone: string;
+            locationId: components["schemas"]["Uuid"];
+            locationName: string;
+            items: components["schemas"]["ClientVisitItem"][];
+        };
+        /** @description A client's page. Phone and email only with customers.contact_details. */
+        Client: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            phone?: string | null;
+            email?: string | null;
+            preferredLanguage?: string | null;
+            source: string;
+            firstSeenAt: components["schemas"]["Instant"];
+            lastVisitAt?: components["schemas"]["Instant"] | null;
+            /** @description A blocked client cannot book online (the team can still book them). */
+            blocked: boolean;
+            blockReason?: string | null;
+            /** @description Linked to a Beavent account. */
+            hasAccount: boolean;
+            tags: string[];
+            /** @description Pinned first, then newest first. */
+            notes: components["schemas"]["ClientNote"][];
+            stats: {
+                visits: number;
+                noShows: number;
+                /** @description Cancelled by the client. */
+                cancellations: number;
+            };
+            /** @description Soonest first. */
+            upcoming: components["schemas"]["ClientVisit"][];
+            /** @description Newest first, at most 50. */
+            past: components["schemas"]["ClientVisit"][];
+            /** @description What the caller may do with this client. */
+            you: {
+                /** @description customers.manage (details, notes, tags, merge). */
+                edit: boolean;
+                /** @description customers.contact_details (phone and email). */
+                contactDetails: boolean;
+            };
+        };
+        /** @description JSON merge-patch; absent fields are unchanged, null clears. */
+        ClientUpdate: {
+            name?: string;
+            phone?: string | null;
+            email?: string | null;
+            preferredLanguage?: string | null;
+            blocked?: boolean;
+            blockReason?: string | null;
+        };
+        ClientNoteInput: {
+            kind?: components["schemas"]["ClientNoteKind"];
+            body: string;
+            pinned?: boolean;
+        };
+        ClientTag: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            clients: number;
         };
         AvailabilityItem: {
             variantId: components["schemas"]["Uuid"];
@@ -6411,34 +6699,6 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    findCustomers: {
-        parameters: {
-            query?: {
-                q?: string;
-            };
-            header?: never;
-            path: {
-                orgId: components["parameters"]["OrgId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Up to 20 customers, most recent visitors first. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["CalendarCustomer"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
     getCalendar: {
         parameters: {
             query: {
@@ -6596,6 +6856,306 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    listClients: {
+        parameters: {
+            query?: {
+                q?: string;
+                tagId?: components["schemas"]["Uuid"];
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Clients. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientInput"];
+            };
+        };
+        responses: {
+            /** @description Added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    importClients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    csv: string;
+                    save?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description What the file holds (and, when saved, what was added). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientImportResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The client. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    addClientNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientNoteInput"];
+            };
+        };
+        responses: {
+            /** @description Added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientNote"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteClientNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+                noteId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setClientTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tags: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The client's tags now. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tags: string[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    mergeClients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    duplicateId: components["schemas"]["Uuid"];
+                };
+            };
+        };
+        responses: {
+            /** @description The client after the merge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listClientTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ClientTag"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     searchAvailability: {
         parameters: {
             query?: never;
@@ -6729,6 +7289,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
         };

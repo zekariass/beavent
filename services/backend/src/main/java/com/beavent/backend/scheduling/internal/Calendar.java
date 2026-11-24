@@ -3,6 +3,7 @@ package com.beavent.backend.scheduling.internal;
 import static com.beavent.db.catalog.Tables.SERVICES;
 import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
+import static com.beavent.db.crm.Tables.CUSTOMER_NOTES;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEM_STAGES;
@@ -86,7 +87,10 @@ public class Calendar {
             String status,
             List<StageBody> stages) {}
 
-    public record CustomerBody(UUID id, String name, String phone) {}
+    /** A note the team must see before serving the client (an alert, allergy or medical note). */
+    public record AlertBody(String kind, String body) {}
+
+    public record CustomerBody(UUID id, String name, String phone, List<AlertBody> alerts) {}
 
     public record AppointmentBody(
             UUID id,
@@ -267,6 +271,7 @@ public class Calendar {
                                     i.getStatus(),
                                     stages.getOrDefault(i.getId(), List.of()))));
             boolean contact = access.can(CONTACT);
+            Map<UUID, List<AlertBody>> alerts = alertsOf(access, appointments.map(r -> r.value8()));
             List<AppointmentBody> appointmentBodies = appointments.map(r -> new AppointmentBody(
                     r.value1(),
                     r.value2(),
@@ -275,7 +280,11 @@ public class Calendar {
                     r.value5().toInstant(),
                     r.value6().toInstant(),
                     r.value7(),
-                    new CustomerBody(r.value8(), r.value9(), contact ? r.value10() : null),
+                    new CustomerBody(
+                            r.value8(),
+                            r.value9(),
+                            contact ? r.value10() : null,
+                            alerts.getOrDefault(r.value8(), List.of())),
                     items.getOrDefault(r.value1(), List.of())));
 
             Condition blockWhere = CALENDAR_BLOCKS
@@ -307,6 +316,29 @@ public class Calendar {
                             r.value7()));
             return new Body(locationId, timezone, from, to, columns, appointmentBodies, blocks);
         });
+    }
+
+    /** Alerts, allergies and medical notes of these clients that the member may read (crm.customer_notes). */
+    private Map<UUID, List<AlertBody>> alertsOf(OrgAccess access, List<UUID> customerIds) {
+        Map<UUID, List<AlertBody>> out = new HashMap<>();
+        if (customerIds.isEmpty()) {
+            return out;
+        }
+        Condition visible = CUSTOMER_NOTES.VISIBILITY.eq("TEAM");
+        if (access.can("customers.manage")) {
+            visible = visible.or(CUSTOMER_NOTES.VISIBILITY.eq("MANAGERS"));
+        }
+        visible = visible.or(CUSTOMER_NOTES.VISIBILITY.eq("AUTHOR").and(CUSTOMER_NOTES.AUTHOR_ID.eq(access.userId())));
+        dsl.select(CUSTOMER_NOTES.CUSTOMER_ID, CUSTOMER_NOTES.KIND, CUSTOMER_NOTES.BODY)
+                .from(CUSTOMER_NOTES)
+                .where(
+                        CUSTOMER_NOTES.CUSTOMER_ID.in(new HashSet<>(customerIds)),
+                        CUSTOMER_NOTES.KIND.in("ALERT", "ALLERGY", "MEDICAL"),
+                        visible)
+                .orderBy(CUSTOMER_NOTES.IS_PINNED.desc(), CUSTOMER_NOTES.CREATED_AT.desc())
+                .forEach(r -> out.computeIfAbsent(r.value1(), k -> new ArrayList<>())
+                        .add(new AlertBody(r.value2(), r.value3())));
+        return out;
     }
 
     // --- who may change whose time --------------------------------------------------------------------------
@@ -343,33 +375,6 @@ public class Calendar {
                 .where(CALENDAR_BLOCKS.ID.eq(blockId))
                 .fetchOptional(CALENDAR_BLOCKS.STAFF_ID)
                 .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "There is no such block.")));
-    }
-
-    public record CustomerHit(UUID id, String name, String phone) {}
-
-    /** Customers whose name or phone matches {@code query} (the front desk picking who a booking is for). */
-    public List<CustomerHit> findCustomers(OrgAccess access, String query) {
-        access.require("customers.view");
-        String q = query == null ? "" : query.strip();
-        if (q.length() < 2) {
-            return List.of();
-        }
-        boolean contact = access.can(CONTACT);
-        String digits = q.replaceAll("[^0-9]", "");
-        return transactions.execute(status -> dsl.select(CUSTOMERS.ID, CUSTOMERS.DISPLAY_NAME, CUSTOMERS.PHONE_E164)
-                .from(CUSTOMERS)
-                .where(
-                        CUSTOMERS.STATUS.eq("ACTIVE"),
-                        CUSTOMERS
-                                .DISPLAY_NAME
-                                .containsIgnoreCase(q)
-                                .or(
-                                        digits.length() >= 4
-                                                ? CUSTOMERS.PHONE_E164.contains(digits.replaceFirst("^0", ""))
-                                                : DSL.falseCondition()))
-                .orderBy(CUSTOMERS.LAST_VISIT_AT.desc().nullsLast(), CUSTOMERS.DISPLAY_NAME)
-                .limit(20)
-                .fetch(r -> new CustomerHit(r.value1(), r.value2(), contact ? r.value3() : null)));
     }
 
     // --- status at the front desk ----------------------------------------------------------------------------

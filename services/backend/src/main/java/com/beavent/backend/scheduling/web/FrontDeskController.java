@@ -15,12 +15,10 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** The front desk: walk-ins and phone bookings, moving appointments, blocking time (plan step 2.5). */
@@ -62,8 +60,6 @@ class FrontDeskController {
             @Size(max = 120) String title) {}
 
     record Created(UUID id) {}
-
-    record Customers(List<Calendar.CustomerHit> items) {}
 
     private final BookingApi bookings;
     private final Calendar calendar;
@@ -143,10 +139,5 @@ class FrontDeskController {
         calendar.requireDesk(OrgAccess.current(), List.of(calendar.staffOfBlock(blockId)));
         bookings.unblock(blockId);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/customers")
-    Customers customers(@PathVariable UUID orgId, @RequestParam(required = false) String q) {
-        return new Customers(calendar.findCustomers(OrgAccess.current(), q));
     }
 }

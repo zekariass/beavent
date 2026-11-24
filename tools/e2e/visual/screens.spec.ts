@@ -498,3 +498,142 @@ test("business app · today, calendar, visit", async ({ browser }) => {
     await context.close();
   }
 });
+
+test("business console · clients", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty");
+  const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, today, in6);
+  await deskBook(salon, start, "Selam Tesfaye");
+  const date = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  const org = `/v1/orgs/${salon.orgId}`;
+  const selam = (await api("GET", `${org}/customers?q=Selam`, undefined, salon.token)).items[0].id;
+  await api(
+    "POST",
+    `${org}/customers/${selam}/notes`,
+    { kind: "ALLERGY", body: "Allergic to ammonia hair dye", pinned: true },
+    salon.token,
+  );
+  await api(
+    "POST",
+    `${org}/customers/${selam}/notes`,
+    { body: "Prefers Hana and a quiet chair by the window." },
+    salon.token,
+  );
+  await api("PUT", `${org}/customers/${selam}/tags`, { tags: ["VIP", "Braids"] }, salon.token);
+  const duplicate = (
+    await api("POST", `${org}/customers`, { name: "Selam T.", phone: "0911000111" }, salon.token)
+  ).id;
+  for (const name of ["Abel Girma", "Hiwot Bekele", "Dawit Mekonnen", "Liya Tadesse"]) {
+    await api(
+      "POST",
+      `${org}/customers`,
+      { name, phone: `09${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}` },
+      salon.token,
+    );
+  }
+  const csv = Buffer.from(
+    "First Name,Last Name,Mobile Number,Email\nMekdes,Alemu,0911000333,\nYonas,Haile,,yonas@example.com\n,,12,\nSara,Bekele,0911000111,\n",
+  );
+  const context = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const page = await context.newPage();
+  await page.waitForTimeout(31_000);
+  await page.goto(`${WEB}/en/business/sign-in`);
+  await page.getByLabel("Phone number or email").fill(salon.phone);
+  const seen = codeCount(salon.phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("heading", { name: "Your businesses" }).waitFor();
+  const base = (language: string) => `${WEB}/${language}/business/o/${salon.orgId}`;
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${base(language)}/clients`);
+        await shot(page, `console-clients-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base(language)}/clients/${selam}`);
+        await shot(page, `console-client-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base(language)}/clients/${selam}/merge`);
+        await shot(page, `console-client-merge-find-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base(language)}/clients/${selam}/merge?with=${duplicate}`);
+        await shot(page, `console-client-merge-${language}-${scheme}-${viewport}`);
+        await page.goto(`${base(language)}/clients/import`);
+        await page
+          .locator('input[type="file"]')
+          .setInputFiles({ name: "clients.csv", mimeType: "text/csv", buffer: csv });
+        await page.locator("main form button").first().click();
+        await page.getByRole("status").waitFor();
+        await shot(page, `console-client-import-${language}-${scheme}-${viewport}`);
+        if (viewport === "desktop") {
+          await page.goto(`${base(language)}/clients/new`);
+          await shot(page, `console-client-new-${language}-${scheme}`);
+          await page.goto(`${base(language)}/calendar?date=${date}`);
+          await page.getByRole("button", { name: /Selam Tesfaye/ }).click();
+          await shot(page, `console-calendar-alert-${language}-${scheme}`);
+        }
+      }
+    }
+  }
+  await context.close();
+});
+
+test("business app · client", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  const soon = new Date(Math.ceil((Date.now() + 30 * 60_000) / 300_000) * 300_000).toISOString();
+  await deskBook(salon, soon, "Meron Tesfaye");
+  const org = `/v1/orgs/${salon.orgId}`;
+  const meron = (await api("GET", `${org}/customers?q=Meron`, undefined, salon.token)).items[0].id;
+  await api(
+    "POST",
+    `${org}/customers/${meron}/notes`,
+    { kind: "ALLERGY", body: "Sensitive scalp" },
+    salon.token,
+  );
+  await api(
+    "POST",
+    `${org}/customers/${meron}/notes`,
+    { body: "Likes strong coffee." },
+    salon.token,
+  );
+  await api("PUT", `${org}/customers/${meron}/tags`, { tags: ["VIP"] }, salon.token);
+  for (const language of LANGUAGES) {
+    const context = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1000 },
+    });
+    const page = await context.newPage();
+    await page.waitForTimeout(31_000);
+    await page.goto(BUSINESS_APP);
+    await page.getByRole("textbox").first().fill(salon.phone);
+    const seen = codeCount(salon.phone);
+    await page
+      .getByRole("button")
+      .filter({ hasText: language === "am" ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await page
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(salon.phone, seen));
+    await page.getByRole("button").filter({ visible: true }).last().click();
+    await page.getByText("Meron Tesfaye").filter({ visible: true }).first().waitFor();
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(BUSINESS_APP);
+      await page.getByText("Meron Tesfaye").filter({ visible: true }).first().click();
+      await page.waitForTimeout(800);
+      await shot(page, `business-app-visit-alert-${language}-${scheme}`);
+      await page.goto(`${BUSINESS_APP}/client/${meron}`);
+      await page.getByText("Sensitive scalp").filter({ visible: true }).first().waitFor();
+      await shot(page, `business-app-client-${language}-${scheme}`);
+    }
+    await context.close();
+  }
+});

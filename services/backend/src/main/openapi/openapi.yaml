@@ -44,6 +44,8 @@ tags:
     description: The business's calendar and front-desk status changes
   - name: Booking
     description: Holding a time, booking it, and the person's own appointments
+  - name: Clients
+    description: The business's clients — details, notes and alerts, tags, history, merging and importing
   - name: Marketplace
     description: What the public sees of a business (venue pages)
   - name: Files
@@ -188,8 +190,6 @@ paths:
     $ref: ./scheduling/paths.yaml#/blocks
   /v1/orgs/{orgId}/blocks/{blockId}:
     $ref: ./scheduling/paths.yaml#/block
-  /v1/orgs/{orgId}/customers:
-    $ref: ./scheduling/paths.yaml#/customerSearch
   /v1/orgs/{orgId}/calendar:
     $ref: ./scheduling/paths.yaml#/calendar
   /v1/orgs/{orgId}/calendar/stream:
@@ -200,6 +200,23 @@ paths:
     $ref: ./scheduling/paths.yaml#/requestAccept
   /v1/orgs/{orgId}/appointments/{appointmentId}/decline:
     $ref: ./scheduling/paths.yaml#/requestDecline
+  # --- clients ----------------------------------------------------------------------------------------------
+  /v1/orgs/{orgId}/customers:
+    $ref: ./crm/paths.yaml#/clients
+  /v1/orgs/{orgId}/customers/import:
+    $ref: ./crm/paths.yaml#/clientImport
+  /v1/orgs/{orgId}/customers/{customerId}:
+    $ref: ./crm/paths.yaml#/client
+  /v1/orgs/{orgId}/customers/{customerId}/notes:
+    $ref: ./crm/paths.yaml#/clientNotes
+  /v1/orgs/{orgId}/customers/{customerId}/notes/{noteId}:
+    $ref: ./crm/paths.yaml#/clientNote
+  /v1/orgs/{orgId}/customers/{customerId}/tags:
+    $ref: ./crm/paths.yaml#/clientTags
+  /v1/orgs/{orgId}/customers/{customerId}/merge:
+    $ref: ./crm/paths.yaml#/clientMerge
+  /v1/orgs/{orgId}/customer-tags:
+    $ref: ./crm/paths.yaml#/tags
   # --- public booking (no sign-in) --------------------------------------------------------------------------
   /v1/public/locations/{locationId}/availability:
     $ref: ./scheduling/paths.yaml#/publicAvailability

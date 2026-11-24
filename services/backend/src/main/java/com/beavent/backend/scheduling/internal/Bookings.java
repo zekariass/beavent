@@ -1283,7 +1283,7 @@ class Bookings {
                 .where(CUSTOMERS.USER_ID.eq(person.userId()), CUSTOMERS.STATUS.eq("ACTIVE"))
                 .fetchOne(CUSTOMERS.ID);
         if (existing != null) {
-            return existing;
+            return notBlocked(existing);
         }
         if (person.phone() != null) {
             UUID walkIn = dsl.select(CUSTOMERS.ID)
@@ -1296,6 +1296,7 @@ class Bookings {
                     .limit(1)
                     .fetchOne(CUSTOMERS.ID);
             if (walkIn != null) {
+                notBlocked(walkIn);
                 dsl.update(CUSTOMERS)
                         .set(CUSTOMERS.USER_ID, person.userId())
                         .where(CUSTOMERS.ID.eq(walkIn))
@@ -1328,6 +1329,15 @@ class Bookings {
                 .set(CUSTOMERS.SOURCE, "DIRECT_LINK")
                 .execute();
         return id;
+    }
+
+    /** A client the business blocked books by phone only (P-13), never online. */
+    private UUID notBlocked(UUID customerId) {
+        if (dsl.fetchExists(CUSTOMERS, CUSTOMERS.ID.eq(customerId).and(CUSTOMERS.IS_BLOCKED.isTrue()))) {
+            throw new ApiException(
+                    ProblemCode.FORBIDDEN, "This business takes your bookings by phone. Please call them.");
+        }
+        return customerId;
     }
 
     /** A short reference people can read out over the phone ("K7M2QX"), unique in the business. */

@@ -340,7 +340,7 @@ List of notifications (booking confirmed, reminder, ticket delivered, event chan
 
 ## 6. Business app navigation (`apps/business-mobile`)
 
-A separate app (decision D20): owners, staff and organizers install it and sign in with the same account. People who aren't in a business yet see "Create a business on the web". Implemented tabs today (24 Nov 2026): **Today** (B-1), **Calendar** (B-2) and **More** (B-5: "My schedule", preferences, sign out), plus **Walk-in** from Today; Check-in and Sales are built with their stages.
+A separate app (decision D20): owners, staff and organizers install it and sign in with the same account. People who aren't in a business yet see "Create a business on the web". Implemented tabs today (24 Nov 2026): **Today** (B-1), **Calendar** (B-2) and **More** (B-5: "My schedule", preferences, sign out), plus **Walk-in** from Today and **Client details** (`/client/{id}`, plan 2.6) from a visit; Check-in and Sales are built with their stages.
 
 | Tab | Shown when | Root |
 |---|---|---|

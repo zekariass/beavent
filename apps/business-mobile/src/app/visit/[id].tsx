@@ -1,7 +1,16 @@
 import type { Schemas } from "@beavent/api-client";
-import { Banner, Divider, Screen, SkeletonRows, Text, Button, useApp } from "@beavent/native";
+import {
+  Banner,
+  Divider,
+  ListRow,
+  Screen,
+  SkeletonRows,
+  Text,
+  Button,
+  useApp,
+} from "@beavent/native";
 import { space } from "@beavent/ui";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 
@@ -12,6 +21,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 export default function VisitScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date: string }>();
   const { api, t } = useApp();
+  const router = useRouter();
   const workspace = useWorkspace();
   const [attempt, setAttempt] = useState(0);
   const [found, setFound] = useState<
@@ -79,6 +89,13 @@ export default function VisitScreen() {
           </Text>
         ) : null}
       </View>
+      {visit.customer.alerts.length > 0 ? (
+        <Banner tone="warning">
+          {visit.customer.alerts
+            .map((a) => `${t(`portal.clients.note.${a.kind}`)}: ${a.body}`)
+            .join("\n")}
+        </Banner>
+      ) : null}
       {visit.customer.phone ? (
         <View style={{ alignSelf: "flex-start" }}>
           <Button
@@ -109,6 +126,15 @@ export default function VisitScreen() {
           <Text role="body">{visit.note}</Text>
         </View>
       ) : null}
+      <View style={{ marginHorizontal: -space[4] }}>
+        <Divider inset={0} />
+        <ListRow
+          title={t("portal.clients.open")}
+          chevron
+          onPress={() => router.push(`/client/${visit.customer.id}`)}
+        />
+        <Divider inset={0} />
+      </View>
       <VisitActions
         orgId={workspace.orgId}
         visit={visit}

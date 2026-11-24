@@ -250,7 +250,18 @@ export function CalendarBoard({
                           <span className="bv-type-caption text-fg-muted">
                             {range(item.start, item.end).standard}
                           </span>
-                          <span className="bv-type-label text-fg">{appointment.customer.name}</span>
+                          <span className="bv-type-label flex items-center gap-1.5 text-fg">
+                            {appointment.customer.alerts.length > 0 ? (
+                              <span
+                                aria-hidden
+                                className="size-2 shrink-0 rounded-full bg-warning"
+                              />
+                            ) : null}
+                            <span className="truncate">{appointment.customer.name}</span>
+                            {appointment.customer.alerts.length > 0 ? (
+                              <span className="sr-only">{t("portal.clients.hasAlert")}</span>
+                            ) : null}
+                          </span>
                           <span className="bv-type-caption text-fg">{nameOf(item)}</span>
                           {appointment.status !== "CONFIRMED" ? (
                             <span className="bv-type-caption text-fg">
@@ -390,7 +401,14 @@ function AppointmentPanel({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col">
           <span className="bv-type-caption text-fg-muted">{t(`status.${s}`)}</span>
-          <h2 className="bv-type-title2 text-fg">{appointment.customer.name}</h2>
+          <h2 className="bv-type-title2 text-fg">
+            <a
+              href={`/${language}/business/o/${orgId}/clients/${appointment.customer.id}`}
+              className="hover:text-primary hover:underline hover:underline-offset-4"
+            >
+              {appointment.customer.name}
+            </a>
+          </h2>
           {appointment.customer.phone ? (
             <a
               href={`tel:${appointment.customer.phone}`}
@@ -408,6 +426,15 @@ function AppointmentPanel({
           {t("portal.calendar.close")}
         </button>
       </div>
+      {appointment.customer.alerts.length > 0 ? (
+        <div role="note" className="flex flex-col gap-1 rounded-lg bg-warning-subtle px-3 py-2">
+          {appointment.customer.alerts.map((a, i) => (
+            <p key={i} className="bv-type-body text-fg">
+              <span className="font-semibold">{t(`portal.clients.note.${a.kind}`)}:</span> {a.body}
+            </p>
+          ))}
+        </div>
+      ) : null}
       <div className="flex flex-col">
         <p className="bv-type-body text-fg">
           {range(appointment.start, appointment.end).standard} · {appointment.reference}

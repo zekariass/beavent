@@ -511,7 +511,7 @@ CalendarItem:
         $ref: '#/CalendarStage'
 CalendarCustomer:
   type: object
-  required: [id, name]
+  required: [id, name, alerts]
   properties:
     id:
       $ref: ../common/schemas.yaml#/Uuid
@@ -520,6 +520,18 @@ CalendarCustomer:
     phone:
       type: [string, 'null']
       description: Only with customers.contact_details.
+    alerts:
+      type: array
+      description: The client's alert, allergy and medical notes (pinned first), to show before serving them.
+      items:
+        type: object
+        required: [kind, body]
+        properties:
+          kind:
+            type: string
+            enum: [ALERT, ALLERGY, MEDICAL]
+          body:
+            type: string
 CalendarAppointment:
   type: object
   required: [id, reference, status, source, start, end, customer, items]

@@ -1,0 +1,270 @@
+ClientSummary:
+  type: object
+  description: A row of the client list (and of the front desk's search).
+  required: [id, name, visits, tags, alerts]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    phone:
+      type: [string, 'null']
+      description: Only with customers.contact_details.
+    lastVisitAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    visits:
+      type: integer
+      description: Completed appointments.
+    tags:
+      type: array
+      items:
+        type: string
+    alerts:
+      type: integer
+      description: How many alert, allergy and medical notes the client has.
+ClientPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ClientSummary'
+    nextCursor:
+      type: [string, 'null']
+ClientNoteKind:
+  type: string
+  enum: [GENERAL, ALERT, ALLERGY, MEDICAL, PREFERENCE]
+  description: ALERT, ALLERGY and MEDICAL show as a warning on the client and on their appointments.
+ClientNote:
+  type: object
+  required: [id, kind, body, pinned, mine, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      $ref: '#/ClientNoteKind'
+    body:
+      type: string
+    pinned:
+      type: boolean
+    mine:
+      type: boolean
+      description: Written by the caller.
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+ClientVisitItem:
+  type: object
+  required: [serviceName, names]
+  properties:
+    serviceName:
+      type: string
+      description: As booked (in the business's language then).
+    variantName:
+      type: [string, 'null']
+    names:
+      type: object
+      description: The service's and option's current names per language (`service`, `variant`).
+      additionalProperties:
+        type: object
+        additionalProperties:
+          type: string
+    staffName:
+      type: [string, 'null']
+ClientVisit:
+  type: object
+  required: [id, reference, status, start, end, timezone, locationId, locationName, items]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    timezone:
+      type: string
+      description: The location's IANA time zone.
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationName:
+      type: string
+    items:
+      type: array
+      items:
+        $ref: '#/ClientVisitItem'
+Client:
+  type: object
+  description: A client's page. Phone and email only with customers.contact_details.
+  required: [id, name, source, firstSeenAt, blocked, hasAccount, tags, notes, stats, upcoming, past, you]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    source:
+      type: string
+    firstSeenAt:
+      $ref: ../common/schemas.yaml#/Instant
+    lastVisitAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    blocked:
+      type: boolean
+      description: A blocked client cannot book online (the team can still book them).
+    blockReason:
+      type: [string, 'null']
+    hasAccount:
+      type: boolean
+      description: Linked to a Beavent account.
+    tags:
+      type: array
+      items:
+        type: string
+    notes:
+      type: array
+      description: Pinned first, then newest first.
+      items:
+        $ref: '#/ClientNote'
+    stats:
+      type: object
+      required: [visits, noShows, cancellations]
+      properties:
+        visits:
+          type: integer
+        noShows:
+          type: integer
+        cancellations:
+          type: integer
+          description: Cancelled by the client.
+    upcoming:
+      type: array
+      description: Soonest first.
+      items:
+        $ref: '#/ClientVisit'
+    past:
+      type: array
+      description: Newest first, at most 50.
+      items:
+        $ref: '#/ClientVisit'
+    you:
+      type: object
+      description: What the caller may do with this client.
+      required: [edit, contactDetails]
+      properties:
+        edit:
+          type: boolean
+          description: customers.manage (details, notes, tags, merge).
+        contactDetails:
+          type: boolean
+          description: customers.contact_details (phone and email).
+ClientInput:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 120
+    phone:
+      type: [string, 'null']
+      description: As typed; Ethiopian local numbers (09…, 07…) are accepted.
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    note:
+      type: [string, 'null']
+      maxLength: 2000
+ClientUpdate:
+  type: object
+  description: JSON merge-patch; absent fields are unchanged, null clears.
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      maxLength: 120
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    blocked:
+      type: boolean
+    blockReason:
+      type: [string, 'null']
+      maxLength: 500
+ClientNoteInput:
+  type: object
+  required: [body]
+  properties:
+    kind:
+      $ref: '#/ClientNoteKind'
+    body:
+      type: string
+      maxLength: 2000
+    pinned:
+      type: boolean
+ClientTag:
+  type: object
+  required: [id, name, clients]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    clients:
+      type: integer
+ClientImportRow:
+  type: object
+  required: [line, outcome]
+  properties:
+    line:
+      type: integer
+      description: Line in the file (the header is line 1).
+    name:
+      type: [string, 'null']
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    outcome:
+      type: string
+      enum: [NEW, EXISTING, ERROR]
+      description: EXISTING when the business (or an earlier row) already has the phone number; it is left alone.
+    problem:
+      oneOf:
+        - type: string
+          enum: [NAME, PHONE, EMAIL]
+        - type: 'null'
+      description: NAME missing or longer than 120 characters; PHONE not a phone number; EMAIL not an email address.
+ClientImportResult:
+  type: object
+  required: [saved, created, existing, errors, rows]
+  properties:
+    saved:
+      type: boolean
+    created:
+      type: integer
+      description: New clients (added when saved).
+    existing:
+      type: integer
+    errors:
+      type: integer
+    rows:
+      type: array
+      description: Every row with a problem (up to 500) and the first 100 others.
+      items:
+        $ref: '#/ClientImportRow'
