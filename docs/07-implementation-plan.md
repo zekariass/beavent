@@ -12,7 +12,7 @@
 |---|---|---|
 | 0 Foundation | ✅ Done | API (identity, tenancy, files, admin), design system, two mobile apps and one web platform (D20). Hosted CI runs on PR #8: all green |
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
-| 2 Appointments | **In progress** | 2.1–2.4 done: availability, venue page, booking core with messages, and the booking screens on web and in the app. A customer can find a place by link, book, move and cancel. Next: 2.5 the business calendar |
+| 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. Next: 2.6 clients, forms, waitlist |
 | 3–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
