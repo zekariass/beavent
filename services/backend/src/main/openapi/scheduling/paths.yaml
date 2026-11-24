@@ -100,3 +100,41 @@ effectivePolicy:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+publicAvailability:
+  post:
+    tags: [Availability]
+    operationId: searchAvailability
+    summary: Which start times can be booked at a location, and with whom
+    description: |
+      Public (no sign-in). Plans one person's ordered services back to back and lists the start times that work, in
+      start order, with the person assigned to each service ("anyone" picks the first available). The answer is
+      advisory: booking can still return `SLOT_TAKEN` if someone else is faster. Times are instants; the grid and the
+      days are in the location's time zone.
+    security: []
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/AvailabilityQuery
+    responses:
+      '200':
+        description: Bookable times.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AvailabilityResult
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

@@ -1084,6 +1084,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/locations/{locationId}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Which start times can be booked at a location, and with whom
+         * @description Public (no sign-in). Plans one person's ordered services back to back and lists the start times that work, in
+         *     start order, with the person assigned to each service ("anyone" picks the first available). The answer is
+         *     advisory: booking can still return `SLOT_TAKEN` if someone else is faster. Times are instants; the grid and the
+         *     days are in the location's time zone.
+         */
+        post: operations["searchAvailability"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -2507,6 +2530,42 @@ export interface components {
             lateCancelFeePercent?: number;
             noShowFeePercent?: number;
             policyText?: components["schemas"]["LocalizedText"];
+        };
+        AvailabilityItem: {
+            variantId: components["schemas"]["Uuid"];
+            addonIds?: components["schemas"]["Uuid"][];
+            /** @description The chosen person; leave out for anyone available. */
+            staffId?: components["schemas"]["Uuid"];
+        };
+        AvailabilityQuery: {
+            /** @description Services in the order they are done, back to back. */
+            items: components["schemas"]["AvailabilityItem"][];
+            /**
+             * Format: date
+             * @description First local date (the location's time zone).
+             */
+            from: string;
+            /**
+             * Format: date
+             * @description Last local date, inclusive. At most 14 days from `from`.
+             */
+            to: string;
+            /** @description Set for a visit at the customer's place; leave out for the venue. */
+            serviceAreaId?: components["schemas"]["Uuid"];
+        };
+        AvailabilityAssignment: {
+            variantId: components["schemas"]["Uuid"];
+            staffId: components["schemas"]["Uuid"];
+        };
+        AvailabilitySlot: {
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            items: components["schemas"]["AvailabilityAssignment"][];
+        };
+        AvailabilityResult: {
+            /** @example Africa/Addis_Ababa */
+            timezone: string;
+            slots: components["schemas"]["AvailabilitySlot"][];
         };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
@@ -5519,6 +5578,36 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    searchAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvailabilityQuery"];
+            };
+        };
+        responses: {
+            /** @description Bookable times. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createFileUpload: {

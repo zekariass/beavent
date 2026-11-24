@@ -38,6 +38,8 @@ tags:
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Booking policies
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
+  - name: Availability
+    description: Which times can be booked, and with whom (public)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -172,6 +174,9 @@ paths:
     $ref: ./scheduling/paths.yaml#/effectivePolicy
   /v1/orgs/{orgId}/booking-policies/{policyId}:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
+  # --- public booking (no sign-in) --------------------------------------------------------------------------
+  /v1/public/locations/{locationId}/availability:
+    $ref: ./scheduling/paths.yaml#/publicAvailability
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles

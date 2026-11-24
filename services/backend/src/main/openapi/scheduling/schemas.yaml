@@ -108,3 +108,70 @@ BookingPolicyList:
       type: array
       items:
         $ref: '#/BookingPolicy'
+AvailabilityItem:
+  type: object
+  required: [variantId]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    addonIds:
+      type: array
+      maxItems: 10
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      description: The chosen person; leave out for anyone available.
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilityQuery:
+  type: object
+  required: [items, from, to]
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      description: Services in the order they are done, back to back.
+      items:
+        $ref: '#/AvailabilityItem'
+    from:
+      type: string
+      format: date
+      description: First local date (the location's time zone).
+    to:
+      type: string
+      format: date
+      description: Last local date, inclusive. At most 14 days from `from`.
+    serviceAreaId:
+      description: Set for a visit at the customer's place; leave out for the venue.
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilityAssignment:
+  type: object
+  required: [variantId, staffId]
+  properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+AvailabilitySlot:
+  type: object
+  required: [start, end, items]
+  properties:
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    items:
+      type: array
+      items:
+        $ref: '#/AvailabilityAssignment'
+AvailabilityResult:
+  type: object
+  required: [timezone, slots]
+  properties:
+    timezone:
+      type: string
+      example: Africa/Addis_Ababa
+    slots:
+      type: array
+      items:
+        $ref: '#/AvailabilitySlot'

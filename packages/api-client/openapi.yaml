@@ -38,6 +38,8 @@ tags:
     description: Team profiles, pricing levels, working hours, shifts, time off and the rota
   - name: Booking policies
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
+  - name: Availability
+    description: Which times can be booked, and with whom (public)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -2859,6 +2861,45 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/public/locations/{locationId}/availability:
+    post:
+      tags:
+        - Availability
+      operationId: searchAvailability
+      summary: Which start times can be booked at a location, and with whom
+      description: |
+        Public (no sign-in). Plans one person's ordered services back to back and lists the start times that work, in
+        start order, with the person assigned to each service ("anyone" picks the first available). The answer is
+        advisory: booking can still return `SLOT_TAKEN` if someone else is faster. Times are instants; the grid and the
+        days are in the location's time zone.
+      security: []
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityQuery'
+      responses:
+        '200':
+          description: Bookable times.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -6125,6 +6166,84 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    AvailabilityItem:
+      type: object
+      required:
+        - variantId
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        addonIds:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Uuid'
+        staffId:
+          description: The chosen person; leave out for anyone available.
+          $ref: '#/components/schemas/Uuid'
+    AvailabilityQuery:
+      type: object
+      required:
+        - items
+        - from
+        - to
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 6
+          description: Services in the order they are done, back to back.
+          items:
+            $ref: '#/components/schemas/AvailabilityItem'
+        from:
+          type: string
+          format: date
+          description: First local date (the location's time zone).
+        to:
+          type: string
+          format: date
+          description: Last local date, inclusive. At most 14 days from `from`.
+        serviceAreaId:
+          description: Set for a visit at the customer's place; leave out for the venue.
+          $ref: '#/components/schemas/Uuid'
+    AvailabilityAssignment:
+      type: object
+      required:
+        - variantId
+        - staffId
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+    AvailabilitySlot:
+      type: object
+      required:
+        - start
+        - end
+        - items
+      properties:
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityAssignment'
+    AvailabilityResult:
+      type: object
+      required:
+        - timezone
+        - slots
+      properties:
+        timezone:
+          type: string
+          example: Africa/Addis_Ababa
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilitySlot'
     FilePurpose:
       type: string
       enum:

@@ -5,6 +5,7 @@
  *
  * <p>Public API: {@link com.beavent.backend.tenancy.OrgAccess} — the caller's membership in the organization of the
  * current {@code /v1/orgs/{orgId}/...} request, for permission and location checks in every partner module.
+ * {@link com.beavent.backend.tenancy.PublicLocations} — the business behind a public booking link.
  */
 @org.springframework.modulith.ApplicationModule(displayName = "Tenancy")
 package com.beavent.backend.tenancy;
