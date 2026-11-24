@@ -2865,6 +2865,64 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
+    post:
+      tags:
+        - Booking
+      operationId: acceptBookingRequest
+      summary: Accept a booking request (needs appointments.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/decline:
+    post:
+      tags:
+        - Booking
+      operationId: declineBookingRequest
+      summary: Decline a booking request; the time is freed (needs appointments.manage)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Declined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/public/locations/{locationId}/availability:
     post:
       tags:
@@ -6442,6 +6500,16 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    AppointmentStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - CONFIRMED
+            - DECLINED
     AvailabilityItem:
       type: object
       required:

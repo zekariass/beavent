@@ -696,6 +696,10 @@ class Bookings {
 
     /** Releases every reservation of the appointment (its stages' and resource units'). */
     private void releaseReservations(UUID appointmentId) {
+        releaseReservations(dsl, appointmentId);
+    }
+
+    static void releaseReservations(DSLContext dsl, UUID appointmentId) {
         dsl.update(SCHEDULE_RESERVATIONS)
                 .set(SCHEDULE_RESERVATIONS.STATUS, "RELEASED")
                 .where(
@@ -717,6 +721,11 @@ class Bookings {
     }
 
     private void history(UUID orgId, UUID appointmentId, String from, String to, UUID actor, String reason) {
+        history(dsl, orgId, appointmentId, from, to, actor, reason);
+    }
+
+    static void history(
+            DSLContext dsl, UUID orgId, UUID appointmentId, String from, String to, UUID actor, String reason) {
         dsl.insertInto(APPOINTMENT_STATUS_HISTORY)
                 .set(APPOINTMENT_STATUS_HISTORY.ORG_ID, orgId)
                 .set(APPOINTMENT_STATUS_HISTORY.APPOINTMENT_ID, appointmentId)
@@ -859,6 +868,49 @@ class Bookings {
                             "from", before.start().toString(),
                             "to", plan.start().toString())));
             return detailIn(userId, appointmentId, now, false);
+        });
+    }
+
+    // --- the business answers a request ----------------------------------------------------------------------------
+
+    /**
+     * Accepts or declines a booking request ({@code REQUESTED}). Declining frees the time. Call with the business's
+     * context bound; the caller checked the member may manage appointments.
+     */
+    String decide(UUID orgId, UUID actorUserId, UUID appointmentId, boolean accept, String reason) {
+        return transactions.execute(status -> {
+            var a = dsl.selectFrom(APPOINTMENTS)
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .forUpdate()
+                    .fetchOne();
+            if (a == null) {
+                throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+            }
+            if (!"REQUESTED".equals(a.getStatus())) {
+                throw new ApiException(ProblemCode.IMMUTABLE, "Only booking requests can be accepted or declined.");
+            }
+            String to = accept ? "CONFIRMED" : "DECLINED";
+            if (!accept) {
+                releaseReservations(appointmentId);
+                dsl.update(APPOINTMENT_ITEMS)
+                        .set(APPOINTMENT_ITEMS.STATUS, "CANCELLED")
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))
+                        .execute();
+            }
+            dsl.update(APPOINTMENTS)
+                    .set(APPOINTMENTS.STATUS, to)
+                    .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .execute();
+            history(orgId, appointmentId, "REQUESTED", to, actorUserId, reason);
+            outbox.publish(new DomainEvent(
+                    "scheduling.appointment",
+                    appointmentId,
+                    accept ? "appointment.accepted" : "appointment.declined",
+                    1,
+                    orgId,
+                    Map.of("appointmentId", appointmentId)));
+            return to;
         });
     }
 

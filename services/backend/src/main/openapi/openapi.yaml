@@ -178,6 +178,10 @@ paths:
     $ref: ./scheduling/paths.yaml#/effectivePolicy
   /v1/orgs/{orgId}/booking-policies/{policyId}:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
+  /v1/orgs/{orgId}/appointments/{appointmentId}/accept:
+    $ref: ./scheduling/paths.yaml#/requestAccept
+  /v1/orgs/{orgId}/appointments/{appointmentId}/decline:
+    $ref: ./scheduling/paths.yaml#/requestDecline
   # --- public booking (no sign-in) --------------------------------------------------------------------------
   /v1/public/locations/{locationId}/availability:
     $ref: ./scheduling/paths.yaml#/publicAvailability

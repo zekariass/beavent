@@ -170,6 +170,11 @@ public class BookingApi {
                 .toList());
     }
 
+    /** The business accepts or declines a booking request; returns the new status. */
+    public String decide(UUID orgId, UUID actorUserId, UUID appointmentId, boolean accept, String reason) {
+        return bookings.decide(orgId, actorUserId, appointmentId, accept, reason);
+    }
+
     /** The business behind one of the person's appointments; call with the person's consumer context bound. */
     public java.util.Optional<UUID> orgOf(UUID appointmentId) {
         return bookings.orgOf(appointmentId);

@@ -432,3 +432,10 @@ AppointmentDetail:
       $ref: '#/CancellationPreview'
     canReschedule:
       type: boolean
+AppointmentStatus:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [CONFIRMED, DECLINED]

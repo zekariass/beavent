@@ -51,17 +51,23 @@ class BookingController {
             @NotNull String holderKey,
             @Size(max = 500) String note) {}
 
-    private static final int HOLDS_PER_IP_PER_HOUR = 30;
     static final String HOLD_KEY_HEADER = "X-Hold-Key";
 
     private final PublicLocations locations;
     private final BookingApi bookings;
     private final RateLimiter rateLimiter;
+    private final int holdsPerIpPerHour;
 
-    BookingController(PublicLocations locations, BookingApi bookings, RateLimiter rateLimiter) {
+    BookingController(
+            PublicLocations locations,
+            BookingApi bookings,
+            RateLimiter rateLimiter,
+            @org.springframework.beans.factory.annotation.Value("${beavent.booking.holds-per-ip-per-hour:30}")
+                    int holdsPerIpPerHour) {
         this.locations = locations;
         this.bookings = bookings;
         this.rateLimiter = rateLimiter;
+        this.holdsPerIpPerHour = holdsPerIpPerHour;
     }
 
     private PublicLocations.Bookable bookable(UUID locationId) {
@@ -73,7 +79,7 @@ class BookingController {
     @PostMapping("/v1/public/locations/{locationId}/holds")
     ResponseEntity<BookingApi.HoldBody> hold(
             @PathVariable UUID locationId, @Valid @RequestBody HoldBody body, HttpServletRequest request) {
-        rateLimiter.hit("hold:ip:" + request.getRemoteAddr(), HOLDS_PER_IP_PER_HOUR, Duration.ofHours(1));
+        rateLimiter.hit("hold:ip:" + request.getRemoteAddr(), holdsPerIpPerHour, Duration.ofHours(1));
         PublicLocations.Bookable place = bookable(locationId);
         List<Availability.Item> items = body.items().stream()
                 .map(i -> new Availability.Item(i.variantId(), i.addonIds(), i.staffId()))

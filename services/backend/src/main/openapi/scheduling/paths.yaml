@@ -344,3 +344,59 @@ AppointmentIdParam:
   required: true
   schema:
     $ref: ../common/schemas.yaml#/Uuid
+requestAccept:
+  post:
+    tags: [Booking]
+    operationId: acceptBookingRequest
+    summary: Accept a booking request (needs appointments.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: Accepted.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+requestDecline:
+  post:
+    tags: [Booking]
+    operationId: declineBookingRequest
+    summary: Decline a booking request; the time is freed (needs appointments.manage)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                maxLength: 500
+    responses:
+      '200':
+        description: Declined.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
