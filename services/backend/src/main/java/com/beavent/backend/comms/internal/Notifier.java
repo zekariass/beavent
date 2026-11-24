@@ -43,17 +43,62 @@ class Notifier {
     static final String RESCHEDULED = "APPOINTMENT_RESCHEDULED";
     static final String REMINDER_24H = "APPOINTMENT_REMINDER_24H";
     static final String REMINDER_2H = "APPOINTMENT_REMINDER_2H";
+    /** A time opened up for someone on the waitlist (plan 2.6, S-15). */
+    static final String WAITLIST_OFFER = "APPOINTMENT_WAITLIST_OFFER";
+
     static final List<String> REMINDERS = List.of(REMINDER_24H, REMINDER_2H);
     static final String CONSUMER = "comms.appointments";
 
     private final DSLContext system;
     private final ProcessedMessages processedMessages;
     private final JsonMapper json;
+    private final String webUrl;
 
-    Notifier(@SystemDb DSLContext system, ProcessedMessages processedMessages, JsonMapper json) {
+    Notifier(
+            @SystemDb DSLContext system,
+            ProcessedMessages processedMessages,
+            JsonMapper json,
+            @org.springframework.beans.factory.annotation.Value("${beavent.web.public-url}") String webUrl) {
         this.system = system;
         this.processedMessages = processedMessages;
         this.json = json;
+        this.webUrl = webUrl.replaceAll("/+$", "");
+    }
+
+    @RabbitListener(queues = CommsConfiguration.WAITLIST_QUEUE)
+    void onWaitlistEvent(Message message) {
+        UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
+        var body = json.readTree(message.getBody());
+        UUID offerId = UUID.fromString(body.get("offerId").asString());
+        processedMessages.runOnce(CONSUMER + ".waitlist", messageId, () -> offered(offerId, Instant.now()));
+    }
+
+    /** The offer message: the time, how long it is held, and the link to book it. Runs in a system transaction. */
+    void offered(UUID offerId, Instant now) {
+        var o = system.fetchOne(
+                "select o.org_id, e.id, e.customer_id, e.user_id, lower(o.offered_slot), o.expires_at, l.timezone, "
+                        + "g.display_name, p.landmark from commerce.waitlist_offers o "
+                        + "join commerce.waitlist_entries e on e.id = o.entry_id "
+                        + "join tenant.locations l on l.id = e.location_id "
+                        + "join tenant.places p on p.id = l.place_id "
+                        + "join tenant.organizations g on g.id = o.org_id where o.id = ? and o.status = 'OPEN'",
+                offerId);
+        if (o == null || o.get(2) == null) {
+            return;
+        }
+        Instant start = o.get(4, java.time.OffsetDateTime.class).toInstant();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("offerId", offerId.toString());
+        data.put("entryId", o.get(1, UUID.class).toString());
+        data.put("startsAt", start.toString());
+        data.put(
+                "expiresAt",
+                o.get(5, java.time.OffsetDateTime.class).toInstant().toString());
+        data.put("timezone", o.get(6, String.class));
+        data.put("business", o.get(7, String.class));
+        data.put("landmark", o.get(8, String.class));
+        data.put("web", webUrl);
+        add(o.get(0, UUID.class), o.get(2, UUID.class), o.get(3, UUID.class), WAITLIST_OFFER, data, now, start);
     }
 
     @RabbitListener(queues = CommsConfiguration.APPOINTMENTS_QUEUE)
@@ -165,7 +210,9 @@ class Notifier {
                 .set(NOTIFICATIONS.CATEGORY, REMINDERS.contains(code) ? "REMINDER" : "TRANSACTIONAL")
                 .set(NOTIFICATIONS.TEMPLATE_CODE, code)
                 .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
-                .set(NOTIFICATIONS.DEDUPE_KEY, code + ":" + data.get("appointmentId") + ":" + start)
+                .set(
+                        NOTIFICATIONS.DEDUPE_KEY,
+                        code + ":" + data.getOrDefault("offerId", data.get("appointmentId")) + ":" + start)
                 .set(NOTIFICATIONS.SEND_AFTER, sendAfter.atOffset(ZoneOffset.UTC))
                 .onConflictDoNothing()
                 .execute();

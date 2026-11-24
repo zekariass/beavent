@@ -28,6 +28,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       and the database in agreement for other writers).
  *   <li>Booking requests the business did not answer expire: after {@link #REQUEST_ANSWER_TIME}, or when the visit is
  *       less than {@link #REQUEST_LAST_CALL} away. The time is freed and the customer told.
+ *   <li>The waitlist: offers that ran out move on, and waiting entries are offered times that became free
+ *       ({@link Waitlist#sweep}).
  * </ul>
  */
 @Component
@@ -41,11 +43,14 @@ class BookingSweeps {
     private final DSLContext system;
     private final TransactionTemplate transactions;
     private final Outbox outbox;
+    private final Waitlist waitlist;
 
-    BookingSweeps(@SystemDb DSLContext system, @SystemDb TransactionTemplate transactions, Outbox outbox) {
+    BookingSweeps(
+            @SystemDb DSLContext system, @SystemDb TransactionTemplate transactions, Outbox outbox, Waitlist waitlist) {
         this.system = system;
         this.transactions = transactions;
         this.outbox = outbox;
+        this.waitlist = waitlist;
     }
 
     @Scheduled(fixedDelayString = "${beavent.scheduling.sweep-interval-ms:30000}")
@@ -54,6 +59,7 @@ class BookingSweeps {
         try {
             expireHolds(now);
             expireRequests(now);
+            waitlist.sweep(now);
         } catch (RuntimeException e) {
             log.warn("Booking sweep failed; it runs again shortly", e);
         }

@@ -4,6 +4,7 @@
 import type { Schemas } from "@beavent/api-client";
 import {
   defaultDisplayPreferences,
+  formatDualDate,
   formatClock,
   formatEthiopianTime,
   gregorianToJdn,
@@ -192,4 +193,37 @@ export function localToInstant(date: string, time: string, timeZone: string): st
   const seen = zoned(guess, timeZone);
   const asIfUtc = Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute);
   return new Date(guess - (asIfUtc - guess)).toISOString();
+}
+
+/**
+ * A waitlist entry's days and times of day in words ("Wed, Nov 25, Thu, Nov 26 · Morning, Evening"), each day in the
+ * reader's calendar.
+ */
+export function waitlistWhen(
+  days: readonly string[],
+  parts: readonly string[],
+  language: Language,
+  t: Translate,
+): string {
+  const lang = calendarLanguage(language);
+  const prefs = defaultDisplayPreferences(lang);
+  const sep = language === "am" ? "፣ " : ", ";
+  const dayText = days
+    .map((d) => {
+      const [y, m, day] = d.split("-").map(Number) as [number, number, number];
+      return formatDualDate({ year: y, month: m, day }, prefs, { weekday: true }).primary;
+    })
+    .join(sep);
+  const partText = parts
+    .map((p) =>
+      t(
+        p === "MORNING"
+          ? "booking.time.morning"
+          : p === "AFTERNOON"
+            ? "booking.time.afternoon"
+            : "booking.time.evening",
+      ),
+    )
+    .join(sep);
+  return t("waitlist.when", { days: dayText, parts: partText });
 }

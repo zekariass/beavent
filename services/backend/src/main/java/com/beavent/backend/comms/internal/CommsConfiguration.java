@@ -13,6 +13,21 @@ import org.springframework.context.annotation.Configuration;
 class CommsConfiguration {
 
     static final String APPOINTMENTS_QUEUE = "beavent.comms.appointments";
+    static final String WAITLIST_QUEUE = "beavent.comms.waitlist";
+
+    @Bean
+    Queue commsWaitlistQueue() {
+        return QueueBuilder.durable(WAITLIST_QUEUE)
+                .deadLetterExchange(Outbox.DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    Binding commsWaitlistBinding(Queue commsWaitlistQueue) {
+        return BindingBuilder.bind(commsWaitlistQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("waitlist.*");
+    }
 
     @Bean
     Queue commsAppointmentsQueue() {

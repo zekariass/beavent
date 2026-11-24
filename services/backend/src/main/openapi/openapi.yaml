@@ -246,6 +246,16 @@ paths:
     $ref: ./scheduling/paths.yaml#/myAppointmentCancel
   /v1/me/appointments/{appointmentId}/reschedule:
     $ref: ./scheduling/paths.yaml#/myAppointmentReschedule
+  /v1/me/waitlist:
+    $ref: ./scheduling/paths.yaml#/myWaitlist
+  /v1/me/waitlist/{entryId}:
+    $ref: ./scheduling/paths.yaml#/myWaitlistEntry
+  /v1/me/waitlist/{entryId}/accept:
+    $ref: ./scheduling/paths.yaml#/myWaitlistAccept
+  /v1/me/waitlist/{entryId}/decline:
+    $ref: ./scheduling/paths.yaml#/myWaitlistDecline
+  /v1/orgs/{orgId}/waitlist:
+    $ref: ./scheduling/paths.yaml#/deskWaitlist
   /v1/public/venues/{businessSlug}/locations:
     $ref: ./marketplace/paths.yaml#/businessLocations
   /v1/public/venues/{businessSlug}/{locationSlug}:

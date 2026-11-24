@@ -530,6 +530,16 @@ export function BookingFlow({
                       {t("booking.time.laterWeek")} ›
                     </button>
                   ) : null}
+                  {picked[0] ? (
+                    <a
+                      href={`${venueHref}/waitlist?variant=${picked[0].variantId}&day=${day}${
+                        choices[0]?.staffId ? `&staff=${choices[0].staffId}` : ""
+                      }`}
+                      className={secondaryButton}
+                    >
+                      {t("waitlist.join")}
+                    </a>
+                  ) : null}
                 </div>
               ) : (
                 <TimeGrid

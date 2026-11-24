@@ -79,3 +79,48 @@ export async function rescheduleAppointment(
   revalidatePath(`/${language}/account/bookings`, "layout");
   return { ok: true, value: data };
 }
+
+/** Joins a place's waitlist (S-15). */
+export async function joinWaitlist(
+  language: string,
+  body: Schemas["WaitlistJoin"],
+): Promise<Result<null>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/waitlist", { body });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  revalidatePath(`/${language}/account/bookings`);
+  return { ok: true, value: null };
+}
+
+/** Books the time a waitlist offer holds. */
+export async function acceptWaitlistOffer(
+  language: string,
+  entryId: string,
+): Promise<Result<{ appointmentId: string }>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/waitlist/{entryId}/accept", {
+    params: { path: { entryId } },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  revalidatePath(`/${language}/account/bookings`, "layout");
+  return { ok: true, value: { appointmentId: data.appointmentId } };
+}
+
+/** "Not this time" (decline) or leaving the waitlist altogether. */
+export async function answerWaitlist(
+  language: string,
+  entryId: string,
+  leave: boolean,
+): Promise<Result<null>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { response, error } = leave
+    ? await api.DELETE("/v1/me/waitlist/{entryId}", { params: { path: { entryId } } })
+    : await api.POST("/v1/me/waitlist/{entryId}/decline", { params: { path: { entryId } } });
+  if (response.status !== 204)
+    return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  revalidatePath(`/${language}/account/bookings`, "layout");
+  return { ok: true, value: null };
+}

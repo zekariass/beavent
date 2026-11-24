@@ -7,6 +7,7 @@ import {
   Divider,
   EmptyState,
   ListRow,
+  Section,
   Screen,
   ScreenTitle,
   SkeletonRows,
@@ -14,7 +15,7 @@ import {
   useApp,
 } from "@beavent/native";
 import { space } from "@beavent/ui";
-import { calendarLanguage } from "@beavent/venue";
+import { calendarLanguage, pick, waitlistWhen } from "@beavent/venue";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { View } from "react-native";
@@ -32,6 +33,7 @@ export default function BookingsScreen() {
   const router = useRouter();
   const [past, setPast] = useState(false);
   const [items, setItems] = useState<Schemas["MyAppointment"][] | null | "error">(null);
+  const [waitlists, setWaitlists] = useState<Schemas["WaitlistEntry"][]>([]);
   // When the list was fetched: what counts as upcoming is decided then, not on every render.
   const [fetchedAt, setFetchedAt] = useState(0);
 
@@ -47,6 +49,10 @@ export default function BookingsScreen() {
           setItems(data?.items ?? "error");
         })
         .catch(() => !cancelled && setItems("error"));
+      api
+        .GET("/v1/me/waitlist")
+        .then(({ data }) => !cancelled && setWaitlists(data?.items ?? []))
+        .catch(() => undefined);
       return () => {
         cancelled = true;
       };
@@ -147,6 +153,27 @@ export default function BookingsScreen() {
               </View>
             ))
           )}
+          {!past && waitlists.length > 0 ? (
+            <Section title={t("waitlist.section")}>
+              <View style={{ marginHorizontal: -space[4] }}>
+                {waitlists.map((w, k) => (
+                  <View key={w.id}>
+                    {k > 0 && <Divider />}
+                    <ListRow
+                      title={[pick(w.serviceName, language), w.place?.businessName]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      subtitle={`${waitlistWhen(w.days, w.parts, language, t)} · ${
+                        w.offer ? t("waitlist.offered") : t("waitlist.waiting")
+                      }`}
+                      chevron
+                      onPress={() => router.push(`/waitlist/${w.id}`)}
+                    />
+                  </View>
+                ))}
+              </View>
+            </Section>
+          ) : null}
         </>
       )}
     </Screen>

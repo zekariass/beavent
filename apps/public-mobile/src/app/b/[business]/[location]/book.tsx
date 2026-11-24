@@ -436,9 +436,24 @@ function Flow({ venue }: { venue: Venue }) {
             {slots == null ? (
               <SkeletonRows count={3} />
             ) : daySlots.length === 0 ? (
-              <Text role="body" tone="muted">
-                {withTimes.size === 0 ? t("booking.time.noneThisWeek") : t("booking.time.none")}
-              </Text>
+              <View style={{ gap: space[3], alignItems: "flex-start" }}>
+                <Text role="body" tone="muted">
+                  {withTimes.size === 0 ? t("booking.time.noneThisWeek") : t("booking.time.none")}
+                </Text>
+                {picked[0] ? (
+                  <Button
+                    variant="secondary"
+                    label={t("waitlist.join")}
+                    onPress={() =>
+                      router.push(
+                        `/b/${venue.businessSlug}/${venue.locationSlug}/waitlist?variant=${picked[0]!.variantId}&day=${day}${
+                          choices[0]?.staffId ? `&staff=${choices[0].staffId}` : ""
+                        }`,
+                      )
+                    }
+                  />
+                ) : null}
+              </View>
             ) : (
               <TimeGrid
                 slots={daySlots}

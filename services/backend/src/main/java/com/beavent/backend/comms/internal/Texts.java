@@ -34,6 +34,16 @@ final class Texts {
         String date = date(start, lang);
         String when = time(start.toLocalTime(), lang);
         boolean am = lang.equals("am");
+        if (code.equals(Notifier.WAITLIST_OFFER)) {
+            ZonedDateTime until =
+                    Instant.parse(String.valueOf(data.get("expiresAt"))).atZone(start.getZone());
+            String link = data.get("web") + "/" + lang + "/account/waitlist/" + data.get("entryId");
+            String hold = time(until.toLocalTime(), lang);
+            String offer = am
+                    ? business + "፦ ቦታ ተገኝቷል፤ " + date + "፣ " + when + "። እስከ " + hold + " ድረስ ይያዙት፦ " + link
+                    : business + ": a time opened up on " + date + ", " + when + ". Book it by " + hold + ": " + link;
+            return new Message(am ? business + " · የተጠባባቂ ዝርዝር" : business + " · waitlist", offer);
+        }
         String text = switch (code) {
             case Notifier.CONFIRMED ->
                 am

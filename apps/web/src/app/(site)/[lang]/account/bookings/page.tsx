@@ -1,6 +1,6 @@
 import type { Schemas } from "@beavent/api-client";
 import { defaultDisplayPreferences, formatDualDate, formatDualTime } from "@beavent/calendar";
-import { calendarLanguage } from "@beavent/venue";
+import { calendarLanguage, pick, waitlistWhen } from "@beavent/venue";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -37,6 +37,8 @@ export default async function BookingsPage({
   const signedIn = result?.data != null;
 
   const shown = split(result?.data?.items ?? [], past);
+  const waitlists =
+    signedIn && !past && api ? ((await api.GET("/v1/me/waitlist")).data?.items ?? []) : [];
   const names = await menuNames(
     shown.flatMap((a) => (a.place ? [a.place] : [])),
     language,
@@ -132,6 +134,35 @@ export default async function BookingsPage({
                 </section>
               ))
             )}
+            {waitlists.length > 0 ? (
+              <section className="flex flex-col gap-2">
+                <h2 className="bv-type-title2 text-fg">{t("waitlist.section")}</h2>
+                <ul className="divide-y divide-border border-y border-border">
+                  {waitlists.map((w) => (
+                    <li key={w.id}>
+                      <Link
+                        href={`/${language}/account/waitlist/${w.id}`}
+                        className="flex min-h-16 flex-col justify-center gap-1 py-3 focus-visible:outline-2 focus-visible:outline-focus"
+                      >
+                        <span className="bv-type-body text-fg">
+                          {[pick(w.serviceName, language), w.place?.businessName]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                        <span className="bv-type-caption text-fg-muted">
+                          {waitlistWhen(w.days, w.parts, language, t)}
+                        </span>
+                        <span
+                          className={`bv-type-caption ${w.offer ? "text-primary" : "text-fg-muted"}`}
+                        >
+                          {w.offer ? t("waitlist.offered") : t("waitlist.waiting")}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             <form action={signOutCustomer.bind(null, language)} className="pt-4">
               <button className="bv-type-label inline-flex min-h-12 items-center text-fg-muted underline underline-offset-4 hover:text-fg">
                 {t("account.signOut")}

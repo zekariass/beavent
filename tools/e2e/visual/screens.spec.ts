@@ -819,7 +819,61 @@ test("forms and patch tests · console, web, consumer app, business app", async 
     }
   }
   await web.close();
+});
 
+test("forms · consumer app and business app", async ({ browser }) => {
+  test.setTimeout(600_000);
+  const salon = await seedSalon("Abeba Beauty");
+  const org = `/v1/orgs/${salon.orgId}`;
+  const form = await api(
+    "POST",
+    `${org}/forms`,
+    {
+      title: { en: "Hair consultation", am: "የጸጉር ምክክር" },
+      purpose: "CONSULTATION",
+      intro: { en: "Help us look after your hair.", am: "ጸጉርዎን በደንብ እንድንንከባከብ ይርዱን።" },
+      fields: [
+        {
+          id: "allergies",
+          kind: "YES_NO",
+          label: { en: "Do you have any allergies?", am: "አለርጂ አለብዎት?" },
+          required: true,
+        },
+        {
+          id: "treatments",
+          kind: "MULTI_CHOICE",
+          label: { en: "Recent treatments", am: "በቅርቡ የተደረጉ ሕክምናዎች" },
+          required: false,
+          options: [
+            { id: "colour", label: { en: "Colour", am: "ቀለም" } },
+            { id: "relaxer", label: { en: "Relaxer", am: "ማለስለሻ" } },
+          ],
+        },
+        {
+          id: "details",
+          kind: "LONG_TEXT",
+          label: { en: "Anything else we should know", am: "ልናውቀው የሚገባ ሌላ ነገር" },
+          required: false,
+        },
+        {
+          id: "agree",
+          kind: "CHECKBOX",
+          label: { en: "I have told you everything relevant.", am: "ተገቢውን ሁሉ ነግሬአለሁ።" },
+          required: true,
+        },
+      ],
+      signature: true,
+      serviceIds: [salon.serviceId],
+      frequency: "EVERY_TIME",
+    },
+    salon.token,
+  );
+  const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, today, in6);
+  const booked = await bookAsCustomer(salon, start, "Meron Tesfaye");
+  const date = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  let seen = 0;
   // The consumer app (web build) and the business app.
   for (const language of LANGUAGES) {
     const app = await browser.newContext({
@@ -830,7 +884,12 @@ test("forms and patch tests · console, web, consumer app, business app", async 
     const ap = await app.newPage();
     await ap.waitForTimeout(31_000);
     await ap.goto(`${MOBILE}/bookings`);
-    await ap.getByRole("textbox").first().fill(booked.phone);
+    await ap
+      .getByRole("button", { name: language === "am" ? "ይግቡ" : "Sign in" })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await ap.getByRole("textbox").filter({ visible: true }).first().fill(booked.phone);
     seen = codeCount(booked.phone);
     await ap
       .getByRole("button")
@@ -882,5 +941,138 @@ test("forms and patch tests · console, web, consumer app, business app", async 
       await shot(bp, `business-app-visit-forms-${language}-${scheme}`);
     }
     await biz.close();
+  }
+});
+
+test("waitlist · web, console, consumer app", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty");
+  const tomorrow = new Date(Date.now() + 27 * 3600_000).toISOString().slice(0, 10);
+  const in6 = new Date(Date.now() + (3 + 6 * 24) * 3600_000).toISOString().slice(0, 10);
+  const start = await firstFreeStart(salon, tomorrow, in6);
+  const first = await bookAsCustomer(salon, start, "Meron Tesfaye");
+  const day = new Date(new Date(start).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/blocks`,
+    {
+      locationId: salon.locationId,
+      staffId: salon.staffId,
+      start: new Date(new Date(start).getTime() + 3.5 * 3600_000).toISOString(),
+      end: `${day}T15:00:00Z`,
+      reason: "OTHER",
+    },
+    salon.token,
+  );
+  // The person waiting booked something else before (which gives us their session).
+  const later = await firstFreeStart(salon, tomorrow, in6, true);
+  const waiting = await bookAsCustomer(salon, later, "Selam Bekele");
+  const join = (days: string[], parts: string[]) =>
+    api(
+      "POST",
+      "/v1/me/waitlist",
+      { locationId: salon.locationId, variantId: salon.variantId, days, parts },
+      waiting.token,
+    );
+  const offered = await join([day], ["MORNING"]);
+  await join([in6], ["AFTERNOON", "EVENING"]);
+  await api("POST", `/v1/me/appointments/${first.id}/cancel`, {}, first.token);
+  for (let i = 0; i < 30; i++) {
+    const mine = await api("GET", `/v1/me/waitlist/${offered.id}`, undefined, waiting.token);
+    if (mine.offer) break;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  const web = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const wp = await web.newPage();
+  await wp.waitForTimeout(31_000);
+  await wp.goto(`${WEB}/en/account/bookings`);
+  await wp.getByLabel("Phone number").fill(waiting.phone);
+  let seen = codeCount(waiting.phone);
+  await wp.getByRole("button", { name: "Send code" }).click();
+  await wp.getByLabel(/Code sent to/).fill(await codeFor(waiting.phone, seen));
+  await wp.getByRole("button", { name: "Sign in" }).click();
+  await wp.getByRole("button", { name: "Sign out" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await wp.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await wp.setViewportSize(size);
+        await wp.goto(
+          `${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}/waitlist?variant=${salon.variantId}&day=${day}`,
+        );
+        await shot(wp, `web-waitlist-join-${language}-${scheme}-${viewport}`);
+        await wp.goto(`${WEB}/${language}/account/bookings`);
+        await shot(wp, `web-bookings-waitlists-${language}-${scheme}-${viewport}`);
+        await wp.goto(`${WEB}/${language}/account/waitlist/${offered.id}`);
+        await shot(wp, `web-waitlist-offer-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await web.close();
+
+  const desk = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const dp = await desk.newPage();
+  await dp.goto(`${WEB}/en/business/sign-in`);
+  await dp.getByLabel("Phone number or email").fill(salon.phone);
+  seen = codeCount(salon.phone);
+  await dp.getByRole("button", { name: "Send code" }).click();
+  await dp.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await dp.getByRole("button", { name: "Sign in" }).click();
+  await dp.getByRole("heading", { name: "Your businesses" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await dp.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      await dp.goto(`${WEB}/${language}/business/o/${salon.orgId}/calendar/waitlist`);
+      await shot(dp, `console-waitlist-${language}-${scheme}`);
+    }
+  }
+  await desk.close();
+
+  for (const language of LANGUAGES) {
+    const app = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1200 },
+    });
+    const ap = await app.newPage();
+    await ap.waitForTimeout(31_000);
+    await ap.goto(`${MOBILE}/bookings`);
+    await ap
+      .getByRole("button", { name: language === "am" ? "ይግቡ" : "Sign in" })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await ap.getByRole("textbox").filter({ visible: true }).first().fill(waiting.phone);
+    seen = codeCount(waiting.phone);
+    await ap
+      .getByRole("button")
+      .filter({ hasText: language === "am" ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await ap
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(waiting.phone, seen));
+    await ap.getByRole("button").filter({ visible: true }).last().click();
+    await ap.waitForTimeout(1500);
+    for (const scheme of SCHEMES) {
+      await ap.emulateMedia({ colorScheme: scheme });
+      await ap.goto(`${MOBILE}/bookings`);
+      await ap.waitForTimeout(2000);
+      await shot(ap, `mobile-bookings-waitlists-${language}-${scheme}`);
+      await ap.goto(`${MOBILE}/waitlist/${offered.id}`);
+      await ap.waitForTimeout(1500);
+      await shot(ap, `mobile-waitlist-offer-${language}-${scheme}`);
+      await ap.goto(
+        `${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}/waitlist?variant=${salon.variantId}&day=${day}`,
+      );
+      await ap.waitForTimeout(2000);
+      await shot(ap, `mobile-waitlist-join-${language}-${scheme}`);
+    }
+    await app.close();
   }
 });

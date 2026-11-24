@@ -4135,6 +4135,178 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist:
+    get:
+      tags:
+        - Booking
+      operationId: listMyWaitlist
+      summary: The person's waitlists (waiting or with an offer), across businesses
+      responses:
+        '200':
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Booking
+      operationId: joinWaitlist
+      summary: Join a location's waitlist for a service on some days and parts of the day (S-15)
+      description: |
+        When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+        person gets a text message with a link. At most 5 active entries per business.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoin'
+      responses:
+        '201':
+          description: Joined.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist/{entryId}:
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      tags:
+        - Booking
+      operationId: getMyWaitlistEntry
+      summary: One of the person's waitlist entries, with its open offer
+      responses:
+        '200':
+          description: The entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Booking
+      operationId: leaveWaitlist
+      summary: Leave the waitlist (an open offer is let go)
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/waitlist/{entryId}/accept:
+    post:
+      tags:
+        - Booking
+      operationId: acceptWaitlistOffer
+      summary: Book the offered time
+      description: '`HOLD_EXPIRED` when the offer ran out (the time went to the next person).'
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '201':
+          description: Booked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - appointmentId
+                  - reference
+                  - status
+                properties:
+                  appointmentId:
+                    $ref: '#/components/schemas/Uuid'
+                  reference:
+                    type: string
+                  status:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist/{entryId}/decline:
+    post:
+      tags:
+        - Booking
+      operationId: declineWaitlistOffer
+      summary: Not this time — the time goes to the next person; the entry keeps waiting
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/waitlist:
+    get:
+      tags:
+        - Calendar
+      operationId: listWaitlist
+      summary: Who is waiting at a location, oldest first (calendar.view_all)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/public/venues/{businessSlug}/locations:
     get:
       tags:
@@ -8994,6 +9166,143 @@ components:
           $ref: '#/components/schemas/CancellationPreview'
         canReschedule:
           type: boolean
+    WaitlistOffer:
+      type: object
+      required:
+        - id
+        - start
+        - end
+        - expiresAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+          description: The time is held until then.
+        staffName:
+          type:
+            - string
+            - 'null'
+    WaitlistEntry:
+      type: object
+      required:
+        - id
+        - status
+        - locationId
+        - timezone
+        - variantId
+        - serviceName
+        - days
+        - parts
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - WAITING
+            - OFFERED
+            - CONVERTED
+            - EXPIRED
+            - CANCELLED
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
+        place:
+          $ref: '#/components/schemas/MyAppointmentPlace'
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: object
+          additionalProperties:
+            type: string
+        variantName:
+          type: object
+          additionalProperties:
+            type: string
+        staffId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        staffName:
+          type:
+            - string
+            - 'null'
+        customerName:
+          type:
+            - string
+            - 'null'
+          description: For the front desk.
+        days:
+          type: array
+          items:
+            type: string
+            format: date
+        parts:
+          type: array
+          items:
+            type: string
+            enum:
+              - MORNING
+              - AFTERNOON
+              - EVENING
+        offer:
+          oneOf:
+            - $ref: '#/components/schemas/WaitlistOffer'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    WaitlistList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WaitlistEntry'
+    WaitlistJoin:
+      type: object
+      required:
+        - locationId
+        - variantId
+        - days
+        - parts
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: A particular person, or anyone who does the service.
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          description: The location's local dates, from today up to 60 days ahead.
+          items:
+            type: string
+            format: date
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 3
+          description: MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time).
+          items:
+            type: string
+            enum:
+              - MORNING
+              - AFTERNOON
+              - EVENING
     VenueImage:
       type: object
       required:

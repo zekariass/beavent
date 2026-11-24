@@ -1683,6 +1683,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The person's waitlists (waiting or with an offer), across businesses */
+        get: operations["listMyWaitlist"];
+        put?: never;
+        /**
+         * Join a location's waitlist for a service on some days and parts of the day (S-15)
+         * @description When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+         *     person gets a text message with a link. At most 5 active entries per business.
+         */
+        post: operations["joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /** One of the person's waitlist entries, with its open offer */
+        get: operations["getMyWaitlistEntry"];
+        put?: never;
+        post?: never;
+        /** Leave the waitlist (an open offer is let go) */
+        delete: operations["leaveWaitlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book the offered time
+         * @description `HOLD_EXPIRED` when the offer ran out (the time went to the next person).
+         */
+        post: operations["acceptWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Not this time — the time goes to the next person; the entry keeps waiting */
+        post: operations["declineWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who is waiting at a location, oldest first (calendar.view_all) */
+        get: operations["listWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/venues/{businessSlug}/locations": {
         parameters: {
             query?: never;
@@ -3715,6 +3811,50 @@ export interface components {
             booking: components["schemas"]["BookingSummary"];
             cancellation: components["schemas"]["CancellationPreview"];
             canReschedule: boolean;
+        };
+        WaitlistOffer: {
+            id: components["schemas"]["Uuid"];
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /** @description The time is held until then. */
+            expiresAt: components["schemas"]["Instant"];
+            staffName?: string | null;
+        };
+        WaitlistEntry: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            status: "WAITING" | "OFFERED" | "CONVERTED" | "EXPIRED" | "CANCELLED";
+            locationId: components["schemas"]["Uuid"];
+            timezone: string;
+            place?: components["schemas"]["MyAppointmentPlace"];
+            variantId: components["schemas"]["Uuid"];
+            serviceName: {
+                [key: string]: string;
+            };
+            variantName?: {
+                [key: string]: string;
+            };
+            staffId?: components["schemas"]["Uuid"] | null;
+            staffName?: string | null;
+            /** @description For the front desk. */
+            customerName?: string | null;
+            days: string[];
+            parts: ("MORNING" | "AFTERNOON" | "EVENING")[];
+            offer?: components["schemas"]["WaitlistOffer"] | null;
+            createdAt: components["schemas"]["Instant"];
+        };
+        WaitlistList: {
+            items: components["schemas"]["WaitlistEntry"][];
+        };
+        WaitlistJoin: {
+            locationId: components["schemas"]["Uuid"];
+            variantId: components["schemas"]["Uuid"];
+            /** @description A particular person, or anyone who does the service. */
+            staffId?: components["schemas"]["Uuid"] | null;
+            /** @description The location's local dates, from today up to 60 days ahead. */
+            days: string[];
+            /** @description MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time). */
+            parts: ("MORNING" | "AFTERNOON" | "EVENING")[];
         };
         VenueImage: {
             url: string;
@@ -7952,6 +8092,172 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    listMyWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistJoin"];
+            };
+        };
+        responses: {
+            /** @description Joined. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getMyWaitlistEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistEntry"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    leaveWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    acceptWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Booked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        appointmentId: components["schemas"]["Uuid"];
+                        reference: string;
+                        status: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    declineWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWaitlist: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listBusinessLocations: {

@@ -665,3 +665,164 @@ calendarStream:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+myWaitlist:
+  get:
+    tags: [Booking]
+    operationId: listMyWaitlist
+    summary: The person's waitlists (waiting or with an offer), across businesses
+    responses:
+      '200':
+        description: Entries.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+  post:
+    tags: [Booking]
+    operationId: joinWaitlist
+    summary: Join a location's waitlist for a service on some days and parts of the day (S-15)
+    description: |
+      When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+      person gets a text message with a link. At most 5 active entries per business.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/WaitlistJoin
+    responses:
+      '201':
+        description: Joined.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myWaitlistEntry:
+  parameters:
+    - name: entryId
+      in: path
+      required: true
+      schema:
+        $ref: ../common/schemas.yaml#/Uuid
+  get:
+    tags: [Booking]
+    operationId: getMyWaitlistEntry
+    summary: One of the person's waitlist entries, with its open offer
+    responses:
+      '200':
+        description: The entry.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistEntry
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Booking]
+    operationId: leaveWaitlist
+    summary: Leave the waitlist (an open offer is let go)
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myWaitlistAccept:
+  post:
+    tags: [Booking]
+    operationId: acceptWaitlistOffer
+    summary: Book the offered time
+    description: '`HOLD_EXPIRED` when the offer ran out (the time went to the next person).'
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '201':
+        description: Booked.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appointmentId, reference, status]
+              properties:
+                appointmentId:
+                  $ref: ../common/schemas.yaml#/Uuid
+                reference:
+                  type: string
+                status:
+                  type: string
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myWaitlistDecline:
+  post:
+    tags: [Booking]
+    operationId: declineWaitlistOffer
+    summary: Not this time — the time goes to the next person; the entry keeps waiting
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+deskWaitlist:
+  get:
+    tags: [Calendar]
+    operationId: listWaitlist
+    summary: Who is waiting at a location, oldest first (calendar.view_all)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Entries.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden

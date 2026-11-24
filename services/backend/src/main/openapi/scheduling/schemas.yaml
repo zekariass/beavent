@@ -683,3 +683,105 @@ DeskBooking:
       $ref: ../common/schemas.yaml#/Instant
     end:
       $ref: ../common/schemas.yaml#/Instant
+WaitlistJoin:
+  type: object
+  required: [locationId, variantId, days, parts]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+      description: A particular person, or anyone who does the service.
+    days:
+      type: array
+      minItems: 1
+      maxItems: 7
+      description: The location's local dates, from today up to 60 days ahead.
+      items:
+        type: string
+        format: date
+    parts:
+      type: array
+      minItems: 1
+      maxItems: 3
+      description: MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time).
+      items:
+        type: string
+        enum: [MORNING, AFTERNOON, EVENING]
+WaitlistOffer:
+  type: object
+  required: [id, start, end, expiresAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+      description: The time is held until then.
+    staffName:
+      type: [string, 'null']
+WaitlistEntry:
+  type: object
+  required: [id, status, locationId, timezone, variantId, serviceName, days, parts, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [WAITING, OFFERED, CONVERTED, EXPIRED, CANCELLED]
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    timezone:
+      type: string
+    place:
+      $ref: '#/MyAppointmentPlace'
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceName:
+      type: object
+      additionalProperties:
+        type: string
+    variantName:
+      type: object
+      additionalProperties:
+        type: string
+    staffId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    staffName:
+      type: [string, 'null']
+    customerName:
+      type: [string, 'null']
+      description: For the front desk.
+    days:
+      type: array
+      items:
+        type: string
+        format: date
+    parts:
+      type: array
+      items:
+        type: string
+        enum: [MORNING, AFTERNOON, EVENING]
+    offer:
+      oneOf:
+        - $ref: '#/WaitlistOffer'
+        - type: 'null'
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+WaitlistList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/WaitlistEntry'

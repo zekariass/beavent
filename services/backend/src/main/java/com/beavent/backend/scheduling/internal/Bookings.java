@@ -170,6 +170,18 @@ class Bookings {
             UUID serviceAreaId,
             Instant start,
             Instant now) {
+        return hold(orgId, locationId, items, serviceAreaId, start, now, HOLD_TIME);
+    }
+
+    /** Holds the exact time for {@code holdTime} (a waitlist offer gives the person longer to answer). */
+    Held hold(
+            UUID orgId,
+            UUID locationId,
+            List<Availability.Item> items,
+            UUID serviceAreaId,
+            Instant start,
+            Instant now,
+            java.time.Duration holdTime) {
         return transactions.execute(status -> {
             releaseExpired(now);
             Availabilities.Chosen chosen = availabilities
@@ -179,7 +191,7 @@ class Bookings {
 
             UUID holdId = Ids.newId();
             String holderKey = UUID.randomUUID().toString();
-            Instant expires = now.plus(HOLD_TIME);
+            Instant expires = now.plus(holdTime);
             dsl.insertInto(HOLDS)
                     .set(HOLDS.ID, holdId)
                     .set(HOLDS.ORG_ID, orgId)
@@ -1287,7 +1299,7 @@ class Bookings {
      * The business's record of this person: theirs if they booked before, a walk-in record with the same verified
      * phone (now linked to their account), or a new one.
      */
-    private UUID customer(UUID orgId, People.Person person) {
+    UUID customer(UUID orgId, People.Person person) {
         UUID existing = dsl.select(CUSTOMERS.ID)
                 .from(CUSTOMERS)
                 .where(CUSTOMERS.USER_ID.eq(person.userId()), CUSTOMERS.STATUS.eq("ACTIVE"))

@@ -136,6 +136,15 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
+        if (code.equals(Notifier.WAITLIST_OFFER)) {
+            String status = system.fetchValue(
+                                    "select status from commerce.waitlist_offers where id = ?::uuid",
+                                    data.get("offerId"))
+                            instanceof String s
+                    ? s
+                    : null;
+            return "OPEN".equals(status) ? null : "offer closed";
+        }
         var a = system.select(APPOINTMENTS.STATUS, APPOINTMENTS.STARTS_AT)
                 .from(APPOINTMENTS)
                 .where(APPOINTMENTS.ID.eq(UUID.fromString(String.valueOf(data.get("appointmentId")))))
