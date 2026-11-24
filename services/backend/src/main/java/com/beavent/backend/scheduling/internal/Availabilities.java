@@ -119,7 +119,7 @@ class Availabilities implements Availability {
     @Override
     public Result find(Query query, Instant now) {
         return transactions.execute(status -> {
-            Question q = question(query, now);
+            Question q = question(query, now, false);
             List<Offer> offers = new ArrayList<>();
             for (AvailabilityEngine.Slot slot : AvailabilityEngine.slots(q.request(), q.facts())) {
                 List<Assigned> assigned = new ArrayList<>();
@@ -139,15 +139,61 @@ class Availabilities implements Availability {
      * booking checks and writes against one view of the calendar (the database constraints still decide races).
      */
     Optional<Chosen> at(UUID locationId, List<Item> items, UUID serviceAreaId, Instant start, Instant now) {
+        return at(locationId, items, serviceAreaId, start, now, false);
+    }
+
+    /**
+     * Like {@link #at(UUID, List, UUID, Instant, Instant)}; {@code staffSide} applies the front desk's rules: any
+     * five-minute start, no notice or horizon, services hidden from online booking and people not bookable online
+     * included (working time, opening hours and the calendar still apply).
+     */
+    Optional<Chosen> at(
+            UUID locationId, List<Item> items, UUID serviceAreaId, Instant start, Instant now, boolean staffSide) {
         LocalDate date = start.atZone(place(locationId).zone()).toLocalDate();
-        Question q = question(new Query(locationId, items, date, date, serviceAreaId), now);
+        Question q = question(new Query(locationId, items, date, date, serviceAreaId), now, staffSide);
         return AvailabilityEngine.slots(q.request(), q.facts()).stream()
                 .filter(slot -> slot.start().equals(start))
                 .findFirst()
                 .map(slot -> new Chosen(q, slot, AvailabilityEngine.layout(q.request(), slot)));
     }
 
-    private Question question(Query query, Instant now) {
+    /**
+     * The front desk's "book anyway": lays the items out at {@code start} with the chosen people without asking whether
+     * the time is free (the reservations are written as deliberate overlaps). Resources are not held.
+     */
+    Chosen forced(UUID locationId, List<Item> items, Instant start, Instant now) {
+        for (Item item : items) {
+            if (item.staffId() == null) {
+                throw new ApiException(
+                        ProblemCode.VALIDATION_FAILED, "Choose a person for each service to book anyway.");
+            }
+        }
+        LocalDate date = start.atZone(place(locationId).zone()).toLocalDate();
+        Question q = question(new Query(locationId, items, date, date, null), now, true);
+        List<AvailabilityEngine.Item> bare = q.planned().stream()
+                .map(p -> new AvailabilityEngine.Item(
+                        p.engineItem().stages(),
+                        p.engineItem().bufferBeforeMinutes(),
+                        p.engineItem().bufferAfterMinutes(),
+                        p.engineItem().candidateStaff(),
+                        List.of()))
+                .toList();
+        AvailabilityEngine.Request r = q.request();
+        AvailabilityEngine.Request request = new AvailabilityEngine.Request(
+                bare, r.from(), r.to(), r.zone(), r.now(), 0, 3650, 5, r.onPremises(), r.travelMinutes());
+        List<AvailabilityEngine.Assignment> assignments = items.stream()
+                .map(i -> new AvailabilityEngine.Assignment(i.staffId(), List.of()))
+                .toList();
+        AvailabilityEngine.Slot probe = new AvailabilityEngine.Slot(start, start, assignments);
+        List<AvailabilityEngine.ItemLayout> layout = AvailabilityEngine.layout(request, probe);
+        AvailabilityEngine.Slot slot =
+                new AvailabilityEngine.Slot(start, layout.getLast().end(), assignments);
+        Question forcedQuestion =
+                new Question(q.query(), q.place(), q.travelMinutes(), q.planned(), request, q.facts());
+        return new Chosen(forcedQuestion, slot, layout);
+    }
+
+    private Question question(Query query, Instant now, boolean staffSide) {
         if (query.items().isEmpty() || query.items().size() > MAX_ITEMS) {
             throw new ApiException(ProblemCode.VALIDATION_FAILED, "Choose between 1 and " + MAX_ITEMS + " services.");
         }
@@ -174,12 +220,17 @@ class Availabilities implements Availability {
         int maxAdvance = Integer.MAX_VALUE;
         int slotInterval = 5;
         for (Item item : query.items()) {
-            Planned p = plan(item, query, place, onPremises, now);
+            Planned p = plan(item, query, place, onPremises, now, staffSide);
             planned.add(p);
-            BookingPolicies.Policy policy = policies.effective(query.locationId(), p.serviceId());
-            minNotice = Math.max(minNotice, policy.minNoticeMinutes());
-            maxAdvance = Math.min(maxAdvance, policy.maxAdvanceDays());
-            slotInterval = Math.max(slotInterval, policy.slotIntervalMinutes());
+            if (!staffSide) {
+                BookingPolicies.Policy policy = policies.effective(query.locationId(), p.serviceId());
+                minNotice = Math.max(minNotice, policy.minNoticeMinutes());
+                maxAdvance = Math.min(maxAdvance, policy.maxAdvanceDays());
+                slotInterval = Math.max(slotInterval, policy.slotIntervalMinutes());
+            }
+        }
+        if (staffSide) {
+            maxAdvance = 3650; // the front desk may book far ahead
         }
 
         Set<UUID> everyone = new LinkedHashSet<>();
@@ -236,7 +287,7 @@ class Availabilities implements Availability {
 
     // --- one requested service -------------------------------------------------------------------------------
 
-    private Planned plan(Item item, Query query, Place place, boolean onPremises, Instant now) {
+    private Planned plan(Item item, Query query, Place place, boolean onPremises, Instant now, boolean staffSide) {
         UUID locationId = query.locationId();
         var row = dsl.select(
                         SERVICES.ID,
@@ -250,7 +301,7 @@ class Availabilities implements Availability {
                         SERVICE_VARIANTS.ID.eq(item.variantId()),
                         SERVICE_VARIANTS.STATUS.eq("ACTIVE"),
                         SERVICES.STATUS.eq("ACTIVE"),
-                        SERVICES.ONLINE_BOOKING.isTrue(),
+                        staffSide ? DSL.noCondition() : SERVICES.ONLINE_BOOKING.isTrue(),
                         DSL.exists(DSL.selectOne()
                                 .from(LOCATION_SERVICES)
                                 .where(
@@ -286,7 +337,7 @@ class Availabilities implements Availability {
                         r.getUnits(),
                         r.getStageSeq() == null ? null : (int) r.getStageSeq()));
 
-        List<UUID> candidates = candidates(serviceId, locationId, query);
+        List<UUID> candidates = candidates(serviceId, locationId, query, staffSide);
         if (item.staffId() != null && !candidates.contains(item.staffId())) {
             throw new ApiException(ProblemCode.CONSTRAINT_VIOLATION, "That person does not offer this service here.");
         }
@@ -339,7 +390,7 @@ class Availabilities implements Availability {
     }
 
     /** People who do the service here and can be booked online, in the order that breaks ties between them. */
-    private List<UUID> candidates(UUID serviceId, UUID locationId, Query query) {
+    private List<UUID> candidates(UUID serviceId, UUID locationId, Query query, boolean staffSide) {
         Condition employed = STAFF.STARTED_ON
                 .isNull()
                 .or(STAFF.STARTED_ON.le(query.to()))
@@ -350,7 +401,11 @@ class Availabilities implements Availability {
                 .on(STAFF_SERVICES.STAFF_ID.eq(STAFF.ID), STAFF_SERVICES.SERVICE_ID.eq(serviceId))
                 .join(STAFF_LOCATIONS)
                 .on(STAFF_LOCATIONS.STAFF_ID.eq(STAFF.ID), STAFF_LOCATIONS.LOCATION_ID.eq(locationId))
-                .where(STAFF.STATUS.eq("ACTIVE"), STAFF.IS_BOOKABLE.isTrue(), STAFF.BOOKABLE_ONLINE.isTrue(), employed)
+                .where(
+                        STAFF.STATUS.eq("ACTIVE"),
+                        STAFF.IS_BOOKABLE.isTrue(),
+                        staffSide ? DSL.noCondition() : STAFF.BOOKABLE_ONLINE.isTrue(),
+                        employed)
                 .orderBy(STAFF.SORT_ORDER, STAFF.DISPLAY_NAME, STAFF.ID)
                 .fetch(STAFF.ID);
     }

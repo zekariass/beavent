@@ -33,6 +33,10 @@ export async function editorData(api: ApiClient, orgId: string, language: string
       addVariant: t("portal.service.addVariant"),
       remove: t("portal.service.remove"),
       save: t("portal.service.save"),
+      requirements: t("portal.service.requirements"),
+      patchTest: t("portal.service.patchTest"),
+      patchTestDays: t("portal.service.patchTestDays"),
+      patchTestHint: t("portal.service.patchTestHint"),
     },
   };
 }

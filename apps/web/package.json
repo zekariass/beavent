@@ -10,19 +10,21 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "next": "16.4.6",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
     "@beavent/api-client": "*",
-    "@beavent/i18n": "*",
     "@beavent/calendar": "*",
+    "@beavent/i18n": "*",
     "@beavent/money": "*",
     "@beavent/ui": "*",
-    "@beavent/venue": "*"
+    "@beavent/venue": "*",
+    "next": "16.4.6",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.5",
     "@types/node": "^26",
+    "@types/qrcode": "1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10",

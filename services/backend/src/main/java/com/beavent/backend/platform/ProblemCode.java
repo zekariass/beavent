@@ -23,6 +23,9 @@ public enum ProblemCode {
             HttpStatus.UNPROCESSABLE_CONTENT, "This Idempotency-Key was already used with a different request."),
     REFERENCE_NOT_FOUND(HttpStatus.UNPROCESSABLE_CONTENT, "The request refers to something that does not exist."),
     CONSTRAINT_VIOLATION(HttpStatus.UNPROCESSABLE_CONTENT, "The request breaks a business rule."),
+    PATCH_TEST_REQUIRED(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "This service needs a patch test at the venue first. Call them to book one."),
     PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "This request requires an If-Match header."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please wait and try again."),
     INTERNAL(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on our side.");

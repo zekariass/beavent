@@ -1,5 +1,5 @@
 import { defaultDisplayPreferences, formatDualDate, formatDualTime } from "@beavent/calendar";
-import { formatDuration } from "@beavent/i18n";
+import { formatDuration, localized } from "@beavent/i18n";
 import { calendarLanguage, price } from "@beavent/venue";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -55,6 +55,13 @@ export default async function AppointmentPage({
   const names = await menuNames(a.place ? [a.place] : [], language);
   const finished = ["CANCELLED", "DECLINED", "EXPIRED", "COMPLETED", "NO_SHOW"].includes(a.status);
   const free = a.booking.policy.freeCancellationUntil;
+  const forms = finished
+    ? []
+    : ((
+        await api.GET("/v1/me/appointments/{appointmentId}/forms", {
+          params: { path: { appointmentId } },
+        })
+      ).data?.items ?? []);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -88,6 +95,36 @@ export default async function AppointmentPage({
           >
             {banner}
           </p>
+        ) : null}
+
+        {forms.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="bv-type-title2 text-fg">{t("appointment.forms.title")}</h2>
+            <ul className="divide-y divide-border border-y border-border">
+              {forms.map((f) => (
+                <li key={f.formId}>
+                  <Link
+                    href={`/${language}/account/bookings/${a.id}/forms/${f.formId}`}
+                    className="flex min-h-14 items-center justify-between gap-4 py-3 hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus"
+                  >
+                    <span className="flex flex-col">
+                      <span className="bv-type-body text-fg">{localized(f.title, language)}</span>
+                      {!f.required ? (
+                        <span className="bv-type-caption text-fg-muted">
+                          {t("appointment.forms.optional")}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span
+                      className={`bv-type-label shrink-0 ${f.done ? "text-fg-muted" : "text-primary"}`}
+                    >
+                      {f.done ? t("appointment.forms.done") : t("appointment.forms.todo")} ›
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         {a.place ? (

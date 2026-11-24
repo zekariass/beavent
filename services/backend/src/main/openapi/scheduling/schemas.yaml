@@ -441,3 +441,245 @@ AppointmentStatus:
     status:
       type: string
       enum: [CONFIRMED, DECLINED]
+CalendarSpan:
+  type: object
+  required: [start, end]
+  properties:
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+CalendarColumn:
+  type: object
+  required: [staffId, name, working]
+  properties:
+    staffId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    color:
+      type: [string, 'null']
+    working:
+      type: array
+      items:
+        $ref: '#/CalendarSpan'
+CalendarStage:
+  type: object
+  required: [kind, staffBusy, start, end]
+  properties:
+    kind:
+      type: string
+      enum: [SERVICE, PROCESSING, FINISHING, CONSULTATION, TRAVEL]
+    staffBusy:
+      type: boolean
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+CalendarItem:
+  type: object
+  required: [id, serviceName, names, start, end, status, stages]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    serviceName:
+      type: string
+    variantName:
+      type: [string, 'null']
+    names:
+      type: object
+      description: Current menu names per language (`service`, `variant`); `serviceName` is the name as booked.
+      properties:
+        service:
+          $ref: ../common/schemas.yaml#/LocalizedText
+        variant:
+          $ref: ../common/schemas.yaml#/LocalizedText
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    status:
+      type: string
+      enum: [BOOKED, STARTED, DONE, CANCELLED, NO_SHOW]
+    stages:
+      type: array
+      items:
+        $ref: '#/CalendarStage'
+CalendarCustomer:
+  type: object
+  required: [id, name, alerts]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    phone:
+      type: [string, 'null']
+      description: Only with customers.contact_details.
+    alerts:
+      type: array
+      description: The client's alert, allergy and medical notes (pinned first), to show before serving them.
+      items:
+        type: object
+        required: [kind, body]
+        properties:
+          kind:
+            type: string
+            enum: [ALERT, ALLERGY, MEDICAL]
+          body:
+            type: string
+CalendarAppointment:
+  type: object
+  required: [id, reference, status, source, start, end, customer, items, forms]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+      enum: [PENDING_PAYMENT, REQUESTED, CONFIRMED, ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW]
+    source:
+      type: string
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    note:
+      type: [string, 'null']
+    customer:
+      $ref: '#/CalendarCustomer'
+    items:
+      type: array
+      items:
+        $ref: '#/CalendarItem'
+    forms:
+      type: array
+      description: Forms the client fills in before this visit (attached to its services), and whether they have.
+      items:
+        type: object
+        required: [formId, title, required, done]
+        properties:
+          formId:
+            $ref: ../common/schemas.yaml#/Uuid
+          title:
+            type: object
+            additionalProperties:
+              type: string
+          required:
+            type: boolean
+          done:
+            type: boolean
+CalendarBlock:
+  type: object
+  required: [id, start, end, reason]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      type: [string, 'null']
+      format: uuid
+    resourceId:
+      type: [string, 'null']
+      format: uuid
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    reason:
+      type: string
+      enum: [BREAK, MEETING, TRAINING, TIME_OFF, PERSONAL, MAINTENANCE, OTHER]
+    title:
+      type: [string, 'null']
+Calendar:
+  type: object
+  required: [locationId, timezone, from, to, staff, appointments, blocks]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    timezone:
+      type: string
+    from:
+      type: string
+      format: date
+    to:
+      type: string
+      format: date
+    staff:
+      type: array
+      items:
+        $ref: '#/CalendarColumn'
+    appointments:
+      type: array
+      items:
+        $ref: '#/CalendarAppointment'
+    blocks:
+      type: array
+      items:
+        $ref: '#/CalendarBlock'
+DeskBookingInput:
+  type: object
+  required: [locationId, start, items, customer]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      items:
+        type: object
+        required: [variantId, staffId]
+        properties:
+          variantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          staffId:
+            $ref: ../common/schemas.yaml#/Uuid
+          addonIds:
+            type: array
+            maxItems: 10
+            items:
+              $ref: ../common/schemas.yaml#/Uuid
+    customer:
+      type: object
+      description: An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused).
+      properties:
+        customerId:
+          $ref: ../common/schemas.yaml#/Uuid
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          $ref: ../common/schemas.yaml#/PhoneE164
+    note:
+      type: string
+      maxLength: 500
+      description: For the team only.
+    source:
+      type: string
+      enum: [WALK_IN, PHONE]
+      default: WALK_IN
+    bookAnyway:
+      type: boolean
+      default: false
+    notifyCustomer:
+      type: boolean
+      default: true
+DeskBooking:
+  type: object
+  required: [id, reference, start, end]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant

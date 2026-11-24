@@ -180,3 +180,16 @@ export function partOfDay(instant: string, timeZone: string): "morning" | "after
   const h = zoned(instant, timeZone).hour;
   return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
 }
+
+/**
+ * The instant of a local date and time ("2026-12-01", "14:30") in a zone, e.g. what the front desk types. Uses the
+ * zone's offset at that moment (correct across clock changes except inside a skipped hour).
+ */
+export function localToInstant(date: string, time: string, timeZone: string): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const [h, min] = time.split(":").map(Number) as [number, number];
+  const guess = Date.UTC(y, m - 1, d, h, min);
+  const seen = zoned(guess, timeZone);
+  const asIfUtc = Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute);
+  return new Date(guess - (asIfUtc - guess)).toISOString();
+}

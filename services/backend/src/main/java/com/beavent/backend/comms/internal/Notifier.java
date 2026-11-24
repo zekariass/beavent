@@ -60,13 +60,15 @@ class Notifier {
     void onAppointmentEvent(Message message) {
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
         String type = message.getMessageProperties().getReceivedRoutingKey();
-        UUID appointmentId = UUID.fromString(
-                json.readTree(message.getBody()).get("appointmentId").asString());
-        processedMessages.runOnce(CONSUMER, messageId, () -> handle(type, appointmentId, Instant.now()));
+        var body = json.readTree(message.getBody());
+        UUID appointmentId = UUID.fromString(body.get("appointmentId").asString());
+        // The front desk may book or move without telling the customer now (reminders still follow).
+        boolean notify = !body.has("notify") || body.get("notify").asBoolean();
+        processedMessages.runOnce(CONSUMER, messageId, () -> handle(type, appointmentId, notify, Instant.now()));
     }
 
     /** Runs inside a system-role transaction. */
-    void handle(String eventType, UUID appointmentId, Instant now) {
+    void handle(String eventType, UUID appointmentId, boolean notify, Instant now) {
         var a = system.select(
                         APPOINTMENTS.ORG_ID,
                         APPOINTMENTS.CUSTOMER_ID,
@@ -115,7 +117,7 @@ class Notifier {
 
         switch (eventType) {
             case "appointment.booked", "appointment.accepted" -> {
-                add(orgId, customerId, userId, CONFIRMED, data, now, start);
+                if (notify) add(orgId, customerId, userId, CONFIRMED, data, now, start);
                 reminders(orgId, customerId, userId, data, now, start);
             }
             case "appointment.requested" -> add(orgId, customerId, userId, REQUESTED, data, now, start);
@@ -127,7 +129,7 @@ class Notifier {
             }
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);
-                add(orgId, customerId, userId, RESCHEDULED, data, now, start);
+                if (notify) add(orgId, customerId, userId, RESCHEDULED, data, now, start);
                 reminders(orgId, customerId, userId, data, now, start);
             }
             default -> {

@@ -219,6 +219,8 @@ function Flow({ venue }: { venue: Venue }) {
       setChosen(null);
       go("time");
       setError(t("booking.review.expired"));
+    } else if (problem && "code" in problem && problem.code === "PATCH_TEST_REQUIRED") {
+      setError(t("booking.patchTest"));
     } else setError(t("booking.error"));
   }
 

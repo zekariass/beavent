@@ -172,6 +172,70 @@ public class BookingApi {
                 .toList());
     }
 
+    public record DeskBookedBody(UUID id, String reference, Instant start, Instant end) {}
+
+    /** The front desk books a walk-in or phone customer (see {@link Bookings#deskBook}). */
+    public DeskBookedBody deskBook(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            List<Availability.Item> items,
+            Instant start,
+            UUID customerId,
+            String name,
+            String phone,
+            String note,
+            String source,
+            boolean allowOverlap,
+            boolean notify,
+            Instant now) {
+        Bookings.DeskBooked booked = bookings.deskBook(
+                orgId,
+                actorUserId,
+                locationId,
+                items,
+                start,
+                new Bookings.Who(customerId, name, phone),
+                note,
+                source,
+                allowOverlap,
+                notify,
+                now);
+        return new DeskBookedBody(
+                booked.appointmentId(),
+                booked.reference(),
+                booked.plan().start(),
+                booked.plan().end());
+    }
+
+    public void deskMove(
+            UUID orgId,
+            UUID actorUserId,
+            UUID appointmentId,
+            Instant start,
+            UUID staffId,
+            boolean allowOverlap,
+            boolean notify,
+            Instant now) {
+        bookings.deskMove(orgId, actorUserId, appointmentId, start, staffId, allowOverlap, notify, now);
+    }
+
+    public UUID block(
+            UUID orgId,
+            UUID actorUserId,
+            UUID locationId,
+            UUID staffId,
+            Instant start,
+            Instant end,
+            String reason,
+            String title) {
+        return bookings.block(orgId, actorUserId, locationId, staffId, start, end, reason, title);
+    }
+
+    public void unblock(UUID blockId) {
+        bookings.unblock(blockId);
+    }
+
     /** The business accepts or declines a booking request; returns the new status. */
     public String decide(UUID orgId, UUID actorUserId, UUID appointmentId, boolean accept, String reason) {
         return bookings.decide(orgId, actorUserId, appointmentId, accept, reason);

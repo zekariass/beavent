@@ -1,18 +1,9 @@
+import type { Schemas } from "@beavent/api-client";
+import { defaultDisplayPreferences, formatDualDate } from "@beavent/calendar";
 import {
-  formatDualDate,
-  formatEthiopianTime,
-  formatStandardTime,
-  toEthiopianTime,
-  zoned,
-} from "@beavent/calendar";
-import { space } from "@beavent/ui";
-import { useEffect, useState } from "react";
-import { View } from "react-native";
-
-import {
-  Chip,
+  Banner,
+  Button,
   Divider,
-  DualLine,
   EmptyState,
   Screen,
   ScreenTitle,
@@ -22,114 +13,118 @@ import {
   openWeb,
   useApp,
 } from "@beavent/native";
+import { space } from "@beavent/ui";
+import { calendarLanguage, todayIn } from "@beavent/venue";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Pressable, View } from "react-native";
 
-const ZONE = "Africa/Addis_Ababa";
-
-interface Day {
-  date: string;
-  intervals: { startsAt: string; endsAt: string }[];
-}
-
-type Load =
-  | { state: "loading" }
-  | { state: "error" }
-  | { state: "no-businesses" }
-  | { state: "no-profile"; orgs: { id: string; name: string }[]; orgId: string }
-  | { state: "ready"; orgs: { id: string; name: string }[]; orgId: string; days: Day[] };
-
-/** Monday of this week in Addis Ababa, plus 13 days: this week and next. */
-function fortnight(): { from: string; to: string } {
-  const now = new Date(Date.now() + 3 * 3600_000);
-  const monday = new Date(now.getTime() - ((now.getUTCDay() || 7) - 1) * 86_400_000);
-  const to = new Date(monday.getTime() + 13 * 86_400_000);
-  return { from: monday.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-}
+import { useRange, useServiceName, type Visit } from "@/components/visit";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 /**
- * Schedule tab: "My schedule" for the signed-in team member. Partner tools use the 24-hour clock; people who read
- * Ethiopian time also see it underneath (doc 06 §2.1, SERVICES_MARKETPLACE_DESIGN.md §9).
+ * Today (B-1): today's visits at the location, in time order, with a "Now" divider; the front desk sees everyone,
+ * a professional only their own (the calendar API decides by role). A visit opens with its next steps; Walk-in books
+ * someone who is here now. Refreshes whenever the tab comes into view.
  */
-export default function ScheduleScreen() {
-  const { signedIn, api, t, display } = useApp();
-  const [load, setLoad] = useState<Load>({ state: "loading" });
-  const [orgId, setOrgId] = useState<string | null>(null);
+export default function TodayScreen() {
+  const { api, t, language, colors } = useApp();
+  const router = useRouter();
   const [attempt, setAttempt] = useState(0);
+  const workspace = useWorkspace(attempt);
+  const [day, setDay] = useState<
+    { visits: Visit[]; staff: Map<string, string>; at: number } | "error" | "forbidden" | null
+  >(null);
+  const zone = workspace.state === "ready" ? workspace.location.timezone : "Africa/Addis_Ababa";
+  const range = useRange(zone);
+  const nameOf = useServiceName();
 
-  useEffect(() => {
-    if (!signedIn) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { data: me } = await api.GET("/v1/me");
-        if (!me) throw new Error("profile unavailable");
-        const orgs = me.memberships.map((m) => ({ id: m.orgId, name: m.orgName }));
-        const chosen = orgId ?? orgs[0]?.id;
-        if (!chosen) {
-          if (!cancelled) setLoad({ state: "no-businesses" });
-          return;
-        }
-        const profile = await api.GET("/v1/orgs/{orgId}/staff/me", {
-          params: { path: { orgId: chosen } },
-        });
-        if (!profile.data) {
-          if (!cancelled) setLoad({ state: "no-profile", orgs, orgId: chosen });
-          return;
-        }
-        const { from, to } = fortnight();
-        const schedule = await api.GET("/v1/orgs/{orgId}/schedule", {
-          params: { path: { orgId: chosen }, query: { from, to, staffId: profile.data.id } },
-        });
-        if (!schedule.data) throw new Error("schedule unavailable");
-        if (!cancelled) setLoad({ state: "ready", orgs, orgId: chosen, days: schedule.data.days });
-      } catch {
-        if (!cancelled) setLoad({ state: "error" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn, api, orgId, attempt]);
+  // While this screen is open it checks again every 15 seconds (live updates on the phone; the console streams them).
+  const [tick, setTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => setTick((n) => n + 1), 15_000);
+      return () => clearInterval(timer);
+    }, []),
+  );
 
-  /** Show the skeleton again before a new load (state changes belong in events, not effects). */
-  const reload = (change: () => void) => {
-    setLoad({ state: "loading" });
-    change();
-  };
+  useFocusEffect(
+    useCallback(() => {
+      if (workspace.state !== "ready") return;
+      let cancelled = false;
+      api
+        .GET("/v1/orgs/{orgId}/calendar", {
+          params: {
+            path: { orgId: workspace.orgId },
+            query: {
+              locationId: workspace.location.id,
+              from: todayIn(workspace.location.timezone),
+            },
+          },
+        })
+        .then(({ data, response }) => {
+          if (cancelled) return;
+          if (data)
+            setDay({
+              visits: [...data.appointments].sort((a, b) => a.start.localeCompare(b.start)),
+              staff: new Map(data.staff.map((s: Schemas["CalendarColumn"]) => [s.staffId, s.name])),
+              at: Date.now(),
+            });
+          else setDay(response.status === 403 ? "forbidden" : "error");
+        })
+        .catch(() => !cancelled && setDay("error"));
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` re-runs the fetch on each poll
+    }, [api, workspace, tick]),
+  );
 
-  const clock = (instant: string) => {
-    const local = zoned(instant, ZONE);
-    return {
-      standard: formatStandardTime(local.hour, local.minute),
-      ethiopian: formatEthiopianTime(toEthiopianTime(local.hour, local.minute), display.language),
-    };
-  };
-  const day = (iso: string) => {
-    const [year, month, date] = iso.split("-").map(Number) as [number, number, number];
-    return formatDualDate({ year, month, day: date }, display, { weekday: true, year: false });
-  };
+  const today = todayIn(zone);
+  const [y, m, d] = today.split("-").map(Number) as [number, number, number];
+  const title = formatDualDate(
+    { year: y, month: m, day: d },
+    defaultDisplayPreferences(calendarLanguage(language), zone),
+    {
+      weekday: true,
+    },
+  );
 
   return (
     <Screen inTabs>
-      <ScreenTitle>{t("mobile.schedule.title")}</ScreenTitle>
-      {signedIn === false && (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: space[3],
+        }}
+      >
+        <View style={{ flex: 1, gap: space[1] }}>
+          <ScreenTitle>{t("nav.today")}</ScreenTitle>
+          <Text role="label" tone="muted">
+            {title.primary}
+          </Text>
+        </View>
+        {workspace.state === "ready" ? (
+          <Button
+            size="sm"
+            label={t("mobile.today.walkIn")}
+            onPress={() => router.push("/walk-in")}
+          />
+        ) : null}
+      </View>
+
+      {workspace.state === "signed-out" ? (
         <View style={{ gap: space[4] }}>
           <Text role="body" tone="muted">
             {t("mobile.business.signInHint")}
           </Text>
           <SignInPanel />
         </View>
-      )}
-      {signedIn && load.state === "loading" && <SkeletonRows count={5} />}
-      {signedIn && load.state === "error" && (
-        <EmptyState
-          title={t("error.generic")}
-          action={{
-            label: t("action.retry"),
-            onPress: () => reload(() => setAttempt((n) => n + 1)),
-          }}
-        />
-      )}
-      {signedIn && load.state === "no-businesses" && (
+      ) : workspace.state === "loading" || (workspace.state === "ready" && day === null) ? (
+        <SkeletonRows count={5} />
+      ) : workspace.state === "no-businesses" ? (
         <EmptyState
           title={t("mobile.schedule.noBusinesses")}
           action={{
@@ -138,62 +133,91 @@ export default function ScheduleScreen() {
             onPress: () => void openWeb("/business/onboarding"),
           }}
         />
-      )}
-      {signedIn &&
-        (load.state === "no-profile" || load.state === "ready") &&
-        load.orgs.length > 1 && (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
-            {load.orgs.map((o) => (
-              <Chip
-                key={o.id}
-                label={o.name}
-                selected={o.id === load.orgId}
-                onPress={() => reload(() => setOrgId(o.id))}
-              />
-            ))}
-          </View>
-        )}
-      {signedIn && load.state === "no-profile" && (
-        <EmptyState title={t("mobile.schedule.noProfile")} />
-      )}
-      {signedIn && load.state === "ready" && (
+      ) : workspace.state === "error" || day === "error" ? (
+        <EmptyState
+          title={t("error.generic")}
+          action={{ label: t("action.retry"), onPress: () => setAttempt((n) => n + 1) }}
+        />
+      ) : day === "forbidden" ? (
+        <Banner tone="info">{t("mobile.today.noCalendar")}</Banner>
+      ) : day && day.visits.length === 0 ? (
+        <EmptyState title={t("mobile.today.empty")} />
+      ) : day ? (
         <View>
-          {load.days.map((d, index) => (
-            <View key={d.date}>
-              {index > 0 && <Divider inset={0} />}
-              <View style={{ flexDirection: "row", gap: space[4], paddingVertical: space[3] }}>
-                <View style={{ flex: 1 }}>
-                  <DualLine value={day(d.date)} role="bodyStrong" />
-                </View>
-                <View style={{ alignItems: "flex-end", gap: space[1] }}>
-                  {d.intervals.length === 0 ? (
-                    <Text role="label" tone="muted">
-                      {t("mobile.schedule.off")}
+          {day.visits.map((visit, index) => {
+            const time = range(visit.start, visit.end);
+            const people = [
+              ...new Set(visit.items.map((i) => (i.staffId ? day.staff.get(i.staffId) : ""))),
+            ]
+              .filter(Boolean)
+              .join(", ");
+            const nowBefore =
+              new Date(visit.start).getTime() > day.at &&
+              (index === 0 || new Date(day.visits[index - 1]!.start).getTime() <= day.at);
+            return (
+              <View key={visit.id}>
+                {nowBefore ? (
+                  <View
+                    accessible
+                    accessibilityLabel={t("mobile.today.now")}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: space[2],
+                      paddingVertical: space[2],
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: colors.danger,
+                      }}
+                    />
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.danger }} />
+                    <Text role="caption" tone="danger">
+                      {t("mobile.today.now")}
                     </Text>
-                  ) : (
-                    d.intervals.map((i) => {
-                      const start = clock(i.startsAt);
-                      const end = clock(i.endsAt);
-                      return (
-                        <View key={i.startsAt} style={{ alignItems: "flex-end" }}>
-                          <Text role="body" numeric>
-                            {`${start.standard} – ${end.standard}`}
-                          </Text>
-                          {display.timeConvention === "ETHIOPIAN" && (
-                            <Text role="caption" tone="muted" numeric>
-                              {`${start.ethiopian} – ${end.ethiopian}`}
-                            </Text>
-                          )}
-                        </View>
-                      );
-                    })
-                  )}
-                </View>
+                  </View>
+                ) : index > 0 ? (
+                  <Divider inset={0} />
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/visit/${visit.id}?date=${today}`)}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    gap: space[4],
+                    paddingVertical: space[3],
+                    backgroundColor: pressed ? colors.surfacePressed : "transparent",
+                  })}
+                >
+                  <View style={{ width: 120 }}>
+                    <Text role="label" numeric>
+                      {time.standard}
+                    </Text>
+                    {time.ethiopian ? (
+                      <Text role="caption" tone="muted">
+                        {time.ethiopian}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{ flex: 1, gap: space[1] }}>
+                    <Text role="bodyStrong">{visit.customer.name}</Text>
+                    <Text role="caption" tone="muted">
+                      {[visit.items.map(nameOf).join(", "), people].filter(Boolean).join(" · ")}
+                    </Text>
+                    {visit.status !== "CONFIRMED" ? (
+                      <Text role="caption">{t(`status.${visit.status}`)}</Text>
+                    ) : null}
+                  </View>
+                </Pressable>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
-      )}
+      ) : null}
     </Screen>
   );
 }

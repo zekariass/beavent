@@ -7,7 +7,7 @@ OtpChannel:
   enum: [SMS, TELEGRAM, WHATSAPP, VOICE, EMAIL]
 ClientApp:
   type: string
-  enum: [MOBILE_APP, WEB_MARKETPLACE, PARTNER_PORTAL, ADMIN_CONSOLE]
+  enum: [MOBILE_APP, BUSINESS_APP, WEB_MARKETPLACE, PARTNER_PORTAL, ADMIN_CONSOLE]
 DeviceInfo:
   type: object
   required: [installationId, platform]

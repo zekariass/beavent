@@ -1,0 +1,534 @@
+ClientSummary:
+  type: object
+  description: A row of the client list (and of the front desk's search).
+  required: [id, name, visits, tags, alerts]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    phone:
+      type: [string, 'null']
+      description: Only with customers.contact_details.
+    lastVisitAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    visits:
+      type: integer
+      description: Completed appointments.
+    tags:
+      type: array
+      items:
+        type: string
+    alerts:
+      type: integer
+      description: How many alert, allergy and medical notes the client has.
+ClientPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ClientSummary'
+    nextCursor:
+      type: [string, 'null']
+ClientNoteKind:
+  type: string
+  enum: [GENERAL, ALERT, ALLERGY, MEDICAL, PREFERENCE]
+  description: ALERT, ALLERGY and MEDICAL show as a warning on the client and on their appointments.
+ClientNote:
+  type: object
+  required: [id, kind, body, pinned, mine, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      $ref: '#/ClientNoteKind'
+    body:
+      type: string
+    pinned:
+      type: boolean
+    mine:
+      type: boolean
+      description: Written by the caller.
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+ClientVisitItem:
+  type: object
+  required: [serviceName, names]
+  properties:
+    serviceName:
+      type: string
+      description: As booked (in the business's language then).
+    variantName:
+      type: [string, 'null']
+    names:
+      type: object
+      description: The service's and option's current names per language (`service`, `variant`).
+      additionalProperties:
+        type: object
+        additionalProperties:
+          type: string
+    staffName:
+      type: [string, 'null']
+ClientVisit:
+  type: object
+  required: [id, reference, status, start, end, timezone, locationId, locationName, items]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    timezone:
+      type: string
+      description: The location's IANA time zone.
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationName:
+      type: string
+    items:
+      type: array
+      items:
+        $ref: '#/ClientVisitItem'
+Client:
+  type: object
+  description: A client's page. Phone and email only with customers.contact_details.
+  required: [id, name, source, firstSeenAt, blocked, hasAccount, tags, notes, stats, upcoming, past, forms, patchTests, you]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    source:
+      type: string
+    firstSeenAt:
+      $ref: ../common/schemas.yaml#/Instant
+    lastVisitAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    blocked:
+      type: boolean
+      description: A blocked client cannot book online (the team can still book them).
+    blockReason:
+      type: [string, 'null']
+    hasAccount:
+      type: boolean
+      description: Linked to a Beavent account.
+    tags:
+      type: array
+      items:
+        type: string
+    notes:
+      type: array
+      description: Pinned first, then newest first.
+      items:
+        $ref: '#/ClientNote'
+    stats:
+      type: object
+      required: [visits, noShows, cancellations]
+      properties:
+        visits:
+          type: integer
+        noShows:
+          type: integer
+        cancellations:
+          type: integer
+          description: Cancelled by the client.
+    upcoming:
+      type: array
+      description: Soonest first.
+      items:
+        $ref: '#/ClientVisit'
+    past:
+      type: array
+      description: Newest first, at most 50.
+      items:
+        $ref: '#/ClientVisit'
+    forms:
+      type: array
+      description: Forms the client answered (current answers, newest first, at most 50).
+      items:
+        $ref: '#/ClientAnsweredForm'
+    patchTests:
+      type: array
+      description: Newest first.
+      items:
+        $ref: '#/ClientPatchTest'
+    you:
+      type: object
+      description: What the caller may do with this client.
+      required: [edit, contactDetails]
+      properties:
+        edit:
+          type: boolean
+          description: customers.manage (details, notes, tags, merge).
+        contactDetails:
+          type: boolean
+          description: customers.contact_details (phone and email).
+ClientInput:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 120
+    phone:
+      type: [string, 'null']
+      description: As typed; Ethiopian local numbers (09…, 07…) are accepted.
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    note:
+      type: [string, 'null']
+      maxLength: 2000
+ClientUpdate:
+  type: object
+  description: JSON merge-patch; absent fields are unchanged, null clears.
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      maxLength: 120
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    preferredLanguage:
+      type: [string, 'null']
+    blocked:
+      type: boolean
+    blockReason:
+      type: [string, 'null']
+      maxLength: 500
+ClientNoteInput:
+  type: object
+  required: [body]
+  properties:
+    kind:
+      $ref: '#/ClientNoteKind'
+    body:
+      type: string
+      maxLength: 2000
+    pinned:
+      type: boolean
+ClientTag:
+  type: object
+  required: [id, name, clients]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    clients:
+      type: integer
+ClientImportRow:
+  type: object
+  required: [line, outcome]
+  properties:
+    line:
+      type: integer
+      description: Line in the file (the header is line 1).
+    name:
+      type: [string, 'null']
+    phone:
+      type: [string, 'null']
+    email:
+      type: [string, 'null']
+    outcome:
+      type: string
+      enum: [NEW, EXISTING, ERROR]
+      description: EXISTING when the business (or an earlier row) already has the phone number; it is left alone.
+    problem:
+      oneOf:
+        - type: string
+          enum: [NAME, PHONE, EMAIL]
+        - type: 'null'
+      description: NAME missing or longer than 120 characters; PHONE not a phone number; EMAIL not an email address.
+ClientImportResult:
+  type: object
+  required: [saved, created, existing, errors, rows]
+  properties:
+    saved:
+      type: boolean
+    created:
+      type: integer
+      description: New clients (added when saved).
+    existing:
+      type: integer
+    errors:
+      type: integer
+    rows:
+      type: array
+      description: Every row with a problem (up to 500) and the first 100 others.
+      items:
+        $ref: '#/ClientImportRow'
+FormFieldKind:
+  type: string
+  enum: [TEXT, LONG_TEXT, YES_NO, SINGLE_CHOICE, MULTI_CHOICE, DATE, CHECKBOX]
+  description: |
+    TEXT a line (500 characters); LONG_TEXT up to 4,000; YES_NO true or false; SINGLE_CHOICE one option id;
+    MULTI_CHOICE a list of option ids; DATE yyyy-MM-dd; CHECKBOX a statement to agree to (when required, it must be
+    ticked).
+FormField:
+  type: object
+  required: [id, kind, label, required]
+  properties:
+    id:
+      type: string
+      pattern: '^[a-z0-9_-]{1,40}$'
+    kind:
+      $ref: '#/FormFieldKind'
+    label:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    help:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    required:
+      type: boolean
+    options:
+      type: array
+      description: For SINGLE_CHOICE and MULTI_CHOICE (2 to 30).
+      items:
+        type: object
+        required: [id, label]
+        properties:
+          id:
+            type: string
+            pattern: '^[a-z0-9_-]{1,40}$'
+          label:
+            $ref: ../common/schemas.yaml#/LocalizedText
+FormPurpose:
+  type: string
+  enum: [CONSULTATION, INTAKE, CONSENT, AFTERCARE]
+FormFrequency:
+  type: string
+  enum: [EVERY_TIME, ONCE, EVERY_N_DAYS]
+  description: EVERY_TIME before each visit; ONCE ever; EVERY_N_DAYS again after that many days.
+FormInput:
+  type: object
+  required: [title, purpose, fields, signature]
+  properties:
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    purpose:
+      $ref: '#/FormPurpose'
+    intro:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    fields:
+      type: array
+      minItems: 1
+      maxItems: 60
+      items:
+        $ref: '#/FormField'
+    signature:
+      type: boolean
+      description: The client signs by typing their full name.
+    serviceIds:
+      type: array
+      description: Services whose clients fill it in before the visit.
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    frequency:
+      $ref: '#/FormFrequency'
+    frequencyDays:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 3650
+    required:
+      type: boolean
+      description: Asked for before the visit (default) rather than only offered.
+Form:
+  type: object
+  required: [id, title, purpose, status, version, fields, signature, serviceIds, frequency, required, submissions, updatedAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    purpose:
+      $ref: '#/FormPurpose'
+    status:
+      type: string
+      enum: [DRAFT, ACTIVE, ARCHIVED]
+    version:
+      type: integer
+      description: Changing the questions makes a new version; answers keep the version they answered.
+    intro:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    fields:
+      type: array
+      items:
+        $ref: '#/FormField'
+    signature:
+      type: boolean
+    serviceIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+    frequency:
+      $ref: '#/FormFrequency'
+    frequencyDays:
+      type: [integer, 'null']
+    required:
+      type: boolean
+    submissions:
+      type: integer
+    updatedAt:
+      $ref: ../common/schemas.yaml#/Instant
+FormList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Form'
+ClientPatchTest:
+  type: object
+  required: [id, serviceId, serviceName, performedAt, result]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    performedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    result:
+      type: string
+      enum: [PASS, FAIL, PENDING]
+    validUntil:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    notes:
+      type: [string, 'null']
+ClientPatchTestInput:
+  type: object
+  required: [serviceId, result]
+  properties:
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    performedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    result:
+      type: string
+      enum: [PASS, FAIL, PENDING]
+    notes:
+      type: [string, 'null']
+      maxLength: 1000
+ClientAnsweredForm:
+  type: object
+  required: [id, formId, title, submittedAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    formId:
+      $ref: ../common/schemas.yaml#/Uuid
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    submittedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    appointmentId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+FormSubmission:
+  type: object
+  required: [id, formId, title, purpose, submittedAt, fields, answers]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    formId:
+      $ref: ../common/schemas.yaml#/Uuid
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    purpose:
+      $ref: '#/FormPurpose'
+    submittedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    appointmentId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    fields:
+      type: array
+      description: The questions of the version that was answered.
+      items:
+        $ref: '#/FormField'
+    answers:
+      type: object
+      description: Answers by question id (see FormFieldKind for the shape of each).
+      additionalProperties: true
+    signature:
+      oneOf:
+        - type: object
+          required: [name, signedAt]
+          properties:
+            name:
+              type: string
+            signedAt:
+              $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+MyFormDue:
+  type: object
+  required: [formId, title, purpose, required, done]
+  properties:
+    formId:
+      $ref: ../common/schemas.yaml#/Uuid
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    purpose:
+      $ref: '#/FormPurpose'
+    required:
+      type: boolean
+    done:
+      type: boolean
+MyFormQuestions:
+  type: object
+  required: [formId, title, purpose, fields, signature, done]
+  properties:
+    formId:
+      $ref: ../common/schemas.yaml#/Uuid
+    title:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    intro:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    purpose:
+      $ref: '#/FormPurpose'
+    fields:
+      type: array
+      items:
+        $ref: '#/FormField'
+    signature:
+      type: boolean
+    done:
+      type: boolean
+MyFormAnswers:
+  type: object
+  required: [answers]
+  properties:
+    answers:
+      type: object
+      description: Answers by question id.
+      additionalProperties: true
+    signature:
+      type: [string, 'null']
+      maxLength: 120
+      description: The person's full name, typed, when the form asks for a signature.

@@ -225,7 +225,9 @@ myAppointments:
     description: |
       The signed-in person becomes the business's customer. `CONFIRMED`, or `REQUESTED` when the business confirms
       each booking itself. Repeating the call for the same hold returns the same appointment (`200`).
-      `HOLD_EXPIRED` means the hold ran out: hold a time again.
+      `HOLD_EXPIRED` means the hold ran out: hold a time again. `403` when the business has blocked the person from
+      booking online (they book by phone). `PATCH_TEST_REQUIRED` (422) when a service needs a patch test and the
+      person has no passed test valid on the day.
     requestBody:
       required: true
       content:
@@ -249,10 +251,14 @@ myAppointments:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
 myAppointment:
   get:
     tags: [Booking]
@@ -400,3 +406,262 @@ requestDecline:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+calendar:
+  get:
+    tags: [Calendar]
+    operationId: getCalendar
+    summary: A location's calendar for one to seven days (team, working time, appointments, blocks)
+    description: |
+      `calendar.view_all` sees everyone at the location; `calendar.view_own` only their own column and appointments.
+      Customer phone numbers need `customers.contact_details`. Cancelled, expired and declined appointments are left out.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        description: Last local date, inclusive (default `from`).
+        schema:
+          type: string
+          format: date
+    responses:
+      '200':
+        description: The calendar.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Calendar
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+appointmentStatus:
+  post:
+    tags: [Calendar]
+    operationId: changeAppointmentStatus
+    summary: Arrived, started, completed or no-show (needs appointments.manage, or manage_own for your own)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                type: string
+                enum: [ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW]
+    responses:
+      '200':
+        description: Changed.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW]
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+deskAppointments:
+  post:
+    tags: [Calendar]
+    operationId: bookAtTheDesk
+    summary: Book a walk-in or phone customer (needs appointments.manage, or manage_own in your own column)
+    description: |
+      Front-desk rules: any five-minute start, no notice or horizon, services hidden from online booking allowed.
+      Working time, opening hours and the calendar apply: a busy time is `SLOT_TAKEN` unless `bookAnyway`, which
+      writes a deliberate overlap. `notifyCustomer` (default true) sends the confirmation; reminders follow anyway.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/DeskBookingInput
+    responses:
+      '201':
+        description: Booked.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/DeskBooking
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+deskMove:
+  post:
+    tags: [Calendar]
+    operationId: moveAppointment
+    summary: Move an appointment to another time (and optionally another person); prices stay as booked
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [start]
+            properties:
+              start:
+                $ref: ../common/schemas.yaml#/Instant
+              staffId:
+                $ref: ../common/schemas.yaml#/Uuid
+              bookAnyway:
+                type: boolean
+              notifyCustomer:
+                type: boolean
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+blocks:
+  post:
+    tags: [Calendar]
+    operationId: blockTime
+    summary: Block a person's time (break, meeting, …); refused when it overlaps their bookings
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [locationId, staffId, start, end, reason]
+            properties:
+              locationId:
+                $ref: ../common/schemas.yaml#/Uuid
+              staffId:
+                $ref: ../common/schemas.yaml#/Uuid
+              start:
+                $ref: ../common/schemas.yaml#/Instant
+              end:
+                $ref: ../common/schemas.yaml#/Instant
+              reason:
+                type: string
+                enum: [BREAK, MEETING, TRAINING, PERSONAL, MAINTENANCE, OTHER]
+              title:
+                type: string
+                maxLength: 120
+    responses:
+      '201':
+        description: Blocked.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+block:
+  delete:
+    tags: [Calendar]
+    operationId: unblockTime
+    summary: Remove a block
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: blockId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+calendarStream:
+  get:
+    tags: [Calendar]
+    operationId: streamCalendar
+    summary: Live updates for a location's calendar (server-sent events)
+    description: |
+      Sends `ready`, then `changed` (data `{locationId, what, at}`) whenever an appointment or block at the location
+      changes; reload the calendar then. A comment every 25 s keeps the connection open; the stream closes after 30
+      minutes (reconnect). Needs calendar.view_all or calendar.view_own.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: An event stream.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

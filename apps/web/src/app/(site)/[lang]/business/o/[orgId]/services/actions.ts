@@ -50,6 +50,8 @@ export async function saveService(
     groupId: string;
     locationIds: string[];
     variants: VariantRow[];
+    requiresPatchTest: boolean;
+    patchTestValidityDays: string;
   };
   const name: Record<string, string> = {};
   if (payload.nameAm.trim()) name.am = payload.nameAm.trim();
@@ -77,6 +79,10 @@ export async function saveService(
     groupId: payload.groupId || null,
     locationIds: payload.locationIds,
     variants,
+    requiresPatchTest: payload.requiresPatchTest,
+    ...(payload.requiresPatchTest && Number(payload.patchTestValidityDays) > 0
+      ? { patchTestValidityDays: Math.round(Number(payload.patchTestValidityDays)) }
+      : {}),
   };
   const api = await portalApi(language);
   const result = serviceId

@@ -105,8 +105,12 @@ test("a team member sees their own schedule in the business app", async ({ page 
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
+  // "My schedule" is in More (Today and Calendar are the first tabs).
+  await page.getByText("Walk-in", { exact: true }).filter({ visible: true }).first().waitFor();
+  await page.goto(`${BUSINESS_APP}/more`);
+  await page.getByText("My schedule").filter({ visible: true }).first().click();
 
-  await expect(page.getByText("My schedule")).toBeVisible();
+  await expect(page.getByText("My schedule").filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText("09:00 – 17:00")).toHaveCount(10); // two weeks, Monday to Friday
   await expect(page.getByText("Day off")).toHaveCount(4);
 });

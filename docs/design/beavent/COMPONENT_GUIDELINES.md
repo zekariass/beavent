@@ -10,7 +10,7 @@
 
 | Implemented | Where |
 |---|---|
-| `Text`, `Icon`, `Button`, `TextField`, `Screen`, `ScreenTitle`, `Section`, `ListRow`, `OptionRow`, `Group`, `Divider`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `SkeletonRows`, `DualLine` | `packages/native/src/ui` (`@beavent/native`) |
+| `Text`, `Icon`, `Button`, `TextField`, `Screen`, `ScreenTitle`, `Section`, `ListRow`, `OptionRow`, `CheckRow`, `Group`, `Divider`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `SkeletonRows`, `DualLine` | `packages/native/src/ui` (`@beavent/native`) |
 | Native tab bar (token colours, translated labels, SF/Material symbols) and its web variant | `apps/public-mobile/src/components/app-tabs*.tsx` |
 | Partner-portal primitives (`inputClass`, `buttonClass`, `secondaryButtonClass`, `secondaryButtonLargeClass`, `listClass`, `rowLinkClass`, `Field`, `Section`, `FormMessage`) and `WorkspaceNav` (AppShell sidebar) | `apps/web/src/components/business` |
 | Admin primitives on tokens (`PageTitle`, `Badge` with readable labels, `Table`, `Empty`, `SearchForm`) | `apps/web/src/components/ops/ui.tsx` |
@@ -129,6 +129,7 @@ Two forms:
 ### 3.8 Checkbox, Radio, Switch
 
 - **Checkbox** 24 dp, radius `sm`, 1.5 px `borderStrong`; checked fill `primary` with `onPrimary` check. Label to the right, whole row tappable.
+- **Checkbox** in `CheckRow` (same row as `OptionRow` with a 24 dp square box, `radius.sm`, filled `primary` with a check when ticked): several choices and agreements in forms (plan 2.6).
 - **Radio** in `OptionRow` (full-width row: label + description on the left, 24 dp radio on the right); selected row gets a `primary` 1.5 px outline and `primarySubtle` fill when options are presented as a group of cards (payment methods), otherwise just the radio.
 - **Switch** platform-native (`Switch`) with `primary` track when on. Only for settings that apply immediately; never in forms that have a submit button.
 

@@ -5,6 +5,7 @@ import {
   addDays,
   dualClock,
   localDateOf,
+  localToInstant,
   partOfDay,
   todayIn,
   durationText,
@@ -175,4 +176,18 @@ test("days and parts of the day are counted in the venue's zone", () => {
   assert.equal(partOfDay("2026-12-01T08:59:00Z", "Africa/Addis_Ababa"), "morning");
   assert.equal(partOfDay("2026-12-01T09:00:00Z", "Africa/Addis_Ababa"), "afternoon");
   assert.equal(partOfDay("2026-12-01T14:00:00Z", "Africa/Addis_Ababa"), "evening");
+});
+
+test("a local date and time at the venue is the right instant", () => {
+  assert.equal(
+    localToInstant("2026-12-01", "09:00", "Africa/Addis_Ababa"),
+    "2026-12-01T06:00:00.000Z",
+  );
+  assert.equal(
+    localToInstant("2026-12-01", "01:30", "Africa/Addis_Ababa"),
+    "2026-11-30T22:30:00.000Z",
+  );
+  // A zone with daylight saving: Berlin is UTC+1 in winter, UTC+2 in summer.
+  assert.equal(localToInstant("2026-01-15", "10:00", "Europe/Berlin"), "2026-01-15T09:00:00.000Z");
+  assert.equal(localToInstant("2026-07-15", "10:00", "Europe/Berlin"), "2026-07-15T08:00:00.000Z");
 });

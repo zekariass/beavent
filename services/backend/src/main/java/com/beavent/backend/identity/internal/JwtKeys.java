@@ -46,7 +46,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 class JwtKeys {
 
     private static final Logger log = LoggerFactory.getLogger(JwtKeys.class);
-    static final Set<String> AUDIENCES = Set.of("MOBILE_APP", "WEB_MARKETPLACE", "PARTNER_PORTAL", "ADMIN_CONSOLE");
+    static final Set<String> AUDIENCES =
+            Set.of("MOBILE_APP", "BUSINESS_APP", "WEB_MARKETPLACE", "PARTNER_PORTAL", "ADMIN_CONSOLE");
 
     private final ECKey signingKey;
     private final JWKSet publicKeys;

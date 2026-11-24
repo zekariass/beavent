@@ -19,12 +19,12 @@ import java.util.UUID;
 import tools.jackson.databind.JsonNode;
 
 /** Set-up shared by the scheduling API tests: a salon with hours, a haircut, two stylists, and ledger helpers. */
-abstract class SchedulingTestSupport extends ApiTestSupport {
+public abstract class SchedulingTestSupport extends ApiTestSupport {
 
-    static final ZoneId ADDIS = ZoneId.of("Africa/Addis_Ababa");
+    protected static final ZoneId ADDIS = ZoneId.of("Africa/Addis_Ababa");
 
     /** A day far enough ahead that the default one-hour notice never matters. */
-    static LocalDate day() {
+    protected static LocalDate day() {
         return LocalDate.now(ADDIS).plusDays(3);
     }
 
@@ -56,7 +56,7 @@ abstract class SchedulingTestSupport extends ApiTestSupport {
         return new Shop(salon, serviceId, variant, abebe, sara);
     }
 
-    static Map<String, Object> variant(int minutes, int bufferAfter, List<?> stages, List<?> resources) {
+    protected static Map<String, Object> variant(int minutes, int bufferAfter, List<?> stages, List<?> resources) {
         Map<String, Object> v = new HashMap<>();
         v.put("durationMinutes", minutes);
         v.put("bufferAfterMinutes", bufferAfter);
@@ -71,7 +71,7 @@ abstract class SchedulingTestSupport extends ApiTestSupport {
         return v;
     }
 
-    Call service(Salon salon, String name, List<Map<String, Object>> variants, Map<String, Object> extra)
+    protected Call service(Salon salon, String name, List<Map<String, Object>> variants, Map<String, Object> extra)
             throws Exception {
         Map<String, Object> input = new HashMap<>();
         input.put("categoryId", category("SERVICE", "HAIR"));
@@ -87,7 +87,7 @@ abstract class SchedulingTestSupport extends ApiTestSupport {
     }
 
     /** A team member at location 1 who does the services and works 09:00-18:00 every day. */
-    String staff(Salon salon, String name, List<String> serviceIds, int sortOrder) throws Exception {
+    protected String staff(Salon salon, String name, List<String> serviceIds, int sortOrder) throws Exception {
         Call created = call(
                 post(salon.path("/staff")),
                 Map.of(
@@ -126,7 +126,7 @@ abstract class SchedulingTestSupport extends ApiTestSupport {
 
     // --- facts the API does not write yet (calendar blocks, holds) --------------------------------------------
 
-    static java.time.OffsetDateTime at(LocalDate date, String time) {
+    protected static java.time.OffsetDateTime at(LocalDate date, String time) {
         return date.atTime(LocalTime.parse(time)).atZone(ADDIS).toOffsetDateTime();
     }
 
@@ -199,7 +199,7 @@ abstract class SchedulingTestSupport extends ApiTestSupport {
 
     // --- asking ----------------------------------------------------------------------------------------------
 
-    static Map<String, Object> item(String variant, String staff, String... addons) {
+    protected static Map<String, Object> item(String variant, String staff, String... addons) {
         Map<String, Object> item = new HashMap<>();
         item.put("variantId", variant);
         if (staff != null) {
