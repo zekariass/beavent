@@ -40,6 +40,8 @@ tags:
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Availability
     description: Which times can be booked, and with whom (public)
+  - name: Marketplace
+    description: What the public sees of a business (venue pages)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -177,6 +179,10 @@ paths:
   # --- public booking (no sign-in) --------------------------------------------------------------------------
   /v1/public/locations/{locationId}/availability:
     $ref: ./scheduling/paths.yaml#/publicAvailability
+  /v1/public/venues/{businessSlug}/locations:
+    $ref: ./marketplace/paths.yaml#/businessLocations
+  /v1/public/venues/{businessSlug}/{locationSlug}:
+    $ref: ./marketplace/paths.yaml#/venue
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles

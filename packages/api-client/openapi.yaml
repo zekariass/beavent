@@ -40,6 +40,8 @@ tags:
     description: Notice, horizon, slots, deposits, cancellation and no-show rules
   - name: Availability
     description: Which times can be booked, and with whom (public)
+  - name: Marketplace
+    description: What the public sees of a business (venue pages)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -2898,6 +2900,69 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/venues/{businessSlug}/locations:
+    get:
+      tags:
+        - Marketplace
+      operationId: listBusinessLocations
+      summary: Location slugs of a business, to open its page when you only know the business
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Slugs, in the order the business set its locations up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - locationSlugs
+                properties:
+                  locationSlugs:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/venues/{businessSlug}/{locationSlug}:
+    get:
+      tags:
+        - Marketplace
+      operationId: getVenue
+      summary: The public page of a location (profile, photos, hours, services, team, policy)
+      description: |
+        Public, for shared links and the marketplace. Only active, online-bookable services offered at the location are
+        listed. A business that is suspended or closed, or a location that is not active, is `404`.
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: locationSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The venue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/files:
@@ -6244,6 +6309,375 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AvailabilitySlot'
+    VenueImage:
+      type: object
+      required:
+        - url
+        - variants
+        - alt
+      properties:
+        url:
+          type: string
+        variants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        alt:
+          $ref: '#/components/schemas/LocalizedText'
+    VenueHours:
+      type: object
+      required:
+        - isoWeekday
+        - opensAt
+        - closesAt
+      properties:
+        isoWeekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+        opensAt:
+          type: string
+          description: Local time, HH:mm:ss, in the location's zone.
+        closesAt:
+          type: string
+    VenueClosure:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+      properties:
+        startsAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        endsAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        reason:
+          type:
+            - string
+            - 'null'
+    VenueVariant:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceType
+        - priceMinMinor
+        - priceMaxMinor
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceType:
+          type: string
+          enum:
+            - FIXED
+            - FROM
+            - FREE
+            - ON_CONSULTATION
+        priceMinMinor:
+          type: integer
+          format: int64
+          description: Lowest price anyone pays (standard price, or a lower price for a person, level or location).
+        priceMaxMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    VenueAddOn:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    VenueService:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - aftercare
+        - audience
+        - deliveryModes
+        - requiresPatchTest
+        - variants
+        - addOns
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        aftercare:
+          $ref: '#/components/schemas/LocalizedText'
+        audience:
+          type: string
+          enum:
+            - EVERYONE
+            - WOMEN
+            - MEN
+            - CHILDREN
+        deliveryModes:
+          type: array
+          items:
+            type: string
+            enum:
+              - ON_PREMISES
+              - AT_CUSTOMER
+              - ONLINE
+        requiresPatchTest:
+          type: boolean
+        patchTestValidityDays:
+          type:
+            - integer
+            - 'null'
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueVariant'
+        addOns:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueAddOn'
+    VenueGroup:
+      type: object
+      required:
+        - name
+        - services
+      properties:
+        id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Null for services that are not in a menu section.
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueService'
+    VenuePerson:
+      type: object
+      required:
+        - id
+        - displayName
+        - languages
+        - serviceIds
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        displayName:
+          type: string
+        jobTitle:
+          type:
+            - string
+            - 'null'
+        photo:
+          oneOf:
+            - $ref: '#/components/schemas/VenueImage'
+            - type: 'null'
+        languages:
+          type: array
+          items:
+            type: string
+        serviceIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+    VenuePolicy:
+      type: object
+      required:
+        - requiresApproval
+        - allowPayAtVenue
+        - depositMode
+        - cancellationWindowMinutes
+      properties:
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        depositMode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        depositPercent:
+          type:
+            - number
+            - 'null'
+        depositFixedMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        depositAppliesTo:
+          type:
+            - string
+            - 'null'
+        currency:
+          type:
+            - string
+            - 'null'
+        cancellationWindowMinutes:
+          type: integer
+        lateCancelFeePercent:
+          type:
+            - number
+            - 'null'
+        noShowFeePercent:
+          type:
+            - number
+            - 'null'
+    VenueOther:
+      type: object
+      required:
+        - slug
+        - name
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        landmark:
+          type:
+            - string
+            - 'null'
+    Venue:
+      type: object
+      required:
+        - businessSlug
+        - businessName
+        - description
+        - category
+        - locationId
+        - locationSlug
+        - locationName
+        - timezone
+        - serviceMode
+        - area
+        - closedOnPublicHolidays
+        - hours
+        - upcomingClosures
+        - onlineBooking
+        - listed
+        - gallery
+        - groups
+        - team
+        - policy
+        - otherLocations
+      properties:
+        businessSlug:
+          type: string
+        businessName:
+          type: string
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logo:
+          oneOf:
+            - $ref: '#/components/schemas/VenueImage'
+            - type: 'null'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        locationSlug:
+          type: string
+        locationName:
+          type: string
+        phone:
+          type:
+            - string
+            - 'null'
+        timezone:
+          type: string
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+        landmark:
+          type:
+            - string
+            - 'null'
+        addressLine:
+          type:
+            - string
+            - 'null'
+        city:
+          type:
+            - string
+            - 'null'
+        area:
+          $ref: '#/components/schemas/LocalizedText'
+        latitude:
+          type:
+            - number
+            - 'null'
+        longitude:
+          type:
+            - number
+            - 'null'
+        closedOnPublicHolidays:
+          type: boolean
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueHours'
+        upcomingClosures:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueClosure'
+        onlineBooking:
+          type: boolean
+          description: False when the venue takes bookings by phone only (or has nothing bookable yet).
+        listed:
+          type: boolean
+          description: Approved for the marketplace. Pages that are not listed should not be indexed by search engines.
+        gallery:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueImage'
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueGroup'
+        team:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenuePerson'
+        policy:
+          $ref: '#/components/schemas/VenuePolicy'
+        otherLocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueOther'
     FilePurpose:
       type: string
       enum:

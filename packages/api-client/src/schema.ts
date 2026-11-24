@@ -1107,6 +1107,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/venues/{businessSlug}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Location slugs of a business, to open its page when you only know the business */
+        get: operations["listBusinessLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/venues/{businessSlug}/{locationSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public page of a location (profile, photos, hours, services, team, policy)
+         * @description Public, for shared links and the marketplace. Only active, online-bookable services offered at the location are
+         *     listed. A business that is suspended or closed, or a location that is not active, is `404`.
+         */
+        get: operations["getVenue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -2566,6 +2604,129 @@ export interface components {
             /** @example Africa/Addis_Ababa */
             timezone: string;
             slots: components["schemas"]["AvailabilitySlot"][];
+        };
+        VenueImage: {
+            url: string;
+            /** @description Smaller sizes by name (w320, w960). */
+            variants: {
+                [key: string]: string;
+            };
+            alt: components["schemas"]["LocalizedText"];
+        };
+        VenueHours: {
+            isoWeekday: number;
+            /** @description Local time, HH:mm:ss, in the location's zone. */
+            opensAt: string;
+            closesAt: string;
+        };
+        VenueClosure: {
+            startsAt: components["schemas"]["Instant"] | null;
+            endsAt: components["schemas"]["Instant"] | null;
+            reason?: string | null;
+        };
+        VenueVariant: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /** @enum {string} */
+            priceType: "FIXED" | "FROM" | "FREE" | "ON_CONSULTATION";
+            /**
+             * Format: int64
+             * @description Lowest price anyone pays (standard price, or a lower price for a person, level or location).
+             */
+            priceMinMinor: number;
+            /** Format: int64 */
+            priceMaxMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+        };
+        VenueAddOn: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+        };
+        VenueService: {
+            id: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            description: components["schemas"]["LocalizedText"];
+            aftercare: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            audience: "EVERYONE" | "WOMEN" | "MEN" | "CHILDREN";
+            deliveryModes: ("ON_PREMISES" | "AT_CUSTOMER" | "ONLINE")[];
+            requiresPatchTest: boolean;
+            patchTestValidityDays?: number | null;
+            variants: components["schemas"]["VenueVariant"][];
+            addOns: components["schemas"]["VenueAddOn"][];
+        };
+        VenueGroup: {
+            /**
+             * Format: uuid
+             * @description Null for services that are not in a menu section.
+             */
+            id?: string | null;
+            name: components["schemas"]["LocalizedText"];
+            services: components["schemas"]["VenueService"][];
+        };
+        VenuePerson: {
+            id: components["schemas"]["Uuid"];
+            displayName: string;
+            jobTitle?: string | null;
+            photo?: components["schemas"]["VenueImage"] | null;
+            languages: string[];
+            serviceIds: components["schemas"]["Uuid"][];
+        };
+        VenuePolicy: {
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            /** @enum {string} */
+            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            depositPercent?: number | null;
+            /** Format: int64 */
+            depositFixedMinor?: number | null;
+            depositAppliesTo?: string | null;
+            currency?: string | null;
+            cancellationWindowMinutes: number;
+            lateCancelFeePercent?: number | null;
+            noShowFeePercent?: number | null;
+        };
+        VenueOther: {
+            slug: string;
+            name: string;
+            landmark?: string | null;
+        };
+        Venue: {
+            businessSlug: string;
+            businessName: string;
+            description: components["schemas"]["LocalizedText"];
+            category: components["schemas"]["LocalizedText"];
+            logo?: components["schemas"]["VenueImage"] | null;
+            locationId: components["schemas"]["Uuid"];
+            locationSlug: string;
+            locationName: string;
+            phone?: string | null;
+            timezone: string;
+            /** @enum {string} */
+            serviceMode: "ON_PREMISES" | "MOBILE_ONLY" | "BOTH";
+            landmark?: string | null;
+            addressLine?: string | null;
+            city?: string | null;
+            area: components["schemas"]["LocalizedText"];
+            latitude?: number | null;
+            longitude?: number | null;
+            closedOnPublicHolidays: boolean;
+            hours: components["schemas"]["VenueHours"][];
+            upcomingClosures: components["schemas"]["VenueClosure"][];
+            /** @description False when the venue takes bookings by phone only (or has nothing bookable yet). */
+            onlineBooking: boolean;
+            /** @description Approved for the marketplace. Pages that are not listed should not be indexed by search engines. */
+            listed: boolean;
+            gallery: components["schemas"]["VenueImage"][];
+            groups: components["schemas"]["VenueGroup"][];
+            team: components["schemas"]["VenuePerson"][];
+            policy: components["schemas"]["VenuePolicy"];
+            otherLocations: components["schemas"]["VenueOther"][];
         };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
@@ -5607,6 +5768,57 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listBusinessLocations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Slugs, in the order the business set its locations up. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        locationSlugs: string[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getVenue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+                locationSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The venue. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Venue"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
         };
     };

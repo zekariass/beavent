@@ -20,4 +20,17 @@ public interface PublicLocations {
 
     /** The location if it is active, takes online bookings and its business is active or still onboarding. */
     Optional<Bookable> findBookable(UUID locationId);
+
+    /**
+     * A public page's subject: an active location of a business that is active or still onboarding, whether or not it
+     * takes online bookings (a venue page still shows prices and a phone number).
+     *
+     * @param listed the business asked to appear in the marketplace and was approved
+     */
+    record Visible(UUID orgId, UUID locationId, boolean onlineBooking, boolean listed) {}
+
+    Optional<Visible> findVisible(String orgSlug, String locationSlug);
+
+    /** Slugs of the business's active locations, in the order its team set them up. */
+    java.util.List<String> locationSlugs(String orgSlug);
 }

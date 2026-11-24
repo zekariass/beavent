@@ -1,0 +1,60 @@
+businessLocations:
+  get:
+    tags: [Marketplace]
+    operationId: listBusinessLocations
+    summary: Location slugs of a business, to open its page when you only know the business
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Slugs, in the order the business set its locations up.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationSlugs]
+              properties:
+                locationSlugs:
+                  type: array
+                  items:
+                    type: string
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+venue:
+  get:
+    tags: [Marketplace]
+    operationId: getVenue
+    summary: The public page of a location (profile, photos, hours, services, team, policy)
+    description: |
+      Public, for shared links and the marketplace. Only active, online-bookable services offered at the location are
+      listed. A business that is suspended or closed, or a location that is not active, is `404`.
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: locationSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: The venue.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Venue
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
