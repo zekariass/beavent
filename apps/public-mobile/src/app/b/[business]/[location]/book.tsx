@@ -567,7 +567,7 @@ function Flow({ venue }: { venue: Venue }) {
                 <Text role="body" tone="muted">
                   {t("booking.signIn.intro")}
                 </Text>
-                <SignInPanel />
+                <SignInPanel askName />
               </View>
             )}
           </View>

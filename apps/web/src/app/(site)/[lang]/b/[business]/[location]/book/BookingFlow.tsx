@@ -158,6 +158,10 @@ export function BookingFlow({
   const [phone, setPhone] = useState("");
   const [challenge, setChallenge] = useState<{ id: string; phone: string } | null>(null);
   const [code, setCode] = useState("");
+  // C-6 step 3: someone new says what to call them before the booking goes through.
+  const [askName, setAskName] = useState(false);
+  const [givenName, setGivenName] = useState("");
+  const [fatherName, setFatherName] = useState("");
   const [done, setDone] = useState<Schemas["Appointment"] | null>(null);
 
   useEffect(() => {
@@ -206,12 +210,15 @@ export function BookingFlow({
         holdId: hold.holdId,
         holderKey: hold.holderKey,
         note,
-        challengeId: challenge?.id,
-        code: challenge ? code : undefined,
+        challengeId: askName ? undefined : challenge?.id,
+        code: challenge && !askName ? code : undefined,
+        ...(askName ? { givenName, fatherName } : {}),
       });
       if (r.ok) {
         setDone(r.appointment);
         go("done");
+      } else if (r.code === "NAME_NEEDED") {
+        setAskName(true);
       } else if (r.code === "HOLD_EXPIRED") {
         setHold(null);
         setChosen(null);
@@ -617,7 +624,44 @@ export function BookingFlow({
                 />
               </label>
 
-              {signedInAs ? (
+              {askName ? (
+                <div className="flex flex-col gap-3">
+                  <h2 className="bv-type-title2 text-fg">{t("signIn.name.title")}</h2>
+                  <label className="flex flex-col gap-2">
+                    <span className="bv-type-label text-fg">{t("signIn.name.given")}</span>
+                    <input
+                      value={givenName}
+                      onChange={(e) => setGivenName(e.target.value)}
+                      autoComplete="given-name"
+                      maxLength={100}
+                      required
+                      className={input}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="bv-type-label text-fg">{t("signIn.name.father")}</span>
+                    <input
+                      value={fatherName}
+                      onChange={(e) => setFatherName(e.target.value)}
+                      autoComplete="family-name"
+                      maxLength={100}
+                      aria-describedby="father-name-hint"
+                      className={input}
+                    />
+                    <span id="father-name-hint" className="bv-type-caption text-fg-muted">
+                      {t("signIn.name.fatherHint")}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    className={primaryButton}
+                    disabled={pending || expired || !givenName.trim()}
+                    onClick={confirm}
+                  >
+                    {requiresApproval ? t("booking.review.requestBook") : t("booking.review.book")}
+                  </button>
+                </div>
+              ) : signedInAs ? (
                 <div className="flex flex-col gap-3">
                   <p className="bv-type-caption text-fg-muted">
                     {t("booking.signedInAs", { phone: signedInAs })}

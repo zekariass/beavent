@@ -12,7 +12,7 @@
 |---|---|---|
 | 0 Foundation | ✅ Done | API (identity, tenancy, files, admin), design system, two mobile apps and one web platform (D20). Hosted CI runs on PR #8: all green |
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
-| 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. 2.6 done: clients, forms and patch tests, waitlist, front-desk groups and series. Next: the Stage 2 exit (rehearsal with real SMS, D4) |
+| 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. 2.6 done: clients, forms and patch tests, waitlist, front-desk groups and series. Stage 2 exit checks pass on the local stack (one journey test, live update 0.8 s, availability median 50 ms); **only the rehearsal with real phones remains, blocked on D4 (SMS provider)** |
 | 3–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
@@ -358,6 +358,12 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 *Done when:* a customer books a pay-at-venue appointment on web or mobile, it appears on the stylist's calendar instantly, the front desk completes it, a cancellation triggers a waitlist offer that another customer accepts, and the allergy alert shows on that customer's next booking.
 
 **Stage 2 exit:** the journey above runs end to end on the local stack with real SMS in a rehearsal (D4), the 300 ms availability budget is met, and there are no open Sev-1 bugs.
+
+*Status (24 Nov 2026): everything but the real-SMS rehearsal is done.*
+- **The journey as one test** (`tools/e2e/tests/stage2-exit.spec.ts`): a newcomer books on the web from the shared link; the booking shows on the stylist's open calendar without a reload (0.8 s after "You're booked"); the confirmation text with the reference reaches the SMS gateway; the desk checks her in, starts and completes the visit and notes an allergy; on a full day another customer joins the waitlist, a cancellation frees the time, the offer text carries a link, she books from it and the desk sees it; the first customer books again and the allergy shows on that booking. Messages are checked at the gateway (`log` provider).
+- **Availability budget:** median 50 ms for 10 staff, 60 reservations, 3 services (budget 300 ms; `AvailabilityApiTests`).
+- **Bug sweep:** the whole Playwright suite (18 tests) and the backend build pass. Found and fixed: newcomers on the web and in the consumer app were never asked their name, so the front desk saw a phone number. **C-6 step 3** is now built: after the code, someone without a name on file gives a given name (father's name optional) before the booking, waitlist or sign-in continues (web: the session is held in a ten-minute httpOnly cookie until then, the booking review asks in place; app: `SignInPanel askName`). Three tests that raced the page (leaving before a save, tapping during a screen change, late-night "today") were fixed. No Sev-1 bugs open.
+- **Left: the rehearsal with real phones (D4).** Once ops choose the SMS provider and register the sender ID: add its `SmsGateway` adapter (`beavent.sms.provider`), set `PUBLIC_WEB_URL` to an address the phones can open, then run the journey above by hand with three real phones (customer, waitlisted customer, owner) in Amharic and English, checking that every message arrives (sign-in codes, confirmation, waitlist offer with a working link, reminders, cancellation), reads well (native-speaker review of the Amharic texts, doc 06), and shows both time conventions.
 
 ---
 

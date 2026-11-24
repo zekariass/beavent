@@ -349,6 +349,8 @@ test("bookings · list, detail, reschedule", async ({ browser }) => {
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Confirm and book" }).click();
+  await page.getByLabel("Given name").fill("Meron");
+  await page.getByRole("button", { name: "Book", exact: true }).click();
   await page.getByRole("link", { name: "See my bookings" }).click();
   await page.locator("main ul li a").first().click();
   await page.waitForURL(/\/account\/bookings\/[0-9a-f-]{36}$/);
@@ -372,6 +374,58 @@ test("bookings · list, detail, reschedule", async ({ browser }) => {
     }
   }
   await context.close();
+});
+
+test("sign-in · what should we call you (web and consumer app)", async ({ browser }) => {
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const am = language === "am";
+      // Web: the inline sign-in on Bookings, a new number, then the name step.
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: am ? "am-ET" : "en-US",
+        viewport: DESKTOP,
+      });
+      const page = await context.newPage();
+      await page.goto(`${WEB}/${language}/account/bookings`);
+      const phone = newPhone();
+      await page.getByLabel(am ? "ስልክ ቁጥር" : "Phone number").fill(phone);
+      let seen = codeCount(phone);
+      await page.getByRole("button", { name: am ? "ኮድ ላክ" : "Send code" }).click();
+      await page.getByLabel(am ? /የተላከ ኮድ/ : /Code sent to/).fill(await codeFor(phone, seen));
+      await page
+        .getByRole("button", { name: am ? "ይግቡ" : "Sign in" })
+        .last()
+        .click();
+      await page.getByLabel(am ? "ስም" : "Given name", { exact: true }).waitFor();
+      await shot(page, `signin-name-web-${language}-${scheme}-desktop`);
+      await page.setViewportSize(PHONE);
+      await shot(page, `signin-name-web-${language}-${scheme}-phone`);
+      await context.close();
+
+      // Consumer app: the sign-in sheet, then the name step.
+      const app = await browser.newContext({
+        colorScheme: scheme,
+        locale: am ? "am-ET" : "en-US",
+        viewport: { width: 390, height: 844 },
+      });
+      const ap = await app.newPage();
+      await ap.goto(`${MOBILE}/sign-in`);
+      const other = newPhone();
+      await ap.getByRole("textbox").filter({ visible: true }).first().fill(other);
+      seen = codeCount(other);
+      await ap.getByRole("button", { name: am ? "ኮድ ላክ" : "Send code" }).click();
+      await ap
+        .getByRole("textbox")
+        .filter({ visible: true })
+        .first()
+        .fill(await codeFor(other, seen));
+      await ap.getByRole("button", { name: am ? "ግባ" : "Sign in" }).click();
+      await ap.getByText(am ? "በምን ስም እንጥራዎ?" : "What should we call you?").waitFor();
+      await shot(ap, `signin-name-app-${language}-${scheme}`);
+      await app.close();
+    }
+  }
 });
 
 test("consumer app · booking flow and bookings", async ({ browser }) => {

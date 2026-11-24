@@ -15,7 +15,7 @@ export default function SignInScreen() {
       <Text role="body" tone="muted">
         {t("mobile.signIn.hint")}
       </Text>
-      <SignInPanel />
+      <SignInPanel askName />
     </Screen>
   );
 }

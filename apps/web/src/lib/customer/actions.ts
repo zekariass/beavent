@@ -3,13 +3,18 @@
 import type { Schemas } from "@beavent/api-client";
 import { revalidatePath } from "next/cache";
 import {
+  apiWithToken,
   clearCustomerTokens,
   customerApi,
+  holdPendingTokens,
+  needsName,
   normalizePhone,
   problemCode,
   problemText,
   publicApi,
+  saveName,
   storeCustomerTokens,
+  takePendingTokens,
 } from "@/lib/customer/session";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; code?: string; message: string };
@@ -32,12 +37,35 @@ export async function verifySignIn(
   language: string,
   challengeId: string,
   code: string,
-): Promise<Result<null>> {
+): Promise<Result<{ needsName: boolean }>> {
   const { data, error } = await publicApi(language).POST("/v1/auth/otp/verify", {
     body: { challengeId, code: code.trim() },
   });
   if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  if (await needsName(apiWithToken(data.accessToken, language))) {
+    await holdPendingTokens(data.accessToken, data.refreshToken);
+    return { ok: true, value: { needsName: true } };
+  }
   await storeCustomerTokens(data.accessToken, data.refreshToken);
+  revalidatePath(`/${language}/account`, "layout");
+  return { ok: true, value: { needsName: false } };
+}
+
+/** Step 3 for new people: what to call them (C-6); then the session held since the code starts. */
+export async function saveCustomerName(
+  language: string,
+  given: string,
+  father: string,
+): Promise<Result<null>> {
+  if (!given.trim()) return { ok: false, code: "NAME_NEEDED", message: "" };
+  const pending = await takePendingTokens();
+  if (!pending) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const error = await saveName(apiWithToken(pending.accessToken, language), given, father);
+  if (error) {
+    await holdPendingTokens(pending.accessToken, pending.refreshToken);
+    return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  }
+  await storeCustomerTokens(pending.accessToken, pending.refreshToken);
   revalidatePath(`/${language}/account`, "layout");
   return { ok: true, value: null };
 }

@@ -35,6 +35,11 @@ test("a newcomer books from a shared link and signs in inline", async ({ page })
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Confirm and book" }).click();
+  // New to Beavent: what to call them (C-6 step 3), then the booking goes through.
+  await expect(page.getByRole("heading", { name: "What should we call you?" })).toBeVisible();
+  await page.getByLabel("Given name").fill("Meron");
+  await page.getByLabel(/Father's name/).fill("Tesfaye");
+  await page.getByRole("button", { name: "Book", exact: true }).click();
 
   await expect(page.getByRole("status")).toHaveText("You're booked");
   await expect(page.getByText(/Booking reference [A-Z2-9]{6}/)).toBeVisible();

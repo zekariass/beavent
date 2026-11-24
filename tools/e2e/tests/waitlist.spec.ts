@@ -41,6 +41,8 @@ test("a cancelled time goes to the person on the waitlist, who books it", async 
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Given name").fill("Selam");
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Morning" }).click();
   await page.getByRole("button", { name: "Join waitlist" }).click();
   await expect(page.getByRole("status")).toContainText("You're on the waitlist");

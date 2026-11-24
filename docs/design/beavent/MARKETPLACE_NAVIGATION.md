@@ -312,6 +312,8 @@ When the market has little inventory (pilot), modules that fall below 3 items di
 3. **New person only — name:** "What should we call you?" Given name (required), father's name (optional, helper "Helps businesses recognise you"). `primary` "Continue".
 4. Sheet closes and **the original action continues** (booking confirmation, save, checkout).
 
+*Implemented (24 Nov 2026):* phone codes on web and in the consumer app, with step 3 for anyone without a name on file (web inline sign-in and booking review, `SignInPanel askName` in the app). Google, Apple, email on the web, the "Change" link and the Telegram fallback are not built yet.
+
 **States/errors.** Wrong code: CodeField error "That code isn't right. 4 tries left." (5 attempts per code). Expired: "This code expired" + "Send a new code". `429 RATE_LIMITED`: Banner "Too many attempts. Try again in 10 minutes." with the remaining time. SMS not arriving after 30 s: show the Telegram/voice options. Google/Apple failure: inline error, phone remains available.
 **Step-up** (sensitive actions, `403 STEP_UP_REQUIRED`): the same CodeField in a smaller sheet "Confirm it's you" with the masked destination; never asks for anything else.
 

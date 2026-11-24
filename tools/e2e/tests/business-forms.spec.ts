@@ -85,8 +85,11 @@ test("the business marks a service as needing a patch test and records one", asy
   await page.goto(`/en/business/o/${salon.orgId}/services/${salon.serviceId}`);
   await page.getByLabel(/Needs a patch test before online booking/).check();
   await page.getByLabel("A passed test counts for (days)").fill("90");
-  await page.getByRole("button", { name: "Save" }).first().click();
-  await expect(page.getByLabel(/Needs a patch test before online booking/)).toBeChecked();
+  // Wait for the save to finish: leaving the page earlier would cut it off.
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/services/")),
+    page.getByRole("button", { name: "Save" }).first().click(),
+  ]);
 
   await page.goto(`/en/b/${salon.orgSlug}/${salon.locationSlug}`);
   await page.getByText("Box braids").first().click();

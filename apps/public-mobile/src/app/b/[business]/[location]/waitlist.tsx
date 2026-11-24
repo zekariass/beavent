@@ -222,7 +222,7 @@ function Join({
       ) : (
         <View style={{ gap: space[3] }}>
           <Text role="body">{t("waitlist.signIn")}</Text>
-          <SignInPanel />
+          <SignInPanel askName />
         </View>
       )}
     </>
