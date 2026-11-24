@@ -155,3 +155,28 @@ export function serviceFacts(service: VenueService, t: Translate): string[] {
   if (service.deliveryModes.includes("AT_CUSTOMER")) out.push(t("venue.atYourPlace"));
   return out;
 }
+
+// --- days and times of a booking -------------------------------------------------------------------------------
+
+/** Local date "YYYY-MM-DD" `days` after `date`. */
+export function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+const isoDate = (z: { year: number; month: number; day: number }) =>
+  `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
+
+/** Today's local date in a zone. */
+export const todayIn = (timeZone: string, now: Date = new Date()): string =>
+  isoDate(zoned(now, timeZone));
+
+/** The local date of an instant in a zone. */
+export const localDateOf = (instant: string, timeZone: string): string =>
+  isoDate(zoned(instant, timeZone));
+
+/** Morning before 12:00, afternoon until 17:00, evening after (local time of the venue). */
+export function partOfDay(instant: string, timeZone: string): "morning" | "afternoon" | "evening" {
+  const h = zoned(instant, timeZone).hour;
+  return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
+}

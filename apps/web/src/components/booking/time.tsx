@@ -9,29 +9,14 @@ import {
   gregorianToEthiopian,
   gregorianToJdn,
   isoWeekday,
-  zoned,
 } from "@beavent/calendar";
 import { createTranslator, type Language } from "@beavent/i18n";
-import { calendarLanguage } from "@beavent/venue";
+import { addDays, calendarLanguage, partOfDay } from "@beavent/venue";
 
 // The time step shared by booking (S-08) and rescheduling (S-12): a strip of days and times grouped by part of day,
 // each in both conventions with the reader's first (DD7).
 
-/** Local date "YYYY-MM-DD" `days` after `date`. */
-export function addDays(date: string, days: number): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
-}
-
-export function todayIn(timeZone: string): string {
-  const z = zoned(new Date(), timeZone);
-  return `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
-}
-
-export function localDateOf(instant: string, timeZone: string): string {
-  const z = zoned(instant, timeZone);
-  return `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
-}
+export { addDays, localDateOf, todayIn } from "@beavent/venue";
 
 /** Bookable times of one day, grouped into morning, afternoon and evening. */
 export function TimeGrid({
@@ -52,14 +37,7 @@ export function TimeGrid({
   return (
     <>
       {(["morning", "afternoon", "evening"] as const).map((period) => {
-        const inPeriod = slots.filter((s) => {
-          const h = zoned(s.start, timeZone).hour;
-          return period === "morning"
-            ? h < 12
-            : period === "afternoon"
-              ? h >= 12 && h < 17
-              : h >= 17;
-        });
+        const inPeriod = slots.filter((s) => partOfDay(s.start, timeZone) === period);
         if (inPeriod.length === 0) return null;
         return (
           <fieldset key={period} className="flex flex-col gap-2">

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { Linking, ScrollView, View } from "react-native";
@@ -108,6 +108,7 @@ export default function VenueScreen() {
 
 function VenueContent({ venue }: { venue: Venue }) {
   const { t, language, colors } = useApp();
+  const router = useRouter();
   const status = openStatus(venue, new Date());
   const until = status.until ? dualClock(status.until, language) : null;
   const photo = venue.gallery[0];
@@ -342,7 +343,7 @@ function VenueContent({ venue }: { venue: Venue }) {
         {/* room for the action bar */}
         <View style={{ height: layout.sectionGap + 56 }} />
       </Screen>
-      {venue.phone ? (
+      {venue.onlineBooking || venue.phone ? (
         <SafeAreaView
           edges={["bottom"]}
           style={{
@@ -356,13 +357,33 @@ function VenueContent({ venue }: { venue: Venue }) {
             paddingHorizontal: layout.gutter,
             paddingTop: space[3],
             paddingBottom: space[3],
+            flexDirection: "row",
+            gap: space[3],
           }}
         >
-          <Button
-            block
-            label={venue.onlineBooking ? t("venue.call") : t("venue.callToBook")}
-            onPress={() => Linking.openURL(`tel:${venue.phone}`)}
-          />
+          {venue.onlineBooking ? (
+            <View style={{ flex: 1 }}>
+              <Button
+                block
+                label={
+                  venue.policy.requiresApproval
+                    ? t("booking.review.requestBook")
+                    : t("booking.bookNow")
+                }
+                onPress={() => router.push(`/b/${venue.businessSlug}/${venue.locationSlug}/book`)}
+              />
+            </View>
+          ) : null}
+          {venue.phone ? (
+            <View style={venue.onlineBooking ? undefined : { flex: 1 }}>
+              <Button
+                block={!venue.onlineBooking}
+                variant={venue.onlineBooking ? "secondary" : "primary"}
+                label={venue.onlineBooking ? t("venue.call") : t("venue.callToBook")}
+                onPress={() => Linking.openURL(`tel:${venue.phone}`)}
+              />
+            </View>
+          ) : null}
         </SafeAreaView>
       ) : null}
     </View>

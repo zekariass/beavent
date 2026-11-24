@@ -29,6 +29,11 @@ function Shell() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="sign-in" options={{ presentation: "modal", title: t("nav.signIn") }} />
+        {/* Booking is a full-screen flow over the venue (DD4). */}
+        <Stack.Screen
+          name="b/[business]/[location]/book"
+          options={{ presentation: "fullScreenModal" }}
+        />
       </Stack>
     </ThemeProvider>
   );

@@ -371,3 +371,41 @@ test("bookings · list, detail, reschedule", async ({ browser }) => {
   }
   await context.close();
 });
+
+test("consumer app · booking flow and bookings", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: language === "am" ? "am-ET" : "en-US",
+        timezoneId: "Africa/Addis_Ababa",
+        viewport: { width: 390, height: 1100 },
+      });
+      const page = await context.newPage();
+      const visible = (text: string | RegExp) =>
+        page.getByText(text).filter({ visible: true }).first();
+      await page.goto(`${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+      const add = language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids";
+      await page.getByRole("button", { name: add }).click();
+      await page.waitForTimeout(300);
+      await shot(page, `mobile-book-services-${language}-${scheme}`);
+      await page.getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" }).click();
+      await page
+        .getByRole("button", { name: /\d:\d\d.*, / })
+        .filter({ visible: true })
+        .first()
+        .waitFor();
+      await shot(page, `mobile-book-time-${language}-${scheme}`);
+      await page
+        .getByRole("button", { name: /\d:\d\d.*, / })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await page.getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" }).click();
+      await visible(language === "am" ? "ይገምግሙ እና ይያዙ" : "Review and book").waitFor();
+      await shot(page, `mobile-book-review-${language}-${scheme}`);
+      await context.close();
+    }
+  }
+});

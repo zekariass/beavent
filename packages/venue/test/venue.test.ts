@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTranslator } from "@beavent/i18n";
 import {
+  addDays,
   dualClock,
+  localDateOf,
+  partOfDay,
+  todayIn,
   durationText,
   openStatus,
   pick,
@@ -160,4 +164,15 @@ test("policies read as plain sentences", () => {
     ),
     ["Payment in full is needed to book"],
   );
+});
+
+test("days and parts of the day are counted in the venue's zone", () => {
+  assert.equal(addDays("2026-12-31", 1), "2027-01-01");
+  assert.equal(addDays("2026-03-01", -1), "2026-02-28");
+  // 22:30 UTC on 30 November is already 1 December in Addis Ababa.
+  assert.equal(localDateOf("2026-11-30T22:30:00Z", "Africa/Addis_Ababa"), "2026-12-01");
+  assert.equal(todayIn("Africa/Addis_Ababa", new Date("2026-11-30T22:30:00Z")), "2026-12-01");
+  assert.equal(partOfDay("2026-12-01T08:59:00Z", "Africa/Addis_Ababa"), "morning");
+  assert.equal(partOfDay("2026-12-01T09:00:00Z", "Africa/Addis_Ababa"), "afternoon");
+  assert.equal(partOfDay("2026-12-01T14:00:00Z", "Africa/Addis_Ababa"), "evening");
 });
