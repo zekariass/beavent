@@ -6,10 +6,7 @@
     "node": ">=26"
   },
   "workspaces": [
-    "mobile",
-    "web",
-    "business",
-    "admin-console",
+    "apps/*",
     "packages/*",
     "tools/*"
   ],
@@ -20,14 +17,15 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "api:build": "cd backend && ./gradlew build",
+    "api:build": "cd services/backend && ./gradlew build",
     "db:up": "docker compose up -d",
     "db:validate": "db/scripts/validate.sh --docker",
     "test": "turbo run test",
     "api:lint": "redocly lint beavent",
     "api:bundle": "redocly bundle beavent -o packages/api-client/openapi.yaml",
     "api:types": "openapi-typescript",
-    "api:spec": "npm run api:lint && npm run api:bundle && npm run api:types"
+    "api:spec": "npm run api:lint && npm run api:bundle && npm run api:types",
+    "e2e": "npm run e2e -w @beavent/e2e"
   },
   "devDependencies": {
     "@redocly/cli": "^2.75.0",

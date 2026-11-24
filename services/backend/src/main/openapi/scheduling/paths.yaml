@@ -1,0 +1,102 @@
+bookingPolicies:
+  get:
+    tags: [Booking policies]
+    operationId: listBookingPolicies
+    summary: All booking policies (organization default, per location, per service)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: Policies.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BookingPolicyList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Booking policies]
+    operationId: setBookingPolicy
+    summary: Create or replace the policy for a scope (organization, location, service, or both)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/BookingPolicyInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BookingPolicy
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+bookingPolicy:
+  delete:
+    tags: [Booking policies]
+    operationId: deleteBookingPolicy
+    summary: Remove a location or service policy (the next broader one applies again)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: policyId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+effectivePolicy:
+  get:
+    tags: [Booking policies]
+    operationId: getEffectiveBookingPolicy
+    summary: The policy that applies to a service at a location (most specific wins)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: serviceId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Policy, with the scope it came from.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BookingPolicy
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

@@ -11,5 +11,6 @@ Plan step:
 - [ ] `npm run db:validate` green (if `db/` changed); new tables follow docs/05 §7
 - [ ] `npm run lint`, `npm run typecheck`, `npm run build`, `npm run api:build` green
 - [ ] Amharic and English strings; Ethiopian date/time display where dates are shown
+- [ ] UI follows `docs/design/beavent` (tokens and shared components only; light/dark × am/en checked; visual QA screenshots attached)
 - [ ] Audit events for sensitive actions; metrics/alerts for new background jobs
 - [ ] Docs updated where behaviour differs from docs 03–06

@@ -30,20 +30,22 @@ flowchart LR
 
 | # | Deliverable | Audience | Technology |
 |---|---|---|---|
-| 1 | **Backend** `beavent-api` (`backend/`) | All clients, providers' webhooks, partner API | Java 25 (LTS), Spring Boot 4, Spring Modulith, jOOQ, Flyway, PostgreSQL 18 + PostGIS, Redis, RabbitMQ |
+| 1 | **Backend** `beavent-api` (`services/backend/`) | All clients, providers' webhooks, partner API | Java 25 (LTS), Spring Boot 4, Spring Modulith, jOOQ, Flyway, PostgreSQL 18 + PostGIS, Redis, RabbitMQ |
 | 2 | **Mobile app** | Consumers; organization members in Business mode | Expo / React Native, TypeScript, EAS builds + OTA updates |
 | 3 | **Web marketplace** | Consumers (SEO discovery, booking, checkout, account), embeddable widgets, organization mini-sites | Next.js (App Router), TypeScript |
 | 4 | **Partner portal** | Owners, managers, front desk, event organizers, finance | Next.js, TypeScript |
 | 5 | **Admin console** | Platform staff: ops, support, risk, finance, moderation, market managers | Next.js, TypeScript, internal network; code or Google sign-in, 12-hour sessions, step-up codes |
 
-Everything lives in one repository; the TypeScript clients are npm workspaces (Turborepo) and share generated API types and design tokens:
+Everything lives in one repository (decision, Nov 2026: two mobile apps — consumer and business — and one web platform); the TypeScript clients are npm workspaces (Turborepo) and share generated API types and design tokens:
 
 ```
-backend/          Spring Boot (Gradle) — API + worker processes
-mobile/           Expo — consumer app + Business mode
-web/              Next.js marketplace + /embed
-business/         Next.js business / organizer portal ("partner portal" in these docs)
-admin-console/    Next.js admin console
+services/
+  backend/          Spring Boot (Gradle) — API + worker processes
+apps/
+  public-mobile/    Expo — consumer app (customers)
+  business-mobile/  Expo — Business app (owners, staff, organizers); Business mode moves here from public-mobile/
+  web/              Next.js — the one web platform: public marketplace (+ /embed), business / organizer console
+                    ("partner portal" in these docs, at /[lang]/business) and the admin console (secret path)
 packages/
   api-client/     generated from the OpenAPI spec (TS types + fetch client + React Query hooks)
   ui/             design tokens, web components, RN components
@@ -182,7 +184,7 @@ Exception, for atomicity: the checkout command coordinates *commerce*, *scheduli
 
 | Concern | Convention |
 |---|---|
-| Style | REST/JSON, spec-first: OpenAPI 3.1 in `backend/src/main/openapi` (one folder per module) is the source of truth; bundled to `packages/api-client/openapi.yaml`, from which the TS client is generated (`npm run api:spec`) and which the backend serves at `/v1/openapi.yaml`. CI fails on a stale client and, for pull requests, on breaking changes (`oasdiff`). JSON fields are camelCase |
+| Style | REST/JSON, spec-first: OpenAPI 3.1 in `services/backend/src/main/openapi` (one folder per module) is the source of truth; bundled to `packages/api-client/openapi.yaml`, from which the TS client is generated (`npm run api:spec`) and which the backend serves at `/v1/openapi.yaml`. CI fails on a stale client and, for pull requests, on breaking changes (`oasdiff`). JSON fields are camelCase |
 | Namespaces | `/v1/auth`, `/v1/me`, `/v1/ref/*` (reference data), `/v1/marketplace/*` (public), `/v1/checkout/*`, `/v1/orgs/{orgId}/*` (partner; the organization comes from the path), `/v1/admin/*`, `/v1/hooks/{provider}` (inbound webhooks), `/v1/partner-api/*` (API keys) |
 | Money | `{ "amountMinor": 150000, "currency": "ETB" }`, never floats; formatting is client-side from currency metadata |
 | Time | RFC 3339 UTC instants plus the IANA zone of the location/occurrence; the Ethiopian calendar is display-only |

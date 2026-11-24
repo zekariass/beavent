@@ -1,0 +1,123 @@
+markets:
+  get:
+    tags: [Reference]
+    operationId: listMarkets
+    summary: Markets with their languages, currencies and feature switches
+    security: []
+    responses:
+      '200':
+        description: Markets.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketList
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+languages:
+  get:
+    tags: [Reference]
+    operationId: listLanguages
+    summary: Supported languages
+    security: []
+    responses:
+      '200':
+        description: Languages.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LanguageList
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+categories:
+  get:
+    tags: [Reference]
+    operationId: listCategories
+    summary: Business, service, event and product categories
+    security: []
+    parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [BUSINESS, SERVICE, EVENT, PRODUCT]
+    responses:
+      '200':
+        description: Categories.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CategoryList
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+adminAreas:
+  get:
+    tags: [Reference]
+    operationId: listAdminAreas
+    summary: Administrative areas (regions, sub-cities, woredas ...) for address pickers
+    security: []
+    parameters:
+      - name: countryCode
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/CountryCode
+      - name: parentId
+        in: query
+        required: false
+        description: Omit for top-level areas.
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Areas.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AdminAreaList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+permissions:
+  get:
+    tags: [Reference]
+    operationId: listPermissions
+    summary: Organization permission catalogue (for the role editor)
+    responses:
+      '200':
+        description: Permissions.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PermissionList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+publicHolidays:
+  get:
+    tags: [Reference]
+    operationId: listPublicHolidays
+    summary: Public holidays of a country in a year
+    security: []
+    parameters:
+      - name: countryCode
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/CountryCode
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+    responses:
+      '200':
+        description: Holidays.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PublicHolidayList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

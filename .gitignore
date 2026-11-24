@@ -15,15 +15,20 @@ coverage/
 npm-debug.log*
 
 # Expo
-mobile/.expo/
-mobile/ios/
-mobile/android/
+apps/*/.expo/
+apps/*/ios/
+apps/*/android/
 
-# Java / Gradle (backend has its own .gitignore too)
-backend/build/
-backend/.gradle/
+# Java / Gradle (services/backend has its own .gitignore too)
+services/backend/build/
+services/backend/.gradle/
 
 # Secrets and local env
 .env
 .env.*
 !.env.example
+
+# Playwright output
+tools/e2e/test-results/
+tools/e2e/playwright-report/
+

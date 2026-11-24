@@ -1,0 +1,110 @@
+Deposit:
+  type: object
+  required: [mode]
+  properties:
+    mode:
+      type: string
+      enum: [NONE, PERCENT, FIXED, FULL]
+    percent:
+      type: number
+      exclusiveMinimum: 0
+      maximum: 100
+      description: Required for PERCENT.
+    fixedMinor:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Required for FIXED (in the market's price currency).
+    appliesTo:
+      type: string
+      enum: [EVERYONE, NEW_CUSTOMERS, MARKETPLACE_CUSTOMERS, FLAGGED_CUSTOMERS]
+      default: EVERYONE
+BookingPolicyInput:
+  type: object
+  description: Leave locationId and serviceId out for the organization default.
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    minNoticeMinutes:
+      type: integer
+      minimum: 0
+      maximum: 43200
+      default: 60
+    maxAdvanceDays:
+      type: integer
+      minimum: 1
+      maximum: 730
+      default: 90
+    slotIntervalMinutes:
+      type: integer
+      enum: [5, 10, 15, 20, 30, 60]
+      default: 15
+    requiresApproval:
+      type: boolean
+      description: Request-to-book; the business confirms each booking.
+    allowPayAtVenue:
+      type: boolean
+      default: true
+    deposit:
+      $ref: '#/Deposit'
+    cancellationWindowMinutes:
+      type: integer
+      minimum: 0
+      maximum: 43200
+      default: 1440
+      description: Free cancellation until this long before the start.
+    lateCancelFeePercent:
+      type: number
+      minimum: 0
+      maximum: 100
+    noShowFeePercent:
+      type: number
+      minimum: 0
+      maximum: 100
+    policyText:
+      $ref: ../common/schemas.yaml#/LocalizedText
+BookingPolicy:
+  type: object
+  required: [scope, minNoticeMinutes, maxAdvanceDays, slotIntervalMinutes, requiresApproval, allowPayAtVenue, deposit, cancellationWindowMinutes, lateCancelFeePercent, noShowFeePercent, policyText]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    scope:
+      type: string
+      enum: [ORGANIZATION, LOCATION, SERVICE, SERVICE_AND_LOCATION, PLATFORM_DEFAULT]
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    minNoticeMinutes:
+      type: integer
+    maxAdvanceDays:
+      type: integer
+    slotIntervalMinutes:
+      type: integer
+    requiresApproval:
+      type: boolean
+    allowPayAtVenue:
+      type: boolean
+    deposit:
+      $ref: '#/Deposit'
+    currency:
+      $ref: ../common/schemas.yaml#/CurrencyCode
+    cancellationWindowMinutes:
+      type: integer
+    lateCancelFeePercent:
+      type: number
+    noShowFeePercent:
+      type: number
+    policyText:
+      $ref: ../common/schemas.yaml#/LocalizedText
+BookingPolicyList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/BookingPolicy'

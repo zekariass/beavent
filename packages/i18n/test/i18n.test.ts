@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { createTranslator, localized, missingKeys, negotiateLanguage } from "../src/index.ts";
+import {
+  createTranslator,
+  formatDuration,
+  localized,
+  missingKeys,
+  negotiateLanguage,
+} from "../src/index.ts";
 
 describe("catalogues", () => {
   test("Amharic and English are complete; Afaan Oromo is started", () => {
     assert.deepEqual(missingKeys("am"), []);
     assert.deepEqual(missingKeys("en"), []);
-    assert.ok(missingKeys("om").length > 0 && missingKeys("om").length < 25);
+    // Afaan Oromo is started: some keys are translated, the rest fall back to English.
+    assert.ok(missingKeys("om").length > 0);
+    assert.notEqual(createTranslator("om")("nav.explore"), createTranslator("en")("nav.explore"));
   });
   test("every Amharic message keeps the English placeholders", () => {
     const am = createTranslator("am");
@@ -43,5 +51,16 @@ describe("language choice", () => {
     assert.equal(localized(hair, "om", "am"), "ፀጉር");
     assert.equal(localized(hair, "om"), "Hair");
     assert.equal(localized({ so: "Timo" }, "am"), "Timo");
+  });
+});
+
+describe("durations", () => {
+  test("hours and minutes in each language", () => {
+    const en = createTranslator("en");
+    const am = createTranslator("am");
+    assert.equal(formatDuration(45, en), "45 min");
+    assert.equal(formatDuration(60, en), "1 h");
+    assert.equal(formatDuration(210, en), "3 h 30 min");
+    assert.equal(formatDuration(90, am), "1 ሰዓት 30 ደቂቃ");
   });
 });

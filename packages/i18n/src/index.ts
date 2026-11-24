@@ -139,3 +139,11 @@ function parseBranches(options: string): Record<string, string> {
 /** Keys missing in a language (for the translation checklist and the completeness test). */
 export const missingKeys = (language: Language): MessageKey[] =>
   (Object.keys(en) as MessageKey[]).filter((key) => !catalogues[language][key]);
+
+/** Duration for display: "45 min", "1 h", "1 h 30 min" / "1 ሰዓት 30 ደቂቃ" (docs/design/beavent/DESIGN_TOKENS.md §8.3). */
+export function formatDuration(minutes: number, t: Translate): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return t("duration.minutes", { m });
+  return m === 0 ? t("duration.hours", { h }) : t("duration.hoursMinutes", { h, m });
+}

@@ -1,0 +1,8 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "include": ["tests", "visual", "playwright.config.ts", "visual.config.ts"],
+  "compilerOptions": {
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  }
+}

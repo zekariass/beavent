@@ -88,6 +88,61 @@ export function format(value: Money, locale: string, options: { cash?: boolean }
   return formatter.format(toDecimal(shown) as unknown as number);
 }
 
+/** Short symbols where CLDR only offers the ISO code for a language (English prints "ETB" for the birr). */
+const DISPLAY_SYMBOLS: Readonly<Record<string, string>> = { ETB: "Br" };
+
+function currencyFormatter(locale: string, currency: string, digits: number): Intl.NumberFormat {
+  const options = {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  } as const;
+  try {
+    return new Intl.NumberFormat(locale, { ...options, currencyDisplay: "narrowSymbol" });
+  } catch {
+    // Engines without narrowSymbol support (older Hermes builds).
+    return new Intl.NumberFormat(locale, options);
+  }
+}
+
+/**
+ * Display amount for screens (docs/design/beavent/DESIGN_TOKENS.md §8.1): short symbol, and minor digits only when
+ * they are not zero — `Br 1,800`, `Br 49.50`, `ብር 1,800`. Pass `{ exact: true }` on payment surfaces (receipts,
+ * payment confirmation, refunds) to always show minor digits.
+ */
+export function formatDisplay(
+  value: Money,
+  locale: string,
+  options: { exact?: boolean } = {},
+): string {
+  const digits = minorUnits(value.currency);
+  const whole = value.amountMinor % 10 ** digits === 0;
+  const shown = options.exact || !whole ? digits : 0;
+  const decimal = toDecimal(value);
+  const text = currencyFormatter(locale, value.currency, shown).format(
+    (shown === 0 ? decimal.replace(/\.0+$/, "") : decimal) as unknown as number,
+  );
+  const symbol = DISPLAY_SYMBOLS[value.currency];
+  return symbol ? text.replace(value.currency, symbol) : text;
+}
+
+/** A price range sharing one symbol: `Br 1,200 – 2,400` (equal ends print once). */
+export function formatDisplayRange(min: Money, max: Money, locale: string): string {
+  sameCurrency(min, max);
+  if (min.amountMinor === max.amountMinor) return formatDisplay(min, locale);
+  const digits = minorUnits(max.currency);
+  const whole = max.amountMinor % 10 ** digits === 0;
+  const upper = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: whole ? 0 : digits,
+    maximumFractionDigits: whole ? 0 : digits,
+  }).format(toDecimal(max) as unknown as number);
+  return `${formatDisplay(min, locale)} – ${upper}`;
+}
+
+/** Plain amount for form inputs, without symbol or zero minor digits: "1500", "1500.50". */
+export const toPlainAmount = (value: Money): string => toDecimal(value).replace(/\.0+$/, "");
+
 function sameCurrency(a: Money, b: Money): void {
   if (a.currency !== b.currency)
     throw new TypeError(`currency mismatch: ${a.currency} vs ${b.currency}`);

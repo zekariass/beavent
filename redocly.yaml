@@ -1,7 +1,7 @@
-# OpenAPI lint rules (npm run api:lint). Source: backend/src/main/openapi; bundle: packages/api-client/openapi.yaml.
+# OpenAPI lint rules (npm run api:lint). Source: services/backend/src/main/openapi; bundle: packages/api-client/openapi.yaml.
 apis:
   beavent:
-    root: backend/src/main/openapi/openapi.yaml
+    root: services/backend/src/main/openapi/openapi.yaml
     x-openapi-ts:
       output: packages/api-client/src/schema.ts
 extends:
