@@ -6,7 +6,7 @@ import { About } from "@/components/venue/About";
 import { ServiceList } from "@/components/venue/ServiceList";
 import { TeamRail } from "@/components/venue/TeamRail";
 import { VenueGallery } from "@/components/venue/VenueGallery";
-import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { SiteHeader } from "@/components/SiteHeader";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { loadVenue } from "@/lib/venue";
 import { dualClock, openStatus, pick, venueFacts } from "@beavent/venue";
@@ -59,12 +59,7 @@ export default async function VenuePage({ params }: Props) {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link href={`/${language}`} className="bv-type-title2 text-fg">
-          {t("app.name")}
-        </Link>
-        <LanguageSwitch current={language} label={t("language.label")} />
-      </header>
+      <SiteHeader language={language} path={`/b/${business}/${location}`} />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 pb-24 sm:px-6 lg:pb-12">
         <VenueGallery venue={venue} language={language} />

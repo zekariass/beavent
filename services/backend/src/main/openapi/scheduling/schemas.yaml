@@ -340,8 +340,10 @@ MyAppointmentPlace:
       type: [string, 'null']
 MyAppointmentItem:
   type: object
-  required: [serviceName, start, end, priceMinor, currency]
+  required: [variantId, serviceName, start, end, priceMinor, currency]
   properties:
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
     serviceName:
       type: string
     variantName:

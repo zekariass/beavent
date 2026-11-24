@@ -1,17 +1,7 @@
 "use client";
 
 import type { Schemas } from "@beavent/api-client";
-import {
-  ETHIOPIAN_MONTHS,
-  WEEKDAYS,
-  defaultDisplayPreferences,
-  formatDualDate,
-  formatDualTime,
-  gregorianToEthiopian,
-  gregorianToJdn,
-  isoWeekday,
-  zoned,
-} from "@beavent/calendar";
+import { defaultDisplayPreferences, formatDualDate, formatDualTime } from "@beavent/calendar";
 import { createTranslator, formatDuration, type Language } from "@beavent/i18n";
 import {
   calendarLanguage,
@@ -23,6 +13,7 @@ import {
 } from "@beavent/venue";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { DayStrip, TimeGrid, addDays, localDateOf, todayIn } from "@/components/booking/time";
 import { book, findTimes, holdTime, releaseHold, sendCode, type ItemChoice } from "./actions";
 
 interface Picked {
@@ -39,22 +30,6 @@ const secondaryButton =
   "bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg border border-border-strong px-4 text-fg hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 const input =
   "bv-type-body min-h-12 w-full rounded-lg border border-border-strong bg-background px-3 text-fg focus-visible:outline-2 focus-visible:outline-focus";
-
-/** Local date "YYYY-MM-DD" `days` after `date`. */
-function addDays(date: string, days: number): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
-}
-
-function todayIn(timeZone: string): string {
-  const z = zoned(new Date(), timeZone);
-  return `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
-}
-
-function localDateOf(instant: string, timeZone: string): string {
-  const z = zoned(instant, timeZone);
-  return `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
-}
 
 /**
  * The booking flow (S-06 → S-10b, SERVICES_MARKETPLACE_DESIGN.md §5): services, professional (skipped when only one
@@ -384,9 +359,14 @@ export function BookingFlow({
         <p className="bv-type-body text-fg-muted">
           {requested ? t("booking.done.requestMessage") : t("booking.done.message")}
         </p>
-        <Link href={venueHref} className={secondaryButton}>
-          {t("booking.done.backToVenue", { name: venue.businessName })}
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link href={`/${language}/account/bookings`} className={primaryButton}>
+            {t("booking.done.viewBookings")}
+          </Link>
+          <Link href={venueHref} className={secondaryButton}>
+            {t("booking.done.backToVenue", { name: venue.businessName })}
+          </Link>
+        </div>
       </main>
     );
   }
@@ -550,48 +530,13 @@ export function BookingFlow({
                   ) : null}
                 </div>
               ) : (
-                (["morning", "afternoon", "evening"] as const).map((period) => {
-                  const inPeriod = daySlots.filter((s) => {
-                    const h = zoned(s.start, venue.timezone).hour;
-                    return period === "morning"
-                      ? h < 12
-                      : period === "afternoon"
-                        ? h >= 12 && h < 17
-                        : h >= 17;
-                  });
-                  if (inPeriod.length === 0) return null;
-                  return (
-                    <fieldset key={period} className="flex flex-col gap-2">
-                      <legend className="bv-type-label mb-2 text-fg-muted">
-                        {t(`booking.time.${period}`)}
-                      </legend>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {inPeriod.map((s) => {
-                          const label = timeText(s.start);
-                          const selected = chosen === s.start;
-                          return (
-                            <button
-                              type="button"
-                              key={s.start}
-                              aria-pressed={selected}
-                              onClick={() => setChosen(s.start)}
-                              className={`flex min-h-14 flex-col items-center justify-center rounded-lg border px-2 py-1 focus-visible:outline-2 focus-visible:outline-focus ${
-                                selected
-                                  ? "border-primary bg-primary-subtle"
-                                  : "border-border-strong hover:bg-surface"
-                              }`}
-                            >
-                              <span className="bv-type-label text-fg">{label.primary}</span>
-                              <span className="bv-type-caption text-fg-muted">
-                                {label.secondary}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </fieldset>
-                  );
-                })
+                <TimeGrid
+                  slots={daySlots}
+                  timeZone={venue.timezone}
+                  language={language}
+                  chosen={chosen}
+                  onChoose={setChosen}
+                />
               )}
             </section>
           ) : null}
@@ -889,64 +834,5 @@ function ServicesStep({
         </div>
       ))}
     </section>
-  );
-}
-
-/** Seven days from `from`: weekday and day number in the reader's calendar, the other calendar beneath. */
-function DayStrip({
-  from,
-  selected,
-  language,
-  withTimes,
-  onSelect,
-}: {
-  from: string;
-  selected: string;
-  language: Language;
-  withTimes: Set<string> | null;
-  onSelect: (date: string) => void;
-}) {
-  const lang = calendarLanguage(language);
-  const ethiopianFirst = defaultDisplayPreferences(lang).calendar === "ETHIOPIAN";
-  return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-      {Array.from({ length: 7 }, (_, i) => addDays(from, i)).map((date) => {
-        const [y, m, d] = date.split("-").map(Number) as [number, number, number];
-        const weekday =
-          WEEKDAYS[lang][isoWeekday(gregorianToJdn({ year: y, month: m, day: d })) - 1]!;
-        const eth = gregorianToEthiopian({ year: y, month: m, day: d });
-        const gregorian = new Intl.DateTimeFormat("en", {
-          day: "numeric",
-          month: "short",
-          timeZone: "UTC",
-        }).format(Date.UTC(y, m - 1, d));
-        const ethiopian = `${ETHIOPIAN_MONTHS[lang][eth.month - 1]} ${eth.day}`;
-        const isSelected = date === selected;
-        const empty = withTimes != null && !withTimes.has(date);
-        return (
-          <button
-            type="button"
-            key={date}
-            aria-pressed={isSelected}
-            onClick={() => onSelect(date)}
-            className={`flex min-h-16 min-w-20 shrink-0 flex-col items-center justify-center rounded-lg border px-2 py-1 focus-visible:outline-2 focus-visible:outline-focus ${
-              isSelected
-                ? "border-primary bg-primary-subtle"
-                : "border-border-strong hover:bg-surface"
-            }`}
-          >
-            <span className={`bv-type-caption ${empty ? "text-fg-subtle" : "text-fg-muted"}`}>
-              {weekday.slice(0, lang === "en" ? 3 : undefined)}
-            </span>
-            <span className={`bv-type-label ${empty ? "text-fg-subtle" : "text-fg"}`}>
-              {ethiopianFirst ? ethiopian : gregorian}
-            </span>
-            <span className="bv-type-caption text-fg-subtle">
-              {ethiopianFirst ? gregorian : ethiopian}
-            </span>
-          </button>
-        );
-      })}
-    </div>
   );
 }

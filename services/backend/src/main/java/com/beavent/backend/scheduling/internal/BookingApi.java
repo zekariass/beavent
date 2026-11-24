@@ -69,6 +69,7 @@ public class BookingApi {
             String phone) {}
 
     public record MineItemBody(
+            UUID variantId,
             String serviceName,
             String variantName,
             String staffName,
@@ -158,6 +159,7 @@ public class BookingApi {
                                             n.phone()),
                             m.items().stream()
                                     .map(i -> new MineItemBody(
+                                            i.variantId(),
                                             i.serviceName(),
                                             i.variantName(),
                                             i.staffName(),

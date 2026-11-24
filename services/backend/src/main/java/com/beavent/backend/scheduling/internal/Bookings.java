@@ -917,6 +917,7 @@ class Bookings {
     // --- the person's own appointments ---------------------------------------------------------------------------
 
     record MineItem(
+            UUID variantId,
             String serviceName,
             String variantName,
             String staffName,
@@ -951,6 +952,7 @@ class Bookings {
                     .orderBy(APPOINTMENT_ITEMS.APPOINTMENT_ID, APPOINTMENT_ITEMS.SEQ)
                     .forEach(i -> items.computeIfAbsent(i.getAppointmentId(), k -> new ArrayList<>())
                             .add(new MineItem(
+                                    i.getServiceVariantId(),
                                     i.getServiceName(),
                                     i.getVariantName(),
                                     i.getStaffName(),

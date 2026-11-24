@@ -44,9 +44,38 @@ test("a newcomer books from a shared link and signs in inline", async ({ page })
   await page.goto(`/en/b/${salon.orgSlug}/${salon.locationSlug}/book`);
   await page.getByRole("button", { name: "Add Box braids" }).click();
   await page.getByRole("button", { name: "Continue" }).first().click();
+  // A week later: far enough ahead to be changed and cancelled for free.
+  await page.getByRole("button", { name: /Later dates/ }).click();
   await page.locator("fieldset button[aria-pressed]").first().click();
   await page.getByRole("button", { name: "Continue" }).first().click();
   await expect(page.getByText(/Signed in as/)).toBeVisible();
   await page.getByRole("button", { name: "Book", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("You're booked");
+
+  // Bookings: both appear under Upcoming; the detail shows the terms; moving and cancelling work.
+  await page.getByRole("link", { name: "See my bookings" }).click();
+  await expect(page.getByRole("heading", { name: "Bookings" })).toBeVisible();
+  const rows = page.locator("main ul li a");
+  await expect(rows).toHaveCount(2);
+  await rows.last().click();
+  await expect(page.getByText("Confirmed")).toBeVisible();
+  await expect(page.getByText(/Free cancellation until/)).toBeVisible();
+
+  await page.getByRole("link", { name: "Reschedule" }).click();
+  await expect(page.getByRole("heading", { name: "Reschedule" })).toBeVisible();
+  await page.getByRole("button", { name: /Later dates/ }).click();
+  await page.locator("fieldset button[aria-pressed]").first().click();
+  await expect(page.getByRole("heading", { name: /Move to/ })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm new time" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("Reschedule");
+  await expect(page.getByRole("link", { name: "Reschedule" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel booking" }).click();
+  await expect(page.getByText("You won't be charged.")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel booking" }).click();
+  await expect(page.getByText("This booking is cancelled.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Book again" })).toBeVisible();
+
+  await page.goto("/en/account/bookings?tab=past");
+  await expect(page.getByText("Cancelled")).toBeVisible();
 });

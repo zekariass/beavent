@@ -2833,6 +2833,7 @@ export interface components {
             phone?: string | null;
         };
         MyAppointmentItem: {
+            variantId: components["schemas"]["Uuid"];
             serviceName: string;
             variantName?: string | null;
             staffName?: string | null;

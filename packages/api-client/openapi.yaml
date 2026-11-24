@@ -6777,12 +6777,15 @@ components:
     MyAppointmentItem:
       type: object
       required:
+        - variantId
         - serviceName
         - start
         - end
         - priceMinor
         - currency
       properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
         serviceName:
           type: string
         variantName:

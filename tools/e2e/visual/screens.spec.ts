@@ -325,3 +325,49 @@ test("booking flow · services, time, review", async ({ browser }) => {
     }
   }
 });
+
+test("bookings · list, detail, reschedule", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  const context = await browser.newContext({
+    locale: "en-US",
+    timezoneId: "Africa/Addis_Ababa",
+    viewport: DESKTOP,
+  });
+  const page = await context.newPage();
+  // Book once (signing in inline), a week ahead.
+  await page.goto(`${WEB}/en/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+  await page.getByRole("button", { name: "Add Box braids" }).click();
+  await page.getByRole("button", { name: "Continue" }).first().click();
+  await page.getByRole("button", { name: /Later dates/ }).click();
+  await page.locator("fieldset button[aria-pressed]").first().click();
+  await page.getByRole("button", { name: "Continue" }).first().click();
+  const phone = newPhone();
+  await page.getByLabel("Phone number").fill(phone);
+  const seen = codeCount(phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
+  await page.getByRole("button", { name: "Confirm and book" }).click();
+  await page.getByRole("link", { name: "See my bookings" }).click();
+  await page.locator("main ul li a").first().click();
+  await page.waitForURL(/\/account\/bookings\/[0-9a-f-]{36}$/);
+  const detail = page.url().replace(`${WEB}/en`, "");
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/account/bookings`);
+        await shot(page, `bookings-list-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}${detail}`);
+        await shot(page, `bookings-detail-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}${detail}/reschedule`);
+        await page.locator("fieldset button[aria-pressed]").first().waitFor();
+        await shot(page, `bookings-reschedule-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await context.close();
+});
