@@ -19,11 +19,7 @@ const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:808
 
 /** The client app the API records for sign-ins (identity `ClientApp`). */
 export type ClientApp =
-  | "MOBILE_APP"
-  | "BUSINESS_APP"
-  | "WEB_MARKETPLACE"
-  | "PARTNER_PORTAL"
-  | "ADMIN_CONSOLE";
+  "MOBILE_APP" | "BUSINESS_APP" | "WEB_MARKETPLACE" | "PARTNER_PORTAL" | "ADMIN_CONSOLE";
 const ACCESS = "beavent.access";
 const REFRESH = "beavent.refresh";
 const PREFERENCES = "beavent.preferences";
