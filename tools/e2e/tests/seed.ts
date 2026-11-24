@@ -156,6 +156,24 @@ export async function seedSalon(name: string): Promise<SeededSalon> {
     },
     token,
   );
+  // Hana works Monday to Saturday, 09:00-18:00, from a week ago (so availability has times from today on).
+  const effectiveFrom = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  await api(
+    "PUT",
+    `/v1/orgs/${org.id}/staff/${staff.id}/working-pattern`,
+    {
+      effectiveFrom,
+      repeatWeeks: 1,
+      entries: [1, 2, 3, 4, 5, 6].map((isoWeekday) => ({
+        week: 1,
+        locationId: location.id,
+        isoWeekday,
+        startsAt: "09:00",
+        endsAt: "18:00",
+      })),
+    },
+    token,
+  );
   await api(
     "PUT",
     `/v1/orgs/${org.id}/booking-policies`,

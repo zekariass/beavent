@@ -158,8 +158,8 @@ export default async function VenuePage({ params }: Props) {
             ) : null}
           </div>
 
-          {/* Booking column on desktop; a bar fixed to the bottom on phones. Online booking arrives in step 2.4. */}
-          {tel ? (
+          {/* Booking column on desktop; a bar fixed to the bottom on phones. */}
+          {venue.onlineBooking || tel ? (
             <aside className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-4 py-3 lg:sticky lg:top-6 lg:bottom-auto lg:rounded-lg lg:border lg:p-5">
               <div className="mx-auto flex max-w-6xl flex-col gap-2">
                 {!venue.onlineBooking ? (
@@ -167,10 +167,24 @@ export default async function VenuePage({ params }: Props) {
                     {hasServices ? t("venue.phoneOnly") : t("venue.noServices")}
                   </p>
                 ) : null}
+                {venue.onlineBooking ? (
+                  <Link
+                    href={`/${language}/b/${venue.businessSlug}/${venue.locationSlug}/book`}
+                    className="bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
+                  >
+                    {venue.policy.requiresApproval
+                      ? t("booking.review.requestBook")
+                      : t("booking.bookNow")}
+                  </Link>
+                ) : null}
                 {tel ? (
                   <a
                     href={tel}
-                    className="bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
+                    className={
+                      venue.onlineBooking
+                        ? "bv-type-label hidden min-h-12 items-center justify-center rounded-lg border border-border-strong px-5 text-fg hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus lg:inline-flex"
+                        : "bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
+                    }
                   >
                     {venue.onlineBooking ? t("venue.call") : t("venue.callToBook")}
                   </a>

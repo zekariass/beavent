@@ -5,12 +5,21 @@ import { OPS_INTERNAL, adminBase } from "@/lib/admin-path";
 const API_URL =
   process.env.BEAVENT_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-/** Cookie settings per signed-in surface (names must match `lib/business/session.ts` and `lib/ops/session.ts`). */
+/**
+ * Cookie settings per signed-in surface (names must match `lib/business/session.ts`, `lib/customer/session.ts` and
+ * `lib/ops/session.ts`).
+ */
 const BUSINESS = {
   access: "bv_portal_access",
   refresh: "bv_portal_refresh",
   sameSite: "lax" as const,
   refreshMaxAge: 60 * 60 * 24 * 30,
+};
+const CUSTOMER = {
+  access: "bv_web_access",
+  refresh: "bv_web_refresh",
+  sameSite: "lax" as const,
+  refreshMaxAge: 60 * 60 * 24 * 90,
 };
 const OPS = {
   access: "bv_admin_access",
@@ -31,7 +40,7 @@ function secondsLeft(jwt: string | undefined): number {
   }
 }
 
-type Session = typeof BUSINESS | typeof OPS;
+type Session = typeof BUSINESS | typeof CUSTOMER | typeof OPS;
 
 /**
  * Shortly before the access token expires, rotate it with the refresh token and give the new cookies to the page being
@@ -134,16 +143,26 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  let response = NextResponse.next();
-  const rotated = await rotate(request, BUSINESS, 90);
-  if (rotated === "failed") {
-    response.cookies.delete(BUSINESS.access);
-    response.cookies.delete(BUSINESS.refresh);
-  } else if (rotated) {
-    request.cookies.set(BUSINESS.access, rotated.accessToken);
-    request.cookies.set(BUSINESS.refresh, rotated.refreshToken);
-    response = NextResponse.next({ request: { headers: request.headers } });
-    writeCookies(response, BUSINESS, rotated);
+  // Business-console and customer sessions are kept alive independently (a stylist may be both).
+  const results: [Session, Awaited<ReturnType<typeof rotate>>][] = [];
+  for (const session of [BUSINESS, CUSTOMER])
+    results.push([session, await rotate(request, session, 90)]);
+  for (const [session, rotated] of results) {
+    if (rotated && rotated !== "failed") {
+      request.cookies.set(session.access, rotated.accessToken);
+      request.cookies.set(session.refresh, rotated.refreshToken);
+    }
+  }
+  const response = results.some(([, r]) => r && r !== "failed")
+    ? NextResponse.next({ request: { headers: request.headers } })
+    : NextResponse.next();
+  for (const [session, rotated] of results) {
+    if (rotated === "failed") {
+      response.cookies.delete(session.access);
+      response.cookies.delete(session.refresh);
+    } else if (rotated) {
+      writeCookies(response, session, rotated);
+    }
   }
   response.cookies.set("bv_lang", first, {
     path: "/",

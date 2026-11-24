@@ -274,3 +274,54 @@ test("venue page · both languages, both themes, phone and desktop", async ({ br
     }
   }
 });
+
+test("booking flow · services, time, review", async ({ browser }) => {
+  const salon = await seedSalon("Abeba Beauty");
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        const context = await browser.newContext({
+          colorScheme: scheme,
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          viewport: size,
+        });
+        const page = await context.newPage();
+        await page.goto(`${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+        const add = language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids";
+        await page.getByRole("button", { name: add }).click();
+        await page.screenshot({
+          path: `test-results/visual/book-services-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page
+          .getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" })
+          .first()
+          .click();
+        await page.locator("fieldset button[aria-pressed]").first().waitFor();
+        await page.screenshot({
+          path: `test-results/visual/book-time-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page.locator("fieldset button[aria-pressed]").first().click();
+        await page
+          .getByRole("button", { name: language === "am" ? "ቀጥል" : "Continue" })
+          .first()
+          .click();
+        await page
+          .locator("h1")
+          .filter({ hasText: language === "am" ? "ይገምግሙ" : "Review" })
+          .waitFor();
+        await page.screenshot({
+          path: `test-results/visual/book-review-${language}-${scheme}-${viewport}.png`,
+          fullPage: true,
+        });
+        await page.getByRole("button", { name: language === "am" ? "ተመለስ" : "Back" }).click();
+        await context.close();
+      }
+    }
+  }
+});
