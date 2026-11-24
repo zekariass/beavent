@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@beavent/config": "*",
-    "typescript": "^5",
+    "typescript": "^7",
     "@types/node": "^24.19.2"
   }
 }
