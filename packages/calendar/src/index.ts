@@ -173,17 +173,22 @@ const ERA: Record<CalendarLanguage, string> = { am: "ዓ.ም.", en: "E.C.", om: 
 export function formatEthiopianDate(
   date: CalendarDate,
   language: CalendarLanguage,
-  options: { weekday?: boolean } = {},
+  options: { weekday?: boolean; year?: boolean } = {},
 ): string {
   const month = ETHIOPIAN_MONTHS[language][date.month - 1];
   const weekday = options.weekday
     ? WEEKDAYS[language][isoWeekday(ethiopianToJdn(date)) - 1]
     : undefined;
+  const withYear = options.year ?? true;
   if (language === "am") {
-    const text = `${month} ${date.day} ቀን ${date.year} ${ERA.am}`;
+    const text = withYear
+      ? `${month} ${date.day} ቀን ${date.year} ${ERA.am}`
+      : `${month} ${date.day}`;
     return weekday ? `${weekday}፣ ${text}` : text;
   }
-  const text = `${month} ${date.day}, ${date.year} ${ERA[language]}`;
+  const text = withYear
+    ? `${month} ${date.day}, ${date.year} ${ERA[language]}`
+    : `${month} ${date.day}`;
   return weekday ? `${weekday}, ${text}` : text;
 }
 
@@ -281,4 +286,94 @@ export function formatInstant(
       ? formatEthiopianTime(toEthiopianTime(local.hour, local.minute), preferences.language)
       : formatStandardTime(local.hour, local.minute);
   return `${date} · ${time}`;
+}
+
+// --- Display helpers for screens (docs/design/beavent/DESIGN_TOKENS.md §8.2–8.3) ---------------------------------
+
+/**
+ * Defaults per language until the person chooses (DD7): Ethiopian calendar for Amharic and Afaan Oromo readers,
+ * Gregorian for English; Ethiopian time for Amharic, international time otherwise.
+ */
+export function defaultDisplayPreferences(
+  language: CalendarLanguage,
+  timeZone = "Africa/Addis_Ababa",
+): DisplayPreferences {
+  return {
+    language,
+    calendar: language === "en" ? "GREGORIAN" : "ETHIOPIAN",
+    timeConvention: language === "am" ? "ETHIOPIAN" : "STANDARD",
+    timeZone,
+  };
+}
+
+/**
+ * International (standard) clock for people: 12-hour with AM/PM in every language ("9:00 AM", decision Q7 — the
+ * convention of doc 06's example "ጠዋት 3:00 (9:00 AM)"). Partner and staff tools keep the 24-hour
+ * `formatStandardTime` (doc 06 §2.1).
+ */
+export function formatClock(hour: number, minute: number, _language?: CalendarLanguage): string {
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12}:${pad(minute)} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** A value in the person's preferred convention plus the other convention, which screens show muted. */
+export interface DualText {
+  primary: string;
+  secondary: string;
+}
+
+/** Time of an instant in both conventions, preferred first: { "ጠዋት 3:30", "09:30" } or { "9:30 AM", "3:30 in the morning" }. */
+export function formatDualTime(
+  instant: Date | string | number,
+  preferences: DisplayPreferences,
+): DualText {
+  const local = zoned(instant, preferences.timeZone);
+  const ethiopian = formatEthiopianTime(
+    toEthiopianTime(local.hour, local.minute),
+    preferences.language,
+  );
+  const standard = formatClock(local.hour, local.minute, preferences.language);
+  return preferences.timeConvention === "ETHIOPIAN"
+    ? { primary: ethiopian, secondary: standard }
+    : { primary: standard, secondary: ethiopian };
+}
+
+function gregorianText(
+  date: CalendarDate,
+  language: CalendarLanguage,
+  options: { weekday?: boolean; year?: boolean },
+): string {
+  const format = (locale: string) =>
+    new Intl.DateTimeFormat(locale, {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "long",
+      ...(options.weekday ? { weekday: "long" as const } : {}),
+      ...(options.year === false ? {} : { year: "numeric" as const }),
+    }).format(Date.UTC(date.year, date.month - 1, date.day));
+  try {
+    return format(language);
+  } catch {
+    return format("en");
+  }
+}
+
+/**
+ * A date in both calendars, preferred first. Accepts an instant (shown in `preferences.timeZone`) or a Gregorian
+ * calendar date (e.g. a schedule day "2026-11-23" parsed to { year, month, day }).
+ */
+export function formatDualDate(
+  value: Date | string | number | CalendarDate,
+  preferences: DisplayPreferences,
+  options: { weekday?: boolean; year?: boolean } = {},
+): DualText {
+  const date: CalendarDate =
+    typeof value === "object" && !(value instanceof Date)
+      ? value
+      : zoned(value, preferences.timeZone);
+  const ethiopian = formatEthiopianDate(gregorianToEthiopian(date), preferences.language, options);
+  const gregorian = gregorianText(date, preferences.language, options);
+  return preferences.calendar === "ETHIOPIAN"
+    ? { primary: ethiopian, secondary: gregorian }
+    : { primary: gregorian, secondary: ethiopian };
 }

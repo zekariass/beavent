@@ -96,7 +96,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 *Done when:* the full suite passes on PostGIS locally and in CI.
 
 **0.3 Monorepo and toolchain.** ✅ *Done* (CODEOWNERS pending GitHub usernames).
-- Layout (doc 03 §1): `backend/`, `mobile/`, `web/`, `business/`, `admin-console/`, `packages/{api-client,ui,i18n,calendar,money,config}`, `db/`, `docs/`.
+- Layout (doc 03 §1): `services/backend/`, `apps/public-mobile/`, `apps/web/` (public site, business console, admin console), `packages/{api-client,ui,i18n,calendar,money,config}`, `db/`, `docs/`.
 - npm workspaces + Turborepo for TypeScript; Gradle for the API (Flyway packages `db/migration`; jOOQ, Spring Modulith, AMQP, Actuator, Testcontainers).
 - Pinned: Java 21 LTS (move to 25 later without code change); Node 26 / npm 11; Spring Boot 4.1; Expo SDK 58; Next.js 16.
 - Formatters and linters (Prettier, ESLint, Expo lint, Spotless/Palantir Java Format), PR template with the definition of done; CODEOWNERS once GitHub usernames are known.
@@ -107,11 +107,11 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 - CI: format, lint, typecheck, tests (incl. the Chapa stub), builds, DB validation on PostGIS, backend build with Testcontainers and Spring Modulith boundary tests, all container images. The OpenAPI breaking-change check is added with the first spec (step 0.6).
 - Docker Compose dev stack: PostGIS, Redis, RabbitMQ, SeaweedFS (S3-compatible storage; MinIO stopped publishing images, replaced in 0.9), Mailpit, plus the **Chapa stub** (initialize, direct charge, verify, refund, subaccount, signed webhooks, outcome by phone suffix, fault injection) so payment work can start before Chapa test keys arrive.
 - Secrets: `.env` locally (from `.env.example`), a secret manager once hosted. The DB stores only `*_secret_ref`.
-- Container images: backend, Chapa stub, and one shared Next.js image definition (standalone output) for web, business and admin-console. Dependabot weekly.
+- Container images: backend, Chapa stub, and one Next.js image definition (standalone output) for the web platform. Dependabot weekly.
 
 *Done when:* every PR runs the full pipeline. (Verified locally: every CI command passes and the workflow passes actionlint; it runs on GitHub after the first push.)
 
-**0.5 Backend skeleton.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/platform` (24 backend tests).
+**0.5 Backend skeleton.** ✅ *Done* — `services/backend/src/main/java/com/beavent/backend/platform` (24 backend tests).
 - Spring Boot + Spring Modulith; the `platform` module carries the cross-cutting pieces below, its public API in the base package and internals in sub-packages. Domain modules (one per schema, doc 03 §2.2) are added as their stages start; `ModularityTests` enforces boundaries.
 - Flyway runs `db/migration`; jOOQ classes are generated at build time from a throwaway PostGIS migrated with the same files (`com.beavent.db.<schema>`, outside the module root; explicit joins only).
 - Four pools: schema owner (Flyway only) and one per runtime role — `beavent_app` (primary, RLS), `beavent_identity` (`@IdentityDb`), `beavent_system` (`@SystemDb`). The app transaction manager calls `platform.set_request_context(user, org)` at the start of every transaction from `RequestContext`; no context means no tenant rows (fails closed). Local role logins are created by a Flyway callback in the `local` profile only; production logins come from infrastructure-as-code.
@@ -121,7 +121,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* an integration test (Testcontainers + PostGIS) writes a row + outbox event under RLS and a consumer handles it exactly once. ✅ (`OutboxTests`, plus `RequestContextIsolationTests`, `IdempotencyTests`.)
 
-**0.6 API contract workflow.** ✅ *Done* — `backend/src/main/openapi` (identity, tenancy, reference specs for steps 0.7–0.8), `packages/api-client`.
+**0.6 API contract workflow.** ✅ *Done* — `services/backend/src/main/openapi` (identity, tenancy, reference specs for steps 0.7–0.8), `packages/api-client`.
 - Spec-first OpenAPI 3.1, one folder per module (`common`, `identity`, `tenancy`, `reference`), linted with Redocly (`redocly.yaml`) and bundled to `packages/api-client/openapi.yaml`.
 - `packages/api-client`: generated types (`openapi-typescript`), typed fetch client (`openapi-fetch`) adding auth, language and `X-Request-Id`, React Query hooks (`openapi-react-query`), idempotency-key and problem helpers; used by web, business, admin-console and mobile (`src/lib/api.ts`).
 - Backend serves the bundle at `/v1/openapi.yaml`; a test keeps `ProblemCode` identical to the contract's error codes. Request/response validation against the spec is added with the first endpoints (0.7: `swagger-request-validator-mockmvc` checks every request and response in the API tests).
@@ -130,7 +130,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* the auth + tenancy spec is merged and used by the app shells. ✅
 
-**0.7 Identity.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/identity` (42 backend tests in total).
+**0.7 Identity.** ✅ *Done* — `services/backend/src/main/java/com/beavent/backend/identity` (42 backend tests in total).
 - Sign-in by one-time code to a phone or an email address (email codes added 2026-11-19): one `SIGN_IN` step for new and existing people (responses never reveal whether an account exists). Proving an inbox never opens another account that merely typed the same address unverified (the unverified copy is released). Codes and phone numbers are stored only as HMACs; 5 attempts per code, 30 s resend window, per-phone and per-IP hourly limits in Redis (`429 RATE_LIMITED`). Codes go through the `SmsGateway` port; locally and in CI the `log` provider records them — a real provider needs D4.
 - No passwords and no authenticator apps (decision 2026-11-19; `V2_03` drops their tables).
 - Google sign-in (Apple in the iOS app): ID tokens verified against the providers' keys (issuer, audience, nonce, signature); a verified provider email joins the account that verified the same address. Returns `404` until client ids are configured (D12).
@@ -141,7 +141,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* every auth flow, including brute-force limits and token-reuse detection, has integration tests. ✅ (`IdentityApiTests`, `ProviderSignInTests`, `IdTokenVerifierTest`.)
 
-**0.8 Organizations and access.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/tenancy`, `.../reference` (48 backend tests in total).
+**0.8 Organizations and access.** ✅ *Done* — `services/backend/src/main/java/com/beavent/backend/tenancy`, `.../reference` (48 backend tests in total).
 - Onboarding API: create an organization (kind, business category, market, language; the creator becomes owner; slug from the name or chosen, reserved words refused), profile updates with `If-Match`, capabilities checked against the market's feature switches, legal entities (TIN, VAT/TOT regime, one default per country, currency from the country; changing verified details resets verification), locations with their premises place (landmark-first address following the country's address format, map pin, opening hours with split shifts).
 - Members, invitations by SMS (email through the `log` provider until Stage 8), system role templates plus custom roles, location scope (members limited to some locations see only those).
 - Access checks: org from the `/v1/orgs/{orgId}` path → active membership (system role) → `OrgAccess` permission check → database context narrowed to that org (RLS). Non-members get `404`, suspended organizations are read-only. Nobody can grant permissions they do not hold; granting sensitive permissions, changing a member's role, suspending or removing a member needs step-up; the owner's access cannot be changed (ownership transfer comes later).
@@ -151,7 +151,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* API-level tests prove an org A token can never read or write org B data. ✅ (`TenancyApiTests`: B's ids and paths are `404`/`422` from A's workspace, including for a person who belongs to both.)
 
-**0.9 Files and media.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/files` (52 backend tests in total).
+**0.9 Files and media.** ✅ *Done* — `services/backend/src/main/java/com/beavent/backend/files` (52 backend tests in total).
 - Direct uploads: the API creates the file record and a pre-signed PUT (15 minutes) to the private bucket; the client uploads, then calls `complete`, which checks the stored size and type. Each purpose (logo, cover, gallery, event media, KYC, document, avatar) fixes who may upload, allowed types (JPEG/PNG, PDF) and size.
 - Processing worker (`file.uploaded` via the outbox): content-type check from the file's bytes, malware scan (`MalwareScanner`: ClamAV `clamd` in production — needs hosting, D5; an EICAR-only scanner locally), and for public images re-encoding (drops EXIF/GPS), size limits against decompression bombs, and `w320`/`w960` variants. Only then are public images copied to the public bucket (CDN); rejected files are deleted and audited.
 - Private and `SENSITIVE` files are only reachable through signed URLs (5 minutes; 60 seconds for sensitive) after the purpose's permission check; each sensitive access is audited. Logos, covers and avatars can only reference processed files of the same organization/person; KYB cases only uploaded, not-rejected documents.
@@ -160,7 +160,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 
 *Done when:* the logo, gallery and KYB document flows work, and sensitive files are inaccessible without authorisation. ✅ (`FilesApiTests`.)
 
-**0.10 Admin console shell.** ✅ *Done* — `backend/src/main/java/com/beavent/backend/admin`, `admin-console/` (56 backend tests in total).
+**0.10 Admin console shell.** ✅ *Done* — `services/backend/src/main/java/com/beavent/backend/admin`, `apps/web/src/app/(ops)` (56 backend tests in total).
 - Staff access: admin-console tokens are issued only to accounts with an active staff role (sign-in by phone/email code or Google; sessions last at most 12 hours); every `/v1/admin` call re-reads the staff roles, so a revoked role stops working at once. Permissions come from staff roles and are scoped to markets (a market-limited reviewer does not see other markets). First staff accounts are granted with `db/scripts/grant-staff-role.sh` (audited). Opening KYB documents, deciding cases and changing flags need a fresh code ("confirm it's you", valid 5 minutes).
 - Every change carries a reason and is audited (`PLATFORM_STAFF`); opening a KYB document creates a 60-second signed link and an audit entry; staff cannot decide verification for an organization they belong to.
 - API and screens: overview, verification queue and case review (documents, approve / reject / ask for information), organization search and 360, people search (phone in local or international format, email, name), audit log, feature flags (changing defaults needs global market management), markets (read-only).
@@ -192,7 +192,7 @@ Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3
 - Resources (rooms, chairs, beds, stations; parallel units); galleries using processed public images.
 - Partner portal: menu with sections, service editor (Amharic and English names, options, durations, prices in birr, locations), staff-specific prices.
 
-**1.2 Team.** ✅ *Done* (API, partner portal, mobile) — `backend/.../team`, `mobile/src/app/business.tsx`.
+**1.2 Team.** ✅ *Done* (API, partner portal, mobile) — `backend/.../team`, `apps/public-mobile/src/app/business.tsx`.
 - Team profiles with or without a login (one profile per login), locations, services performed, pricing levels.
 - Regular hours as weekly or multi-week rotations, effective-dated; one-off shifts replace the pattern for a day; time off recorded by managers or requested by the person and then decided.
 - `Rota` computes working intervals per person and local day; managers and people who see every calendar see everyone, others only themselves.

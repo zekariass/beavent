@@ -334,7 +334,7 @@ Specs to be expanded at Stage 6; these are the binding UX requirements.
 | G2 | Cards, E-07 | `fewLeft` / `soldOut` flags per occurrence and type without exposing exact counts |
 | G3 | DD6 | Confirmation that buyer-fee amounts are returned per ticket type for all-in display (Q6) |
 | G4 | E-11 | Offline ticket store format (encrypted, QR secret + serial + event details) and refresh endpoint |
-| G5 | E-11, B-3 | `expo-brightness` (Q8) and `expo-camera` dependency decisions |
+| G5 | E-11, B-3 | `expo-brightness` and `expo-camera` — **approved** (19 Nov 2026); install with `npx expo install` when E-11 / B-3 are built |
 | G6 | E-04 | Ranking signals in `discovery.listings.quality_score` documented; promoted-slot rules enforced server-side |
 | G7 | E-16 | Market rule: do date changes grant a refund right? (consumer-protection review with counsel, D3) |
 | G8 | E-08 | Forms-engine renderer contract (field types, validation, conditional logic) shared with S-09 |

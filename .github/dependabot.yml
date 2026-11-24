@@ -7,7 +7,7 @@ updates:
     groups:
       minor-and-patch: { update-types: [minor, patch] }
   - package-ecosystem: gradle
-    directory: /backend
+    directory: /services/backend
     schedule: { interval: weekly }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
@@ -15,5 +15,5 @@ updates:
     directory: /
     schedule: { interval: weekly }
   - package-ecosystem: docker
-    directories: [/backend, /tools/chapa-stub, /docker]
+    directories: [/services/backend, /tools/chapa-stub, /docker]
     schedule: { interval: weekly }

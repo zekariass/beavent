@@ -6,15 +6,28 @@
 
 ---
 
+## 0. Implementation status (19 Nov 2026)
+
+| Implemented | Where |
+|---|---|
+| `Text`, `Icon`, `Button`, `TextField`, `Screen`, `ScreenTitle`, `Section`, `ListRow`, `OptionRow`, `Group`, `Divider`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `SkeletonRows`, `DualLine` | `apps/public-mobile/src/components/ui` |
+| Native tab bar (token colours, translated labels, SF/Material symbols) and its web variant | `apps/public-mobile/src/components/app-tabs*.tsx` |
+| Partner-portal primitives (`inputClass`, `buttonClass`, `secondaryButtonClass`, `secondaryButtonLargeClass`, `listClass`, `rowLinkClass`, `Field`, `Section`, `FormMessage`) and `WorkspaceNav` (AppShell sidebar) | `apps/web/src/components/business` |
+| Admin primitives on tokens (`PageTitle`, `Badge` with readable labels, `Table`, `Empty`, `SearchForm`) | `apps/web/src/components/ops/ui.tsx` |
+
+Everything else in this document is specified but **not built yet** (BottomSheet, Dialog, Toast, PhoneField,
+CodeField, Stepper, SegmentedControl, StickyActionBar, StepProgress, AnchorTabs and all §6 marketplace components).
+Build them to this spec when a screen first needs them (AI_AGENT_DESIGN_INSTRUCTIONS.md §10).
+
 ## 1. Where components live
 
 | Layer | Location | Contains |
 |---|---|---|
 | Tokens and pure helpers | `packages/ui` (TypeScript only, no React — keep it that way, DD14) | Tokens, `lineHeightPx`, `fontSizePx`, `cssVariables`, contrast test |
 | Formatting | `packages/money`, `packages/calendar`, `packages/i18n` | Price, date, time, duration, plural formatting |
-| React Native components | `mobile/src/components/ui/` (foundations, actions, inputs, overlays, states) and `mobile/src/components/marketplace/` (cards, rows, pickers, summaries, ticket pass) | Everything in §2–§8 |
-| Web components | `web/src/components/` and `business/src/components/` (until Q9 decides on a shared web package) | Web equivalents with the same names, props and rules |
-| Route files | `mobile/src/app/**` | Composition only: data fetching, layout of components. No styling beyond layout |
+| React Native components | `apps/public-mobile/src/components/ui/` (foundations, actions, inputs, overlays, states) and `apps/public-mobile/src/components/marketplace/` (cards, rows, pickers, summaries, ticket pass) | Everything in §2–§8 |
+| Web components | `apps/web/src/components/` (shared), `components/business/` and `components/ops/` — one web app, so no shared web package is needed | Web equivalents with the same names, props and rules |
+| Route files | `apps/public-mobile/src/app/**` | Composition only: data fetching, layout of components. No styling beyond layout |
 
 **Naming:** PascalCase component, file in kebab-case (`venue-card.tsx` exports `VenueCard`), matching the existing mobile convention. Props use domain words from the API (`priceType`, `durationMinutes`, `deliveryModes`), not new synonyms.
 
@@ -166,7 +179,7 @@ Rules: title wraps to 2 lines; no more than one trailing element; destructive ro
 
 ### 4.5 StatusLabel
 
-Small text label, radius `sm`, padding 2/6, `label` 500. Tones: `neutral` (`surface` + `text`), `success` (`successSubtle` + `success`), `warning`, `danger`, `info`, `onImage` (`imageScrim` + `#FFFFFF`). Text always present (no dot-only status).
+Small text label, radius `sm`, padding 2/6, `label` 500. Tones: `neutral` (`surface` fill), `success` (`successSubtle` fill), `warning` (`warningSubtle`), `danger` (`dangerSubtle`), `info` (`infoSubtle`) — **label text is always `text`** (the status colour on its subtle fill fails contrast for small text, e.g. warning 4.2:1; enforced by `contrastPairs`), plus `onImage` (`imageScrim` + `#FFFFFF`). Text always present (no dot-only status).
 **Allowed statuses (consumer):** Confirmed, Requested (awaiting approval), Pending payment, Cancelled, Completed, No-show, Sold out, Few left, Sales ended, Postponed, Cancelled (event), Free, Online, Promoted. One per card/row maximum (P7). "Free" and "Online" are facts and should usually be part of the metadata sentence instead.
 
 ### 4.6 Rating
@@ -187,7 +200,7 @@ A sentence of facts joined by ` · ` in `label` `textMuted`, e.g. `Hair salon ·
 
 ### 4.10 Banner
 
-Inline, full-width inside the gutter, radius `lg`, padding 12/16, `*Subtle` background + matching icon (20) + `label`/`body` text + optional tertiary action. Tones: `info`, `success`, `warning`, `danger`. Not dismissible unless the content is purely informational. Use: "This event was postponed to …", "You're offline — showing saved tickets", "Payment is taking longer than usual". Never more than one banner per screen region.
+Inline, full-width inside the gutter, radius `lg`, padding 12/16, `*Subtle` background + status-coloured icon (20) + `label`/`body` text in `text` (never in the status colour — see StatusLabel) + optional tertiary action. Tones: `info`, `success`, `warning`, `danger`. Not dismissible unless the content is purely informational. Use: "This event was postponed to …", "You're offline — showing saved tickets", "Payment is taking longer than usual". Never more than one banner per screen region.
 
 ---
 
@@ -375,9 +388,9 @@ Errors next to the field (TextField §3.3). On submit with errors: scroll to and
 
 ---
 
-## 9. Partner portal components (web, `business/`)
+## 9. Business console components (web, `apps/web`, `/[lang]/business`)
 
-The partner portal is desktop-first and denser, but it uses the same tokens, type roles and button variants.
+The partner portal is desktop-first and denser, but it uses the same tokens, type roles and button variants. Desktop density: buttons and inputs are 44 px (`md`), secondary row actions 36 px; the 52 px input height is for touch screens. Shared class strings must never be extended with a utility that sets the same property (Tailwind v4 resolves conflicts by stylesheet order, not attribute order): use `inputBaseClass` + a width, or a named variant.
 
 | Component | Spec |
 |---|---|

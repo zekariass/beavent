@@ -20,7 +20,7 @@ npx --no-install turbo run lint typecheck test build --output-logs=errors-only
 
 if [[ "${1:-}" != "--fast" ]]; then
   step "backend"
-  (cd backend && ./gradlew build --console=plain -q)
+  (cd services/backend && ./gradlew build --console=plain -q)
   step "database"
   db/scripts/validate.sh --docker | tail -1
 fi

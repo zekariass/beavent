@@ -8,6 +8,10 @@ import {
   formatEthiopianDate,
   formatEthiopianTime,
   formatInstant,
+  defaultDisplayPreferences,
+  formatClock,
+  formatDualDate,
+  formatDualTime,
   fromEthiopianTime,
   gregorianToEthiopian,
   gregorianToJdn,
@@ -123,5 +127,50 @@ describe("formatting", () => {
       }),
       "Meskerem 1, 2017 E.C. · 00:30",
     );
+  });
+});
+
+describe("display helpers for screens", () => {
+  const am = defaultDisplayPreferences("am");
+  const en = defaultDisplayPreferences("en");
+  test("defaults per language", () => {
+    assert.deepEqual(am, {
+      language: "am",
+      calendar: "ETHIOPIAN",
+      timeConvention: "ETHIOPIAN",
+      timeZone: "Africa/Addis_Ababa",
+    });
+    assert.equal(en.calendar, "GREGORIAN");
+    assert.equal(en.timeConvention, "STANDARD");
+    assert.equal(defaultDisplayPreferences("om").calendar, "ETHIOPIAN");
+  });
+  test("clock: 12-hour with AM/PM in every language", () => {
+    assert.equal(formatClock(9, 0, "en"), "9:00 AM");
+    assert.equal(formatClock(0, 5, "en"), "12:05 AM");
+    assert.equal(formatClock(20, 0, "en"), "8:00 PM");
+    assert.equal(formatClock(20, 0, "am"), "8:00 PM");
+    assert.equal(formatClock(12, 30, "om"), "12:30 PM");
+  });
+  test("dual time, preferred convention first", () => {
+    // 06:30 UTC = 09:30 in Addis Ababa = 3:30 in the morning, Ethiopian time.
+    assert.deepEqual(formatDualTime("2024-09-11T06:30:00Z", am), {
+      primary: "ጠዋት 3:30",
+      secondary: "9:30 AM",
+    });
+    assert.deepEqual(formatDualTime("2024-09-11T06:30:00Z", en), {
+      primary: "9:30 AM",
+      secondary: "3:30 in the morning",
+    });
+  });
+  test("dual date, preferred calendar first", () => {
+    const newYear = { year: 2024, month: 9, day: 11 };
+    const amDate = formatDualDate(newYear, am, { weekday: true });
+    assert.equal(amDate.primary, "ረቡዕ፣ መስከረም 1 ቀን 2017 ዓ.ም.");
+    assert.match(amDate.secondary, /2024/);
+    const enDate = formatDualDate(newYear, en, { year: false });
+    assert.equal(enDate.secondary, "Meskerem 1");
+    assert.match(enDate.primary, /11/);
+    assert.doesNotMatch(enDate.primary, /2024/);
+    assert.equal(formatDualDate("2024-09-10T21:30:00Z", am).primary, "መስከረም 1 ቀን 2017 ዓ.ም.");
   });
 });

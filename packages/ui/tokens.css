@@ -1,0 +1,287 @@
+/* GENERATED from packages/ui/src/index.ts by `npm run generate -w @beavent/ui`. Do not edit by hand. */
+
+:root {
+  color-scheme: light;
+  --bv-color-background: #ffffff;
+  --bv-color-surface: #f5f4f1;
+  --bv-color-surface-raised: #ffffff;
+  --bv-color-surface-pressed: #ebe9e4;
+  --bv-color-text: #1a1917;
+  --bv-color-text-muted: #5e5b55;
+  --bv-color-text-subtle: #8f8b83;
+  --bv-color-text-inverse: #ffffff;
+  --bv-color-border: #e4e1da;
+  --bv-color-border-strong: #8f8b83;
+  --bv-color-primary: #0b6b53;
+  --bv-color-primary-pressed: #085542;
+  --bv-color-primary-subtle: #e2f0ea;
+  --bv-color-on-primary: #ffffff;
+  --bv-color-accent: #f0b323;
+  --bv-color-on-accent: #1a1917;
+  --bv-color-success: #1f7a4d;
+  --bv-color-success-subtle: #e5f3eb;
+  --bv-color-warning: #a86200;
+  --bv-color-warning-subtle: #fcf0dc;
+  --bv-color-danger: #b42318;
+  --bv-color-danger-subtle: #fce9e7;
+  --bv-color-on-danger: #ffffff;
+  --bv-color-info: #1f5bc4;
+  --bv-color-info-subtle: #e6eefb;
+  --bv-color-scrim: rgba(17, 16, 15, 0.48);
+  --bv-color-image-scrim: rgba(0, 0, 0, 0.40);
+  --bv-color-focus: #0b6b53;
+  --bv-space-0: 0px;
+  --bv-space-1: 4px;
+  --bv-space-2: 8px;
+  --bv-space-3: 12px;
+  --bv-space-4: 16px;
+  --bv-space-5: 20px;
+  --bv-space-6: 24px;
+  --bv-space-8: 32px;
+  --bv-space-10: 40px;
+  --bv-space-12: 48px;
+  --bv-space-16: 64px;
+  --bv-radius-sm: 4px;
+  --bv-radius-md: 8px;
+  --bv-radius-lg: 12px;
+  --bv-radius-xl: 16px;
+  --bv-radius-full: 9999px;
+  --bv-layout-gutter: 16px;
+  --bv-layout-gutter-wide: 24px;
+  --bv-layout-section-gap: 32px;
+  --bv-layout-title-gap: 12px;
+  --bv-layout-stack-gap: 8px;
+  --bv-layout-inline-gap: 8px;
+  --bv-layout-rail-gap: 12px;
+  --bv-layout-row-padding-y: 12px;
+  --bv-layout-row-min-height: 56px;
+  --bv-layout-max-content-width: 800px;
+  --bv-layout-reading-width: 640px;
+  --bv-layout-web-container: 1200px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bv-color-background: #121211;
+    --bv-color-surface: #1d1c1b;
+    --bv-color-surface-raised: #252422;
+    --bv-color-surface-pressed: #2e2d2a;
+    --bv-color-text: #f2f1ee;
+    --bv-color-text-muted: #a8a5a0;
+    --bv-color-text-subtle: #74716b;
+    --bv-color-text-inverse: #121211;
+    --bv-color-border: #33312e;
+    --bv-color-border-strong: #6b6862;
+    --bv-color-primary: #5cc8a1;
+    --bv-color-primary-pressed: #7ad6b5;
+    --bv-color-primary-subtle: #133a2f;
+    --bv-color-on-primary: #06261d;
+    --bv-color-accent: #f5c542;
+    --bv-color-on-accent: #1a1917;
+    --bv-color-success: #5cc794;
+    --bv-color-success-subtle: #15301f;
+    --bv-color-warning: #f0a64a;
+    --bv-color-warning-subtle: #33240f;
+    --bv-color-danger: #f97066;
+    --bv-color-danger-subtle: #3a1714;
+    --bv-color-on-danger: #1a1917;
+    --bv-color-info: #7ea6f2;
+    --bv-color-info-subtle: #172440;
+    --bv-color-scrim: rgba(0, 0, 0, 0.60);
+    --bv-color-image-scrim: rgba(0, 0, 0, 0.40);
+    --bv-color-focus: #5cc8a1;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bv-color-background: #121211;
+  --bv-color-surface: #1d1c1b;
+  --bv-color-surface-raised: #252422;
+  --bv-color-surface-pressed: #2e2d2a;
+  --bv-color-text: #f2f1ee;
+  --bv-color-text-muted: #a8a5a0;
+  --bv-color-text-subtle: #74716b;
+  --bv-color-text-inverse: #121211;
+  --bv-color-border: #33312e;
+  --bv-color-border-strong: #6b6862;
+  --bv-color-primary: #5cc8a1;
+  --bv-color-primary-pressed: #7ad6b5;
+  --bv-color-primary-subtle: #133a2f;
+  --bv-color-on-primary: #06261d;
+  --bv-color-accent: #f5c542;
+  --bv-color-on-accent: #1a1917;
+  --bv-color-success: #5cc794;
+  --bv-color-success-subtle: #15301f;
+  --bv-color-warning: #f0a64a;
+  --bv-color-warning-subtle: #33240f;
+  --bv-color-danger: #f97066;
+  --bv-color-danger-subtle: #3a1714;
+  --bv-color-on-danger: #1a1917;
+  --bv-color-info: #7ea6f2;
+  --bv-color-info-subtle: #172440;
+  --bv-color-scrim: rgba(0, 0, 0, 0.60);
+  --bv-color-image-scrim: rgba(0, 0, 0, 0.40);
+  --bv-color-focus: #5cc8a1;
+}
+
+/* Tailwind utilities: bg-background, bg-surface, text-fg, text-fg-muted, border-border, bg-primary, text-on-primary … */
+@theme inline {
+  --color-background: var(--bv-color-background);
+  --color-surface: var(--bv-color-surface);
+  --color-surface-raised: var(--bv-color-surface-raised);
+  --color-surface-pressed: var(--bv-color-surface-pressed);
+  --color-fg: var(--bv-color-text);
+  --color-fg-muted: var(--bv-color-text-muted);
+  --color-fg-subtle: var(--bv-color-text-subtle);
+  --color-fg-inverse: var(--bv-color-text-inverse);
+  --color-border: var(--bv-color-border);
+  --color-border-strong: var(--bv-color-border-strong);
+  --color-primary: var(--bv-color-primary);
+  --color-primary-pressed: var(--bv-color-primary-pressed);
+  --color-primary-subtle: var(--bv-color-primary-subtle);
+  --color-on-primary: var(--bv-color-on-primary);
+  --color-accent: var(--bv-color-accent);
+  --color-on-accent: var(--bv-color-on-accent);
+  --color-success: var(--bv-color-success);
+  --color-success-subtle: var(--bv-color-success-subtle);
+  --color-warning: var(--bv-color-warning);
+  --color-warning-subtle: var(--bv-color-warning-subtle);
+  --color-danger: var(--bv-color-danger);
+  --color-danger-subtle: var(--bv-color-danger-subtle);
+  --color-on-danger: var(--bv-color-on-danger);
+  --color-info: var(--bv-color-info);
+  --color-info-subtle: var(--bv-color-info-subtle);
+  --color-scrim: var(--bv-color-scrim);
+  --color-image-scrim: var(--bv-color-image-scrim);
+  --color-focus: var(--bv-color-focus);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+}
+
+/* Type roles. Use these instead of ad-hoc font sizes. */
+.bv-type-display {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-display,
+.bv-type-display:lang(am),
+.bv-type-display:lang(ti) {
+  font-size: 28px;
+  line-height: 42px;
+}
+.bv-type-title1 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-title1,
+.bv-type-title1:lang(am),
+.bv-type-title1:lang(ti) {
+  font-size: 22px;
+  line-height: 34px;
+}
+.bv-type-title2 {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-title2,
+.bv-type-title2:lang(am),
+.bv-type-title2:lang(ti) {
+  font-size: 18px;
+  line-height: 28px;
+}
+.bv-type-body {
+  font-size: 16px;
+  line-height: 23px;
+  font-weight: 400;
+}
+[data-script="Ethi"] .bv-type-body,
+.bv-type-body:lang(am),
+.bv-type-body:lang(ti) {
+  font-size: 16px;
+  line-height: 27px;
+}
+.bv-type-body-strong {
+  font-size: 16px;
+  line-height: 23px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-body-strong,
+.bv-type-body-strong:lang(am),
+.bv-type-body-strong:lang(ti) {
+  font-size: 16px;
+  line-height: 27px;
+}
+.bv-type-label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+[data-script="Ethi"] .bv-type-label,
+.bv-type-label:lang(am),
+.bv-type-label:lang(ti) {
+  font-size: 14px;
+  line-height: 24px;
+}
+.bv-type-label-strong {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-label-strong,
+.bv-type-label-strong:lang(am),
+.bv-type-label-strong:lang(ti) {
+  font-size: 14px;
+  line-height: 24px;
+}
+.bv-type-caption {
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 400;
+}
+[data-script="Ethi"] .bv-type-caption,
+.bv-type-caption:lang(am),
+.bv-type-caption:lang(ti) {
+  font-size: 14px;
+  line-height: 24px;
+}
+.bv-type-button-large {
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 600;
+}
+[data-script="Ethi"] .bv-type-button-large,
+.bv-type-button-large:lang(am),
+.bv-type-button-large:lang(ti) {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* Tabular figures for prices, times and counts. */
+.bv-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Native checkboxes, radios and range inputs in the brand colour. */
+:root {
+  accent-color: var(--bv-color-primary);
+}
+
+/* Visible keyboard focus everywhere (2 px ring, 2 px offset). */
+:focus-visible {
+  outline: 2px solid var(--bv-color-focus);
+  outline-offset: 2px;
+}

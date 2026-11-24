@@ -1,0 +1,22 @@
+@import "tailwindcss";
+/* Beavent tokens: colours (light/dark), radii, type scale, type roles — generated from packages/ui. */
+@import "@beavent/ui/tokens.css";
+
+@theme inline {
+  --font-sans: var(--font-latin, system-ui), var(--font-ethiopic, system-ui), system-ui, sans-serif;
+}
+
+body {
+  background: var(--bv-color-background);
+  color: var(--bv-color-text);
+  font-family: var(--font-latin, system-ui), var(--font-ethiopic, system-ui), system-ui, sans-serif;
+  line-height: 1.45;
+}
+
+/* Ge'ez (Ethiopic) script needs more line height (see @beavent/ui typography). */
+html[data-script="Ethi"] body,
+:lang(am),
+:lang(ti) {
+  font-family: var(--font-ethiopic, system-ui), var(--font-latin, system-ui), system-ui, sans-serif;
+  line-height: 1.7;
+}

@@ -2,7 +2,7 @@
 
 **Status:** v1, 19 Nov 2026.
 **Scope:** the consumer app (mobile), its Business mode, and the web marketplace's navigation. Screen IDs: `C-` shared screens (specified here), `S-` services ([SERVICES_MARKETPLACE_DESIGN.md](SERVICES_MARKETPLACE_DESIGN.md)), `E-` events ([EVENTS_MARKETPLACE_DESIGN.md](EVENTS_MARKETPLACE_DESIGN.md)), `B-` Business mode, `P-` partner portal.
-**Current code:** `mobile/src/app/_layout.tsx` renders `AppTabs` (native tabs *Home*, *Explore*) with no stacks; `index.tsx` is a localisation demo, `explore.tsx` is template content. Everything below is new.
+**Current code:** `apps/public-mobile/src/app/_layout.tsx` renders `AppTabs` (native tabs *Home*, *Explore*) with no stacks; `index.tsx` is a localisation demo, `explore.tsx` is template content. Everything below is new.
 
 ---
 
@@ -43,7 +43,7 @@ Three ideas carry the structure:
 |---|---|---|---|---|
 | Explore | `nav.explore` (exists) | magnifying glass | C-1 | — |
 | Saved | `nav.saved` (new) | heart | C-3 | — |
-| Bookings | `nav.bookings` (exists; Amharic term needs revision, Q2) | calendar | C-4 | Dot when something needs action (payment pending, request answered, review requested) |
+| Bookings | `nav.bookings` (exists; the Amharic UI shows the English word "Bookings" — decision Q2) | calendar | C-4 | Dot when something needs action (payment pending, request answered, review requested) |
 | Inbox (later) | `nav.inbox` (new) | message bubble | Conversations + notifications | Unread count |
 | Account | `nav.account` (exists) | person circle | C-5 | Dot when profile/verification needs attention |
 
@@ -83,7 +83,7 @@ Three ideas carry the structure:
 Typed routes are on (`experiments.typedRoutes`). Groups keep URLs clean; `(consumer)` contains the tabs, everything else is a sibling of the tab group in the root stack so it covers the tab bar.
 
 ```
-mobile/src/app/
+apps/public-mobile/src/app/
 ├── _layout.tsx                         Root Stack: preferences, API/query client, theme from tokens, splash
 ├── (consumer)/
 │   ├── _layout.tsx                     NativeTabs: explore · saved · bookings · account
@@ -115,9 +115,11 @@ mobile/src/app/
     └── {today,calendar,check-in,sales,more}/…
 ```
 
-Template files to remove when this lands: `src/app/explore.tsx`, `src/components/app-tabs.web.tsx` "Expo Starter" bar, `hint-row.tsx`, `web-badge.tsx`, starter images (A4).
+**Implemented so far (19 Nov 2026):** `(tabs)/index.tsx` (Explore, interim), `(tabs)/bookings.tsx`, `(tabs)/account.tsx`, `business.tsx` (My schedule — **interim**: a screen pushed over the consumer tabs and reached from Account → For business, until Business mode has enough screens to swap the tab bar as DD13 requires), `sign-in.tsx` (modal). The tab group is named `(tabs)` rather than `(consumer)`.
 
-### 3.2 Web marketplace URLs (`web/`)
+Template files removed in that change (kept here for the record): `src/app/explore.tsx`, `src/components/app-tabs.web.tsx` "Expo Starter" bar, `hint-row.tsx`, `web-badge.tsx`, starter images (A4).
+
+### 3.2 Web marketplace URLs (`apps/web/`)
 
 Language prefix stays first (existing `[lang]` segment). Listing URLs reuse `discovery.listings.slug_path`.
 

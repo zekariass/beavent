@@ -1,0 +1,8 @@
+# Public site and the business console's landing page are indexable; signed-in console pages are not.
+# (The admin console is never listed here: its URL is secret and its responses carry X-Robots-Tag: noindex.)
+User-agent: *
+Allow: /
+Disallow: /*/business/o/
+Disallow: /*/business/orgs
+Disallow: /*/business/onboarding
+Disallow: /*/business/sign-in

@@ -2,7 +2,7 @@
 
 **Status:** v1, 19 Nov 2026. **Benchmark:** Fresha (see [DESIGN_REFERENCE_CATALOG.md §1](DESIGN_REFERENCE_CATALOG.md#1-fresha--services-marketplace)).
 **Builds on:** [MARKETPLACE_NAVIGATION.md](MARKETPLACE_NAVIGATION.md) (shared screens C-1…C-8), [COMPONENT_GUIDELINES.md](COMPONENT_GUIDELINES.md), [DESIGN_TOKENS.md](DESIGN_TOKENS.md).
-**Data sources:** catalog API on this branch (`backend/src/main/openapi/catalog`), tenancy (`Location`, `OpeningHours`), `db/migration/V1_09__scheduling.sql` (appointments, booking policies, holds), `V1_19__discovery_and_trust.sql` (listings, reviews, saved items), doc 03 §3.1 (booking workflow).
+**Data sources:** catalog API on this branch (`services/backend/src/main/openapi/catalog`), tenancy (`Location`, `OpeningHours`), `db/migration/V1_09__scheduling.sql` (appointments, booking policies, holds), `V1_19__discovery_and_trust.sql` (listings, reviews, saved items), doc 03 §3.1 (booking workflow).
 **Current implementation:** none of these screens exist. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), consumer booking 2.5, waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
 
 ---
@@ -408,7 +408,7 @@ After posting: SuccessState-lite "Thanks for your review" (+ "It will appear aft
 
 ## 8. Provider-facing: partner portal catalogue (Stage 1)
 
-The partner portal (`business/`, Next.js) is where businesses build what consumers see. Stage 1 (this branch) adds the catalogue API; these screens consume it. Desktop-first (≥ 1024), usable on tablets; same tokens and type roles; components from [COMPONENT_GUIDELINES.md §9](COMPONENT_GUIDELINES.md#9-partner-portal-components-web-business).
+The business console (`apps/web`, area `/[lang]/business`; "partner portal" in the docs) is where businesses build what consumers see. Stage 1 (this branch) adds the catalogue API; these screens consume it. Desktop-first (≥ 1024), usable on tablets; same tokens and type roles; components from [COMPONENT_GUIDELINES.md §9](COMPONENT_GUIDELINES.md#9-business-console-components-web-appsweb-langbusiness).
 
 **Shell.** AppShell sidebar: Home · Calendar · Sales · Clients · **Catalogue** (Services, Add-ons, Bundles, Resources, Gallery) · Team · Events · Marketing · Reports · Settings (Locations, Booking policies, Get paid, Business details). Items for capabilities the organization lacks are hidden (e.g. no Events without the `EVENTS` capability).
 
@@ -450,5 +450,5 @@ Requirements (full specs when Stage 2.3 starts). Navigation: [MARKETPLACE_NAVIGA
 | G5 | S-09 | Travel fee/time estimate for an address against `tenant.service_areas` | Backend (1.4/2.1) |
 | G6 | S-10b | Add-to-calendar: either `expo-calendar` (new Expo module) or an `.ics` endpoint shared via the share sheet | Decision (recommend `.ics` endpoint: no dependency, works on web) |
 | G7 | All prices | Display money helper and dual-time helper in `@beavent/money` / `@beavent/calendar` (A12) | Frontend foundation |
-| G8 | S-03 | Map dependency (Q3) | Decision |
+| G8 | S-03 | Map: **approved** — `expo-maps` on mobile, MapLibre GL JS on web; tile/maps provider and API keys still to choose | Ops + engineering |
 | G9 | S-16 | Category-specific sub-rating keys and labels (i18n) | Product |

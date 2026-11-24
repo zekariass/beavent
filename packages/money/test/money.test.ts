@@ -5,6 +5,9 @@ import {
   allocate,
   cashRound,
   format,
+  formatDisplay,
+  formatDisplayRange,
+  toPlainAmount,
   money,
   multiply,
   parse,
@@ -79,5 +82,34 @@ describe("arithmetic", () => {
     assert.deepEqual(cashRound(money(123_450, "KES")), money(123_500, "KES"));
     assert.deepEqual(cashRound(money(1_224, "UGX")), money(1_200, "UGX"));
     assert.deepEqual(cashRound(etb(150_037)), etb(150_037));
+  });
+});
+
+describe("display formatting for screens", () => {
+  test("short symbol, no zero minor digits in lists", () => {
+    assert.equal(formatDisplay(etb(180_000), "en").replace(/ /g, " "), "Br 1,800");
+    assert.equal(formatDisplay(etb(4_950), "en").replace(/ /g, " "), "Br 49.50");
+    assert.equal(formatDisplay(etb(180_000), "am").replace(/ /g, " "), "ብር 1,800");
+    assert.equal(formatDisplay(etb(180_000), "om").replace(/ /g, " "), "Br 1,800");
+  });
+  test("exact display on payment surfaces", () => {
+    assert.equal(formatDisplay(etb(36_000), "en", { exact: true }).replace(/ /g, " "), "Br 360.00");
+  });
+  test("zero-decimal currencies and ranges", () => {
+    assert.match(formatDisplay(money(2500, "UGX"), "en"), /2,500/);
+    assert.equal(
+      formatDisplayRange(etb(120_000), etb(240_000), "en").replace(/ /g, " "),
+      "Br 1,200 – 2,400",
+    );
+    assert.equal(
+      formatDisplayRange(etb(120_000), etb(120_000), "en").replace(/ /g, " "),
+      "Br 1,200",
+    );
+    assert.throws(() => formatDisplayRange(etb(1), money(1, "KES"), "en"));
+  });
+  test("plain amounts for inputs", () => {
+    assert.equal(toPlainAmount(etb(150_000)), "1500");
+    assert.equal(toPlainAmount(etb(150_050)), "1500.50");
+    assert.equal(toPlainAmount(money(2500, "UGX")), "2500");
   });
 });

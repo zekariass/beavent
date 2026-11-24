@@ -1,6 +1,6 @@
 # Beavent mobile UI guidelines
 
-**Status:** v1, 19 Nov 2026. **Applies to:** `mobile/` (Expo SDK 58, React Native 0.88, Expo Router, React Compiler on, typed routes on). Most rules also apply to the mobile web layouts of `web/`.
+**Status:** v1, 19 Nov 2026. **Applies to:** `apps/public-mobile/` (Expo SDK 58, React Native 0.88, Expo Router, React Compiler on, typed routes on). Most rules also apply to the mobile web layouts of `apps/web/`.
 **Read with:** [DESIGN_TOKENS.md](DESIGN_TOKENS.md), [COMPONENT_GUIDELINES.md](COMPONENT_GUIDELINES.md), [SCREEN_DESIGN_STANDARDS.md](SCREEN_DESIGN_STANDARDS.md). Performance numbers come from `performanceBudget` in `packages/ui` and doc 06 §2.5.
 
 ---
@@ -54,7 +54,7 @@ Every screen is checked in: light + dark · `am` + `en` · system font scale 100
 
 ## 5. Lists and rendering performance
 
-Budgets (`performanceBudget`): JS bundle ≤ 4 MB (currently ~3.9 MB with template code — remove it first), cold start ≤ 3 s on the baseline device, list images 320 px, virtualise lists over 50 rows.
+Budgets (`performanceBudget`): JS bundle ≤ 4,000 KB gzip-compressed Hermes bytecode (1,629 KB on 19 Nov 2026; checked in CI by `npm run bundle:check -w @beavent/public-mobile`, which also prints raw size and assets), cold start ≤ 3 s on the baseline device, list images 320 px, virtualise lists over 50 rows.
 
 1. **Virtualise** every list that can exceed 50 rows (`FlatList`/`SectionList` — no new list library). Provide stable `keyExtractor` from ids; use `getItemLayout` for fixed-height rows (slot grids, date strips, ticket rows).
 2. **Rails** are horizontal `FlatList`s with `initialNumToRender` ≈ 3 and `windowSize` small.
@@ -131,7 +131,7 @@ Target: WCAG 2.2 AA equivalents on mobile (contrast pairs in [DESIGN_TOKENS.md �
 | Action menus | Native action sheet | Bottom sheet list |
 | Switches | `Switch` (iOS style) | `Switch` (Material) |
 | Share | System share sheet | System share sheet |
-| Haptics | Not used until `expo-haptics` is approved (Q8); then: success on booking confirmed, light tick on slot select | Same |
+| Haptics | `expo-haptics` (approved, installed): `selectionFeedback()` from `src/lib/haptics.ts` — a light tick when a choice changes (option rows, chips; later slot selection); success on booking confirmed when that screen exists. Never on scroll or every press | Same |
 | Permissions | Ask in context with a one-line explanation sheet first: **push** after the first booking/ticket ("Get reminders and ticket updates"); **location** only when the user taps "Use my location"; **camera** only in Business mode check-in | Same; on Android 13+ push is a runtime permission — same timing |
 | Sign-in buttons | Apple + Google + phone (Apple required when Google is offered) | Google + phone |
 

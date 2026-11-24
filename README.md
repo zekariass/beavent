@@ -4,18 +4,17 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 
 ## Repository layout
 
-| Path                | What                                                                                                         | Stack                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `backend/`          | API + workers (one Spring Boot modular monolith)                                                             | Java 21, Spring Boot 4.1, Gradle       |
-| `mobile/`           | Consumer app + Business mode                                                                                 | Expo SDK 58, React Native, Expo Router |
-| `web/`              | Web marketplace (port 3000)                                                                                  | Next.js 16                             |
-| `business/`         | Business / organizer portal (port 3001)                                                                      | Next.js 16                             |
-| `admin-console/`    | Internal admin console (port 3002)                                                                           | Next.js 16                             |
-| `packages/`         | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`            | TypeScript                             |
-| `tools/chapa-stub/` | Local stand-in for the Chapa API (port 8090) — development and CI only; see its README                       | Node 26 (TypeScript)                   |
-| `docker/`           | Container image definition shared by the Next.js apps                                                        | Docker                                 |
-| `db/`               | Database baseline (Flyway migrations), invariant tests, validation scripts — the single source of the schema | PostgreSQL 17 + PostGIS                |
-| `docs/`             | Design and plan                                                                                              | Markdown                               |
+| Path                    | What                                                                                                                                                   | Stack                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| `services/backend/`     | API + workers (one Spring Boot modular monolith)                                                                                                       | Java 21, Spring Boot 4.1, Gradle       |
+| `apps/public-mobile/`   | Consumer app (customers booking services and buying tickets)                                                                                           | Expo SDK 58, React Native, Expo Router |
+| `apps/business-mobile/` | Business app for owners, staff and organizers (scaffolded; Business mode moves here from `apps/public-mobile/`)                                        | Expo SDK 58, React Native, Expo Router |
+| `apps/web/`             | The one web platform (port 3000): public site `/[lang]`, business and organizer console `/[lang]/business`, admin console at the secret `/$ADMIN_PATH` | Next.js 16                             |
+| `packages/`             | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`                                                      | TypeScript                             |
+| `tools/chapa-stub/`     | Local stand-in for the Chapa API (port 8090) — development and CI only; see its README                                                                 | Node 26 (TypeScript)                   |
+| `docker/`               | Container image definition shared by the Next.js apps                                                                                                  | Docker                                 |
+| `db/`                   | Database baseline (Flyway migrations), invariant tests, validation scripts — the single source of the schema                                           | PostgreSQL 17 + PostGIS                |
+| `docs/`                 | Design and plan                                                                                                                                        | Markdown                               |
 
 ## Prerequisites
 
@@ -36,6 +35,7 @@ npm run api:build           # backend: compile, format check, tests (Testcontain
 cd backend && ./gradlew bootRun   # run the API (profile "local") against docker compose services
 
 npm run dev                 # all JS apps in dev mode (or: npm run dev -w @beavent/web)
+                            # web platform: http://localhost:3000 (admin console at /ops locally)
 npm run lint                # lint all JS workspaces
 npm run typecheck           # typecheck all JS workspaces
 npm run test                # JS tests (e.g. the Chapa stub, the API client)
@@ -44,12 +44,12 @@ npm run build               # production builds
 npm run format              # Prettier (JS/TS/JSON/MD outside backend, db, docs)
 npm run e2e                 # browser tests against a running stack (API_LOG=<api log file>; see tools/e2e)
 cd backend && ./gradlew spotlessApply   # Java formatting (Palantir Java Format)
-cd mobile && npx expo start # run the mobile app
+cd apps/public-mobile && npx expo start # run the consumer app
 ```
 
 ## Admin console access
 
-Staff sign in at http://localhost:3002 with a code sent to their phone or email. Grant the first staff role to an
+Staff sign in at http://localhost:3000/ops (the `ADMIN_PATH` prefix; default `ops` locally, required in production) with a code sent to their phone or email. Grant the first staff role to an
 account that has signed in once:
 
 ```bash
@@ -62,8 +62,8 @@ Locally, one-time codes appear in the API log (`SMS_PROVIDER=log`).
 ## Container images
 
 ```bash
-(cd backend && ./gradlew bootJar) && docker build -f backend/Dockerfile -t beavent-api .
-docker build -f docker/next-app.Dockerfile --build-arg APP=web -t beavent-web .   # APP = web | business | admin-console
+(cd backend && ./gradlew bootJar) && docker build -f services/backend/Dockerfile -t beavent-api .
+docker build -f docker/next-app.Dockerfile -t beavent-web .   # the web platform; set ADMIN_PATH when running it
 docker build -t beavent-chapa-stub tools/chapa-stub
 ```
 
@@ -71,6 +71,21 @@ docker build -t beavent-chapa-stub tools/chapa-stub
 
 `.github/workflows/ci.yml` runs on every pull request: JS (format, lint, typecheck, test, build), backend (Gradle build
 with Testcontainers), database (`validate.sh --docker`) and all container images. Dependabot proposes weekly updates.
+
+## Beavent UI/UX Design Standard
+
+Every Beavent interface — mobile, web marketplace, partner portal, admin console — follows one design system, and it
+is **mandatory** for people and AI agents alike:
+
+- [`AGENTS.md`](AGENTS.md) — the standing rules (read by coding agents; short enough for humans too).
+- [`docs/design/beavent/`](docs/design/beavent/) — philosophy and decisions DD1–DD14, tokens, components, screen
+  specs for Services and Events, navigation, mobile guidelines, screen standards.
+- [`docs/design/beavent/AI_AGENT_DESIGN_INSTRUCTIONS.md`](docs/design/beavent/AI_AGENT_DESIGN_INSTRUCTIONS.md) —
+  checklists, component APIs and the definition of done for UI work.
+
+In code: tokens live in `packages/ui` (`npm run generate -w @beavent/ui` rebuilds `tokens.css` for the web apps; a
+test checks contrast and that the CSS is current); React Native primitives in `apps/public-mobile/src/components/ui`; visual QA
+with `npm run visual -w @beavent/e2e` against a running stack.
 
 ## Conventions
 

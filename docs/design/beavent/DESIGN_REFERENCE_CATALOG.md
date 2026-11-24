@@ -95,7 +95,7 @@
 | [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/) | Tab bars, sheets, navigation, sign in with Apple placement |
 | [Material Design 3](https://m3.material.io/) | Android navigation, back behaviour, touch targets |
 | [WCAG 2.2](https://www.w3.org/TR/WCAG22/) | Contrast (1.4.3, 1.4.11), target size (2.5.8), focus, status messages |
-| [Expo SDK 58 docs](https://docs.expo.dev/versions/v58.0.0/) | Native tabs, `expo-image`, `expo-symbols`, `expo-web-browser` — always check the versioned docs (`mobile/AGENTS.md`) |
+| [Expo SDK 58 docs](https://docs.expo.dev/versions/v58.0.0/) | Native tabs, `expo-image`, `expo-symbols`, `expo-web-browser` — always check the versioned docs (`apps/public-mobile/AGENTS.md`) |
 | [Chapa developer docs](https://developer.chapa.co/) | Hosted checkout and direct charge behaviour that PaymentWaiting must explain (doc 07 §1.1) |
 
 **Local references to capture (high value, not yet collected):** what a telebirr / CBE Birr / M-PESA push prompt looks like on the customer's phone (so PaymentWaiting's steps match reality); Chapa's hosted checkout pages; how Ethiopian event organizers currently announce events on Telegram channels (link previews make the event page's Open Graph data part of the design); Amharic date/time conventions on printed tickets and appointment cards in Addis Ababa salons.

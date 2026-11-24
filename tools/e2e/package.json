@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "visual": "playwright test -c visual.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

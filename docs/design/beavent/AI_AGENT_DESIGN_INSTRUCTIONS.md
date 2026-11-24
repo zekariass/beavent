@@ -1,195 +1,278 @@
 # Instructions for AI agents implementing Beavent screens
 
-**Status:** v1, 19 Nov 2026. **Audience:** AI coding agents (and humans) who build or change any Beavent UI in `mobile/`, `web/`, `business/` or `admin-console/`.
-**Authority:** these instructions and the documents they point to are the design decisions. **Do not invent design decisions.** If something isn't specified, follow §8.
+**Status:** v2, 19 Nov 2026 (v1 described the target API; v2 describes what is implemented). **Audience:** AI coding
+agents and humans building or changing any Beavent UI in `apps/public-mobile/`, `apps/business-mobile/`, `apps/web/` (public site, business console, admin console) or a future
+frontend. **Authority:** these instructions and the documents they point to are the design decisions. The short,
+always-loaded version is the root [`AGENTS.md`](../../../AGENTS.md); this is the detailed reference.
+
+**Do not invent design decisions.** If something isn't specified, follow §12.
 
 ---
 
 ## 1. Read before you start
 
-Read in this order, every time you start a UI task (they are short enough):
-
-1. [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) — principles P1–P8, decisions DD1–DD14, the audit (§6) and open questions (§8).
-2. [`DESIGN_TOKENS.md`](DESIGN_TOKENS.md) — the only colours, sizes, spacing, radii, elevation and formats you may use.
-3. [`COMPONENT_GUIDELINES.md`](COMPONENT_GUIDELINES.md) — the components and their rules.
+1. [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) — principles P1–P8, decisions **DD1–DD14**, audit, open questions.
+2. [`DESIGN_TOKENS.md`](DESIGN_TOKENS.md) — the only colours, sizes, spacing, radii, elevation and formats.
+3. [`COMPONENT_GUIDELINES.md`](COMPONENT_GUIDELINES.md) — components and their rules (§0 lists what is implemented).
 4. [`SCREEN_DESIGN_STANDARDS.md`](SCREEN_DESIGN_STANDARDS.md) — templates, composition, copy, states, QA checklist.
-5. The journey spec for your screen: [`MARKETPLACE_NAVIGATION.md`](MARKETPLACE_NAVIGATION.md) (C-screens, routes), [`SERVICES_MARKETPLACE_DESIGN.md`](SERVICES_MARKETPLACE_DESIGN.md) (S- and P-screens), [`EVENTS_MARKETPLACE_DESIGN.md`](EVENTS_MARKETPLACE_DESIGN.md) (E-screens).
-6. [`MOBILE_UI_GUIDELINES.md`](MOBILE_UI_GUIDELINES.md) for any mobile work.
-7. Repository rules: [`mobile/AGENTS.md`](../../../mobile/AGENTS.md) (**Expo SDK 58 — fetch versioned Expo docs, don't trust memory; install Expo packages only with `npx expo install`**), the root [`README.md`](../../../README.md) conventions, and [doc 06](../../06-markets-and-localization.md) §2 and §5 for localisation.
+5. The spec for your screen: [`MARKETPLACE_NAVIGATION.md`](MARKETPLACE_NAVIGATION.md) (C-screens, routes),
+   [`SERVICES_MARKETPLACE_DESIGN.md`](SERVICES_MARKETPLACE_DESIGN.md) (S-, P-, B-screens),
+   [`EVENTS_MARKETPLACE_DESIGN.md`](EVENTS_MARKETPLACE_DESIGN.md) (E-screens).
+6. [`MOBILE_UI_GUIDELINES.md`](MOBILE_UI_GUIDELINES.md) for anything on a phone.
+7. The app's own `AGENTS.md` (Expo SDK 58 / Next.js 16 rules — fetch versioned docs, don't trust memory) and
+   [doc 06](../../06-markets-and-localization.md) §2 and §5 for localisation.
+8. [`GLOBAL_UI_IMPLEMENTATION_REPORT.md`](GLOBAL_UI_IMPLEMENTATION_REPORT.md) — what is already compliant and what
+   is not.
 
-Use [`DESIGN_REFERENCE_CATALOG.md`](DESIGN_REFERENCE_CATALOG.md) only to understand *why*; never to copy a reference product's layout, assets or wording.
+[`DESIGN_REFERENCE_CATALOG.md`](DESIGN_REFERENCE_CATALOG.md) explains *why*; never copy a reference product.
 
-## 2. Hard rules
+## 2. Mandatory pre-implementation checklist
+
+Do these, in order, before writing UI code. Put the answers in your plan or PR description.
+
+1. **Target:** which app and platform (mobile consumer, mobile Business mode, web marketplace, partner portal,
+   admin console)? Which screen ID (C-, S-, E-, B-, P-) and template (SCREEN_DESIGN_STANDARDS §2)?
+2. **Docs read:** the spec for that screen plus §1 above.
+3. **Tokens:** list the colour, spacing, type and size tokens the screen needs. All must exist in `@beavent/ui`.
+4. **Components:** list the existing components you will reuse (§4). Anything missing → §10 first.
+5. **Similar screens:** open the closest implemented screen (e.g. `apps/public-mobile/src/app/(tabs)/account.tsx` for settings,
+   `apps/web/src/app/(site)/[lang]/business/o/[orgId]/services/page.tsx` for a console list) and match its structure.
+6. **Navigation:** route, push vs modal vs sheet, back behaviour — from MARKETPLACE_NAVIGATION.md §3–§4.
+7. **Localisation:** strings to add to `en.ts` **and** `am.ts`; which dates/times/money appear and which formatter
+   and time zone they use; Ge'ez and long-English text fit.
+8. **Themes:** anything that must stay fixed across themes (QR panels, photos)?
+9. **States:** loading, empty, error (with retry), offline, signed out, success — and the screen-specific ones.
+10. **Identity check:** does the plan use warm neutrals, emerald for actions/selection, gold at most once, rows not
+    cards, one primary button? If not, change the plan, not the system.
+
+## 3. Hard rules
 
 ### You MUST
 
-1. Find the screen's spec ID (C-, S-, E-, B-, P-) and implement **its** layout, content, actions, navigation and **all** listed states.
-2. Use **only tokens** from `@beavent/ui` for colour, spacing, radius, type, elevation and motion. If the token you need is in DESIGN_TOKENS.md but not yet in code, add it to `packages/ui` **exactly as documented** (name and value) in the same PR.
-3. Use **documented components**. If one doesn't exist yet in code, build it to its spec in `mobile/src/components/ui/` or `mobile/src/components/marketplace/` (web: the app's `src/components/`).
-4. Take every user-visible string from `@beavent/i18n` (add keys to `en.ts` and `am.ts`; `om.ts` may lag and falls back). Use ICU plurals for counts.
-5. Format money with `@beavent/money`, dates and times with `@beavent/calendar`, in the **location's or occurrence's time zone**, with dual time where the spec says so.
-6. Read data shapes from the OpenAPI contract (`backend/src/main/openapi`, generated client `@beavent/api-client`). Bind fields by their API names.
-7. Implement loading (skeleton), empty, error, offline and signed-out states, plus the screen-specific states in its spec.
-8. Make it accessible: roles, translated labels, states, grouping of composite rows, header roles, 48 dp targets, 200 % font scale.
-9. Check light + dark, Amharic + English, 360 dp and 320 dp widths.
-10. Keep the primary action in the sticky bottom bar (flows, details) and use one primary button per screen.
-11. Run the checks in §9 and attach the screenshots listed there.
+1. Implement the spec's layout, content, actions, navigation and **all** listed states.
+2. Use **only tokens** from `@beavent/ui` (via the components on mobile, via `tokens.css` utilities on web).
+3. Use **existing components**; add new ones to the design system first (§10).
+4. Take every visible string from `@beavent/i18n` (Amharic and English; `om` may lag and falls back). ICU plurals.
+5. Format money with `@beavent/money`, dates and times with `@beavent/calendar`, in the location's/occurrence's zone.
+6. Bind data by API field names from the OpenAPI contract (`@beavent/api-client`).
+7. Make it accessible (§8) and check light + dark, Amharic + English, 360 dp + 320 dp (+ desktop for web).
+8. Keep one primary action per screen, in the sticky bottom bar on mobile flows and detail screens.
+9. Run the checks and the visual QA in §9 and attach the screenshots.
 
 ### You MUST NOT
 
-1. Hard-code hex colours, `fontSize`, `fontWeight`, `lineHeight`, or spacing numbers outside the token scale in screens or components.
-2. Use `src/constants/theme.ts` `Colors`/`Spacing`/`Fonts` or `ThemedText`/`ThemedView` in new code — they are template leftovers scheduled for removal (A1, A5, A8).
-3. Add dependencies (npm or Expo modules) without an approved decision. Open questions that need one: map (Q3), `expo-brightness`/`expo-haptics` (Q8), `expo-camera` (check-in), calendar integration (SERVICES §10 G6). Use the documented interim behaviour instead.
-4. Use gradients, decorative shadows, cards around sections, card-in-card, badge rows, icon-per-fact rows, uppercase text, letter-spacing (except ticket serials), emoji in copy, stock photos, illustrations, or floating action buttons.
-5. Concatenate translated strings, call `toLocaleString`/`Intl`/`Date` formatting in screens, or parse money as floats.
-6. Show a success state before the server confirms (bookings, payments, transfers, refunds) or use optimistic UI for anything involving money or inventory.
-7. Change navigation structure (tabs, route groups, modal vs push) — it is fixed in MARKETPLACE_NAVIGATION.md.
-8. Invent copy for legal, policy or payment statements beyond the patterns given; use the documented sentences with real values.
-9. Hide network-dependent actions offline — disable them with an explanation.
-10. Copy Fresha, Eventbrite, Airbnb, Vinted or Revolut branding, assets, layouts pixel-for-pixel, or wording.
+1. Hard-code hex colours, `fontSize`, `fontWeight`, `lineHeight`, `color` or off-scale spacing in screens (the
+   mobile `Text` component does not even accept them).
+2. Add dependencies (npm or Expo modules) that aren't approved. Approved (DESIGN_PHILOSOPHY.md §8): `expo-haptics`
+   and Noto Sans Ethiopic (installed), `expo-maps` + MapLibre GL JS, `expo-brightness`, `expo-camera` (install with
+   `npx expo install` when their screen is built). Ask for anything else.
+3. Use gradients, decorative shadows, cards around sections, card-in-card, badge rows, icon-per-fact rows,
+   uppercase or letter-spaced labels, emoji in UI copy, stock photos, illustrations, floating action buttons.
+4. Concatenate translated strings, call `toLocaleString`/`Intl`/`Date` formatting in screens, or use float money.
+5. Show success before the server confirms, or use optimistic UI for money or inventory.
+6. Change the navigation structure (tabs, route groups, modal vs push) outside MARKETPLACE_NAVIGATION.md.
+7. Copy Fresha, Eventbrite, Airbnb, Vinted or Revolut branding, assets, layouts or wording.
+8. Hide network-dependent actions offline — disable them with an explanation.
 
-## 3. How to build a screen (procedure)
+## 4. What exists: tokens, components, formatters
 
-1. **Locate** the spec and template (SCREEN_DESIGN_STANDARDS §2). Note its route from MARKETPLACE_NAVIGATION §3.1.
-2. **List data** the spec shows and find each field in the API. Missing field → it is probably in the spec's "Gaps" table; implement the documented fallback (e.g. hide the Popular group) and don't fake data.
-3. **List components** used. Build missing ones first, each in its own file, matching COMPONENT_GUIDELINES (variants, states, a11y).
-4. **Compose** the route file: data hooks + layout + components. No styling in route files beyond layout (`gap`, `padding` with tokens).
-5. **Add strings** to `@beavent/i18n` with descriptive keys (`booking.time.title`, `booking.time.noSlots`, …).
-6. **Implement states** (skeleton → content; empty; errors mapped from problem codes; offline; signed out).
-7. **Verify** with §9.
+### 4.1 Tokens (`packages/ui/src/index.ts`)
 
-## 4. Using tokens and components (target API)
+| Export | What |
+|---|---|
+| `color.light` / `color.dark` | Semantic colours (DESIGN_TOKENS.md §2.2), `Palette` type |
+| `contrastPairs`, `contrastRatio` | Allowed foreground/background pairs, checked by the package test |
+| `space`, `layout`, `size`, `radius`, `borderWidth`, `breakpoints` | Spacing scale, layout roles (gutter 16, sectionGap 32, titleGap 12 …), component sizes, radii |
+| `textRoles`, `textStyle(role, script)`, `fontSizePx`, `lineHeightPx`, `scriptOfText` | Type roles with Ge'ez metrics |
+| `elevation`, `duration`, `easing` | Floating elements and motion |
+| `tokenStylesheet()` → `tokens.css` | Web stylesheet (generated; `npm run generate -w @beavent/ui`) |
 
-The components below are specified but **not yet built**; this is the API shape to build toward. Keep names identical so other agents can rely on them.
+### 4.2 React Native components (`apps/public-mobile/src/components/ui`)
 
-```tsx
-// mobile/src/app/place/[slug]/index.tsx — composition only (S-04)
-import { Screen, Section, Text, StickyActionBar, Button } from "@/components/ui";
-import { ProfileHeader, ServiceRow, ReviewSummary } from "@/components/marketplace";
-import { useT } from "@/lib/preferences"; // app-wide language/calendar/time preferences (to be built)
+| Component | Use |
+|---|---|
+| `Text` (`role`, `tone`, `numeric`, `lines`) | All text. Applies Ge'ez size/line height automatically; refuses font/colour styles |
+| `Button` (`variant`: primary · secondary · tertiary · destructive · destructiveTertiary; `size`: lg · md · sm; `block`, `loading`) | Actions |
+| `TextField` (`label`, `helper`, `error`) | Inputs (label above, 52 dp, 2 dp focus/error outline) |
+| `Screen` (`inTabs`, `edges`), `ScreenTitle`, `Section` (`title`, `action`) | Screen frame, title1 heading, title2 sections with 32 dp rhythm |
+| `ListRow`, `OptionRow`, `Group`, `Divider` | Rows; radio options; inset-grouped settings lists |
+| `Chip` | Choice chips |
+| `Banner` (`tone`), `EmptyState`, `Skeleton`, `SkeletonRows` | Feedback and states |
+| `DualLine` | A date/time in the preferred convention with the other one muted |
+| `Icon` | Documented symbols only (info, success, warning, error, chevron, check) |
 
-export default function VenueProfile() {
-  const t = useT();
-  // data via @beavent/api-client React Query hooks …
-  return (
-    <Screen
-      header={{ variant: "overImage" }}
-      stickyFooter={
-        <StickyActionBar
-          summary={<Text role="label" tone="muted">{t("venue.nextAvailable", { time: nextLabel })}</Text>}
-          action={<Button variant="primary" size="md" label={t("venue.bookNow")} onPress={startBooking} />}
-        />
-      }
-    >
-      <ProfileHeader kind="venue" listing={listing} location={location} />
-      <Section title={t("venue.services")}>
-        {services.map((s) => <ServiceRow key={s.id} service={s} selected={basket.has(s.id)} onToggle={toggle} />)}
-      </Section>
-      <Section title={t("venue.reviews")} seeAllHref={`/place/${slug}/reviews`}>
-        <ReviewSummary summary={reviews} />
-      </Section>
-    </Screen>
-  );
-}
+Ge'ez text uses the bundled Noto Sans Ethiopic automatically (`src/constants/fonts.ts`; the root layout loads it
+before the first render). Choices give a haptic tick through `selectionFeedback()` (`src/lib/haptics.ts`).
+
+App state: `useApp()` from `apps/public-mobile/src/lib/app-context.tsx` → `t`, `language`, `display` (calendar/time
+preferences for formatters), `colors`, `scheme`, `signedIn`, `api`, setters for preferences, `ready`.
+
+### 4.3 Web utilities (`@beavent/ui/tokens.css`)
+
+Tailwind colours: `background`, `surface`, `surface-raised`, `surface-pressed`, `fg`, `fg-muted`, `fg-subtle`,
+`fg-inverse`, `border`, `border-strong`, `primary`, `primary-pressed`, `primary-subtle`, `on-primary`, `accent`,
+`on-accent`, `success(-subtle)`, `warning(-subtle)`, `danger(-subtle)`, `on-danger`, `info(-subtle)`, `focus` — use as
+`bg-*`, `text-*`, `border-*`. Radii: `rounded-sm` 4, `rounded-md` 8, `rounded-lg` 12, `rounded-xl` 16. Type roles:
+`bv-type-display`, `bv-type-title1`, `bv-type-title2`, `bv-type-body`, `bv-type-body-strong`, `bv-type-label`,
+`bv-type-label-strong`, `bv-type-caption`, `bv-type-button-large`; `bv-numeric` for tabular figures. Spacing: only
+Tailwind steps that exist in the Beavent scale (`1 2 3 4 5 6 8 10 12 16`).
+
+Business-console primitives (`apps/web/src/components/business/ui.tsx`): `inputClass` / `inputBaseClass`, `buttonClass`,
+`secondaryButtonClass`, `secondaryButtonLargeClass`, `listClass`, `rowLinkClass`, `Field`, `Section`,
+`FormMessage`, `formatPrice`, `toBirr`; `WorkspaceNav` for the sidebar. Admin console: `apps/web/src/components/ops/ui.tsx`
+(`PageTitle`, `Badge`, `Table`, `Empty`, `SearchForm`).
+
+### 4.4 Formatters
+
+| Need | Use |
+|---|---|
+| Price on screens | `formatDisplay(money, locale)` → `Br 1,800`; `{ exact: true }` on payment surfaces; `formatDisplayRange` |
+| Amount in an input | `toPlainAmount(money)` → `1500` |
+| Date (both calendars) | `formatDualDate(instantOrDate, display, { weekday, year })` → `{ primary, secondary }` |
+| Time (both conventions) | `formatDualTime(instant, display)` (international part is 12-hour `9:00 AM`, `formatClock`); partner and staff tools: `formatStandardTime` (24-hour) |
+| Defaults per language | `defaultDisplayPreferences(language)` (DD7) |
+| Duration | `formatDuration(minutes, t)` → `1 h 30 min` / `1 ሰዓት 30 ደቂቃ` |
+| Localized API text | `localized(text, language, orgDefault)` |
+
+## 5. Typography requirements
+
+- Roles only (DESIGN_TOKENS.md §3.2). The apps top out at `display` 28 px, once per screen; screen titles `title1`
+  22, section titles `title2` 18. `text-3xl` (34) only for web marketing headings.
+- Weights 400/500/600. No uppercase, letter-spacing (except ticket serials) or italics as hierarchy.
+- Ge'ez: line height 1.7 body / 1.5 headings, minimum 14 px — automatic via `Text` and `bv-type-*` (and for user
+  text in Ge'ez inside an English UI, via `scriptOfText`).
+- Tabular figures (`numeric` / `bv-numeric`) for prices, times, counts.
+
+## 6. Localisation requirements
+
+- Strings: `en.ts` and `am.ts` (the i18n test fails if Amharic misses a key); mark new Amharic for native review.
+- Dates and times: dual display per DD7; the zone is the location's or occurrence's, never the device's.
+- Money: `formatDisplay` (no hard-coded symbols, no forced `.00`).
+- Addresses landmark-first; names given-name-first; "father's name", never "surname".
+- Layout must survive longer English labels and taller Ge'ez lines: no fixed heights on text, buttons wrap.
+- RTL readiness: `start`/`end` (`marginStart`, `paddingEnd`; Tailwind `ms-*`, `pe-*`), never `left`/`right`.
+- Mixed scripts: the components pick Ge'ez metrics for Ge'ez content even in an English UI.
+
+## 7. Responsive requirements
+
+- Mobile: 360 × 640 dp baseline, must not break at 320; safe areas; content max 800 dp on tablets; sticky action
+  bar or tab bar at the bottom, never both.
+- Web marketplace: `compact` < 600, `medium` 600–1023, `expanded` ≥ 1024; reading columns ≤ 640 px; grids ≤ 1200.
+- Partner portal: desktop-first sidebar (≥ 1024) collapsing to a top bar with scrolling section links; forms one
+  column ≤ 640 px with a preview column only ≥ 1280; tables over cards.
+- Admin console: information density first; same tokens.
+
+## 8. Accessibility requirements
+
+Contrast pairs from `contrastPairs` only (banner and status-label text is `text`/`fg`, the status colour is for the
+icon or fill); roles, translated labels and states; composite rows read as one sentence; headings marked; 48 dp
+targets; visible focus (`:focus-visible` ring is global on web); colour never the only signal; 200 % font scale;
+Reduce Motion respected. Details: MOBILE_UI_GUIDELINES.md §8.
+
+## 9. Verification and visual QA (required before "done")
+
+```bash
+npm run lint && npm run typecheck && npm run test && npm run build     # repo root
+(cd mobile && npx expo lint && npx tsc --noEmit)                        # mobile, per apps/public-mobile/AGENTS.md
+npm run bundle:check -w @beavent/public-mobile                                 # mobile bundle budget (also in CI)
 ```
 
-```tsx
-// Inside a component: tokens only, no raw values.
-import { color, space, radius } from "@beavent/ui";
-const styles = (scheme: "light" | "dark") => ({
-  chip: {
-    height: 36,                         // documented size (tokens §4.4)
-    paddingHorizontal: 14,              // documented in COMPONENT_GUIDELINES §3.10
-    borderRadius: radius.full,
-    backgroundColor: color[scheme].surface,
-    gap: space[2],
-  },
-});
-```
+**Visual QA** — render and look:
 
-Documented one-off sizes (like chip height 36, padding 14) are allowed because they are written in the docs; undocumented ones are not.
+1. Start the stack: `docker compose up -d`; API `cd backend && ./gradlew bootRun > /tmp/api.log`; apps
+   `npm run dev -w @beavent/web` (one web platform on :3000; the admin console is at `/ops`, from `ADMIN_PATH`); mobile web: `cd apps/public-mobile && npx expo start --web --port 19006`.
+   If another project's Metro already holds port 8081, Expo's dev server-rendering can load the wrong bundle
+   ("Requiring unknown module …"); use `npx expo export --platform web && npx expo serve --port 19006` instead.
+2. `API_LOG=/tmp/api.log npm run visual -w @beavent/e2e` — screenshots of every app in am/en × light/dark at phone
+   and desktop widths, plus signed-in partner-portal and Business-mode screens, in
+   `tools/e2e/test-results/visual/`. Add your new screen to `tools/e2e/visual/screens.spec.ts`.
+3. **Open the screenshots** and check: spacing rhythm, alignment to the gutter, type roles, contrast in dark mode,
+   Ge'ez clipping, long English labels, nothing truncated that must not be, one primary action, no error overlays
+   (identical file sizes across different screens usually mean an error page).
+4. Fix and repeat. Then run the SCREEN_DESIGN_STANDARDS.md §7 checklist and paste it into the PR with screenshots.
 
-**Wrong:**
-```tsx
-<Text style={{ fontSize: 24, fontWeight: "700", color: "#5b3fd9" }}>Services</Text>   // raw values, wrong role
-<View style={{ shadowOpacity: 0.2, borderWidth: 1, borderRadius: 20 }}>…</View>         // card with shadow + border
-<Text>{"Book " + service.name}</Text>                                                   // concatenation
-<Text>{new Date(slot).toLocaleTimeString()}</Text>                                      // device zone, one convention
-```
-**Right:**
-```tsx
-<Text role="title2">{t("venue.services")}</Text>
-<DateTimeText instant={slot.startsAt} timeZone={location.timeZone} format="slot" />
-<PriceText money={variant.price} priceType={variant.priceType} />
-```
+## 10. Changing the design system
 
-## 5. Data, formatting and localisation rules
+**Adding or changing a token**
 
-- **Money:** `{ amountMinor, currency }` from the API → `PriceText`/`@beavent/money`. Lists hide `.00`; payment surfaces show it (tokens §8.1). Never compute fees or taxes in the UI; display what the API returns.
-- **Dates/times:** ISO instants + the location/occurrence IANA zone → `DateTimeText`/`@beavent/calendar`, using the user's calendar and time preferences (DD7).
-- **Localized content** (`LocalizedText` / `*_i18n`): resolve with the fallback chain user language → org default → market default → `en` (use `localized()` from `@beavent/i18n`); show "Translated · Show original" when not the source language.
-- **Names:** given name first; never label a field "Surname".
-- **Addresses:** landmark first.
-- **IDs and slugs:** routes use listing slugs for public pages and ids for private ones (MARKETPLACE_NAVIGATION §3).
-- **Problem codes → copy:** map `SLOT_TAKEN`, `SOLD_OUT`, `PAYMENT_PENDING`, `RATE_LIMITED`, `STEP_UP_REQUIRED`, `FORBIDDEN`, `NOT_FOUND`, validation `422` to the copy in the screen spec; unknown errors use `error.generic`.
-- **Idempotency:** creation and payment calls send an `Idempotency-Key` (the client helper exists) and reuse it on retry.
-- **ETags:** partner portal edits send `If-Match`; on `412` show ConflictBanner — never auto-overwrite.
+1. There must be a reusable need (two or more screens, or a documented component).
+2. Edit `packages/ui/src/index.ts` (names stable; light and dark values together; new foreground/background pairs
+   added to `contrastPairs`).
+3. `npm run generate -w @beavent/ui` and `npm test -w @beavent/ui` (contrast + generated-CSS checks must pass).
+4. Update DESIGN_TOKENS.md (table, usage rule) in the same PR.
 
-## 6. Quality requirements
+**Adding a component or variant**
 
-- **States** per SCREEN_DESIGN_STANDARDS §6.
-- **Accessibility** per MOBILE_UI_GUIDELINES §8.
-- **Performance** per MOBILE_UI_GUIDELINES §5–§6: virtualise lists > 50 rows; `w320` in lists; no shadows/animations in list items; no new heavy libraries; check the Android bundle stays ≤ 4 MB.
-- **Offline:** tickets and upcoming appointments readable offline (doc 03 §1.1).
+1. Write its spec in COMPONENT_GUIDELINES.md first (purpose, anatomy, variants, states, a11y, do/don't).
+2. Implement it in `apps/public-mobile/src/components/ui/` (or `marketplace/`), export it from `index.ts`; web equivalents in the
+   app's `src/components/` with the same name and rules.
+3. Use it in at least one screen; add that screen to the visual QA spec.
 
-## 7. Implementation order
+**Documenting a design-system change**
 
-Build in this order; each step is a separate pull request. Steps 1–3 come before any marketplace screen.
+- Update the affected doc(s) in this folder in the same PR, and add a line to GLOBAL_UI_IMPLEMENTATION_REPORT.md §15
+  ("Changes after v1") with the date, what changed and why.
+- A change to DD1–DD14 needs the owner's agreement; record it in DESIGN_PHILOSOPHY.md §7 rather than silently
+  diverging.
 
-| # | Work | Why first | Specs |
-|---|---|---|---|
-| 1 | **Design foundation:** update `packages/ui` tokens (new values + new tokens + `textRoles` + `fontSizePx` + contrast test); generate web CSS variables from `cssVariables()` in `web/` and `business/`; fix partner-portal `onPrimary`; remove Expo template screens, components and assets; native tab labels from i18n; splash/icon colours | Every later screen depends on it; reclaims bundle budget | DESIGN_TOKENS §9, PHILOSOPHY §6.3 A1–A9 |
-| 2 | **Formatting helpers:** display money (narrow symbol, no `.00` in lists), dual time, short/relative dates, 12-hour English standard time (after Q7), duration formatting with plural keys | Prevents per-screen formatting | DESIGN_TOKENS §8, PHILOSOPHY A12 |
-| 3 | **App shell and primitives:** preferences provider (language, calendar, time, theme, data saver), React Navigation theme from tokens, route groups and tabs per MARKETPLACE_NAVIGATION §3.1, `Text`, `Screen`, `Section`, `Button`, `IconButton`, `TextField`, `PhoneField`, `CodeField`, `Chip`, `ListRow`, `BottomSheet`, `Skeleton`, `EmptyState`, `ErrorState`, `Banner`, `Toast`; **C-6 Sign-in** and **C-5 Account** (preferences) | Needed by every journey; sign-in API already exists | COMPONENT §2–§3, §7–§8; NAV C-5, C-6 |
-| 4 | **Partner portal catalogue (Stage 1, this branch):** AppShell, DataTable, LocalizedTextField, MoneyField, DurationField, StepsEditor, PriceMatrix; screens P-01 … P-08 | Businesses must build menus before consumers can book | SERVICES §8 |
-| 5 | **Stage 2.5 consumer booking (pay at venue):** Media, PriceText, DateTimeText, MetaLine, Rating, ProfileHeader, ServiceRow/Sheet, ProfessionalOption, DateStrip, TimeSlotGrid, StickyActionBar, StepProgress, BookingSummary; screens S-04 → S-10b, C-4 Bookings, S-11, S-12, S-13; then S-15 waitlist (2.6) | First end-to-end consumer value; reached by direct links | SERVICES §4–§6 |
-| 6 | **Stage 3 payments:** PaymentMethodList, PaymentWaiting, HoldTimer; C-7; deposit variants of S-10/S-11 | Money flows | NAV C-7 |
-| 7 | **Stage 6.8 events consumer UI:** E-05 → E-12, E-13, E-14, E-16, E-19, TicketPass with offline store | Ticketing | EVENTS §4–§6 |
-| 8 | **Stage 8 discovery:** C-1 Explore, C-2 Search, S-01 … S-03, E-01 … E-04, C-3 Saved, E-15, S-16/E-18 reviews, C-8 notifications | Discovery ships last in the plan | NAV §5, SERVICES §3, §7, EVENTS §3, §7 |
-| 9 | **Business mode** B-1 … B-5 as their stages arrive (2.3, 4, 7) | Staff tools | SERVICES §9, EVENTS §9.2 |
+## 11. Pitfalls already hit (don't repeat them)
 
-## 8. When the docs don't answer
+| Pitfall | Rule |
+|---|---|
+| Appending a conflicting utility to a shared class string (`${inputClass} w-28` with `w-full` inside; `text-base` on a `text-sm` class) — in Tailwind v4 the stylesheet order decides, not the attribute order | Never override a property a shared class already sets; use a base class without it (`inputBaseClass`) or a named variant (`secondaryButtonLargeClass`) |
+| React Native's own `role` prop collides with `Text`'s `role` | `Text` omits RN's ARIA `role`; use `accessibilityRole` |
+| Expo web is server-rendered; language/theme/clock differ between server and browser → hydration error | Nothing device-dependent renders before `useApp().ready` (the root layout waits) |
+| `setState` directly in an effect (React Compiler lint) | Reset loading state in the event that triggers the reload |
+| Status colour as small text on its subtle fill (warning on warningSubtle = 4.2:1) | Text on subtle fills is `text`/`fg`; status colour only for icons and fills |
+| Native checkboxes in browser blue | `accent-color` is set globally in `tokens.css` |
 
-1. **Search the docs** (this folder, then `docs/0*.md`). Many answers are in a table you haven't read.
-2. If still unanswered, **pick the closest documented pattern** (same template, same component) and implement it — then **record the gap**: add a row to the relevant spec's "Gaps" table or to DESIGN_PHILOSOPHY §8 "Open questions", and mention it in the PR description under "Design decisions needed".
-3. **Never** introduce a new visual pattern, colour, component variant, navigation behaviour or dependency to fill a gap. If no documented pattern fits, stop and ask the user.
-4. If the code contradicts these docs (e.g. an API field doesn't exist), the **code and API contract are the source of truth for data**; the docs are the source of truth for design. Note the mismatch in the PR.
+## 12. When the docs don't answer
 
-## 9. Definition of done (UI work)
+1. Search this folder and `docs/0*.md`.
+2. Use the closest documented pattern (same template, same component) and **record the gap** — a row in the
+   spec's "Gaps" table or DESIGN_PHILOSOPHY.md §8, and "Design decisions needed" in the PR.
+3. Never introduce a new visual pattern, colour, variant, navigation behaviour or dependency to fill a gap. If nothing
+   fits, stop and ask.
+4. Code and the API contract are the truth for **data**; these docs are the truth for **design**. Note mismatches.
 
-- [ ] Spec implemented, including every state; deviations listed in the PR with reasons.
-- [ ] SCREEN_DESIGN_STANDARDS §7 checklist pasted into the PR and ticked.
-- [ ] Screenshots: light/dark × Amharic/English for each new screen; 200 % font scale and 320 dp for flows; offline state for Bookings/tickets.
-- [ ] `npm run lint` and `npm run typecheck` pass at the root; for mobile also `cd mobile && npx expo lint && npx tsc --noEmit` (per `mobile/AGENTS.md`).
-- [ ] `npm run test` passes (including the `packages/ui` contrast test once added).
-- [ ] i18n: new keys in `en.ts` and `am.ts`; Amharic marked for native-speaker review (doc 07 step 0.11).
-- [ ] No new dependencies, or the approving decision is linked.
-- [ ] Docs updated if behaviour intentionally differs (definition of done in doc 07 §2).
+## 13. Implementation order
 
-## 10. Quick reference: replace this with that
+| # | Work | Status (19 Nov 2026) |
+|---|---|---|
+| 1 | Design foundation: tokens, generated web CSS, contrast test, template removal, tab labels, splash/icon colours | **Done** (interim brand mark; logo is Q1) |
+| 2 | Formatting helpers: display money, dual date/time, 12-hour clock (decided Q7), durations | **Done** |
+| 3 | App shell and primitives: preferences (persisted), token theme, tabs, core components, C-6 sign-in, C-5 account | **Done** for the components listed in §4.2; BottomSheet, PhoneField, CodeField, StickyActionBar, StepProgress still to build |
+| 4 | Partner portal catalogue P-01 … P-11 to spec (sidebar, editors, price matrix …) | Partly: existing screens restyled; spec features pending |
+| 5 | Stage 2.5 consumer booking: S-04 → S-10b, C-4 with data, S-11 … S-15 | Not started |
+| 6 | Stage 3 payments: PaymentMethodList, PaymentWaiting, HoldTimer, C-7 | Not started |
+| 7 | Stage 6.8 events consumer UI: E-05 → E-19, TicketPass offline | Not started |
+| 8 | Stage 8 discovery: C-1 full, C-2, S-01 … S-03, E-01 … E-04, C-3 Saved, reviews, C-8 | Not started |
+| 9 | Business mode B-1 … B-5 with the swapped tab bar (DD13) | My schedule only (as a pushed screen, interim) |
+
+## 14. Definition of done (UI work)
+
+- [ ] §2 checklist answered; spec implemented with every state; deviations listed in the PR.
+- [ ] SCREEN_DESIGN_STANDARDS.md §7 checklist pasted and ticked.
+- [ ] Screenshots: light/dark × Amharic/English for each new screen (+ 320 dp and 200 % font scale for flows).
+- [ ] Checks in §9 green; visual QA reviewed.
+- [ ] i18n keys in `en.ts` and `am.ts`; Amharic marked for native review.
+- [ ] No new dependencies, or the approving decision linked.
+- [ ] Design docs updated if anything in the system changed (§10).
+
+## 15. Quick reference
 
 | Instead of | Use |
 |---|---|
-| `ThemedText type="title"` (48 px) | `Text role="display"` (28) — once per screen |
-| `Colors.light.textSecondary` | `color[scheme].textMuted` |
-| `Spacing.three` (16) | `space[4]` (16) — note the template's names differ from the scale |
-| A card with a shadow around a list | `Section` + `ListRow`s with dividers |
-| Badges "Women only" "At home" "Popular" | `MetaLine`: "Women only · At-home visits" |
-| A spinner in the middle of the screen | `Skeleton` matching the layout |
-| `Alert.alert` for errors | Inline field error, `Banner`, or `ErrorState` |
-| Modal dialog for info | `BottomSheet` or `Banner` |
-| "OK" / "Submit" | "Confirm booking" / "Pay Br 360" |
-| Date picker for bookings | `DateStrip` + `TimeSlotGrid` |
-| `toLocaleString()` | `DateTimeText` / `PriceText` |
-| Text on an image | Text below the image; only icon buttons on `imageScrim` over it |
-| Top-right "Save" on a mobile form | Sticky bottom action bar |
+| `<Text style={{ fontSize: 24, fontWeight: "700", color: "#5b3fd9" }}>` | `<Text role="title2">` |
+| `ThemedText`, `ThemedView`, `constants/theme.ts`, `useTheme` | Removed — `Text`, `Screen`, `useApp().colors` |
+| `Spacing.three` (old template, 16) | `space[4]` / `layout.gutter` (16) |
+| Card with border + shadow around a list | `Section` + `ListRow`s with dividers (web: `listClass`) |
+| Badges "Women only" "At home" | A `·`-separated sentence |
+| Spinner in the middle of a screen | `Skeleton` / `SkeletonRows` |
+| `Alert.alert` for errors | Field error, `Banner`, or `EmptyState` with retry |
+| "OK" / "Submit" | "Confirm booking" / "Send code" |
+| `new Date().toLocaleString()` | `formatDualDate` / `formatDualTime` + `DualLine` |
+| `` `${minor / 100} ETB` `` | `formatDisplay(money(minor, currency), language)` |
+| `text-2xl font-semibold` page title | `bv-type-title1` |
+| `opacity-70` for secondary text | `text-fg-muted` |
+| `text-white` on a primary fill | `text-on-primary` |

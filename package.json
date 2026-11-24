@@ -6,10 +6,7 @@
     "node": ">=26"
   },
   "workspaces": [
-    "mobile",
-    "web",
-    "business",
-    "admin-console",
+    "apps/*",
     "packages/*",
     "tools/*"
   ],
@@ -20,7 +17,7 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "api:build": "cd backend && ./gradlew build",
+    "api:build": "cd services/backend && ./gradlew build",
     "db:up": "docker compose up -d",
     "db:validate": "db/scripts/validate.sh --docker",
     "test": "turbo run test",
