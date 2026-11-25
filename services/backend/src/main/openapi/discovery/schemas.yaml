@@ -1,0 +1,198 @@
+SearchKind:
+  type: string
+  enum: [LOCATION, EVENT]
+SearchMenuLine:
+  type: object
+  description: One service of a place that matches what was typed or the category, for the result row.
+  required: [serviceId, name, durationMinutes, priceMinor, priceType, matches]
+  properties:
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    priceMinor:
+      type: integer
+      format: int64
+      description: The lowest price of the service, minor units of the listing's currency.
+    priceType:
+      type: string
+      enum: [FIXED, FROM, ON_CONSULTATION]
+    matches:
+      type: boolean
+SearchItem:
+  type: object
+  description: |
+    A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+    (`path` is the part after the prefix).
+  required:
+    - id
+    - kind
+    - title
+    - summary
+    - imageVariants
+    - businessSlug
+    - path
+    - category
+    - area
+    - ratingCount
+    - online
+    - deliveryModes
+    - serviceCount
+    - menu
+    - newOnBeavent
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      $ref: '#/SearchKind'
+    title:
+      type: string
+    summary:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    imageUrl:
+      type: string
+    imageVariants:
+      type: object
+      description: Smaller sizes by name (w320, w960).
+      additionalProperties:
+        type: string
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    eventSlug:
+      type: string
+    path:
+      type: string
+      description: "`/{businessSlug}/{locationSlug or eventSlug}`."
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    area:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    landmark:
+      type: string
+    latitude:
+      type: number
+    longitude:
+      type: number
+    distanceMeters:
+      type: integer
+      description: From `lat`/`lng` when they were given.
+    priceFromMinor:
+      type: integer
+      format: int64
+      description: All-in "from" price in minor units; `0` is free.
+    currency:
+      type: string
+    ratingAvg:
+      type: number
+    ratingCount:
+      type: integer
+    nextAvailableAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+      description: Places only. The earliest bookable time found at the last refresh.
+    nextStartsAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+      description: Events only.
+    lastEndsAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+    online:
+      type: boolean
+    timezone:
+      type: string
+    serviceMode:
+      type: string
+      enum: [ON_PREMISES, MOBILE_ONLY, BOTH]
+    deliveryModes:
+      type: array
+      items:
+        type: string
+    serviceCount:
+      type: integer
+    menu:
+      type: array
+      description: Up to three services matching the words typed or the category; empty otherwise.
+      items:
+        $ref: '#/SearchMenuLine'
+    newOnBeavent:
+      type: boolean
+SearchPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SearchItem'
+    nextCursor:
+      type: string
+      description: Absent on the last page.
+    total:
+      type: integer
+      description: How many listings match; given on the first page only.
+SearchPin:
+  type: object
+  required: [id, kind, title, path, latitude, longitude]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      $ref: '#/SearchKind'
+    title:
+      type: string
+    path:
+      type: string
+    latitude:
+      type: number
+    longitude:
+      type: number
+    priceFromMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    ratingAvg:
+      type: number
+SearchPins:
+  type: object
+  required: [pins, truncated]
+  properties:
+    pins:
+      type: array
+      items:
+        $ref: '#/SearchPin'
+    truncated:
+      type: boolean
+      description: More listings match than are returned (at most 200), so zoom in or narrow the filters.
+SearchCategoryHit:
+  type: object
+  required: [code, kind, name]
+  properties:
+    code:
+      type: string
+    kind:
+      type: string
+      enum: [BUSINESS, SERVICE, EVENT, PRODUCT]
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+SearchSuggestions:
+  type: object
+  required: [categories, places, events]
+  properties:
+    categories:
+      type: array
+      items:
+        $ref: '#/SearchCategoryHit'
+    places:
+      type: array
+      items:
+        $ref: '#/SearchItem'
+    events:
+      type: array
+      items:
+        $ref: '#/SearchItem'

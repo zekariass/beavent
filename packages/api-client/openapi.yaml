@@ -48,6 +48,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: Discovery
+    description: Search over places to book and things to do (public)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -4474,6 +4476,142 @@ paths:
                 $ref: '#/components/schemas/Venue'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search:
+    get:
+      tags:
+        - Discovery
+      operationId: searchListings
+      summary: Search places to book and things to do, together
+      description: |
+        Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+        misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+        date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+        Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Kind'
+        - $ref: '#/components/parameters/Market'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Area'
+        - $ref: '#/components/parameters/Lat'
+        - $ref: '#/components/parameters/Lng'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/West'
+        - $ref: '#/components/parameters/South'
+        - $ref: '#/components/parameters/East'
+        - $ref: '#/components/parameters/North'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/MaxPrice'
+        - $ref: '#/components/parameters/MinRating'
+        - $ref: '#/components/parameters/OpenNow'
+        - $ref: '#/components/parameters/AtHome'
+        - $ref: '#/components/parameters/Audience'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Part'
+        - $ref: '#/components/parameters/Free'
+        - $ref: '#/components/parameters/Online'
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: A page of listings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search/pins:
+    get:
+      tags:
+        - Discovery
+      operationId: searchPins
+      summary: Pins for the map, with the same filters as the search
+      description: Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Kind'
+        - $ref: '#/components/parameters/Market'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Area'
+        - $ref: '#/components/parameters/Lat'
+        - $ref: '#/components/parameters/Lng'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/West'
+        - $ref: '#/components/parameters/South'
+        - $ref: '#/components/parameters/East'
+        - $ref: '#/components/parameters/North'
+        - $ref: '#/components/parameters/MaxPrice'
+        - $ref: '#/components/parameters/MinRating'
+        - $ref: '#/components/parameters/OpenNow'
+        - $ref: '#/components/parameters/AtHome'
+        - $ref: '#/components/parameters/Audience'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Part'
+        - $ref: '#/components/parameters/Free'
+        - $ref: '#/components/parameters/Online'
+      responses:
+        '200':
+          description: Pins.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPins'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search/suggestions:
+    get:
+      tags:
+        - Discovery
+      operationId: searchSuggestions
+      summary: Categories, places and events matching what has been typed so far
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - $ref: '#/components/parameters/Market'
+        - name: limit
+          in: query
+          required: false
+          description: Per group.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 3
+      responses:
+        '200':
+          description: Up to `limit` of each.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchSuggestions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/files:
@@ -9907,6 +10045,237 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/VenueOther'
+    SearchKind:
+      type: string
+      enum:
+        - LOCATION
+        - EVENT
+    SearchMenuLine:
+      type: object
+      description: One service of a place that matches what was typed or the category, for the result row.
+      required:
+        - serviceId
+        - name
+        - durationMinutes
+        - priceMinor
+        - priceType
+        - matches
+      properties:
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+          description: The lowest price of the service, minor units of the listing's currency.
+        priceType:
+          type: string
+          enum:
+            - FIXED
+            - FROM
+            - ON_CONSULTATION
+        matches:
+          type: boolean
+    SearchItem:
+      type: object
+      description: |
+        A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+        (`path` is the part after the prefix).
+      required:
+        - id
+        - kind
+        - title
+        - summary
+        - imageVariants
+        - businessSlug
+        - path
+        - category
+        - area
+        - ratingCount
+        - online
+        - deliveryModes
+        - serviceCount
+        - menu
+        - newOnBeavent
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          $ref: '#/components/schemas/SearchKind'
+        title:
+          type: string
+        summary:
+          $ref: '#/components/schemas/LocalizedText'
+        imageUrl:
+          type: string
+        imageVariants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        eventSlug:
+          type: string
+        path:
+          type: string
+          description: '`/{businessSlug}/{locationSlug or eventSlug}`.'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        area:
+          $ref: '#/components/schemas/LocalizedText'
+        landmark:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        distanceMeters:
+          type: integer
+          description: From `lat`/`lng` when they were given.
+        priceFromMinor:
+          type: integer
+          format: int64
+          description: All-in "from" price in minor units; `0` is free.
+        currency:
+          type: string
+        ratingAvg:
+          type: number
+        ratingCount:
+          type: integer
+        nextAvailableAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+          description: Places only. The earliest bookable time found at the last refresh.
+        nextStartsAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+          description: Events only.
+        lastEndsAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+        online:
+          type: boolean
+        timezone:
+          type: string
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+        deliveryModes:
+          type: array
+          items:
+            type: string
+        serviceCount:
+          type: integer
+        menu:
+          type: array
+          description: Up to three services matching the words typed or the category; empty otherwise.
+          items:
+            $ref: '#/components/schemas/SearchMenuLine'
+        newOnBeavent:
+          type: boolean
+    SearchPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        nextCursor:
+          type: string
+          description: Absent on the last page.
+        total:
+          type: integer
+          description: How many listings match; given on the first page only.
+    SearchPin:
+      type: object
+      required:
+        - id
+        - kind
+        - title
+        - path
+        - latitude
+        - longitude
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          $ref: '#/components/schemas/SearchKind'
+        title:
+          type: string
+        path:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        priceFromMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        ratingAvg:
+          type: number
+    SearchPins:
+      type: object
+      required:
+        - pins
+        - truncated
+      properties:
+        pins:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchPin'
+        truncated:
+          type: boolean
+          description: More listings match than are returned (at most 200), so zoom in or narrow the filters.
+    SearchCategoryHit:
+      type: object
+      required:
+        - code
+        - kind
+        - name
+      properties:
+        code:
+          type: string
+        kind:
+          type: string
+          enum:
+            - BUSINESS
+            - SERVICE
+            - EVENT
+            - PRODUCT
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+    SearchSuggestions:
+      type: object
+      required:
+        - categories
+        - places
+        - events
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchCategoryHit'
+        places:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
     FilePurpose:
       type: string
       enum:
@@ -10767,3 +11136,203 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
+    Q:
+      name: q
+      in: query
+      required: false
+      description: What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match.
+      schema:
+        type: string
+        maxLength: 100
+    Kind:
+      name: kind
+      in: query
+      required: false
+      description: Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together.
+      schema:
+        type: string
+        enum:
+          - LOCATION
+          - EVENT
+    Market:
+      name: market
+      in: query
+      required: false
+      description: Market code, e.g. `ET`.
+      schema:
+        type: string
+    Category:
+      name: category
+      in: query
+      required: false
+      description: Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it.
+      schema:
+        type: string
+    Area:
+      name: area
+      in: query
+      required: false
+      description: Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it.
+      schema:
+        type: string
+    Lat:
+      name: lat
+      in: query
+      required: false
+      description: With `lng`, only listings within `radius` metres.
+      schema:
+        type: number
+        minimum: -90
+        maximum: 90
+    Lng:
+      name: lng
+      in: query
+      required: false
+      schema:
+        type: number
+        minimum: -180
+        maximum: 180
+    Radius:
+      name: radius
+      in: query
+      required: false
+      description: Metres around `lat`/`lng`. Default 5000.
+      schema:
+        type: integer
+        minimum: 100
+        maximum: 50000
+    West:
+      name: west
+      in: query
+      required: false
+      description: A map window (all four needed, west < east, south < north).
+      schema:
+        type: number
+    South:
+      name: south
+      in: query
+      required: false
+      schema:
+        type: number
+    East:
+      name: east
+      in: query
+      required: false
+      schema:
+        type: number
+    North:
+      name: north
+      in: query
+      required: false
+      schema:
+        type: number
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: |
+        `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+        `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+      schema:
+        type: string
+        enum:
+          - RECOMMENDED
+          - NEAREST
+          - TOP_RATED
+          - LOWEST_PRICE
+          - SOONEST
+          - NEWEST
+    MaxPrice:
+      name: maxPrice
+      in: query
+      required: false
+      description: The "from" price is at most this many minor units of its currency.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    MinRating:
+      name: minRating
+      in: query
+      required: false
+      schema:
+        type: number
+        minimum: 0
+        maximum: 5
+    OpenNow:
+      name: openNow
+      in: query
+      required: false
+      description: Places open at this moment (opening hours only; announced closures are not applied).
+      schema:
+        type: boolean
+        default: false
+    AtHome:
+      name: atHome
+      in: query
+      required: false
+      description: Places whose professionals come to the customer.
+      schema:
+        type: boolean
+        default: false
+    Audience:
+      name: audience
+      in: query
+      required: false
+      description: Places with services for this group (or for everyone).
+      schema:
+        type: string
+        enum:
+          - WOMEN
+          - MEN
+          - CHILDREN
+    Language:
+      name: language
+      in: query
+      required: false
+      description: A language a professional speaks, e.g. `am`.
+      schema:
+        type: string
+    Date:
+      name: date
+      in: query
+      required: false
+      description: First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`.
+      schema:
+        type: string
+        format: date
+    DateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: Last local date (inclusive); defaults to `date`. At most 60 days after it.
+      schema:
+        type: string
+        format: date
+    Part:
+      name: part
+      in: query
+      required: false
+      description: Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`.
+      schema:
+        type: string
+        enum:
+          - MORNING
+          - AFTERNOON
+          - EVENING
+    Free:
+      name: free
+      in: query
+      required: false
+      description: Events that cost nothing.
+      schema:
+        type: boolean
+        default: false
+    Online:
+      name: online
+      in: query
+      required: false
+      description: Events held online.
+      schema:
+        type: boolean
+        default: false

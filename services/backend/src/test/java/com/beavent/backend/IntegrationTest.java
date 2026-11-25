@@ -21,7 +21,9 @@ import org.springframework.test.context.ActiveProfiles;
             "beavent.booking.holds-per-ip-per-hour=100000",
             // Messages and booking time-outs run often enough for tests to wait on them.
             "beavent.comms.dispatch-interval-ms=300",
-            "beavent.scheduling.sweep-interval-ms=500"
+            "beavent.scheduling.sweep-interval-ms=500",
+            // Search tests refresh the listings themselves; a background sweep would only add load.
+            "beavent.discovery.sweep-interval-ms=3600000"
         })
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("local")

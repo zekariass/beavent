@@ -47,7 +47,7 @@ Every screen follows the Beavent design system: read the root [`AGENTS.md`](../.
 first.
 
 - Build screens from `@beavent/native` (shared with the business app; source in `packages/native/src/ui`: `Text`, `Button`, `TextField`, `Screen`, `Section`, `ListRow`,
-  `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`). Colours, language, display
+  `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`, `BottomSheet`, `SearchField`). Colours, language, display
   preferences and the resolved theme come from `useApp()` (`packages/native/src/app-context.tsx`).
 - Values come from `@beavent/ui` (spacing `space`/`layout`, `radius`, `size`, type roles). No hex colours, raw font
   sizes or off-scale spacing in screens; `Text` refuses font/colour styles by type.

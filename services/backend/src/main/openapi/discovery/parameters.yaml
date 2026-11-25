@@ -1,0 +1,186 @@
+Q:
+  name: q
+  in: query
+  required: false
+  description: What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match.
+  schema:
+    type: string
+    maxLength: 100
+Kind:
+  name: kind
+  in: query
+  required: false
+  description: Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together.
+  schema:
+    type: string
+    enum: [LOCATION, EVENT]
+Market:
+  name: market
+  in: query
+  required: false
+  description: Market code, e.g. `ET`.
+  schema:
+    type: string
+Category:
+  name: category
+  in: query
+  required: false
+  description: Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it.
+  schema:
+    type: string
+Area:
+  name: area
+  in: query
+  required: false
+  description: Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it.
+  schema:
+    type: string
+Lat:
+  name: lat
+  in: query
+  required: false
+  description: With `lng`, only listings within `radius` metres.
+  schema:
+    type: number
+    minimum: -90
+    maximum: 90
+Lng:
+  name: lng
+  in: query
+  required: false
+  schema:
+    type: number
+    minimum: -180
+    maximum: 180
+Radius:
+  name: radius
+  in: query
+  required: false
+  description: Metres around `lat`/`lng`. Default 5000.
+  schema:
+    type: integer
+    minimum: 100
+    maximum: 50000
+West:
+  name: west
+  in: query
+  required: false
+  description: A map window (all four needed, west < east, south < north).
+  schema:
+    type: number
+South:
+  name: south
+  in: query
+  required: false
+  schema:
+    type: number
+East:
+  name: east
+  in: query
+  required: false
+  schema:
+    type: number
+North:
+  name: north
+  in: query
+  required: false
+  schema:
+    type: number
+Sort:
+  name: sort
+  in: query
+  required: false
+  description: |
+    `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+    `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+  schema:
+    type: string
+    enum: [RECOMMENDED, NEAREST, TOP_RATED, LOWEST_PRICE, SOONEST, NEWEST]
+MaxPrice:
+  name: maxPrice
+  in: query
+  required: false
+  description: The "from" price is at most this many minor units of its currency.
+  schema:
+    type: integer
+    format: int64
+    minimum: 0
+MinRating:
+  name: minRating
+  in: query
+  required: false
+  schema:
+    type: number
+    minimum: 0
+    maximum: 5
+OpenNow:
+  name: openNow
+  in: query
+  required: false
+  description: Places open at this moment (opening hours only; announced closures are not applied).
+  schema:
+    type: boolean
+    default: false
+AtHome:
+  name: atHome
+  in: query
+  required: false
+  description: Places whose professionals come to the customer.
+  schema:
+    type: boolean
+    default: false
+Audience:
+  name: audience
+  in: query
+  required: false
+  description: Places with services for this group (or for everyone).
+  schema:
+    type: string
+    enum: [WOMEN, MEN, CHILDREN]
+Language:
+  name: language
+  in: query
+  required: false
+  description: A language a professional speaks, e.g. `am`.
+  schema:
+    type: string
+Date:
+  name: date
+  in: query
+  required: false
+  description: First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`.
+  schema:
+    type: string
+    format: date
+DateTo:
+  name: dateTo
+  in: query
+  required: false
+  description: Last local date (inclusive); defaults to `date`. At most 60 days after it.
+  schema:
+    type: string
+    format: date
+Part:
+  name: part
+  in: query
+  required: false
+  description: Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`.
+  schema:
+    type: string
+    enum: [MORNING, AFTERNOON, EVENING]
+Free:
+  name: free
+  in: query
+  required: false
+  description: Events that cost nothing.
+  schema:
+    type: boolean
+    default: false
+Online:
+  name: online
+  in: query
+  required: false
+  description: Events held online.
+  schema:
+    type: boolean
+    default: false

@@ -1861,6 +1861,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search places to book and things to do, together
+         * @description Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+         *     misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+         *     date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+         *     Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+         */
+        get: operations["searchListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/search/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pins for the map, with the same filters as the search
+         * @description Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+         */
+        get: operations["searchPins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/search/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categories, places and events matching what has been typed so far */
+        get: operations["searchSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -4075,6 +4135,106 @@ export interface components {
             policy: components["schemas"]["VenuePolicy"];
             otherLocations: components["schemas"]["VenueOther"][];
         };
+        /** @enum {string} */
+        SearchKind: "LOCATION" | "EVENT";
+        /** @description One service of a place that matches what was typed or the category, for the result row. */
+        SearchMenuLine: {
+            serviceId: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /**
+             * Format: int64
+             * @description The lowest price of the service, minor units of the listing's currency.
+             */
+            priceMinor: number;
+            /** @enum {string} */
+            priceType: "FIXED" | "FROM" | "ON_CONSULTATION";
+            matches: boolean;
+        };
+        /**
+         * @description A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+         *     (`path` is the part after the prefix).
+         */
+        SearchItem: {
+            id: components["schemas"]["Uuid"];
+            kind: components["schemas"]["SearchKind"];
+            title: string;
+            summary: components["schemas"]["LocalizedText"];
+            imageUrl?: string;
+            /** @description Smaller sizes by name (w320, w960). */
+            imageVariants: {
+                [key: string]: string;
+            };
+            businessSlug: string;
+            locationSlug?: string;
+            eventSlug?: string;
+            /** @description `/{businessSlug}/{locationSlug or eventSlug}`. */
+            path: string;
+            category: components["schemas"]["LocalizedText"];
+            area: components["schemas"]["LocalizedText"];
+            landmark?: string;
+            latitude?: number;
+            longitude?: number;
+            /** @description From `lat`/`lng` when they were given. */
+            distanceMeters?: number;
+            /**
+             * Format: int64
+             * @description All-in "from" price in minor units; `0` is free.
+             */
+            priceFromMinor?: number;
+            currency?: string;
+            ratingAvg?: number;
+            ratingCount: number;
+            /** @description Places only. The earliest bookable time found at the last refresh. */
+            nextAvailableAt?: components["schemas"]["Instant"];
+            /** @description Events only. */
+            nextStartsAt?: components["schemas"]["Instant"];
+            lastEndsAt?: components["schemas"]["Instant"];
+            online: boolean;
+            timezone?: string;
+            /** @enum {string} */
+            serviceMode?: "ON_PREMISES" | "MOBILE_ONLY" | "BOTH";
+            deliveryModes: string[];
+            serviceCount: number;
+            /** @description Up to three services matching the words typed or the category; empty otherwise. */
+            menu: components["schemas"]["SearchMenuLine"][];
+            newOnBeavent: boolean;
+        };
+        SearchPage: {
+            items: components["schemas"]["SearchItem"][];
+            /** @description Absent on the last page. */
+            nextCursor?: string;
+            /** @description How many listings match; given on the first page only. */
+            total?: number;
+        };
+        SearchPin: {
+            id: components["schemas"]["Uuid"];
+            kind: components["schemas"]["SearchKind"];
+            title: string;
+            path: string;
+            latitude: number;
+            longitude: number;
+            /** Format: int64 */
+            priceFromMinor?: number;
+            currency?: string;
+            ratingAvg?: number;
+        };
+        SearchPins: {
+            pins: components["schemas"]["SearchPin"][];
+            /** @description More listings match than are returned (at most 200), so zoom in or narrow the filters. */
+            truncated: boolean;
+        };
+        SearchCategoryHit: {
+            code: string;
+            /** @enum {string} */
+            kind: "BUSINESS" | "SERVICE" | "EVENT" | "PRODUCT";
+            name: components["schemas"]["LocalizedText"];
+        };
+        SearchSuggestions: {
+            categories: components["schemas"]["SearchCategoryHit"][];
+            places: components["schemas"]["SearchItem"][];
+            events: components["schemas"]["SearchItem"][];
+        };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
          *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
@@ -4462,6 +4622,52 @@ export interface components {
         Cursor: string;
         Limit: number;
         AppointmentIdParam: components["schemas"]["Uuid"];
+        /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+        Q: string;
+        /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+        Kind: "LOCATION" | "EVENT";
+        /** @description Market code, e.g. `ET`. */
+        Market: string;
+        /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+        Category: string;
+        /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+        Area: string;
+        /** @description With `lng`, only listings within `radius` metres. */
+        Lat: number;
+        Lng: number;
+        /** @description Metres around `lat`/`lng`. Default 5000. */
+        Radius: number;
+        /** @description A map window (all four needed, west < east, south < north). */
+        West: number;
+        South: number;
+        East: number;
+        North: number;
+        /**
+         * @description `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+         *     `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+         */
+        Sort: "RECOMMENDED" | "NEAREST" | "TOP_RATED" | "LOWEST_PRICE" | "SOONEST" | "NEWEST";
+        /** @description The "from" price is at most this many minor units of its currency. */
+        MaxPrice: number;
+        MinRating: number;
+        /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+        OpenNow: boolean;
+        /** @description Places whose professionals come to the customer. */
+        AtHome: boolean;
+        /** @description Places with services for this group (or for everyone). */
+        Audience: "WOMEN" | "MEN" | "CHILDREN";
+        /** @description A language a professional speaks, e.g. `am`. */
+        Language: string;
+        /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+        Date: string;
+        /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+        DateTo: string;
+        /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+        Part: "MORNING" | "AFTERNOON" | "EVENING";
+        /** @description Events that cost nothing. */
+        Free: boolean;
+        /** @description Events held online. */
+        Online: boolean;
     };
     requestBodies: never;
     headers: never;
@@ -8497,6 +8703,169 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    searchListings: {
+        parameters: {
+            query?: {
+                /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+                q?: components["parameters"]["Q"];
+                /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+                kind?: components["parameters"]["Kind"];
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+                category?: components["parameters"]["Category"];
+                /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+                area?: components["parameters"]["Area"];
+                /** @description With `lng`, only listings within `radius` metres. */
+                lat?: components["parameters"]["Lat"];
+                lng?: components["parameters"]["Lng"];
+                /** @description Metres around `lat`/`lng`. Default 5000. */
+                radius?: components["parameters"]["Radius"];
+                /** @description A map window (all four needed, west < east, south < north). */
+                west?: components["parameters"]["West"];
+                south?: components["parameters"]["South"];
+                east?: components["parameters"]["East"];
+                north?: components["parameters"]["North"];
+                /**
+                 * @description `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+                 *     `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description The "from" price is at most this many minor units of its currency. */
+                maxPrice?: components["parameters"]["MaxPrice"];
+                minRating?: components["parameters"]["MinRating"];
+                /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+                openNow?: components["parameters"]["OpenNow"];
+                /** @description Places whose professionals come to the customer. */
+                atHome?: components["parameters"]["AtHome"];
+                /** @description Places with services for this group (or for everyone). */
+                audience?: components["parameters"]["Audience"];
+                /** @description A language a professional speaks, e.g. `am`. */
+                language?: components["parameters"]["Language"];
+                /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+                date?: components["parameters"]["Date"];
+                /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+                dateTo?: components["parameters"]["DateTo"];
+                /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+                part?: components["parameters"]["Part"];
+                /** @description Events that cost nothing. */
+                free?: components["parameters"]["Free"];
+                /** @description Events held online. */
+                online?: components["parameters"]["Online"];
+                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of listings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    searchPins: {
+        parameters: {
+            query?: {
+                /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+                q?: components["parameters"]["Q"];
+                /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+                kind?: components["parameters"]["Kind"];
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+                category?: components["parameters"]["Category"];
+                /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+                area?: components["parameters"]["Area"];
+                /** @description With `lng`, only listings within `radius` metres. */
+                lat?: components["parameters"]["Lat"];
+                lng?: components["parameters"]["Lng"];
+                /** @description Metres around `lat`/`lng`. Default 5000. */
+                radius?: components["parameters"]["Radius"];
+                /** @description A map window (all four needed, west < east, south < north). */
+                west?: components["parameters"]["West"];
+                south?: components["parameters"]["South"];
+                east?: components["parameters"]["East"];
+                north?: components["parameters"]["North"];
+                /** @description The "from" price is at most this many minor units of its currency. */
+                maxPrice?: components["parameters"]["MaxPrice"];
+                minRating?: components["parameters"]["MinRating"];
+                /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+                openNow?: components["parameters"]["OpenNow"];
+                /** @description Places whose professionals come to the customer. */
+                atHome?: components["parameters"]["AtHome"];
+                /** @description Places with services for this group (or for everyone). */
+                audience?: components["parameters"]["Audience"];
+                /** @description A language a professional speaks, e.g. `am`. */
+                language?: components["parameters"]["Language"];
+                /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+                date?: components["parameters"]["Date"];
+                /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+                dateTo?: components["parameters"]["DateTo"];
+                /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+                part?: components["parameters"]["Part"];
+                /** @description Events that cost nothing. */
+                free?: components["parameters"]["Free"];
+                /** @description Events held online. */
+                online?: components["parameters"]["Online"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pins. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPins"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    searchSuggestions: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Per group. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to `limit` of each. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSuggestions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             429: components["responses"]["TooManyRequests"];
         };
     };

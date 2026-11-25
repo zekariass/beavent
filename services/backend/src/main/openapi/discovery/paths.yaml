@@ -1,0 +1,133 @@
+search:
+  get:
+    tags: [Discovery]
+    operationId: searchListings
+    summary: Search places to book and things to do, together
+    description: |
+      Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+      misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+      date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+      Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+    security: []
+    parameters:
+      - $ref: ./parameters.yaml#/Q
+      - $ref: ./parameters.yaml#/Kind
+      - $ref: ./parameters.yaml#/Market
+      - $ref: ./parameters.yaml#/Category
+      - $ref: ./parameters.yaml#/Area
+      - $ref: ./parameters.yaml#/Lat
+      - $ref: ./parameters.yaml#/Lng
+      - $ref: ./parameters.yaml#/Radius
+      - $ref: ./parameters.yaml#/West
+      - $ref: ./parameters.yaml#/South
+      - $ref: ./parameters.yaml#/East
+      - $ref: ./parameters.yaml#/North
+      - $ref: ./parameters.yaml#/Sort
+      - $ref: ./parameters.yaml#/MaxPrice
+      - $ref: ./parameters.yaml#/MinRating
+      - $ref: ./parameters.yaml#/OpenNow
+      - $ref: ./parameters.yaml#/AtHome
+      - $ref: ./parameters.yaml#/Audience
+      - $ref: ./parameters.yaml#/Language
+      - $ref: ./parameters.yaml#/Date
+      - $ref: ./parameters.yaml#/DateTo
+      - $ref: ./parameters.yaml#/Part
+      - $ref: ./parameters.yaml#/Free
+      - $ref: ./parameters.yaml#/Online
+      - $ref: ../common/parameters.yaml#/Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+    responses:
+      '200':
+        description: A page of listings.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+pins:
+  get:
+    tags: [Discovery]
+    operationId: searchPins
+    summary: Pins for the map, with the same filters as the search
+    description: Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+    security: []
+    parameters:
+      - $ref: ./parameters.yaml#/Q
+      - $ref: ./parameters.yaml#/Kind
+      - $ref: ./parameters.yaml#/Market
+      - $ref: ./parameters.yaml#/Category
+      - $ref: ./parameters.yaml#/Area
+      - $ref: ./parameters.yaml#/Lat
+      - $ref: ./parameters.yaml#/Lng
+      - $ref: ./parameters.yaml#/Radius
+      - $ref: ./parameters.yaml#/West
+      - $ref: ./parameters.yaml#/South
+      - $ref: ./parameters.yaml#/East
+      - $ref: ./parameters.yaml#/North
+      - $ref: ./parameters.yaml#/MaxPrice
+      - $ref: ./parameters.yaml#/MinRating
+      - $ref: ./parameters.yaml#/OpenNow
+      - $ref: ./parameters.yaml#/AtHome
+      - $ref: ./parameters.yaml#/Audience
+      - $ref: ./parameters.yaml#/Language
+      - $ref: ./parameters.yaml#/Date
+      - $ref: ./parameters.yaml#/DateTo
+      - $ref: ./parameters.yaml#/Part
+      - $ref: ./parameters.yaml#/Free
+      - $ref: ./parameters.yaml#/Online
+    responses:
+      '200':
+        description: Pins.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchPins
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+suggestions:
+  get:
+    tags: [Discovery]
+    operationId: searchSuggestions
+    summary: Categories, places and events matching what has been typed so far
+    security: []
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+      - $ref: ./parameters.yaml#/Market
+      - name: limit
+        in: query
+        required: false
+        description: Per group.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+    responses:
+      '200':
+        description: Up to `limit` of each.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchSuggestions
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

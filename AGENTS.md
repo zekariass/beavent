@@ -21,7 +21,7 @@ optional styling advice. **Do not invent a visual style.**
    - Venue and price wording (prices, durations, opening hours, policy sentences) comes from `@beavent/venue`, shared by web and mobile.
    - React Native: build screens from `@beavent/native` (`packages/native/src/ui`, shared by both mobile apps: `Text`, `Button`, `TextField`, `Screen`,
      `Section`, `ListRow`, `OptionRow`, `Group`, `Chip`, `Banner`, `EmptyState`, `Skeleton`, `DualLine`, `Icon`,
-     `PreferencesSections`, `BeaventTabs`; shell: `AppProvider`, `useBeaventShell`);
+     `BottomSheet`, `SearchField`, `PreferencesSections`, `BeaventTabs`; shell: `AppProvider`, `useBeaventShell`);
      colours come from `useApp().colors`.
    - Web: `@import "@beavent/ui/tokens.css"` gives Tailwind utilities (`bg-background`, `bg-surface`, `text-fg`,
      `text-fg-muted`, `border-border`, `border-border-strong`, `bg-primary`, `text-on-primary`, `bg-primary-subtle`,

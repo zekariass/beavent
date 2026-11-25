@@ -64,7 +64,7 @@ const venue = (over: Partial<Venue> = {}): Venue =>
 
 const en = createTranslator("en");
 /** Currency formatting uses a no-break space between symbol and number. */
-const plain = (text: string) => text.replace(/\u00a0/g, " ");
+const plain = (text: string | null) => text?.replace(/\u00a0/g, " ") ?? null;
 const am = createTranslator("am");
 
 test("text falls back from the reader's language to English to anything", () => {
@@ -190,4 +190,95 @@ test("a local date and time at the venue is the right instant", () => {
   // A zone with daylight saving: Berlin is UTC+1 in winter, UTC+2 in summer.
   assert.equal(localToInstant("2026-01-15", "10:00", "Europe/Berlin"), "2026-01-15T09:00:00.000Z");
   assert.equal(localToInstant("2026-07-15", "10:00", "Europe/Berlin"), "2026-07-15T08:00:00.000Z");
+});
+
+// --- search results --------------------------------------------------------------------------------------------
+
+import {
+  distanceText,
+  menuLinePrice,
+  nextAvailableText,
+  resultHref,
+  resultMeta,
+  resultPrice,
+  slugOf,
+  type SearchItem,
+} from "../src/index.ts";
+
+const item = (over: Partial<SearchItem> = {}): SearchItem => ({
+  id: "i",
+  kind: "LOCATION",
+  title: "Abeba Beauty",
+  summary: {},
+  imageVariants: {},
+  businessSlug: "abeba",
+  locationSlug: "bole",
+  path: "/abeba/bole",
+  category: { en: "Hair salon", am: "የፀጉር ሳሎን" },
+  area: { en: "Bole", am: "ቦሌ" },
+  ratingCount: 0,
+  online: false,
+  deliveryModes: [],
+  serviceCount: 1,
+  menu: [],
+  newOnBeavent: false,
+  timezone: "Africa/Addis_Ababa",
+  ...over,
+});
+
+test("distances read in metres below a kilometre and in kilometres above", () => {
+  const t = createTranslator("en");
+  assert.equal(distanceText(240, "en", t), "240 m");
+  assert.equal(distanceText(4, "en", t), "10 m");
+  assert.equal(distanceText(1200, "en", t), "1.2 km");
+  assert.equal(distanceText(1000, "am", createTranslator("am")), "1 ኪ.ሜ");
+});
+
+test("a result row's facts: category, area, distance and price", () => {
+  const en = createTranslator("en");
+  assert.equal(resultMeta(item({ distanceMeters: 1200 }), "en", en), "Hair salon · Bole · 1.2 km");
+  assert.equal(resultMeta(item(), "am", createTranslator("am")), "የፀጉር ሳሎን · ቦሌ");
+  assert.equal(
+    plain(resultPrice(item({ priceFromMinor: 180_000, currency: "ETB" }), "en", en)),
+    "from Br 1,800",
+  );
+  assert.equal(resultPrice(item({ priceFromMinor: 0, currency: "ETB" }), "en", en), "Free");
+  assert.equal(resultPrice(item(), "en", en), null);
+  const line = {
+    serviceId: "s",
+    name: {},
+    durationMinutes: 90,
+    priceMinor: 220_000,
+    priceType: "FROM",
+    matches: true,
+  } as const;
+  assert.equal(plain(menuLinePrice(line, "ETB", "en", en)), "from Br 2,200");
+  assert.equal(plain(menuLinePrice({ ...line, priceType: "FIXED" }, "ETB", "en", en)), "Br 2,200");
+  assert.equal(menuLinePrice({ ...line, priceMinor: 0 }, "ETB", "en", en), "Free");
+});
+
+test("the next free time says today, tomorrow or the date, in both time conventions", () => {
+  const en = createTranslator("en");
+  const now = new Date("2026-12-01T06:00:00Z"); // 09:00 in Addis Ababa
+  const at = (iso: string) => item({ nextAvailableAt: iso });
+  assert.equal(
+    nextAvailableText(at("2026-12-01T13:00:00Z"), "en", en, now),
+    "Next: today 4:00 PM (10:00 in the afternoon)",
+  );
+  assert.match(
+    nextAvailableText(at("2026-12-02T06:00:00Z"), "en", en, now) ?? "",
+    /^Next: tomorrow /,
+  );
+  assert.match(
+    nextAvailableText(at("2026-12-05T06:00:00Z"), "en", en, now) ?? "",
+    /^Next: .*5.*, /,
+  );
+  assert.equal(nextAvailableText(item(), "en", en, now), null);
+});
+
+test("links and slugs", () => {
+  assert.equal(resultHref(item()), "/b/abeba/bole");
+  assert.equal(slugOf("HAIR_SALON"), "hair-salon");
+  assert.equal(slugOf("Addis Ababa"), "addis-ababa");
+  assert.equal(slugOf("  Café & Bar "), "cafe-bar");
 });

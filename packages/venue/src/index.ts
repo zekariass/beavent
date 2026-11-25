@@ -13,7 +13,8 @@ import {
   zoned,
   type CalendarLanguage,
 } from "@beavent/calendar";
-import { formatDuration, type Language, type Translate } from "@beavent/i18n";
+import { formatDuration, LANGUAGE_NAMES, type Language, type Translate } from "@beavent/i18n";
+import type { Filters } from "./filters.ts";
 import { formatDisplay, money } from "@beavent/money";
 
 export type Venue = Schemas["Venue"];
@@ -226,4 +227,132 @@ export function waitlistWhen(
     )
     .join(sep);
   return t("waitlist.when", { days: dayText, parts: partText });
+}
+
+// --- search results ----------------------------------------------------------------------------------------------
+// How a place reads in a result row (S-02 VenueResultRow, S-01 VenueCard): the same on web and in the app.
+
+export type SearchItem = Schemas["SearchItem"];
+export type SearchMenuLine = Schemas["SearchMenuLine"];
+export type SearchPage = Schemas["SearchPage"];
+
+/** "250 m" under a kilometre (rounded to 10 m), otherwise "1.2 km". */
+export function distanceText(meters: number, language: Language, t: Translate): string {
+  if (meters < 1000)
+    return t("distance.meters", { value: Math.max(10, Math.round(meters / 10) * 10) });
+  const km = new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(meters / 1000);
+  return t("distance.km", { value: km });
+}
+
+/** "Hair salon · Addis Ketema", then the distance when the search knew where the reader is. */
+export function resultMeta(item: SearchItem, language: Language, t: Translate): string {
+  return [
+    pick(item.category, language),
+    pick(item.area, language),
+    item.distanceMeters === undefined ? "" : distanceText(item.distanceMeters, language, t),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** "from Br 1,800", "Free", or nothing when the place has no price yet. */
+export function resultPrice(item: SearchItem, language: Language, t: Translate): string | null {
+  if (item.priceFromMinor === undefined || !item.currency) return null;
+  if (item.priceFromMinor === 0) return t("venue.free");
+  return t("venue.from", { price: price(item.priceFromMinor, item.currency, language) });
+}
+
+/** A service line in a result row: "Box braids" with its duration, and the price ("from Br 2,200" or "Br 1,800"). */
+export function menuLinePrice(
+  line: SearchMenuLine,
+  currency: string,
+  language: Language,
+  t: Translate,
+): string {
+  if (line.priceType === "ON_CONSULTATION") return t("venue.onConsultation");
+  if (line.priceMinor === 0) return t("venue.free");
+  const text = price(line.priceMinor, currency, language);
+  return line.priceType === "FROM" ? t("venue.from", { price: text }) : text;
+}
+
+/**
+ * "Next: today ከሰዓት 4:00 (16:00)", in the place's own time zone and both time conventions (DD7). `null` when no bookable
+ * time was found at the last refresh.
+ */
+export function nextAvailableText(
+  item: SearchItem,
+  language: Language,
+  t: Translate,
+  now: Date = new Date(),
+): string | null {
+  if (!item.nextAvailableAt || !item.timezone) return null;
+  const local = zoned(item.nextAvailableAt, item.timezone);
+  const hhmm = `${String(local.hour).padStart(2, "0")}:${String(local.minute).padStart(2, "0")}`;
+  const clock = dualClock(hhmm, language);
+  const time = `${clock.primary} (${clock.secondary})`;
+  const day = localDateOf(item.nextAvailableAt, item.timezone);
+  const today = todayIn(item.timezone, now);
+  if (day === today) return t("results.next.today", { time });
+  if (day === addDays(today, 1)) return t("results.next.tomorrow", { time });
+  const date = formatDualDate(
+    item.nextAvailableAt,
+    { ...defaultDisplayPreferences(calendarLanguage(language)), timeZone: item.timezone },
+    { year: false },
+  );
+  return t("results.next.date", { date: date.primary, time });
+}
+
+/** The page of a result: venue pages open at `/b/{business}/{location}` (events later, Stage 6). */
+export const resultHref = (item: SearchItem): string => `/b${item.path}`;
+
+/** URL-safe name of a category or city, for landing pages: "HAIR_SALON" → "hair-salon", "Addis Ababa" → "addis-ababa". */
+export const slugOf = (text: string): string =>
+  text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+export * from "./filters.ts";
+
+/** What is narrowing a search, as removable chips ("Under Br 1,000", "Open now", …); `remove` undoes that one filter. */
+export function activeFilterChips(
+  filters: Filters,
+  language: Language,
+  t: Translate,
+): { key: string; label: string; remove: Partial<Filters> }[] {
+  const chips: { key: string; label: string; remove: Partial<Filters> }[] = [];
+  if (filters.q) chips.push({ key: "q", label: `“${filters.q}”`, remove: { q: undefined } });
+  if (filters.date)
+    chips.push({ key: "date", label: filters.date, remove: { date: undefined, part: undefined } });
+  if (filters.maxPrice !== undefined)
+    chips.push({
+      key: "maxPrice",
+      label: t("filter.price.under", { amount: price(filters.maxPrice, "ETB", language) }),
+      remove: { maxPrice: undefined },
+    });
+  if (filters.minRating !== undefined)
+    chips.push({
+      key: "minRating",
+      label: t("filter.rating.from", { rating: filters.minRating }),
+      remove: { minRating: undefined },
+    });
+  if (filters.openNow)
+    chips.push({ key: "openNow", label: t("filter.openNow"), remove: { openNow: undefined } });
+  if (filters.atHome)
+    chips.push({ key: "atHome", label: t("filter.atHome"), remove: { atHome: undefined } });
+  if (filters.audience)
+    chips.push({
+      key: "audience",
+      label: t(`filter.for.${filters.audience}`),
+      remove: { audience: undefined },
+    });
+  if (filters.language)
+    chips.push({
+      key: "language",
+      label: LANGUAGE_NAMES[filters.language as Language] ?? filters.language,
+      remove: { language: undefined },
+    });
+  if (filters.area) chips.push({ key: "area", label: filters.area, remove: { area: undefined } });
+  return chips;
 }

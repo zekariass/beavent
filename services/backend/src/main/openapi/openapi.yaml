@@ -48,6 +48,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: Discovery
+    description: Search over places to book and things to do (public)
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -267,6 +269,13 @@ paths:
     $ref: ./marketplace/paths.yaml#/businessLocations
   /v1/public/venues/{businessSlug}/{locationSlug}:
     $ref: ./marketplace/paths.yaml#/venue
+  # --- discovery --------------------------------------------------------------------------------------------
+  /v1/public/search:
+    $ref: ./discovery/paths.yaml#/search
+  /v1/public/search/pins:
+    $ref: ./discovery/paths.yaml#/pins
+  /v1/public/search/suggestions:
+    $ref: ./discovery/paths.yaml#/suggestions
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles

@@ -15,8 +15,10 @@
 | Partner-portal primitives (`inputClass`, `buttonClass`, `secondaryButtonClass`, `secondaryButtonLargeClass`, `listClass`, `rowLinkClass`, `Field`, `Section`, `FormMessage`) and `WorkspaceNav` (AppShell sidebar) | `apps/web/src/components/business` |
 | Admin primitives on tokens (`PageTitle`, `Badge` with readable labels, `Table`, `Empty`, `SearchForm`) | `apps/web/src/components/ops/ui.tsx` |
 
-Everything else in this document is specified but **not built yet** (BottomSheet, Dialog, Toast, PhoneField,
-CodeField, Stepper, SegmentedControl, StickyActionBar, StepProgress, AnchorTabs and all §6 marketplace components).
+Also built (25 Nov 2026, plan 8.1): **BottomSheet** and **SearchField** (`packages/native/src/ui`), and the consumer app's `VenueCard`, `VenueResultRow`, filter sheet and location sheet (`apps/public-mobile/src/components/marketplace`); on the web the same pieces are in `apps/web/src/components/discovery`. The sheet has no swipe-down dismissal yet (scrim, Close button and Android back close it).
+
+Everything else in this document is specified but **not built yet** (Dialog, Toast, PhoneField,
+CodeField, Stepper, SegmentedControl, StickyActionBar, StepProgress, AnchorTabs and the other §6 marketplace components).
 Build them to this spec when a screen first needs them (AI_AGENT_DESIGN_INSTRUCTIONS.md §10).
 
 ## 1. Where components live
