@@ -67,6 +67,14 @@ class CommsConfiguration {
                 .with("appointment.*");
     }
 
+    /** A payment link was made for a booking: the customer gets it (plan 3.7). */
+    @Bean
+    Binding commsPaymentLinksBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payment_link.created");
+    }
+
     /** A refund was paid: the customer is told (plan 3.6). */
     @Bean
     Binding commsRefundsBinding(Queue commsAppointmentsQueue) {

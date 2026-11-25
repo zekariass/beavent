@@ -77,6 +77,25 @@ final class Texts {
                 am
                         ? business + " ላይ የነበረዎት ቀጠሮ " + ref + " (" + date + "፣ " + when + ") ተሰርዟል።"
                         : "Your booking " + ref + " at " + business + " on " + date + ", " + when + " is cancelled.";
+            case Notifier.PAYMENT_LINK -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("paymentMinor"))), am);
+                String url = String.valueOf(data.get("url"));
+                boolean balance = "BALANCE".equals(data.get("kind"));
+                ZonedDateTime until = Instant.parse(String.valueOf(data.get("linkExpires")))
+                        .atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+                String by = date(until, lang) + ", " + time(until.toLocalTime(), lang);
+                yield am
+                        ? business + "፦ "
+                                + (balance
+                                        ? "የቀጠሮ " + ref + " ቀሪ ሂሳብ "
+                                        : "ቀጠሮዎን " + ref + " (" + date + "፣ " + when + ") ለማረጋገጥ ")
+                                + amount + " ይክፈሉ፦ " + url + " (እስከ " + by + " ድረስ ክፍት ነው)።"
+                        : business + ": pay " + amount
+                                + (balance
+                                        ? " to settle the balance of booking " + ref
+                                        : " to confirm your booking " + ref + " on " + date + ", " + when)
+                                + ": " + url + " (open until " + by + ")";
+            }
             case Notifier.REFUND_SENT -> {
                 String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
                 yield am

@@ -1,6 +1,7 @@
 package com.beavent.backend.payments;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -56,6 +57,14 @@ public interface PaymentFulfilment {
      * order is not this module's).
      */
     default Settlement settlement(UUID orgId, UUID orderId, long paidMinor, Instant now) {
+        return null;
+    }
+
+    /** What an order is for, in words a payer recognises (shown on a payment link's page). */
+    record Description(String reference, Instant startsAt, String timezone, List<String> items, String locationName) {}
+
+    /** The order described for its payer; {@code null} for an order that is not this module's. */
+    default Description describe(UUID orgId, UUID orderId) {
         return null;
     }
 }

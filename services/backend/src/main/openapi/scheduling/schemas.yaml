@@ -973,3 +973,25 @@ WaitlistList:
       type: array
       items:
         $ref: '#/WaitlistEntry'
+PaymentLinkSent:
+  type: object
+  required: [url, expiresAt, amountMinor, currency, kind, sentTo]
+  properties:
+    url:
+      type: string
+      format: uri
+      description: The address the customer opens; sent to them, and shown so it can also be shared by hand.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    kind:
+      type: string
+      enum: [DEPOSIT, FULL, BALANCE]
+    sentTo:
+      type: string
+      enum: [SMS, EMAIL]
+

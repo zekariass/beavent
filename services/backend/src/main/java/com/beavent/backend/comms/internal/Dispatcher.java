@@ -170,6 +170,8 @@ class Dispatcher {
             case Notifier.CONFIRMED, Notifier.RESCHEDULED, Notifier.REMINDER_24H, Notifier.REMINDER_2H ->
                 "CONFIRMED".equals(a.value1()) && sameTime ? null : "appointment changed";
             case Notifier.REQUESTED -> "REQUESTED".equals(a.value1()) ? null : "request already answered";
+            case Notifier.PAYMENT_LINK ->
+                List.of("CANCELLED", "EXPIRED", "DECLINED", "NO_SHOW").contains(a.value1()) ? "booking closed" : null;
             default -> null;
         };
     }

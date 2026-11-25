@@ -185,3 +185,31 @@ export async function answerWaitlist(
   revalidatePath(`/${language}/account/bookings`, "layout");
   return { ok: true, value: null };
 }
+
+/**
+ * Starts (or resumes) the payment a link is for: the provider's page to send the payer to. No sign-in: the link's token
+ * is the credential. The provider sends them back to the link's own page.
+ */
+export async function startLinkPayment(
+  language: string,
+  token: string,
+): Promise<Result<Schemas["PaymentStart"]>> {
+  const { data, error } = await publicApi(language).POST("/v1/public/payment-links/{token}/start", {
+    params: { path: { token } },
+    body: { language: language as "am" | "en" | "om" },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  return { ok: true, value: data };
+}
+
+/** The payer came back (or is waiting): asks the provider, then says where the payment stands. */
+export async function checkLinkPayment(
+  language: string,
+  token: string,
+): Promise<Result<Schemas["PaymentLink"]>> {
+  const { data, error } = await publicApi(language).POST("/v1/public/payment-links/{token}/check", {
+    params: { path: { token } },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  return { ok: true, value: data };
+}

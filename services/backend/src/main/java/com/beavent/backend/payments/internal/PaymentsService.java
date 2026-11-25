@@ -16,7 +16,6 @@ import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.SystemDb;
 import java.net.URI;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,11 +95,21 @@ class PaymentsService implements Payments {
 
     @Override
     public Started start(UUID orgId, UUID orderId, Payer payer, Urls urls, String description, Instant now) {
+        return start(orgId, orderId, null, payer, urls, description, now);
+    }
+
+    /**
+     * What a payment link pays: one row of the order's payment schedule, until {@code expires}. A deposit row is paid
+     * while the order waits for it; a balance row while the booking it belongs to stands.
+     */
+    record Target(UUID scheduleRowId, Instant expires) {}
+
+    Started start(UUID orgId, UUID orderId, Target target, Payer payer, Urls urls, String description, Instant now) {
         PaymentProviderAdapter adapter = providers.adapter();
         if (!sellers.available(orgId)) {
             throw new ApiException(ProblemCode.PAYMENT_UNAVAILABLE, "This business cannot take online payments yet.");
         }
-        Phase phase = transactions.execute(status -> begin(orgId, orderId, payer, adapter, now));
+        Phase phase = transactions.execute(status -> begin(orgId, orderId, target, payer, adapter, now));
         if (phase.resume() != null) return phase.resume();
         // Chapa mode pays the seller at source: their subaccount, and the platform's share of this payment.
         CollectionRequest.Split split = null;
@@ -182,55 +191,51 @@ class PaymentsService implements Payments {
     }
 
     /** Phase one, in a transaction: checks the order, finds the open attempt or creates the intent and a new attempt. */
-    private Phase begin(UUID orgId, UUID orderId, Payer payer, PaymentProviderAdapter adapter, Instant now) {
+    private Phase begin(
+            UUID orgId, UUID orderId, Target target, Payer payer, PaymentProviderAdapter adapter, Instant now) {
         var order = system.select(ORDERS.STATUS, ORDERS.EXPIRES_AT, ORDERS.CURRENCY_CODE, ORDERS.CUSTOMER_ID)
                 .from(ORDERS)
                 .where(ORDERS.ID.eq(orderId).and(ORDERS.ORG_ID.eq(orgId)))
                 .forUpdate()
                 .fetchOne();
         if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
-        Instant expires = order.value2() == null ? null : order.value2().toInstant();
-        if (!order.value1().equals("PENDING_PAYMENT") || expires == null || !expires.isAfter(now)) {
-            throw new ApiException(ProblemCode.HOLD_EXPIRED, "This booking is no longer waiting for payment.");
+        Instant orderExpires = order.value2() == null ? null : order.value2().toInstant();
+        boolean waiting = order.value1().equals("PENDING_PAYMENT") && orderExpires != null && orderExpires.isAfter(now);
+        com.beavent.db.commerce.tables.records.PaymentScheduleRecord due;
+        Instant expires;
+        if (target == null) {
+            if (!waiting) {
+                throw new ApiException(ProblemCode.HOLD_EXPIRED, "This booking is no longer waiting for payment.");
+            }
+            due = system.selectFrom(PAYMENT_SCHEDULE)
+                    .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                    .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("ONLINE"))
+                    .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                    .orderBy(PAYMENT_SCHEDULE.SEQ)
+                    .limit(1)
+                    .fetchOne();
+            expires = orderExpires;
+        } else {
+            due = system.selectFrom(PAYMENT_SCHEDULE)
+                    .where(PAYMENT_SCHEDULE.ID.eq(target.scheduleRowId()), PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                    .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                    .fetchOne();
+            boolean balance = due != null && due.getKind().equals("BALANCE");
+            // A deposit is paid while the booking waits for it; a balance while the booking it belongs to stands.
+            boolean allowed = balance ? order.value1().equals("CONFIRMED") : waiting;
+            if (due != null && !allowed) {
+                throw new ApiException(ProblemCode.HOLD_EXPIRED, "This booking is no longer waiting for payment.");
+            }
+            expires = balance ? target.expires() : orderExpires;
         }
-        var due = system.selectFrom(PAYMENT_SCHEDULE)
-                .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
-                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("ONLINE"))
-                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
-                .orderBy(PAYMENT_SCHEDULE.SEQ)
-                .limit(1)
-                .fetchOne();
+        if (due != null && (expires == null || !expires.isAfter(now))) {
+            throw new ApiException(ProblemCode.HOLD_EXPIRED, "This payment is no longer open.");
+        }
         if (due == null) throw new ApiException(ProblemCode.CONFLICT, "Nothing is due online for this booking.");
         String currency = order.value3().trim();
 
-        var intent = system.selectFrom(PAYMENT_INTENTS)
-                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(due.getId()))
-                .forUpdate()
-                .fetchOne();
-        UUID intentId;
-        if (intent == null) {
-            intentId = Ids.newId();
-            system.insertInto(PAYMENT_INTENTS)
-                    .set(PAYMENT_INTENTS.ID, intentId)
-                    .set(PAYMENT_INTENTS.ORG_ID, orgId)
-                    .set(PAYMENT_INTENTS.PURPOSE, "ORDER")
-                    .set(PAYMENT_INTENTS.ORDER_ID, orderId)
-                    .set(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID, due.getId())
-                    .set(PAYMENT_INTENTS.COLLECTION_MODE, adapter.collectionMode())
-                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, due.getAmountMinor())
-                    .set(PAYMENT_INTENTS.CURRENCY_CODE, currency)
-                    .set(PAYMENT_INTENTS.STATUS, "REQUIRES_METHOD")
-                    .set(PAYMENT_INTENTS.PAYER_USER_ID, payer.userId())
-                    .set(PAYMENT_INTENTS.PAYER_CUSTOMER_ID, order.value4())
-                    .set(PAYMENT_INTENTS.IDEMPOTENCY_KEY, "schedule:" + due.getId())
-                    .set(PAYMENT_INTENTS.EXPIRES_AT, order.value2())
-                    .execute();
-        } else {
-            intentId = intent.getId();
-            if (intent.getStatus().equals("SUCCEEDED")) {
-                throw new ApiException(ProblemCode.CONFLICT, "This booking is already paid.");
-            }
-        }
+        UUID intentId = ensureIntent(
+                orgId, orderId, due, currency, order.value4(), payer.userId(), expires, adapter.collectionMode());
         // An attempt already open is handed back as it is (the payer reopens the same page).
         var open = system.selectFrom(PAYMENT_ATTEMPTS)
                 .where(PAYMENT_ATTEMPTS.INTENT_ID.eq(intentId))
@@ -280,6 +285,45 @@ class PaymentsService implements Payments {
                 .and(PAYMENT_INTENTS.STATUS.eq("REQUIRES_METHOD"))
                 .execute();
         return new Phase(null, attemptId, intentId, due.getAmountMinor(), currency, expires);
+    }
+
+    /** The intent of a schedule row: found, or created waiting for a method; a paid one cannot be paid again. */
+    UUID ensureIntent(
+            UUID orgId,
+            UUID orderId,
+            com.beavent.db.commerce.tables.records.PaymentScheduleRecord due,
+            String currency,
+            UUID customerId,
+            UUID payerUserId,
+            Instant expires,
+            String collectionMode) {
+        var intent = system.selectFrom(PAYMENT_INTENTS)
+                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(due.getId()))
+                .forUpdate()
+                .fetchOne();
+        if (intent == null) {
+            UUID intentId = Ids.newId();
+            system.insertInto(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.ID, intentId)
+                    .set(PAYMENT_INTENTS.ORG_ID, orgId)
+                    .set(PAYMENT_INTENTS.PURPOSE, "ORDER")
+                    .set(PAYMENT_INTENTS.ORDER_ID, orderId)
+                    .set(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID, due.getId())
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, collectionMode)
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, due.getAmountMinor())
+                    .set(PAYMENT_INTENTS.CURRENCY_CODE, currency)
+                    .set(PAYMENT_INTENTS.STATUS, "REQUIRES_METHOD")
+                    .set(PAYMENT_INTENTS.PAYER_USER_ID, payerUserId)
+                    .set(PAYMENT_INTENTS.PAYER_CUSTOMER_ID, customerId)
+                    .set(PAYMENT_INTENTS.IDEMPOTENCY_KEY, "schedule:" + due.getId())
+                    .set(PAYMENT_INTENTS.EXPIRES_AT, expires.atOffset(ZoneOffset.UTC))
+                    .execute();
+            return intentId;
+        }
+        if (intent.getStatus().equals("SUCCEEDED")) {
+            throw new ApiException(ProblemCode.CONFLICT, "This booking is already paid.");
+        }
+        return intent.getId();
     }
 
     @Override
@@ -399,10 +443,5 @@ class PaymentsService implements Payments {
         JsonNode node = json.readTree(nextAction.data());
         String url = node.path("redirectUrl").asString("");
         return url.isBlank() ? null : URI.create(url);
-    }
-
-    @SuppressWarnings("unused")
-    private static OffsetDateTime utc(Instant i) {
-        return i.atOffset(ZoneOffset.UTC);
     }
 }

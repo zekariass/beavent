@@ -588,6 +588,38 @@ deskAppointments:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+deskPaymentLink:
+  post:
+    tags: [Calendar]
+    operationId: sendPaymentLink
+    summary: Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+    description: |
+      A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+      link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+      fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+      The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+      shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+      deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The link.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLinkSent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
 deskCancel:
   post:
     tags: [Calendar]

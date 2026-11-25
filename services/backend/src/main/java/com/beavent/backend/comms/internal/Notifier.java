@@ -41,6 +41,8 @@ class Notifier {
     static final String EXPIRED = "APPOINTMENT_EXPIRED";
     /** A refund was paid to the customer (plan 3.6). */
     static final String REFUND_SENT = "APPOINTMENT_REFUND_SENT";
+    /** A link to pay a deposit or a balance was made for the booking (plan 3.7). */
+    static final String PAYMENT_LINK = "APPOINTMENT_PAYMENT_LINK";
 
     static final String CANCELLED = "APPOINTMENT_CANCELLED";
     static final String RESCHEDULED = "APPOINTMENT_RESCHEDULED";
@@ -240,6 +242,23 @@ class Notifier {
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
         String type = message.getMessageProperties().getReceivedRoutingKey();
         var body = json.readTree(message.getBody());
+        if (type.equals("payment_link.created")) {
+            UUID orderId = UUID.fromString(body.get("orderId").asString());
+            Map<String, Object> extra = Map.of(
+                    "linkId", body.get("linkId").asString(),
+                    "url", webUrl + "/pay/" + body.get("token").asString(),
+                    "kind", body.get("kind").asString(),
+                    "paymentMinor", body.get("amountMinor").asLong(),
+                    "linkExpires", body.get("expiresAt").asString());
+            processedMessages.runOnce(CONSUMER, messageId, () -> {
+                UUID appointmentId = system.select(APPOINTMENTS.ID)
+                        .from(APPOINTMENTS)
+                        .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                        .fetchOne(APPOINTMENTS.ID);
+                if (appointmentId != null) handle(type, appointmentId, true, Instant.now(), extra);
+            });
+            return;
+        }
         if (type.equals("refund.succeeded")) {
             UUID orderId = UUID.fromString(body.get("orderId").asString());
             Map<String, Object> extra = Map.of(
@@ -326,6 +345,7 @@ class Notifier {
                 if (notify) add(orgId, customerId, userId, CANCELLED, data, now, start);
             }
             case "refund.succeeded" -> add(orgId, customerId, userId, REFUND_SENT, data, now, start);
+            case "payment_link.created" -> add(orgId, customerId, userId, PAYMENT_LINK, data, now, start);
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, RESCHEDULED, data, now, start);

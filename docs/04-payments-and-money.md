@@ -176,6 +176,8 @@ Card-on-file no-show protection (Fresha's model) does not work where most custom
 
 ### 6.4 Payment links and renewals
 
+*Built in slice 3.7 (26 Nov 2026), appointments only:* `payments/PaymentLinks`. A link points at the intent of one payment-schedule row; a deposit link and a balance link are the two kinds. Renewals and other purposes are not built.
+
 `payments.payment_links` point at an intent and can be sent by SMS, WhatsApp, Telegram or email, for balances, invoices, phone bookings and AI-concierge bookings. Membership renewals use a saved instrument where the provider supports tokens (`payments.instruments`); otherwise the renewal job sends a push prompt or payment link (`retention.customer_memberships.renewal_method`).
 
 ## 7. Webhooks, polling and idempotency

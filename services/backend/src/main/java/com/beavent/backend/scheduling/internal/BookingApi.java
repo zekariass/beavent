@@ -325,6 +325,22 @@ public class BookingApi {
     }
 
     /** The front desk cancels one visit, the rest of a series, or a whole group; returns the cancelled ids. */
+    /** A link sent to the customer to pay (plan 3.7), and where it went ({@code SMS} or {@code EMAIL}). */
+    public record PaymentLinkBody(
+            String url, Instant expiresAt, long amountMinor, String currency, String kind, String sentTo) {}
+
+    /** The front desk asks the customer to pay by a link; call with the business's context bound. */
+    public PaymentLinkBody requestPayment(UUID orgId, UUID actorUserId, UUID appointmentId, Instant now) {
+        Bookings.PaymentRequest r = bookings.requestPayment(orgId, actorUserId, appointmentId, now);
+        return new PaymentLinkBody(
+                r.link().url(),
+                r.link().expiresAt(),
+                r.link().amountMinor(),
+                r.link().currency(),
+                r.link().kind(),
+                r.sentTo());
+    }
+
     public List<UUID> deskCancel(
             UUID orgId, UUID actorUserId, UUID appointmentId, String scope, String reason, boolean notify) {
         return bookings.deskCancel(

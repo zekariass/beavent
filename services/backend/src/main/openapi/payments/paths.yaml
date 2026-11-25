@@ -194,3 +194,76 @@ statement:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+LinkTokenParam:
+  name: token
+  in: path
+  required: true
+  schema:
+    type: string
+    minLength: 20
+    maxLength: 100
+paymentLink:
+  get:
+    tags: [Payments]
+    operationId: getPaymentLink
+    summary: What a payment link is for, and whether it can still be paid
+    description: |
+      No sign-in: the token in the address is the credential, and it pays only the one payment it was made for.
+      `404` for a token that is not a link.
+    parameters:
+      - $ref: '#/LinkTokenParam'
+    responses:
+      '200':
+        description: The link.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLink
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+paymentLinkStart:
+  post:
+    tags: [Payments]
+    operationId: startPaymentLink
+    summary: Start (or resume) the payment a link is for
+    description: |
+      Answers the provider's page to send the payer to; they come back to the link's own page. `HOLD_EXPIRED` when the link is no longer open, `CONFLICT` when it was paid already, `PAYMENT_UNAVAILABLE` when the
+      provider cannot be reached.
+    parameters:
+      - $ref: '#/LinkTokenParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/PaymentLinkStartInput
+    responses:
+      '200':
+        description: The provider's page.
+        content:
+          application/json:
+            schema:
+              $ref: ../scheduling/schemas.yaml#/PaymentStart
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
+paymentLinkCheck:
+  post:
+    tags: [Payments]
+    operationId: checkPaymentLink
+    summary: 'After the payer came back, ask the provider and say where the payment stands'
+    parameters:
+      - $ref: '#/LinkTokenParam'
+    responses:
+      '200':
+        description: The link.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLink
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+

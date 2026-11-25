@@ -142,6 +142,24 @@ class AppointmentFulfilment implements PaymentFulfilment {
         }
     }
 
+    @Override
+    public Description describe(UUID orgId, UUID orderId) {
+        var a = system.selectFrom(APPOINTMENTS)
+                .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                .fetchOne();
+        if (a == null) return null;
+        java.util.List<String> items = system.select(APPOINTMENT_ITEMS.SERVICE_NAME)
+                .from(APPOINTMENT_ITEMS)
+                .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(a.getId()))
+                .orderBy(APPOINTMENT_ITEMS.SEQ)
+                .fetch(APPOINTMENT_ITEMS.SERVICE_NAME);
+        String location = system.select(com.beavent.db.tenant.Tables.LOCATIONS.NAME)
+                .from(com.beavent.db.tenant.Tables.LOCATIONS)
+                .where(com.beavent.db.tenant.Tables.LOCATIONS.ID.eq(a.getLocationId()))
+                .fetchOne(com.beavent.db.tenant.Tables.LOCATIONS.NAME);
+        return new Description(a.getReference(), a.getStartsAt().toInstant(), a.getTimezone(), items, location);
+    }
+
     /** {@code percent} % of {@code total}, rounded half up. */
     static long percent(long total, java.math.BigDecimal percent) {
         if (percent == null) return 0;

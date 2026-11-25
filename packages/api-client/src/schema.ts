@@ -106,6 +106,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/payment-links/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a payment link is for, and whether it can still be paid
+         * @description No sign-in: the token in the address is the credential, and it pays only the one payment it was made for.
+         *     `404` for a token that is not a link.
+         */
+        get: operations["getPaymentLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start (or resume) the payment a link is for
+         * @description Answers the provider's page to send the payer to; they come back to the link's own page. `HOLD_EXPIRED` when the link is no longer open, `CONFLICT` when it was paid already, `PAYMENT_UNAVAILABLE` when the
+         *     provider cannot be reached.
+         */
+        post: operations["startPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** After the payer came back, ask the provider and say where the payment stands */
+        post: operations["checkPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/earnings": {
         parameters: {
             query?: never;
@@ -1264,6 +1323,31 @@ export interface paths {
          *     Booked visits that have not started can be cancelled. The times are freed at once.
          */
         post: operations["cancelAtTheDesk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/payment-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+         * @description A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+         *     link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+         *     fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+         *     The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+         *     shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+         *     deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+         */
+        post: operations["sendPaymentLink"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2738,6 +2822,44 @@ export interface components {
             /** @description Digits for a bank account (6 to 20); the wallet's mobile number for a wallet. */
             accountNumber: string;
         };
+        PaymentLink: {
+            /**
+             * @description `EXPIRED` also for a booking that was cancelled or released meanwhile.
+             * @enum {string}
+             */
+            state: "OPEN" | "PAID" | "EXPIRED";
+            /** @enum {string} */
+            purpose: "DEPOSIT" | "FULL" | "BALANCE";
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            expiresAt: components["schemas"]["Instant"];
+            business: string;
+            location?: string | null;
+            reference?: string | null;
+            startsAt?: components["schemas"]["Instant"];
+            timezone?: string | null;
+            items: string[];
+        };
+        PaymentLinkStartInput: {
+            /**
+             * @description The language of the pages the provider sends the payer back to.
+             * @enum {string}
+             */
+            language?: "am" | "en" | "om";
+        };
+        PaymentStart: {
+            attemptId: components["schemas"]["Uuid"];
+            /**
+             * Format: uri
+             * @description The provider's page to send the person to; they come back to the booking's payment page.
+             */
+            redirectUrl?: string | null;
+            expiresAt: components["schemas"]["Instant"];
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+        };
         PayoutRow: {
             id: components["schemas"]["Uuid"];
             /** @enum {string} */
@@ -3848,6 +3970,21 @@ export interface components {
             /** @description Series dates left out because they were not free. */
             skipped?: components["schemas"]["Instant"][];
         };
+        PaymentLinkSent: {
+            /**
+             * Format: uri
+             * @description The address the customer opens; sent to them, and shown so it can also be shared by hand.
+             */
+            url: string;
+            expiresAt: components["schemas"]["Instant"];
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            kind: "DEPOSIT" | "FULL" | "BALANCE";
+            /** @enum {string} */
+            sentTo: "SMS" | "EMAIL";
+        };
         CalendarSpan: {
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
@@ -4478,18 +4615,6 @@ export interface components {
              */
             refund?: components["schemas"]["AppointmentRefund"];
         };
-        PaymentStart: {
-            attemptId: components["schemas"]["Uuid"];
-            /**
-             * Format: uri
-             * @description The provider's page to send the person to; they come back to the booking's payment page.
-             */
-            redirectUrl?: string | null;
-            expiresAt: components["schemas"]["Instant"];
-            /** Format: int64 */
-            amountMinor: number;
-            currency: string;
-        };
         WaitlistOffer: {
             id: components["schemas"]["Uuid"];
             start: components["schemas"]["Instant"];
@@ -5109,6 +5234,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description A service the request depends on (online payment) is unavailable; try again shortly. */
+        ServiceUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Rate limited; retry after the `Retry-After` header. */
         TooManyRequests: {
             headers: {
@@ -5135,18 +5269,10 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description A service the request depends on (online payment) is unavailable; try again shortly. */
-        ServiceUnavailable: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
     };
     parameters: {
         OrgId: components["schemas"]["Uuid"];
+        LinkTokenParam: string;
         Cursor: string;
         Limit: number;
         /** @description ETag of the version being updated. */
@@ -5313,6 +5439,81 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PaymentLinkStartInput"];
+            };
+        };
+        responses: {
+            /** @description The provider's page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStart"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };
@@ -8060,6 +8261,34 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    sendPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLinkSent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     moveAppointment: {

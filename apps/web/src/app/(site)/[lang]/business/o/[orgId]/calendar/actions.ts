@@ -102,6 +102,28 @@ export async function bookAtDesk(
   return { ok: true, skipped: data.skipped ?? [] };
 }
 
+/**
+ * Asks the customer to pay by a link sent to them: a phone booking's deposit, a fresh deposit link, or the balance. The
+ * address comes back too, to share by hand.
+ */
+export async function sendPaymentLink(
+  language: string,
+  orgId: string,
+  appointmentId: string,
+): Promise<
+  | { ok: true; url: string; expiresAt: string; sentTo: "SMS" | "EMAIL" }
+  | { ok: false; code?: string; message: string }
+> {
+  const api = await portalApi(language);
+  const { data, error } = await api.POST(
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/payment-link",
+    { params: { path: { orgId, appointmentId } } },
+  );
+  if (!data) return failure(error) as { ok: false; code?: string; message: string };
+  revalidatePath(`/${language}/business/o/${orgId}/calendar`);
+  return { ok: true, url: data.url, expiresAt: data.expiresAt, sentTo: data.sentTo };
+}
+
 /** Cancels a visit, the rest of its series, or its whole group. */
 export async function cancelAtDesk(
   language: string,

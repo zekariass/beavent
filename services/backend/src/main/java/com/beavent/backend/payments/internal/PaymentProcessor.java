@@ -247,6 +247,11 @@ class PaymentProcessor {
                 .set(PAYMENT_INTENTS.UPDATED_AT, at)
                 .where(PAYMENT_INTENTS.ID.eq(intent.getId()))
                 .execute();
+        system.update(com.beavent.db.payments.Tables.PAYMENT_LINKS)
+                .set(com.beavent.db.payments.Tables.PAYMENT_LINKS.STATUS, "PAID")
+                .where(com.beavent.db.payments.Tables.PAYMENT_LINKS.INTENT_ID.eq(intent.getId()))
+                .and(com.beavent.db.payments.Tables.PAYMENT_LINKS.STATUS.eq("ACTIVE"))
+                .execute();
         if (intent.getPaymentScheduleId() != null) {
             system.update(PAYMENT_SCHEDULE)
                     .set(PAYMENT_SCHEDULE.STATUS, "PAID")
@@ -273,7 +278,11 @@ class PaymentProcessor {
                 }
             }
         }
-        if (outcome == PaymentFulfilment.Outcome.CONFIRMED) {
+        if (outcome == PaymentFulfilment.Outcome.CONFIRMED && "CONFIRMED".equals(orderStatus)) {
+            // A payment on a booking that already stands (a balance paid through a link): nothing changes on the order.
+            captures.confirmed(a, orderId, now);
+            publish(a.getOrgId(), orderId, "payment.succeeded", a, a.getAmountMinor());
+        } else if (outcome == PaymentFulfilment.Outcome.CONFIRMED) {
             system.update(ORDERS)
                     .set(ORDERS.STATUS, "CONFIRMED")
                     .set(ORDERS.CONFIRMED_AT, at)

@@ -7,7 +7,14 @@ import { localDateOf, localToInstant, price } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
-import { BlockPanel, CancelForm, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
+import {
+  BlockPanel,
+  CancelForm,
+  MoveForm,
+  NewPanel,
+  PaymentLinkForm,
+  type ServiceOption,
+} from "./DeskPanels";
 
 type Calendar = Schemas["Calendar"];
 type Appointment = Schemas["CalendarAppointment"];
@@ -585,6 +592,14 @@ function AppointmentPanel({
             appointment={appointment}
             zone={zone}
             staff={staff}
+          />
+        ) : null}
+        {s === "CONFIRMED" || s === "PENDING_PAYMENT" ? (
+          <PaymentLinkForm
+            language={language}
+            orgId={orgId}
+            appointment={appointment}
+            zone={zone}
           />
         ) : null}
         {s === "CONFIRMED" || s === "REQUESTED" ? (

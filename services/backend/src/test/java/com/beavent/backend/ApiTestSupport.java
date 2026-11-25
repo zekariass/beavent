@@ -13,6 +13,7 @@ import com.beavent.backend.platform.messaging.LoggingSmsGateway;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
@@ -111,10 +112,14 @@ public abstract class ApiTestSupport {
         return "+2519" + String.format("%08d", ThreadLocalRandom.current().nextInt(100_000_000));
     }
 
+    /** The newest one-time code sent to the phone (other texts, such as notices, may arrive after it). */
     protected String lastCode(String phone) {
-        Matcher matcher = Pattern.compile("(\\d{6})").matcher(sms.lastMessageTo(phone));
-        assertThat(matcher.find()).isTrue();
-        return matcher.group(1);
+        List<String> messages = sms.messagesTo(phone);
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Matcher matcher = Pattern.compile("(?<!\\d)(\\d{6})(?!\\d)").matcher(messages.get(i));
+            if (matcher.find()) return matcher.group(1);
+        }
+        throw new AssertionError("No code was sent to " + phone);
     }
 
     protected String requestCode(String phone, String purpose, String token) throws Exception {

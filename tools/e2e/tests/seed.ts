@@ -303,12 +303,8 @@ export function seal(plain: string): string {
   return `box:v1:${Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64")}`;
 }
 
-/**
- * A verified business with a verified payout account and a 10 % + VAT fee, whose customer booked and paid the 20 %
- * deposit on the ArifPay stub (the booking is confirmed, a week ahead).
- */
-export async function seedPaidBooking(name = "Abeba Beauty") {
-  const salon = await seedSalon(name, { deposit: true });
+/** Makes a seeded business able to take online payments: verified, a 10 % + VAT fee, a verified payout account. */
+export function readyForPayments(salon: SeededSalon): void {
   const org = salon.orgId;
   sql(`update tenant.organizations set verification_status = 'VERIFIED' where id = '${org}'`);
   sql(`update tenant.legal_entities set verification_status = 'VERIFIED' where org_id = '${org}'`);
@@ -323,7 +319,15 @@ export async function seedPaidBooking(name = "Abeba Beauty") {
       `'••••6789', '${seal("1000123456789")}', 'VERIFIED', 'MANUAL', true, (select id from iam.users limit 1), now() - interval '30 days', now() - interval '1 day' ` +
       `from tenant.legal_entities e where e.org_id = '${org}' limit 1`,
   );
+}
 
+/**
+ * A business able to take online payments whose customer booked and paid the 20 % deposit on the ArifPay stub (the
+ * booking is confirmed, a week ahead).
+ */
+export async function seedPaidBooking(name = "Abeba Beauty") {
+  const salon = await seedSalon(name, { deposit: true });
+  readyForPayments(salon);
   const day = (n: number) =>
     new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
   const booked = await bookAsCustomer(

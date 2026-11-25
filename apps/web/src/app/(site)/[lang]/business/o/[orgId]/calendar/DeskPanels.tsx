@@ -4,6 +4,7 @@ import type { Schemas } from "@beavent/api-client";
 import {
   defaultDisplayPreferences,
   formatDualDate,
+  formatDualTime,
   formatStandardTime,
   zoned,
 } from "@beavent/calendar";
@@ -18,6 +19,7 @@ import {
   findCustomers,
   moveAppointment,
   removeBlock,
+  sendPaymentLink,
 } from "./actions";
 
 /** A bookable option for the desk: a service variant and who does it. */
@@ -818,6 +820,96 @@ export function CancelForm({
           {t("portal.calendar.keep")}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Asks the customer to pay by a link sent to them (plan 3.7): a phone booking's deposit, a fresh link for a deposit not
+ * yet paid, or the balance of a confirmed booking. The address is shown too, to share by hand.
+ */
+export function PaymentLinkForm({
+  language,
+  orgId,
+  appointment,
+  zone,
+}: {
+  language: Language;
+  orgId: string;
+  appointment: Schemas["CalendarAppointment"];
+  zone: string;
+}) {
+  const t = createTranslator(language);
+  const router = useRouter();
+  const [sent, setSent] = useState<{
+    url: string;
+    expiresAt: string;
+    sentTo: "SMS" | "EMAIL";
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, run] = useTransition();
+  const payment = appointment.payment;
+  const status = appointment.status;
+  const label =
+    status === "PENDING_PAYMENT"
+      ? t("portal.calendar.link.again")
+      : payment && payment.state === "PAID"
+        ? payment.atVenueMinor > 0
+          ? t("portal.calendar.link.balance")
+          : null
+        : !payment
+          ? t("portal.calendar.link.ask")
+          : null;
+  if (!label) return null;
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        className={secondary}
+        onClick={() =>
+          run(async () => {
+            setError(null);
+            const r = await sendPaymentLink(language, orgId, appointment.id);
+            if (r.ok) {
+              setSent(r);
+              router.refresh();
+            } else setError(r.message);
+          })
+        }
+      >
+        {label}
+      </button>
+      {sent ? (
+        <>
+          <p role="status" className="bv-type-body text-fg">
+            {t(
+              sent.sentTo === "SMS"
+                ? "portal.calendar.link.sentSms"
+                : "portal.calendar.link.sentEmail",
+              {
+                time: formatDualTime(
+                  sent.expiresAt,
+                  defaultDisplayPreferences(calendarLanguage(language), zone),
+                ).primary,
+              },
+            )}
+          </p>
+          <Label text={t("portal.calendar.link.share")}>
+            <input
+              readOnly
+              value={sent.url}
+              onFocus={(e) => e.currentTarget.select()}
+              className={field}
+            />
+          </Label>
+        </>
+      ) : null}
+      {error ? (
+        <p role="alert" className="bv-type-body rounded-lg bg-danger-subtle px-3 py-2 text-fg">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

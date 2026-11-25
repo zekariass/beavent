@@ -68,6 +68,12 @@ paths:
     $ref: ./payments/paths.yaml#/payoutAccounts
   /v1/orgs/{orgId}/payout-accounts/{accountId}:
     $ref: ./payments/paths.yaml#/payoutAccount
+  /v1/public/payment-links/{token}:
+    $ref: ./payments/paths.yaml#/paymentLink
+  /v1/public/payment-links/{token}/start:
+    $ref: ./payments/paths.yaml#/paymentLinkStart
+  /v1/public/payment-links/{token}/check:
+    $ref: ./payments/paths.yaml#/paymentLinkCheck
   /v1/orgs/{orgId}/earnings:
     $ref: ./payments/paths.yaml#/earnings
   /v1/orgs/{orgId}/statement:
@@ -203,6 +209,8 @@ paths:
     $ref: ./scheduling/paths.yaml#/deskAppointments
   /v1/orgs/{orgId}/appointments/{appointmentId}/cancel:
     $ref: ./scheduling/paths.yaml#/deskCancel
+  /v1/orgs/{orgId}/appointments/{appointmentId}/payment-link:
+    $ref: ./scheduling/paths.yaml#/deskPaymentLink
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     $ref: ./scheduling/paths.yaml#/deskMove
   /v1/orgs/{orgId}/blocks:

@@ -21,6 +21,8 @@ public record PaymentsProperties(
         /** Open online payments only to verified businesses with a verified payout account (docs/07 3.4). */
         @DefaultValue("true") boolean requireSellerReadiness,
         String notifyBaseUrl,
+        /** How long a link for a booking's balance stays open (a deposit link lasts as long as the booking is held). */
+        @DefaultValue("7d") Duration balanceLinkTtl,
         @DefaultValue("5s") Duration connectTimeout,
         @DefaultValue("20s") Duration readTimeout,
         @DefaultValue ArifPay arifpay,

@@ -204,3 +204,43 @@ Statement:
         $ref: '#/StatementLine'
     page:
       $ref: ../common/schemas.yaml#/PageInfo
+PaymentLink:
+  type: object
+  required: [state, purpose, amountMinor, currency, expiresAt, business, items]
+  properties:
+    state:
+      type: string
+      enum: [OPEN, PAID, EXPIRED]
+      description: '`EXPIRED` also for a booking that was cancelled or released meanwhile.'
+    purpose:
+      type: string
+      enum: [DEPOSIT, FULL, BALANCE]
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    business:
+      type: string
+    location:
+      type: [string, 'null']
+    reference:
+      type: [string, 'null']
+    startsAt:
+      $ref: ../common/schemas.yaml#/Instant
+    timezone:
+      type: [string, 'null']
+    items:
+      type: array
+      items:
+        type: string
+PaymentLinkStartInput:
+  type: object
+  properties:
+    language:
+      type: string
+      enum: [am, en, om]
+      description: The language of the pages the provider sends the payer back to.
+

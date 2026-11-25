@@ -212,6 +212,73 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/public/payment-links/{token}:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentLink
+      summary: What a payment link is for, and whether it can still be paid
+      description: |
+        No sign-in: the token in the address is the credential, and it pays only the one payment it was made for.
+        `404` for a token that is not a link.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/public/payment-links/{token}/start:
+    post:
+      tags:
+        - Payments
+      operationId: startPaymentLink
+      summary: Start (or resume) the payment a link is for
+      description: |
+        Answers the provider's page to send the payer to; they come back to the link's own page. `HOLD_EXPIRED` when the link is no longer open, `CONFLICT` when it was paid already, `PAYMENT_UNAVAILABLE` when the
+        provider cannot be reached.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentLinkStartInput'
+      responses:
+        '200':
+          description: The provider's page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStart'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/public/payment-links/{token}/check:
+    post:
+      tags:
+        - Payments
+      operationId: checkPaymentLink
+      summary: After the payer came back, ask the provider and say where the payment stands
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/earnings:
     get:
       tags:
@@ -3168,6 +3235,39 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/payment-link:
+    post:
+      tags:
+        - Calendar
+      operationId: sendPaymentLink
+      summary: Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+      description: |
+        A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+        link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+        fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+        The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+        shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+        deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkSent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     post:
       tags:
@@ -5919,6 +6019,90 @@ components:
           type: string
           maxLength: 40
           description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
+    PaymentLink:
+      type: object
+      required:
+        - state
+        - purpose
+        - amountMinor
+        - currency
+        - expiresAt
+        - business
+        - items
+      properties:
+        state:
+          type: string
+          enum:
+            - OPEN
+            - PAID
+            - EXPIRED
+          description: '`EXPIRED` also for a booking that was cancelled or released meanwhile.'
+        purpose:
+          type: string
+          enum:
+            - DEPOSIT
+            - FULL
+            - BALANCE
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        business:
+          type: string
+        location:
+          type:
+            - string
+            - 'null'
+        reference:
+          type:
+            - string
+            - 'null'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type:
+            - string
+            - 'null'
+        items:
+          type: array
+          items:
+            type: string
+    PaymentLinkStartInput:
+      type: object
+      properties:
+        language:
+          type: string
+          enum:
+            - am
+            - en
+            - om
+          description: The language of the pages the provider sends the payer back to.
+    PaymentStart:
+      type: object
+      required:
+        - attemptId
+        - expiresAt
+        - amountMinor
+        - currency
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page to send the person to; they come back to the booking's payment page.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
     PayoutRow:
       type: object
       required:
@@ -8772,6 +8956,38 @@ components:
           description: Series dates left out because they were not free.
           items:
             $ref: '#/components/schemas/Instant'
+    PaymentLinkSent:
+      type: object
+      required:
+        - url
+        - expiresAt
+        - amountMinor
+        - currency
+        - kind
+        - sentTo
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The address the customer opens; sent to them, and shown so it can also be shared by hand.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        kind:
+          type: string
+          enum:
+            - DEPOSIT
+            - FULL
+            - BALANCE
+        sentTo:
+          type: string
+          enum:
+            - SMS
+            - EMAIL
     CalendarSpan:
       type: object
       required:
@@ -10365,29 +10581,6 @@ components:
             Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
             happens) or a refund exists: what goes back to the customer.
           $ref: '#/components/schemas/AppointmentRefund'
-    PaymentStart:
-      type: object
-      required:
-        - attemptId
-        - expiresAt
-        - amountMinor
-        - currency
-      properties:
-        attemptId:
-          $ref: '#/components/schemas/Uuid'
-        redirectUrl:
-          type:
-            - string
-            - 'null'
-          format: uri
-          description: The provider's page to send the person to; they come back to the booking's payment page.
-        expiresAt:
-          $ref: '#/components/schemas/Instant'
-        amountMinor:
-          type: integer
-          format: int64
-        currency:
-          type: string
     WaitlistOffer:
       type: object
       required:
@@ -12001,6 +12194,12 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: A service the request depends on (online payment) is unavailable; try again shortly.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     TooManyRequests:
       description: Rate limited; retry after the `Retry-After` header.
       headers:
@@ -12019,12 +12218,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ServiceUnavailable:
-      description: A service the request depends on (online payment) is unavailable; try again shortly.
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
   parameters:
     OrgId:
       name: orgId
@@ -12032,6 +12225,14 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
+    LinkTokenParam:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 20
+        maxLength: 100
     Cursor:
       name: cursor
       in: query

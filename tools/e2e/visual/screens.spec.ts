@@ -1954,3 +1954,134 @@ test("refunds · cancelling with a deposit, the refund's progress, the desk and 
   }
   for (const page of Object.values(pages)) await page.context().close();
 });
+
+// --- Stage 3.7: payment links -------------------------------------------------------------------------------------------
+
+test("payment links · the customer's page and the desk's control", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  const stub = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const phoneBook = async (n: number, name: string) => {
+    // The next day with a free time (the salon is closed some days).
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1) {
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    }
+    const made = await api(
+      "POST",
+      `/v1/orgs/${salon.orgId}/appointments`,
+      {
+        locationId: salon.locationId,
+        start,
+        items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+        customer: { name, phone: newPhone() },
+        source: "PHONE",
+        notifyCustomer: false,
+      },
+      salon.token,
+    );
+    return { id: made.id as string, start };
+  };
+  const link = async (appointmentId: string) =>
+    String(
+      (
+        await api(
+          "POST",
+          `/v1/orgs/${salon.orgId}/appointments/${appointmentId}/payment-link`,
+          undefined,
+          salon.token,
+        )
+      ).url,
+    );
+  const tokenOf = (url: string) => url.slice(url.lastIndexOf("/") + 1);
+
+  // A phone booking asked twice (the first link is then closed), a balance link, and one paid through its link.
+  const first = await phoneBook(8, "Selam Bekele");
+  const closedUrl = await link(first.id);
+  const openUrl = await link(first.id);
+  const balanceUrl = await link(booked.id);
+  const second = await phoneBook(9, "Hiwot Alemu");
+  const paidUrl = await link(second.id);
+  const started = await api("POST", `/v1/public/payment-links/${tokenOf(paidUrl)}/start`, {
+    language: "en",
+  });
+  await fetch(`${stub}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "SUCCESS" }),
+  });
+  for (let i = 0; i < 30; i += 1) {
+    const state = await api("POST", `/v1/public/payment-links/${tokenOf(paidUrl)}/check`);
+    if (state.state === "PAID") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // 1. The customer's page in every state, both languages, both themes, phone and desktop (no sign-in).
+  for (const [name, url] of [
+    ["deposit", openUrl],
+    ["balance", balanceUrl],
+    ["paid", paidUrl],
+    ["closed", closedUrl],
+  ] as const) {
+    for (const scheme of SCHEMES) {
+      for (const language of LANGUAGES) {
+        const context = await browser.newContext({
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          colorScheme: scheme,
+          viewport: DESKTOP,
+        });
+        const page = await context.newPage();
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(url.replace("/pay/", `/${language}/pay/`));
+          await page.getByRole("status").waitFor();
+          await shot(page, `paylink-${name}-${language}-${scheme}-${viewport}`);
+        }
+        await context.close();
+      }
+    }
+  }
+
+  // 2. The desk: ask for a deposit, the link that was sent, and the balance button of a paid booking.
+  const deskVisits = {
+    en: await phoneBook(10, "Meron Tesfaye"),
+    am: await phoneBook(11, "Meron Tesfaye"),
+  };
+  const owner = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const desk = await owner.newPage();
+  desk.setDefaultTimeout(60_000);
+  await desk.waitForTimeout(31_000);
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const localDay = (start: string) =>
+    new Date(start).toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" });
+  for (const language of LANGUAGES) {
+    await desk.goto(
+      `${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${localDay(deskVisits[language].start)}`,
+    );
+    await desk.getByRole("button", { name: /Meron Tesfaye/ }).click();
+    await shot(desk, `paylink-desk-ask-${language}-light-desktop`);
+    await desk
+      .getByRole("button", {
+        name: language === "am" ? /ቅድመ ክፍያውን በጽሑፍ/ : "Ask for the deposit by text",
+      })
+      .click();
+    await desk.getByRole("status").filter({ hasText: /\S/ }).last().waitFor();
+    await shot(desk, `paylink-desk-sent-${language}-light-desktop`);
+  }
+  // The balance of a booking whose deposit was paid online.
+  const mine = await api("GET", `/v1/me/appointments/${booked.id}`, undefined, booked.token);
+  await desk.goto(`${WEB}/en/business/o/${salon.orgId}/calendar?date=${localDay(mine.start)}`);
+  await desk.getByRole("button", { name: /Meron Tesfaye/ }).click();
+  await shot(desk, "paylink-desk-balance-en-light-desktop");
+  await owner.close();
+});
