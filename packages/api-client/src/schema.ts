@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/v1/hooks/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A payment provider's notification (ArifPay or Chapa)
+         * @description Called by the payment provider, not by apps. The raw body is stored and deduplicated before anything acts on it
+         *     (docs/04 §7). Chapa notifications must carry a valid `x-chapa-signature` (HMAC-SHA256 of the raw body) or
+         *     `chapa-signature`; ArifPay notifications are not signed, so they only prompt a lookup of the session with
+         *     Beavent's key. A replayed delivery is acknowledged and stored once.
+         */
+        post: operations["receiveProviderNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/otp/request": {
         parameters: {
             query?: never;
@@ -2250,6 +2273,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HookReceipt: {
+            received: boolean;
+        };
         /** @example +251911234567 */
         PhoneE164: string;
         /**
@@ -4443,6 +4469,59 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receiveProviderNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "arifpay" | "chapa";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Received (stored, or a replay of a delivery already stored). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description The body is not a JSON object. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description The signature is missing or wrong (signed providers only). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description That provider is not configured on this deployment. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     requestOtp: {
         parameters: {
             query?: never;

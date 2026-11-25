@@ -13,7 +13,8 @@
 | 0 Foundation | ✅ Done | API (identity, tenancy, files, admin), design system, two mobile apps and one web platform (D20). Hosted CI runs on PR #8: all green |
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
 | 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. 2.6 done: clients, forms and patch tests, waitlist, front-desk groups and series. Stage 2 exit checks pass on the local stack (one journey test, live update 0.8 s, availability median 50 ms); **only the rehearsal with real phones remains, blocked on D4 (SMS provider)** |
-| 3–10 | Not started | Unchanged except where noted in §0.2 |
+| 3 Commerce and online payments | **In progress** | Re-cut 24 Nov 2026: ArifPay is the default provider (Beavent collects, pays sellers out, refunds by hand), Chapa switchable (§1, L1–L2). 3.1 done (provider choice and adapters); next 3.2 orders, tax and fees |
+| 4–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
 
@@ -50,15 +51,15 @@ Anything else needs approval first. No new backend dependency is planned for Sta
 
 | # | Decision | Consequence |
 |---|---|---|
-| L1 | **Chapa holds the money.** Customer payments are collected by Chapa; each seller is a **Chapa subaccount** tied to the seller's bank account; Chapa settles the seller's share directly to that bank account and keeps the platform's share in the platform's Chapa balance. | Collection mode `PROVIDER_SPLIT` for every seller. The platform never holds seller funds and runs **no seller payouts**. `PLATFORM_COLLECTS` and `SELLER_DIRECT` stay disabled. |
-| L2 | **Chapa is the only payment provider for now.** | All online methods (telebirr, CBE Birr, M-PESA, cards, bank apps and whatever else Chapa supports) go through Chapa. No SantimPay, ArifPay, direct telebirr or manual bank-transfer flow. The provider-agnostic adapter layer is still built, so adding providers later is a configuration + adapter task. |
-| L3 | **Hosting is decided later.** | Everything is containerised and cloud-neutral (PostgreSQL + PostGIS, Redis, RabbitMQ, S3-compatible storage) and runs on Docker Compose until then. A hosted staging environment is needed **before Stage 3** (real Chapa webhooks need a public URL); production before Stage 9. |
+| L1 | **The payment provider is chosen per deployment: ArifPay (default) or Chapa** (`PAYMENT_PROVIDER` = `ARIFPAY` \| `CHAPA`; decided 24 Nov 2026, replacing "Chapa only"). One provider is active at a time; both adapters are built and tested. | All online methods (telebirr, CBE Birr, M-PESA, cards, bank apps …) go through the active provider. SantimPay, direct telebirr and manual bank transfer stay out. |
+| L2 | **Who holds the money follows the provider.** **ArifPay: Beavent collects** (`PLATFORM_COLLECTS`): customer payments land in Beavent's ArifPay merchant account and Beavent pays each seller out (decided 24 Nov 2026; ArifPay's public documentation does not confirm per-payment splits to seller accounts, §1.2). **Chapa: Chapa splits at source** (`PROVIDER_SPLIT`): each seller is a Chapa subaccount and Chapa settles the seller's share to their bank. | ArifPay mode needs seller balances, payout runs and payout accounts (doc 04 §9–10); payouts start as a bank batch that finance executes and confirms, automated later through ArifPay's wallet-to-bank API. **Refunds in ArifPay mode are made by hand by finance** (ArifPay publishes no refund API): the system records each refund owed, queues it in the admin console, and finance marks it paid. Chapa mode keeps the refund API and the receivable/recovery rules of §3.2. **Beavent holding customer money needs legal confirmation (D3) before ArifPay mode takes real money.** |
+| L3 | **Hosting is decided later.** | Everything is containerised and cloud-neutral (PostgreSQL + PostGIS, Redis, RabbitMQ, S3-compatible storage) and runs on Docker Compose until then. A hosted staging environment is needed **before Stage 3 certification** (real provider notifications need a public URL); production before Stage 9. |
 
-Decided (2026-11-19): **cash and pay-at-venue stay available**, recorded at POS and the box office (no provider involved, so no conflict with L2). Each business can require an **online deposit** through Chapa (`scheduling` deposit settings; Stages 3–4) to cut no-shows; platform fees on cash sales become a seller receivable recovered from later Chapa payments (§3). Event tickets sold online are paid online; cash for events only at the box office (Stage 7).
+Decided (2026-11-19): **cash and pay-at-venue stay available**, recorded at POS and the box office (no provider involved, so no conflict with L1). Each business can require an **online deposit** through the active provider (`scheduling` deposit settings; Stages 3–4) to cut no-shows; platform fees on cash sales become a seller receivable recovered from later Chapa payments (§3). Event tickets sold online are paid online; cash for events only at the box office (Stage 7).
 
 Decided (2026-11-19): **sign-in is by a one-time code to a phone or email, or with Google** (plus Apple in the iOS app, which Apple requires when Google sign-in is offered). No passwords and no authenticator apps, for anyone; sensitive actions ask for a fresh code (step-up).
 
-### 1.1 What Chapa's documentation says, and what it means for us
+### 1.1 What Chapa's documentation says, and what it means for us (Chapa mode)
 
 From [developer.chapa.co](https://developer.chapa.co/): [split payments](https://developer.chapa.co/integrations/split-payment), [webhooks](https://developer.chapa.co/integrations/webhooks), [refunds](https://developer.chapa.co/refund), [accept payments](https://developer.chapa.co/integrations/accept-payments). Re-confirm each item in Chapa's test mode (Stage 3, step 3.1).
 
@@ -76,6 +77,20 @@ From [developer.chapa.co](https://developer.chapa.co/): [split payments](https:/
 | Transfers API and balance endpoints exist | Not needed now; usable later for refund-by-payout or recovery. |
 | Test mode with test cards and test mobile numbers | Certification suite runs against test mode before going live. |
 
+### 1.2 What ArifPay's documentation says, and what it means for us (ArifPay mode, the default)
+
+From ArifPay's official [TypeScript SDK](https://github.com/Arifpay-net/typescript-sdk), [PHP SDK](https://github.com/Arifpay-net/phpsdk) and Postman collections ([production](https://developer.arifpay.net/postman/ArifPay-Production.postman_collection.json), [sandbox](https://developer.arifpay.net/postman/ArifPay-Sandbox.postman_collection.json)), read 24 Nov 2026; the developer portal's split, webhook and lifecycle pages could not be opened. The sources disagree on hosts and paths, so **every item is re-confirmed in ArifPay's sandbox and in writing with ArifPay (D2)** before a capability is marked `LIVE`.
+
+| ArifPay fact | Design consequence |
+|---|---|
+| Header `x-arifpay-key`; production `https://gateway.arifpay.net`, sandbox `https://gateway.arifpay.org`; create `POST /api/checkout/session` (sandbox `/api/sandbox/c2b/session`); the SDK uses `/v0/checkout/session` | Base URL and paths are configuration; the adapter is tested against a local stub (`tools/arifpay-stub`) and the sandbox. |
+| Session request: `nonce` (unique; a duplicate is refused), `items[] {name, quantity, price}`, `notifyUrl`, `successUrl`, `cancelUrl`, `errorUrl`, `expireDate`, `phone`, `email`, `lang`; production fills `paymentMethods` and `beneficiaries` from the merchant account. Response `sessionId`, `paymentUrl`, `totalAmount` | `nonce` = our `payment_attempts.id`, so a retried create can never open a second session; before retrying, the adapter looks the session up by nonce (`GET /api/checkout/getSessionByNonce/{nonce}`). One item per order with the exact total. |
+| Amounts are **decimal birr** (ETB only); a default maximum of 43,200 ETB per session (third-party report) | Exact `amount_minor` ↔ decimal conversion; the route's `max_amount_minor` carries the limit. |
+| `GET /api/checkout/session/{sessionId}` returns the session with `transaction.transactionStatus` (`SUCCESS`, `PENDING`, …; the full list is undocumented); `POST /checkout/session/cancel/{id}` cancels an unpaid session | Fulfil only after this lookup with our key matches status, amount and nonce. Unknown statuses stay `PROCESSING` and are polled. |
+| `notifyUrl` webhooks are **not documented as signed** and reportedly **not retried**; one may arrive before the session updates | `POST /v1/hooks/arifpay` treats the body only as a hint: it is stored in `payments.webhook_events`, then the session is looked up with our key. Polling (doc 04 §6.2) is the main path, not a fallback. |
+| **No refund or reversal endpoint** in either collection | Capability `can_refund_api = false`; refunds are recorded and paid by hand by finance (L2). |
+| Direct payment routes per rail (telebirr USSD, M-PESA, CBE, Awash …) with a phone number; payouts (B2C) and wallet-to-bank need production access with an allow-listed IP | Web and app start with hosted checkout (`REDIRECT`); push prompts in the app and automated payouts come after certification. |
+
 ## 2. Rules for every step (definition of done)
 
 - Code reviewed; unit and integration tests; OpenAPI spec updated and the TypeScript client regenerated.
@@ -90,7 +105,17 @@ From [developer.chapa.co](https://developer.chapa.co/): [split payments](https:/
   - `npm run bundle:check` passes for the mobile apps.
 - **Every slice ends demonstrable:** it is run on the local stack, and the result is reported with what was and was not verified.
 
-## 3. Money rules under "Chapa holds the money"
+## 3. Money rules
+
+### 3.1 ArifPay mode: Beavent collects (`PLATFORM_COLLECTS`)
+
+**Flow.** Customer pays ArifPay → Beavent's ArifPay merchant account. The seller's share becomes a seller balance in the ledger (`SELLER_PENDING`, released to `SELLER_AVAILABLE` after the visit plus a delay); platform fees are netted; payouts move `SELLER_AVAILABLE` to the seller's verified bank account. Postings follow [doc 04 §10, `PLATFORM_COLLECTS`](04-payments-and-money.md#10-ledger-postings).
+
+**Refunds.** Recorded with method `MANUAL_BANK_TRANSFER` (or `CASH` at the counter): `REFUND_INITIATED` reserves the money from the seller balance, the refund appears in the admin console's finance queue with the customer's wallet or bank details, finance pays it outside Beavent and marks it paid (step-up code, audited), which settles it. A refund after the seller was paid drives `SELLER_AVAILABLE` negative and is recovered from the next payout.
+
+**Payouts.** Eligibility, schedules, approvals and cooling-off per doc 04 §9. Execution starts as a payout batch in the admin console (bank file and list) that finance pays and confirms; ArifPay's wallet-to-bank API replaces the manual step once production access is granted.
+
+### 3.2 Chapa mode: Chapa splits at source (`PROVIDER_SPLIT`)
 
 **Flow.** Customer pays Chapa → Chapa splits: **seller share → seller's bank account**, **platform share → platform's Chapa balance**. The platform share = buyer fees + seller-paid platform fees (+ VAT on fees) for that order, sent as a flat per-transaction split.
 
@@ -116,7 +141,7 @@ From [developer.chapa.co](https://developer.chapa.co/): [split payments](https:/
    - Bulk-cancellation refunds above the float require organizer pre-funding.
 5. Chargebacks/disputes follow the same receivable path.
 
-Confirm these rules with Chapa and counsel before the pilot (dependencies D2, D3).
+Confirm these rules with the active provider and counsel before the pilot (dependencies D2, D3).
 
 ---
 
@@ -367,70 +392,80 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 
 ---
 
-## Stage 3 — Commerce and Chapa payments
+## Stage 3 — Commerce and online payments (ArifPay by default, Chapa switchable)
 
-**Goal:** online payments through Chapa with split settlement, starting with appointment deposits and full prepayment.
+**Goal:** online payments through the active provider (L1), starting with appointment deposits and full prepayment. ArifPay mode: Beavent collects and pays sellers out, refunds by hand (L2, §3.1). Chapa mode: split at source (§3.2). Later stages that say "Chapa" mean the active provider; where the two modes differ, the step says so.
 
-*Prerequisites:* D1 (Chapa account and test keys) and D5 (hosted staging with a public webhook URL). Until then, steps 3.2–3.4 can be built against the Chapa stub.
+*Prerequisites:* D1 (merchant accounts and sandbox keys), D5 (hosted staging with a public webhook URL) for certification, and **D3 before ArifPay mode takes real money**. Until then everything is built against local stubs (`tools/arifpay-stub`, `tools/chapa-stub`) and ArifPay's public sandbox.
 
-**3.1 Chapa onboarding and facts.**
-- Configure the platform's Chapa account (split enabled, webhook URL and secret).
-- Confirm with Chapa (D2): fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement.
-- Record the answers in `docs/` and update §1.1 and §3 if anything differs.
+**How the stage is cut.** Vertical slices, as in Stage 2; each ends with something you can run.
+
+| Slice | Delivers | Surfaces |
+|---|---|---|
+| 3.1 | Provider choice and adapters: `PaymentProviderAdapter`, ArifPay and Chapa adapters, `PAYMENT_PROVIDER` (default `ARIFPAY`), the ArifPay stub, webhook intake for both | backend, tools |
+| 3.2 | Orders, tax and fees | backend |
+| 3.3 | Deposits and prepayment at booking: intents and attempts, hosted checkout, "checking payment", polling, late and duplicate payments | backend, web, consumer app |
+| 3.4 | Seller "Get paid": ArifPay mode → payout bank account (verified, 72 h cooling-off, step-up); Chapa mode → subaccount; online payments gated on KYB | business console |
+| 3.5 | Ledger, seller balances and payouts (ArifPay mode): postings, release after the visit, payout runs, finance batch and "mark paid" in the admin console, seller statement | backend, console, admin console |
+| 3.6 | Refunds for deposits: customer cancels in the free window, no-show forfeits, duplicate and late payments. ArifPay mode: the finance refund queue (paid by hand). Chapa mode: the refund API | backend, console, admin console |
+| 3.7 | Payment links | backend, web |
+| 3.8 | Gift cards and customer balance | backend, web, consumer app |
+| 3.9 | Reconciliation and go-live certification | backend, admin console |
+
+**3.1 Provider choice and adapters.** ✅ *Done* (24 Nov 2026).
+- Done: a **`payments` module** with the adapter contract (`PaymentProviderAdapter`, normalised states and failure codes, exact minor ↔ decimal conversion). **ArifPay adapter**: sessions with our attempt id as `nonce`, a retried create finds the session by nonce instead of opening another, lookups by session and nonce, cancel, undocumented statuses kept "in progress" (never "paid"), notifications parsed as hints only, refunds unsupported, no splits; paths, payment methods and the `expireDate` zone are configuration. **Chapa adapter**: initialize with the seller's subaccount and the platform share as a flat split, verify, HMAC signatures checked in constant time, refund and refund verify. `beavent.payments.provider` (`PAYMENT_PROVIDER`, default `ARIFPAY`) picks the active adapter at startup and fails fast when it is not configured; the platform's account and online routes for the active provider are registered at startup and other providers' routes switched off (migration `V3_01`: ArifPay's capabilities in ET, sandbox, 43,200 ETB maximum; `PLATFORM_COLLECTION` = `BETA` until D3). `POST /v1/hooks/arifpay|chapa` stores the raw body in `payments.webhook_events`, once per delivery (body hash), refusing a wrong Chapa signature (401) and anything that is not a JSON object (400). `tools/arifpay-stub` (port 8091, Docker Compose and CI image) mirrors ArifPay's checkout with simulated outcomes: failed, never paid, duplicate, missing and early notifications.
+- Tests: adapter contract tests against an in-test server with the providers' documented shapes (what goes over the wire, retries by nonce, refusals and outages, status mapping, signatures); API tests (default provider, routes, notification intake and replays, signatures); the stub's own tests; the stub paid on its page notified the running API, which stored the notification.
+- Not verified: anything against ArifPay's real sandbox or Chapa test mode (no keys here; D1). The notify payload and status values are guesses until then.
+
+- `payments` module with the adapter contract (doc 04 §4) and normalised attempt states and failure codes.
+- **ArifPay adapter** (§1.2): checkout session with `nonce` = attempt id, lookup by session and by nonce, cancel, unsigned notify treated as a hint and confirmed by lookup, no refund API. **Chapa adapter** (§1.1): initialize, verify, signed webhook, refund and refund verify, subaccounts.
+- `beavent.payments.provider` (`PAYMENT_PROVIDER`, default `ARIFPAY`) selects the active adapter, collection mode and capabilities; base URLs and keys are configuration.
+- `tools/arifpay-stub`: a local stand-in for ArifPay's checkout (create, look up by session and nonce, cancel, a pay page, notify calls including missing, early and duplicate ones), like the Chapa stub.
+- `POST /v1/hooks/arifpay` and `POST /v1/hooks/chapa`: raw body stored in `payments.webhook_events` first, deduplicated, processed by a worker.
+- Contract tests for both adapters against in-test servers with the providers' documented shapes, and the stubs' own tests.
 
 **3.2 Orders, tax and fees.**
 - Mixed-basket orders with line arithmetic, header totals and document numbering.
 - Promotions and promo/access codes.
 - Tax engine: VAT/TOT × tax category → immutable snapshots; tax-inclusive display.
-- Fee engine: `billing.fee_rules` → `fee_assessments`, with `BUYER_FEE` lines or seller-absorbed fees. The order's **platform share** is the Chapa split amount.
+- Fee engine: `billing.fee_rules` → `fee_assessments`, with `BUYER_FEE` lines or seller-absorbed fees. The order's **platform share** is the Chapa split amount (Chapa mode) or the amount netted before payout (ArifPay mode).
 
 *Done when:* property tests pass for rounding, inclusive/exclusive tax and fee caps.
 
-**3.3 Chapa adapter.** Implements `PaymentProviderAdapter` (doc 04 §4):
-- Hosted checkout (web) and direct charge (app), with a flat per-transaction subaccount split.
-- Verify by `tx_ref`, with strict matching.
-- Webhook signature verification over the raw body.
-- Refund and refund verify.
-- Subaccount creation from Chapa's bank list.
-- Transaction export for reconciliation.
-- Exact decimal ↔ minor-unit conversion.
-
-Contract tests run against the stub and a test suite runs against Chapa test mode.
-
-**3.4 Payment orchestration.**
-- Intents and attempts, with routing (one route today: Chapa).
-- Webhook inbox + worker; polling via verify until expiry; `UNKNOWN` resolution.
-- Duplicate success → `SUCCEEDED_DUPLICATE` → automatic refund.
-- Late success after a hold expires: re-confirm if the slot is still free, otherwise refund.
+**3.3 Deposits and prepayment at booking.**
+- Intents and attempts, with routing (one route: the active provider).
+- Webhook inbox + worker; polling until expiry; `UNKNOWN` resolution.
+- Duplicate success → `SUCCEEDED_DUPLICATE` → a refund (3.6). Late success after a hold expires: re-confirm if the slot is still free, otherwise refund.
 - On success: confirm the order and appointment, convert the hold, post the ledger (§3), record fees, notify.
-- Payment UX: web "checking payment…" page; app push-prompt waiting screen; survives the app being backgrounded.
+- Payment UX on web and in the consumer app: the deposit on the review step (S-10), hosted checkout, a "checking payment…" page that survives the app being backgrounded.
 
-*Done when:* the fault-injection suite passes: duplicate and out-of-order webhooks, missing webhook (poll path), timeout, customer cancels, double approval, late success, and a Chapa error on initialize.
+*Done when:* the fault-injection suite passes against both stubs: duplicate and out-of-order notifications, missing notification (poll path), timeout, customer cancels, double approval, late success, and a provider error on create; and a Playwright journey books with a deposit on web and in the app.
 
-**3.5 Seller "Get paid" onboarding.**
-- Business console flow: legal entity → bank account (Chapa bank list; name must match) → step-up OTP → Chapa subaccount created → online payments enabled.
-- Gate: online payments only after KYB is approved **and** the subaccount exists. Until then, pay-at-venue only.
-- Changing the bank account creates a new subaccount, starts a 72 h cooling-off before routing to it, and notifies the owner.
+**3.4 Seller "Get paid".**
+- Business console: legal entity → bank account (name must match) → step-up OTP → ArifPay mode: payout account `VERIFIED` after the cooling-off; Chapa mode: Chapa subaccount created → online payments enabled.
+- Gate: online payments only after KYB is approved and the payout account or subaccount exists. Until then, pay-at-venue only.
+- Changing the bank account starts a 72 h cooling-off before payouts or routing use it, and notifies the owner.
 
-**3.6 Deposits and balances.**
-- Deposit or full prepayment at booking, per the policy snapshot; balance collected at the venue (`payment_schedule`).
-- No-show/late-cancel: deposit forfeited up to the policy fee, the rest refunded.
+**3.5 Ledger, seller balances and payouts (ArifPay mode).**
+- Postings for capture, fees, release, payout and refunds (doc 04 §10); invariants tested.
+- Payout runs per schedule; approvals for first payouts, large amounts and recent account changes; a payout batch finance pays and marks paid (step-up, audited); failures reverse the in-transit posting.
+- Seller statement in the console: sales, fees, refunds, payouts, balance.
 
-**3.7 Payment links.**
-- Links for balances and phone bookings, sent by SMS/email (Telegram later).
+**3.6 Refunds for deposits.**
+- Customer cancellation inside the free window refunds the deposit; a late cancellation or no-show forfeits it up to the policy fee; duplicate and late payments are refunded in full.
+- ArifPay mode: refunds wait in the admin console's finance queue with the customer's payout details; finance pays and marks them paid. Chapa mode: refund API with status polling.
 
-**3.8 Gift cards and customer balance.**
-- Sell gift cards online; deliver them, including on a schedule.
-- Redeem as a payment method; refund to customer balance as an option.
+**3.7 Payment links.** Links for balances and phone bookings, sent by SMS and email.
+
+**3.8 Gift cards and customer balance.** Sell gift cards online, deliver them (also on a schedule), redeem as a payment method; refund to customer balance as an option.
 
 **3.9 Reconciliation and go-live certification.**
-- Daily import of Chapa transactions and refunds; matching by reference.
-- Exceptions queue in the admin console; Chapa fees posted.
-- Certification checklist in test mode → a live low-value test → capability `LIVE` with `verified_at`.
+- Daily import of the provider's transactions (API where available, otherwise a statement upload in the admin console); matching by reference; exceptions queue; provider fees posted.
+- Certification checklist in the sandbox → a live low-value test → capability `LIVE` with `verified_at`.
 
-*Done when:* a full day of test-mode traffic reconciles with zero unexplained lines.
+*Done when:* a full day of sandbox traffic reconciles with zero unexplained lines.
 
-**Checkpoint B:** a customer books with a telebirr deposit; Chapa splits the payment between seller and platform; the booking confirms; reconciliation matches.
+**Checkpoint B:** a customer books with a telebirr deposit through ArifPay; the seller's balance shows it, it is released after the visit and paid out in a batch; a cancellation in the free window lands in the finance refund queue and is paid; reconciliation matches. The same journey passes in Chapa mode with the split.
 
 ---
 
@@ -659,9 +694,9 @@ Contract tests run against the stub and a test suite runs against Chapa test mod
 
 | # | Item | Owner | Needed before |
 |---|---|---|---|
-| D1 | Chapa business account, split enabled, test keys | Founders/finance | Stage 3 (start early; the stub covers development meanwhile) |
-| D2 | Chapa terms: fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement | Finance + Chapa | Stage 3 go-live certification (3.9) |
-| D3 | Legal confirmation that the split model needs no platform payment licence; consumer and partner terms (am/en) | Counsel | Stage 9 |
+| D1 | ArifPay merchant account and sandbox and production API keys (the default provider); Chapa business account with split enabled and test keys (the alternative) | Founders/finance | Stage 3 (start early; the stubs and ArifPay's public sandbox cover development meanwhile) |
+| D2 | Provider terms in writing. ArifPay: status values, notification signing and retries, settlement timing, fees and who pays them, session limits, refunds (none by API), split support, wallet-to-bank payout access. Chapa: fee payer, subaccount settlement timing, refunds on split transactions, chargebacks, float requirement | Finance + provider | Stage 3 go-live certification (3.9) |
+| D3 | Legal confirmation for the money model: **ArifPay mode has Beavent collect customer money and pay sellers (`PLATFORM_COLLECTS`), which NBE rules may treat as a licensed activity**; Chapa mode's split; consumer and partner terms (am/en) | Counsel | **Before ArifPay mode takes real money** (Stage 3 certification); terms by Stage 9 |
 | D4 | SMS gateway for OTP and notifications; sender ID registration | Ops | Only the `log` provider exists today. Needed before Stage 2 acceptance with real phones (2.3 sends confirmations and reminders), and before any pilot |
 | D5 | Hosting provider and region for **staging** | Founders + engineering | Stage 3 (public webhook URL) |
 | D6 | Production hosting, backups/DR, data-protection review | Founders + counsel | Stage 9 |

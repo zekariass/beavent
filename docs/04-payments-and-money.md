@@ -66,9 +66,9 @@ Set per organization and market in `payments.org_settings.collection_mode`, snap
 | Platform ledger records | Fees receivable / revenue (memo of the sale) | Platform fee share | Full flow: clearing, seller balances, payouts |
 | When to use | Larger sellers with their own PSP contract; markets where splits aren't available | **Default target for Ethiopia launch** if the chosen PSP's split/sub-account feature is confirmed | Markets where the platform holds a licence or partners with a licensed institution; needed for instant payouts and cross-seller features |
 
-**Decision for Ethiopia (19 Nov 2026):** every seller uses `PROVIDER_SPLIT` through **Chapa** subaccounts, and Chapa is the only provider for now. Chapa debits refunds and chargebacks from the *platform's* Chapa balance even though the seller was already paid, so the platform keeps a refund float and records a `SELLER_RECEIVABLE`, recovered by topping up the split on the seller's next transactions (capped by `payments.org_settings.recovery_cap_bps`) or by invoice. Exposure is capped per seller (`trust.risk_profiles.max_outstanding_receivable_minor`). See [07 §1 and §3](07-implementation-plan.md#3-money-rules-under-chapa-holds-the-money).
+**Decision for Ethiopia (24 Nov 2026, replacing 19 Nov):** the provider is chosen per deployment, **ArifPay by default** or Chapa ([07 §1](07-implementation-plan.md#1-decisions-this-plan-is-built-on)). **ArifPay mode uses `PLATFORM_COLLECTS`**: Beavent's ArifPay account collects, sellers are paid by payout, and refunds are paid by hand by finance because ArifPay publishes no refund API. This needs legal sign-off (D3) before real money moves, for the reason given below. **Chapa mode** keeps the earlier decision: every seller uses `PROVIDER_SPLIT` through Chapa subaccounts. In Chapa mode, Chapa debits refunds and chargebacks from the *platform's* Chapa balance even though the seller was already paid, so the platform keeps a refund float and records a `SELLER_RECEIVABLE`, recovered by topping up the split on the seller's next transactions (capped by `payments.org_settings.recovery_cap_bps`) or by invoice. Exposure is capped per seller (`trust.risk_profiles.max_outstanding_receivable_minor`). See [07 §1 and §3](07-implementation-plan.md#3-money-rules-under-chapa-holds-the-money).
 
-Ethiopia context: payment instrument issuers and system operators are licensed by the National Bank of Ethiopia (2023 directive, amended by ONPS/10/2025, which adds ownership caps and wallet interoperability through a licensed switch) ([NBE](https://nbe.gov.et/nbe_news/the-national-bank-of-ethiopia-has-issued-a-revised-directive-for-mobile-money-providers-to-promote-safety-competition-and-innovation/), [Addis Insight](https://addisinsight.net/2025/05/27/national-bank-of-ethiopia-issues-new-directive-to-strengthen-digital-payment-ecosystem/)). Holding customer funds and paying third parties is exactly the activity these rules govern, which is why `PLATFORM_COLLECTS` stays disabled in the seeded `ET` market (`ref.market_features: PLATFORM_COLLECTION = DISABLED`) until legal sign-off. **This document is not legal advice; confirm with Ethiopian counsel.**
+Ethiopia context: payment instrument issuers and system operators are licensed by the National Bank of Ethiopia (2023 directive, amended by ONPS/10/2025, which adds ownership caps and wallet interoperability through a licensed switch) ([NBE](https://nbe.gov.et/nbe_news/the-national-bank-of-ethiopia-has-issued-a-revised-directive-for-mobile-money-providers-to-promote-safety-competition-and-innovation/), [Addis Insight](https://addisinsight.net/2025/05/27/national-bank-of-ethiopia-issues-new-directive-to-strengthen-digital-payment-ecosystem/)). Holding customer funds and paying third parties is exactly the activity these rules govern, which is why ArifPay mode (`PLATFORM_COLLECTS`) must not take real money until legal sign-off (D3). The deployment setting enables the collection mode that matches the active provider. **This document is not legal advice; confirm with Ethiopian counsel.**
 
 ## 4. The adapter contract
 
@@ -105,6 +105,8 @@ public interface PaymentProviderAdapter {
 ```
 
 Normalised attempt states: `CREATED → AWAITING_CUSTOMER → PROCESSING → SUCCEEDED | FAILED | CANCELLED | EXPIRED | UNKNOWN`, plus `AWAITING_VERIFICATION` (manual transfers) and `SUCCEEDED_DUPLICATE`. Normalised failure codes include `INSUFFICIENT_FUNDS`, `CUSTOMER_DECLINED`, `CUSTOMER_TIMEOUT`, `LIMIT_EXCEEDED`, `INVALID_ACCOUNT`, `PROVIDER_UNAVAILABLE`, `RISK_DECLINED` and `UNKNOWN_ERROR`. Raw provider statuses are kept in `provider_status_raw` for support.
+
+*Built in slice 3.1 (24 Nov 2026):* `services/backend/.../payments/internal/provider/`. The collection, webhook and refund parts are in place for ArifPay and Chapa. Two additions came from ArifPay's behaviour: `findCollection(ourReference)` (look a collection up by our nonce before retrying an unclear create) and `notificationsAreAuthoritative()` (false for ArifPay, whose notifications only prompt a lookup). Payouts, subaccounts and statements join the interface with slices 3.4, 3.5 and 3.9.
 
 Every outbound call carries an idempotency key derived from the attempt/refund/payout id (`payment_attempts.idempotency_key` etc.), so a retried request can never charge or pay twice on providers that honour it. For providers that don't, the adapter queries by our reference before retrying.
 
@@ -284,17 +286,19 @@ Daily per provider account:
 4. In production, create live accounts (secrets via vault), set capabilities `LIVE` with `verified_at` after a real low-value transaction, refund and payout. Add routes with priorities and failover partners.
 5. Enable the market features and collection modes; set fee rules and payout defaults.
 
-## 17. Ethiopia launch configuration (decided)
+## 17. Ethiopia launch configuration (decided 24 Nov 2026)
 
-| Item | Decision | Status in seed |
+One provider is active per deployment (`beavent.payments.provider`, env `PAYMENT_PROVIDER`).
+
+| Item | ArifPay mode (default) | Chapa mode |
 |---|---|---|
-| Collection mode | `PROVIDER_SPLIT` via Chapa subaccounts for every seller; the platform share is sent as a flat per-transaction split | `PROVIDER_SPLIT` ENABLED; `SELLER_DIRECT`, `PLATFORM_COLLECTION` DISABLED |
-| Provider | **Chapa only** | Other Ethiopian providers in the catalogue as `PLANNED` with no routes |
-| telebirr, CBE Birr, M-PESA | Chapa hosted checkout on web (`REDIRECT`); Chapa direct charge in the app (`PUSH_PROMPT`) | `SANDBOX` (both interactions) |
-| Cards, bank apps | Chapa hosted checkout; international cards subject to FX rules | `SANDBOX` |
-| Bank transfer with proof | Deferred | `MANUAL_BANK_TRANSFER` DISABLED |
-| Cash / pay at venue | Recorded at POS / box office (no provider) | `SANDBOX` / `PAY_AT_VENUE` ENABLED |
-| Refunds | Chapa refund API (full and partial), funded from the platform's Chapa balance → `SELLER_RECEIVABLE` + recovery | Chapa `can_refund_api` = true |
-| Payouts | None: Chapa settles sellers directly. Chapa transfers are available later if needed | — |
+| Collection mode | `PLATFORM_COLLECTS`: Beavent's ArifPay merchant account collects; seller balances in the ledger; payouts | `PROVIDER_SPLIT` via Chapa subaccounts; platform share as a flat per-transaction split |
+| telebirr, CBE Birr, M-PESA, cards, bank apps | ArifPay hosted checkout (`REDIRECT`) on web and in the app; ArifPay's direct routes (push to the phone) after certification | Chapa hosted checkout on web; Chapa direct charge in the app (`PUSH_PROMPT`) |
+| Confirmation | Notify call treated as a hint (not documented as signed or retried) and confirmed by a session lookup with our key; polling is the main path | Signed webhook + verify; polling as fallback |
+| Refunds | **By hand**: recorded (`MANUAL_BANK_TRANSFER`), queued for finance in the admin console, paid outside Beavent and marked paid; `can_refund_api = false` | Chapa refund API (full and partial), funded from the platform's Chapa balance → `SELLER_RECEIVABLE` + recovery |
+| Seller payouts | Payout runs per schedule; a batch finance pays and confirms; ArifPay wallet-to-bank automation once production access is granted | None: Chapa settles sellers directly |
+| Legal | **D3 sign-off before real money** (Beavent holds customer funds) | D3 for the terms |
+| Bank transfer with proof | Deferred | Deferred |
+| Cash / pay at venue | Recorded at POS / box office (no provider) | Same |
 
-Facts come from Chapa's developer documentation ([split payments](https://developer.chapa.co/integrations/split-payment), [refunds](https://developer.chapa.co/refund), [webhooks](https://developer.chapa.co/integrations/webhooks)) and must be **proven in test mode and in a live low-value test** before a capability is marked `LIVE`; the DB will not accept `LIVE` without `verified_at`.
+ArifPay facts come from its SDKs and Postman collections ([07 §1.2](07-implementation-plan.md#12-what-arifpays-documentation-says-and-what-it-means-for-us-arifpay-mode-the-default)); Chapa facts from its developer documentation ([split payments](https://developer.chapa.co/integrations/split-payment), [refunds](https://developer.chapa.co/refund), [webhooks](https://developer.chapa.co/integrations/webhooks)). Each must be **proven in the sandbox and in a live low-value test** before a capability is marked `LIVE`; the DB will not accept `LIVE` without `verified_at`.

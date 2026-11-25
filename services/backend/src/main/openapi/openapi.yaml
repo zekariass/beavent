@@ -54,7 +54,12 @@ tags:
     description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
+  - name: Payments
+    description: Payment provider notifications (ArifPay by default, or Chapa)
 paths:
+  # --- payments ---------------------------------------------------------------------------------------------
+  /v1/hooks/{provider}:
+    $ref: ./payments/paths.yaml#/providerHook
   # --- identity ---------------------------------------------------------------------------------------------
   /v1/auth/otp/request:
     $ref: ./identity/paths.yaml#/otpRequest

@@ -54,7 +54,58 @@ tags:
     description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
+  - name: Payments
+    description: Payment provider notifications (ArifPay by default, or Chapa)
 paths:
+  /v1/hooks/{provider}:
+    post:
+      tags:
+        - Payments
+      operationId: receiveProviderNotification
+      summary: A payment provider's notification (ArifPay or Chapa)
+      description: |
+        Called by the payment provider, not by apps. The raw body is stored and deduplicated before anything acts on it
+        (docs/04 §7). Chapa notifications must carry a valid `x-chapa-signature` (HMAC-SHA256 of the raw body) or
+        `chapa-signature`; ArifPay notifications are not signed, so they only prompt a lookup of the session with
+        Beavent's key. A replayed delivery is acknowledged and stored once.
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - arifpay
+              - chapa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Received (stored, or a replay of a delivery already stored).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '400':
+          description: The body is not a JSON object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '401':
+          description: The signature is missing or wrong (signed providers only).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '404':
+          description: That provider is not configured on this deployment.
   /v1/auth/otp/request:
     post:
       tags:
@@ -5074,6 +5125,13 @@ components:
       bearerFormat: JWT
       description: Short-lived access token from /v1/auth/* (ES256, 10 minutes).
   schemas:
+    HookReceipt:
+      type: object
+      required:
+        - received
+      properties:
+        received:
+          type: boolean
     PhoneE164:
       type: string
       pattern: ^\+[1-9][0-9]{6,14}$

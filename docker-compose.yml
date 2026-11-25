@@ -54,6 +54,17 @@ services:
     image: axllent/mailpit:v1.24
     ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
 
+  arifpay-stub:
+    # Local stand-in for ArifPay's checkout (tools/arifpay-stub), the default payment provider. The backend points
+    # ARIFPAY_BASE_URL here in development; notify calls go to the notifyUrl each session carries.
+    build: ./tools/arifpay-stub
+    environment:
+      PORT: "8091"
+      PUBLIC_URL: http://localhost:8091
+      ARIFPAY_API_KEY: arifpay-stub-key
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:8091:8091"]
+
   chapa-stub:
     # Local stand-in for the Chapa API (tools/chapa-stub). The backend points CHAPA_BASE_URL here in development.
     # Webhooks go to the backend running on the host (./gradlew bootRun on :8080).

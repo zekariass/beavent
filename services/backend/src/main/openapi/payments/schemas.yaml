@@ -1,0 +1,6 @@
+HookReceipt:
+  type: object
+  required: [received]
+  properties:
+    received:
+      type: boolean

@@ -69,7 +69,7 @@ class OutboxTests {
     }
 
     @Test
-    void eventCommittedWithTheChangeIsRelayedAndHandledExactlyOnce() {
+    void eventCommittedWithTheChangeIsRelayedAndHandledExactlyOnce() throws InterruptedException {
         TestTenants tenants = new TestTenants(system);
         UUID user = tenants.user();
         UUID org = tenants.organization(user);
@@ -93,10 +93,17 @@ class OutboxTests {
         assertThat(message.getMessageProperties().<String>getHeader("org_id")).isEqualTo(org.toString());
 
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
+        // The relay sends a whole batch, then commits published_at: the message can arrive before that commit.
         var row = system.selectFrom(OUTBOX).where(OUTBOX.ID.eq(messageId)).fetchOne();
+        for (int i = 0; i < 100 && row != null && row.getPublishedAt() == null; i++) {
+            Thread.sleep(100);
+            row = system.selectFrom(OUTBOX).where(OUTBOX.ID.eq(messageId)).fetchOne();
+        }
         assertThat(row).isNotNull();
         assertThat(row.getAggregateId()).isEqualTo(tagId);
-        assertThat(row.getPublishedAt()).isNotNull();
+        assertThat(row.getPublishedAt())
+                .as("published_at after the relay's commit")
+                .isNotNull();
 
         // At-least-once delivery: the same message arriving twice has its effect applied once.
         AtomicInteger applied = new AtomicInteger();
