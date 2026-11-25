@@ -446,7 +446,10 @@ class SearchApiTests extends SchedulingTestSupport {
         assertThat(titles(search("?q=" + m + "&kind=EVENT&free=true"))).containsExactly(m + " Free Concert");
         assertThat(titles(search("?q=" + m + "&kind=EVENT&category=MUSIC"))).hasSize(2);
         assertThat(titles(search("?q=" + m + "&kind=EVENT&date="
-                        + java.time.LocalDate.now(ADDIS).plusDays(10))))
+                        + java.time.ZonedDateTime.now(ADDIS)
+                                .plusDays(10)
+                                .plusHours(2)
+                                .toLocalDate())))
                 .hasSize(1);
         // Places and events come back together unless asked otherwise.
         assertThat(titles(search("?q=" + m))).hasSize(3);

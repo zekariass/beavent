@@ -399,3 +399,68 @@ adminPayoutAccountDecision:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+adminMarketplaceListings:
+  get:
+    tags: [Admin]
+    operationId: listMarketplaceListings
+    summary: Businesses by their place on the marketplace, oldest first (default `PENDING_REVIEW`)
+    description: Needs `admin.marketplace.review`, in the business's market.
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceListingPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminMarketplaceDecision:
+  post:
+    tags: [Admin]
+    operationId: decideMarketplace
+    summary: List a business on the marketplace, send its request back, or take it off (reason required, audited)
+    description: |
+      Needs `admin.marketplace.review`; staff cannot decide about a business they belong to. `LIST` needs an active
+      location and a service people can book online (`CONSTRAINT_VIOLATION`) and a business that is not suspended,
+      restricted or closed; `REJECT` answers a waiting request; `DELIST` takes a listed business off. The reason is shown
+      to the business after `REJECT` and `DELIST`. The business is in or out of search right away.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/MarketplaceDecision
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceListing
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

@@ -131,3 +131,64 @@ suggestions:
         $ref: ../common/responses.yaml#/BadRequest
       '429':
         $ref: ../common/responses.yaml#/TooManyRequests
+marketplace:
+  get:
+    tags: [Discovery]
+    operationId: getMarketplaceStatus
+    summary: Where the business stands on the marketplace, and what it still needs
+    description: Needs `org.settings.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: The status.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Discovery]
+    operationId: setMarketplaceRequest
+    summary: Ask to be listed on the marketplace, or take the request (or the listing) back
+    description: |
+      Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+      and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+      while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+      listing back (the business becomes hidden and can ask again).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [requested]
+            properties:
+              requested:
+                type: boolean
+    responses:
+      '200':
+        description: The new status.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceStatus
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable

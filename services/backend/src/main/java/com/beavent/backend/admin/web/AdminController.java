@@ -8,6 +8,7 @@ import com.beavent.backend.admin.internal.AuditTrail;
 import com.beavent.backend.admin.internal.Directory;
 import com.beavent.backend.admin.internal.Flags;
 import com.beavent.backend.admin.internal.Kyb;
+import com.beavent.backend.admin.internal.MarketplaceReview;
 import com.beavent.backend.admin.internal.PayoutReview;
 import com.beavent.backend.admin.internal.StaffAccess;
 import com.beavent.backend.platform.ApiException;
@@ -33,6 +34,7 @@ class AdminController {
     private final Directory directory;
     private final Kyb kyb;
     private final PayoutReview payouts;
+    private final MarketplaceReview marketplaceReview;
     private final AuditTrail auditTrail;
     private final Flags flags;
     private final DSLContext system;
@@ -41,12 +43,14 @@ class AdminController {
             Directory directory,
             Kyb kyb,
             PayoutReview payouts,
+            MarketplaceReview marketplaceReview,
             AuditTrail auditTrail,
             Flags flags,
             @SystemDb DSLContext system) {
         this.directory = directory;
         this.kyb = kyb;
         this.payouts = payouts;
+        this.marketplaceReview = marketplaceReview;
         this.auditTrail = auditTrail;
         this.flags = flags;
         this.system = system;
@@ -131,6 +135,20 @@ class AdminController {
     AdminBodies.PayoutAccountSummary decidePayoutAccount(
             @PathVariable UUID accountId, @Valid @RequestBody AdminBodies.Decision body) {
         return payouts.decide(StaffAccess.current(), accountId, body);
+    }
+
+    @GetMapping("/v1/admin/marketplace-listings")
+    AdminBodies.Page<AdminBodies.MarketplaceListing> marketplaceListings(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return marketplaceReview.queue(StaffAccess.current(), status, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/orgs/{orgId}/marketplace-decision")
+    AdminBodies.MarketplaceListing decideMarketplace(
+            @PathVariable UUID orgId, @Valid @RequestBody AdminBodies.MarketplaceDecision body) {
+        return marketplaceReview.decide(StaffAccess.current(), orgId, body);
     }
 
     @GetMapping("/v1/admin/audit-log")

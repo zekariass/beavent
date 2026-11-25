@@ -4782,6 +4782,70 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/marketplace:
+    get:
+      tags:
+        - Discovery
+      operationId: getMarketplaceStatus
+      summary: Where the business stands on the marketplace, and what it still needs
+      description: Needs `org.settings.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Discovery
+      operationId: setMarketplaceRequest
+      summary: Ask to be listed on the marketplace, or take the request (or the listing) back
+      description: |
+        Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+        and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+        while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+        listing back (the business becomes hidden and can ask again).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requested
+              properties:
+                requested:
+                  type: boolean
+      responses:
+        '200':
+          description: The new status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -5300,6 +5364,77 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/marketplace-listings:
+    get:
+      tags:
+        - Admin
+      operationId: listMarketplaceListings
+      summary: Businesses by their place on the marketplace, oldest first (default `PENDING_REVIEW`)
+      description: Needs `admin.marketplace.review`, in the business's market.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - HIDDEN
+              - PENDING_REVIEW
+              - LISTED
+              - DELISTED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceListingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/orgs/{orgId}/marketplace-decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideMarketplace
+      summary: List a business on the marketplace, send its request back, or take it off (reason required, audited)
+      description: |
+        Needs `admin.marketplace.review`; staff cannot decide about a business they belong to. `LIST` needs an active
+        location and a service people can book online (`CONSTRAINT_VIOLATION`) and a business that is not suspended,
+        restricted or closed; `REJECT` answers a waiting request; `DELIST` takes a listed business off. The reason is shown
+        to the business after `REJECT` and `DELIST`. The business is in or out of search right away.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketplaceDecision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceListing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/admin/audit-log:
     get:
       tags:
@@ -10804,6 +10939,46 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SearchItem'
+    MarketplaceRequirement:
+      type: object
+      required:
+        - code
+        - met
+      properties:
+        code:
+          type: string
+          enum:
+            - LOCATION
+            - SERVICE
+          description: An active location, or an active service people can book online at one.
+        met:
+          type: boolean
+    MarketplaceStatus:
+      type: object
+      required:
+        - status
+        - requirements
+        - canRequest
+      properties:
+        status:
+          type: string
+          enum:
+            - HIDDEN
+            - PENDING_REVIEW
+            - LISTED
+            - DELISTED
+        note:
+          type: string
+          description: Why staff sent the request back or took the business off; present until it asks again.
+        changedAt:
+          $ref: '#/components/schemas/Instant'
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceRequirement'
+        canRequest:
+          type: boolean
+          description: The business may ask now (hidden, ready, not taken off by staff).
     FilePurpose:
       type: string
       enum:
@@ -11330,6 +11505,74 @@ components:
       properties:
         accountNumber:
           type: string
+    MarketplaceListing:
+      type: object
+      required:
+        - orgId
+        - slug
+        - organization
+        - marketCode
+        - organizationStatus
+        - status
+        - locations
+        - services
+      properties:
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        organization:
+          type: string
+        marketCode:
+          type: string
+        organizationStatus:
+          type: string
+        status:
+          type: string
+          enum:
+            - HIDDEN
+            - PENDING_REVIEW
+            - LISTED
+            - DELISTED
+        note:
+          type: string
+          description: The reason of the last send-back or take-down.
+        changedAt:
+          $ref: '#/components/schemas/Instant'
+        locations:
+          type: integer
+          description: Active locations.
+        services:
+          type: integer
+          description: Active services people can book online.
+    MarketplaceListingPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceListing'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    MarketplaceDecision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - LIST
+            - REJECT
+            - DELIST
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
     AuditEntryPage:
       type: object
       required:

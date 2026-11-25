@@ -107,6 +107,24 @@ public final class AdminBodies {
 
             @NotBlank @Size(min = 5, max = 500) String reason) {}
 
+    /** A business and where it stands on the marketplace (plan 8.1): what staff review, list or take off. */
+    public record MarketplaceListing(
+            UUID orgId,
+            String slug,
+            String organization,
+            String marketCode,
+            String organizationStatus,
+            String status,
+            String note,
+            Instant changedAt,
+            int locations,
+            int services) {}
+
+    public record MarketplaceDecision(
+            @NotNull @Pattern(regexp = "LIST|REJECT|DELIST") String decision,
+
+            @NotBlank @Size(min = 5, max = 500) String reason) {}
+
     /** A payout account waiting for (or past) review; the number is masked, see {@code reveal}. */
     public record PayoutAccountSummary(
             UUID id,

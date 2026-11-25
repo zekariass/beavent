@@ -18,11 +18,14 @@ public interface Listings {
      */
     record Result(int listed, int unlisted) {}
 
-    /** Projects one place, or hides it when it is not eligible (business listed and active, location active). */
+    /** Projects one place, or hides it when it is not eligible (business approved for the marketplace and not suspended or closed, location active). */
     Result refreshLocation(UUID locationId, Instant now);
 
     /** Projects one event, or hides it when it is not public and on sale, or is over. */
     Result refreshEvent(UUID eventId, Instant now);
+
+    /** All places and events of a business, now: after it was listed, sent back or taken off the marketplace. */
+    Result refreshOrganization(UUID orgId, Instant now);
 
     /** Everything: all eligible places and events, and hides what no longer qualifies. */
     Result refreshAll(Instant now);

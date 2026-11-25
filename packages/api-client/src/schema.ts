@@ -2045,6 +2045,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/marketplace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the business stands on the marketplace, and what it still needs
+         * @description Needs `org.settings.manage`.
+         */
+        get: operations["getMarketplaceStatus"];
+        /**
+         * Ask to be listed on the marketplace, or take the request (or the listing) back
+         * @description Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+         *     and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+         *     while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+         *     listing back (the business becomes hidden and can ask again).
+         */
+        put: operations["setMarketplaceRequest"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -2355,6 +2382,49 @@ export interface paths {
          *     `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
          */
         post: operations["decidePayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketplace-listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Businesses by their place on the marketplace, oldest first (default `PENDING_REVIEW`)
+         * @description Needs `admin.marketplace.review`, in the business's market.
+         */
+        get: operations["listMarketplaceListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orgs/{orgId}/marketplace-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List a business on the marketplace, send its request back, or take it off (reason required, audited)
+         * @description Needs `admin.marketplace.review`; staff cannot decide about a business they belong to. `LIST` needs an active
+         *     location and a service people can book online (`CONSTRAINT_VIOLATION`) and a business that is not suspended,
+         *     restricted or closed; `REJECT` answers a waiting request; `DELIST` takes a listed business off. The reason is shown
+         *     to the business after `REJECT` and `DELIST`. The business is in or out of search right away.
+         */
+        post: operations["decideMarketplace"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4549,6 +4619,24 @@ export interface components {
             places: components["schemas"]["SearchItem"][];
             events: components["schemas"]["SearchItem"][];
         };
+        MarketplaceRequirement: {
+            /**
+             * @description An active location, or an active service people can book online at one.
+             * @enum {string}
+             */
+            code: "LOCATION" | "SERVICE";
+            met: boolean;
+        };
+        MarketplaceStatus: {
+            /** @enum {string} */
+            status: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+            /** @description Why staff sent the request back or took the business off; present until it asks again. */
+            note?: string;
+            changedAt?: components["schemas"]["Instant"];
+            requirements: components["schemas"]["MarketplaceRequirement"][];
+            /** @description The business may ask now (hidden, ready, not taken off by staff). */
+            canRequest: boolean;
+        };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
          *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
@@ -4755,6 +4843,31 @@ export interface components {
         };
         AccountNumber: {
             accountNumber: string;
+        };
+        MarketplaceListing: {
+            orgId: components["schemas"]["Uuid"];
+            slug: string;
+            organization: string;
+            marketCode: string;
+            organizationStatus: string;
+            /** @enum {string} */
+            status: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+            /** @description The reason of the last send-back or take-down. */
+            note?: string;
+            changedAt?: components["schemas"]["Instant"];
+            /** @description Active locations. */
+            locations: number;
+            /** @description Active services people can book online. */
+            services: number;
+        };
+        MarketplaceListingPage: {
+            items: components["schemas"]["MarketplaceListing"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        MarketplaceDecision: {
+            /** @enum {string} */
+            decision: "LIST" | "REJECT" | "DELIST";
+            reason: string;
         };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
@@ -9382,6 +9495,65 @@ export interface operations {
             429: components["responses"]["TooManyRequests"];
         };
     };
+    getMarketplaceStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setMarketplaceRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    requested: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The new status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceStatus"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
     createFileUpload: {
         parameters: {
             query?: never;
@@ -9871,6 +10043,65 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listMarketplaceListings: {
+        parameters: {
+            query?: {
+                status?: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceListingPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    decideMarketplace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketplaceDecision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceListing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     searchAuditLog: {

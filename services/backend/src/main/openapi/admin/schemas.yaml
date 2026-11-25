@@ -354,3 +354,52 @@ AccountNumber:
   properties:
     accountNumber:
       type: string
+MarketplaceListing:
+  type: object
+  required: [orgId, slug, organization, marketCode, organizationStatus, status, locations, services]
+  properties:
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    slug:
+      type: string
+    organization:
+      type: string
+    marketCode:
+      type: string
+    organizationStatus:
+      type: string
+    status:
+      type: string
+      enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+    note:
+      type: string
+      description: The reason of the last send-back or take-down.
+    changedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    locations:
+      type: integer
+      description: Active locations.
+    services:
+      type: integer
+      description: Active services people can book online.
+MarketplaceListingPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MarketplaceListing'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+MarketplaceDecision:
+  type: object
+  required: [decision, reason]
+  properties:
+    decision:
+      type: string
+      enum: [LIST, REJECT, DELIST]
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500

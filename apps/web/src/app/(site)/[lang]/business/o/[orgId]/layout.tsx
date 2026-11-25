@@ -29,6 +29,7 @@ export default async function WorkspaceLayout({
     [`${base}/rota`, t("portal.nav.rota")],
     [`${base}/policies`, t("portal.nav.policies")],
     [`${base}/get-paid`, t("portal.nav.getPaid")],
+    [`${base}/marketplace`, t("portal.nav.marketplace")],
     [`${base}/share`, t("portal.nav.share")],
   ] as const;
   return (

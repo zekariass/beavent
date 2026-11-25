@@ -72,7 +72,7 @@ class ListingProjector implements Listings {
                                l.currency_code, l.service_mode, l.online_booking,
                                o.slug::text AS org_slug, o.display_name, o.description_i18n, o.logo_file_id,
                                o.cover_file_id, o.home_market_id, o.primary_category_id, o.created_at AS org_created,
-                               (o.status = 'ACTIVE' AND o.marketplace_status = 'LISTED' AND l.status = 'ACTIVE') AS eligible,
+                               (o.status IN ('ACTIVE','ONBOARDING') AND o.marketplace_status = 'LISTED' AND l.status = 'ACTIVE') AS eligible,
                                p.landmark, p.address_line, p.city,
                                ST_Y(p.geo::geometry) AS lat, ST_X(p.geo::geometry) AS lng,
                                aa.name_i18n AS area_name, aa.name AS area_en,
@@ -342,7 +342,7 @@ class ListingProjector implements Listings {
                         SELECT e.id, e.org_id, e.slug::text AS event_slug, e.kind, e.format, e.source_language,
                                e.currency_code, e.category_id, e.cover_file_id, e.min_age, e.location_id,
                                o.slug::text AS org_slug, o.display_name AS org_name, o.home_market_id,
-                               (o.status = 'ACTIVE' AND e.visibility = 'PUBLIC'
+                               (o.status IN ('ACTIVE','ONBOARDING') AND e.visibility = 'PUBLIC'
                                 AND e.status IN ('PUBLISHED','SALES_PAUSED')) AS eligible
                           FROM events.events e
                           JOIN tenant.organizations o ON o.id = e.org_id
@@ -543,6 +543,27 @@ class ListingProjector implements Listings {
                 eventId);
     }
 
+    @Override
+    public Result refreshOrganization(UUID orgId, Instant now) {
+        int listed = 0;
+        int unlisted = 0;
+        List<UUID> places = system.resultQuery("SELECT id FROM tenant.locations WHERE org_id = ?", orgId)
+                .fetch(r -> r.get(0, UUID.class));
+        for (UUID id : places) {
+            Result r = refreshLocation(id, now);
+            listed += r.listed();
+            unlisted += r.unlisted();
+        }
+        List<UUID> events = system.resultQuery("SELECT id FROM events.events WHERE org_id = ?", orgId)
+                .fetch(r -> r.get(0, UUID.class));
+        for (UUID id : events) {
+            Result r = refreshEvent(id, now);
+            listed += r.listed();
+            unlisted += r.unlisted();
+        }
+        return new Result(listed, unlisted);
+    }
+
     // ---------------------------------------------------------------------------------------------------------
     // Everything
     // ---------------------------------------------------------------------------------------------------------
@@ -553,7 +574,7 @@ class ListingProjector implements Listings {
         int unlisted = 0;
         List<UUID> places = system.resultQuery("""
                         SELECT l.id FROM tenant.locations l JOIN tenant.organizations o ON o.id = l.org_id
-                         WHERE l.status = 'ACTIVE' AND o.status = 'ACTIVE' AND o.marketplace_status = 'LISTED'
+                         WHERE l.status = 'ACTIVE' AND o.status IN ('ACTIVE','ONBOARDING') AND o.marketplace_status = 'LISTED'
                         """).fetch(r -> r.get(0, UUID.class));
         for (UUID id : places) {
             try {
@@ -571,7 +592,7 @@ class ListingProjector implements Listings {
 
         List<UUID> events = system.resultQuery("""
                         SELECT e.id FROM events.events e JOIN tenant.organizations o ON o.id = e.org_id
-                         WHERE e.visibility = 'PUBLIC' AND e.status IN ('PUBLISHED','SALES_PAUSED') AND o.status = 'ACTIVE'
+                         WHERE e.visibility = 'PUBLIC' AND e.status IN ('PUBLISHED','SALES_PAUSED') AND o.status IN ('ACTIVE','ONBOARDING')
                         """).fetch(r -> r.get(0, UUID.class));
         for (UUID id : events) {
             try {

@@ -196,3 +196,32 @@ SearchSuggestions:
       type: array
       items:
         $ref: '#/SearchItem'
+MarketplaceRequirement:
+  type: object
+  required: [code, met]
+  properties:
+    code:
+      type: string
+      enum: [LOCATION, SERVICE]
+      description: An active location, or an active service people can book online at one.
+    met:
+      type: boolean
+MarketplaceStatus:
+  type: object
+  required: [status, requirements, canRequest]
+  properties:
+    status:
+      type: string
+      enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+    note:
+      type: string
+      description: Why staff sent the request back or took the business off; present until it asks again.
+    changedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    requirements:
+      type: array
+      items:
+        $ref: '#/MarketplaceRequirement'
+    canRequest:
+      type: boolean
+      description: The business may ask now (hidden, ready, not taken off by staff).
