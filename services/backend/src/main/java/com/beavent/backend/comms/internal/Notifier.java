@@ -48,6 +48,10 @@ class Notifier {
 
     /** A payout account was added or changed (plan 3.4): sent to the people who manage payouts. */
     static final String PAYOUT_CHANGED = "PAYOUT_ACCOUNT_CHANGED";
+    /** A payout was paid, or did not go through (plan 3.5): sent to the same people. */
+    static final String PAYOUT_PAID = "PAYOUT_PAID";
+
+    static final String PAYOUT_FAILED = "PAYOUT_FAILED";
 
     static final List<String> REMINDERS = List.of(REMINDER_24H, REMINDER_2H);
     static final String CONSUMER = "comms.appointments";
@@ -71,19 +75,92 @@ class Notifier {
     @RabbitListener(queues = CommsConfiguration.PAYOUTS_QUEUE)
     void onPayoutEvent(Message message) {
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
-        if (!"payout_account.changed".equals(message.getMessageProperties().getReceivedRoutingKey())) return;
+        String type = message.getMessageProperties().getReceivedRoutingKey();
         UUID orgId = UUID.fromString(message.getMessageProperties().<String>getHeader("org_id"));
         var body = json.readTree(message.getBody());
-        processedMessages.runOnce(
-                CONSUMER + ".payouts",
-                messageId,
-                () -> payoutChanged(
-                        orgId,
-                        body.get("payoutAccountId").asString(),
-                        body.get("institutionName").asString(),
-                        body.get("last4").asString(),
-                        body.get("allowedAfter").asString(),
-                        Instant.now()));
+        switch (type) {
+            case "payout_account.changed" ->
+                processedMessages.runOnce(
+                        CONSUMER + ".payouts",
+                        messageId,
+                        () -> payoutChanged(
+                                orgId,
+                                body.get("payoutAccountId").asString(),
+                                body.get("institutionName").asString(),
+                                body.get("last4").asString(),
+                                body.get("allowedAfter").asString(),
+                                Instant.now()));
+            case "payout.paid", "payout.failed", "payout.rejected" ->
+                processedMessages.runOnce(
+                        CONSUMER + ".payouts",
+                        messageId,
+                        () -> payoutOutcome(
+                                orgId,
+                                type.equals("payout.paid") ? PAYOUT_PAID : PAYOUT_FAILED,
+                                body.get("payoutId").asString(),
+                                body.get("amountMinor").asLong(),
+                                body.get("currency").asString(),
+                                body.get("institutionName").asString(),
+                                body.get("last4").asString(),
+                                body.get("note").asString(),
+                                Instant.now()));
+            default -> {
+                // not for us
+            }
+        }
+    }
+
+    /** The people who may manage a business's payouts: its owners and the roles with the right. */
+    private List<UUID> payoutPeople(UUID orgId) {
+        return system.selectDistinct(DSL.field("m.user_id", UUID.class))
+                .from(DSL.table("tenant.members").as("m"))
+                .leftJoin(DSL.table("tenant.role_permissions").as("rp"))
+                .on(DSL.field("rp.role_id", UUID.class).eq(DSL.field("m.role_id", UUID.class)))
+                .where(
+                        DSL.field("m.org_id", UUID.class).eq(orgId),
+                        DSL.field("m.status", String.class).eq("ACTIVE"),
+                        DSL.field("m.is_owner", Boolean.class)
+                                .isTrue()
+                                .or(DSL.field("rp.permission_code", String.class)
+                                        .eq("payouts.manage")))
+                .fetch(0, UUID.class);
+    }
+
+    /** A payout was paid or did not go through: the people who manage payouts are told. Runs in a system transaction. */
+    void payoutOutcome(
+            UUID orgId,
+            String code,
+            String payoutId,
+            long amountMinor,
+            String currency,
+            String institution,
+            String last4,
+            String note,
+            Instant now) {
+        String business = system.select(ORGANIZATIONS.DISPLAY_NAME)
+                .from(ORGANIZATIONS)
+                .where(ORGANIZATIONS.ID.eq(orgId))
+                .fetchSingle(ORGANIZATIONS.DISPLAY_NAME);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("business", business);
+        data.put("amountMinor", amountMinor);
+        data.put("currency", currency);
+        data.put("institution", institution);
+        data.put("last4", last4);
+        data.put("note", note);
+        for (UUID user : payoutPeople(orgId)) {
+            system.insertInto(NOTIFICATIONS)
+                    .set(NOTIFICATIONS.ID, Ids.newId())
+                    .set(NOTIFICATIONS.ORG_ID, orgId)
+                    .set(NOTIFICATIONS.RECIPIENT_USER_ID, user)
+                    .set(NOTIFICATIONS.CATEGORY, "TRANSACTIONAL")
+                    .set(NOTIFICATIONS.TEMPLATE_CODE, code)
+                    .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
+                    .set(NOTIFICATIONS.DEDUPE_KEY, code + ":" + payoutId + ":" + user)
+                    .set(NOTIFICATIONS.SEND_AFTER, now.atOffset(ZoneOffset.UTC))
+                    .onConflictDoNothing()
+                    .execute();
+        }
     }
 
     /**
@@ -97,18 +174,7 @@ class Notifier {
                 .from(ORGANIZATIONS)
                 .where(ORGANIZATIONS.ID.eq(orgId))
                 .fetchSingle(ORGANIZATIONS.DISPLAY_NAME);
-        List<UUID> people = system.selectDistinct(DSL.field("m.user_id", UUID.class))
-                .from(DSL.table("tenant.members").as("m"))
-                .leftJoin(DSL.table("tenant.role_permissions").as("rp"))
-                .on(DSL.field("rp.role_id", UUID.class).eq(DSL.field("m.role_id", UUID.class)))
-                .where(
-                        DSL.field("m.org_id", UUID.class).eq(orgId),
-                        DSL.field("m.status", String.class).eq("ACTIVE"),
-                        DSL.field("m.is_owner", Boolean.class)
-                                .isTrue()
-                                .or(DSL.field("rp.permission_code", String.class)
-                                        .eq("payouts.manage")))
-                .fetch(0, UUID.class);
+        List<UUID> people = payoutPeople(orgId);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("business", business);
         data.put("institution", institution);

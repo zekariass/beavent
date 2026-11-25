@@ -212,6 +212,56 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/earnings:
+    get:
+      tags:
+        - Payments
+      operationId: getEarnings
+      summary: What the business is owed, what is on its way, and its latest payouts
+      description: Needs `payouts.view`. Amounts are what Beavent holds for the business (ArifPay mode).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The overview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Earnings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/statement:
+    get:
+      tags:
+        - Payments
+      operationId: getStatement
+      summary: Sales, fees, refunds and payouts, newest first
+      description: |
+        Needs `payouts.view`. Each line is the net effect of one ledger transaction on what Beavent owes the business
+        (positive: more). Movements between the business's own balances (a release for payout) are left out.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of the statement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/auth/otp/request:
     post:
       tags:
@@ -5162,6 +5212,142 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/payouts:
+    get:
+      tags:
+        - Admin
+      operationId: listPayoutsForFinance
+      summary: Seller payouts by queue, oldest first (default `APPROVAL`)
+      description: Needs `admin.payments.view`.
+      parameters:
+        - name: queue
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - APPROVAL
+              - READY
+              - PROCESSING
+              - PAID
+              - FAILED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payouts/export:
+    post:
+      tags:
+        - Admin
+      operationId: exportPayoutBatch
+      summary: The bank batch (CSV with full account numbers) of the payouts ready to pay (step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code. The exported payouts become `PROCESSING`. Payouts of organizations
+        the staff member belongs to are left out.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutExport'
+      responses:
+        '200':
+          description: The CSV.
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payouts/{payoutId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decidePayout
+      summary: Approve or reject a payout that waits for approval (reason required, step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code; staff cannot handle payouts of organizations they belong to.
+        Rejecting gives the money back to the business's available balance.
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/payouts/{payoutId}/settlement:
+    post:
+      tags:
+        - Admin
+      operationId: settlePayout
+      summary: Record what happened to a payout in the bank (step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code. `PAID` needs the bank's reference; `FAILED` and `RETURNED` need a
+        reason and give the money back to the business. A payout is paid from `SCHEDULED`, `APPROVED` or `PROCESSING`.
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutSettlement'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/admin/audit-log:
     get:
       tags:
@@ -5624,6 +5810,146 @@ components:
           type: string
           maxLength: 40
           description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
+    PayoutRow:
+      type: object
+      required:
+        - id
+        - status
+        - amountMinor
+        - currency
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - PENDING_APPROVAL
+            - APPROVED
+            - PROCESSING
+            - PAID
+            - FAILED
+            - CANCELLED
+            - RETURNED
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        institutionName:
+          type:
+            - string
+            - 'null'
+        accountMasked:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        paidAt:
+          $ref: '#/components/schemas/Instant'
+        failureMessage:
+          type:
+            - string
+            - 'null'
+    Earnings:
+      type: object
+      required:
+        - currency
+        - pendingMinor
+        - availableMinor
+        - onTheWayMinor
+        - paidOutMinor
+        - schedule
+        - minPayoutMinor
+        - payouts
+      properties:
+        currency:
+          type: string
+        pendingMinor:
+          type: integer
+          format: int64
+          description: Sold, not yet released (the service has not been delivered, or the payout delay has not passed).
+        availableMinor:
+          type: integer
+          format: int64
+          description: Ready for the next payout.
+        onTheWayMinor:
+          type: integer
+          format: int64
+          description: In payouts that are created but not paid yet.
+        paidOutMinor:
+          type: integer
+          format: int64
+        schedule:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - MANUAL
+        weekday:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 7
+          description: 1 (Monday) to 7 for a weekly schedule.
+        minPayoutMinor:
+          type: integer
+          format: int64
+        payouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutRow'
+    StatementLine:
+      type: object
+      required:
+        - transactionId
+        - occurredAt
+        - kind
+        - amountMinor
+      properties:
+        transactionId:
+          $ref: '#/components/schemas/Uuid'
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        kind:
+          type: string
+          description: The ledger transaction kind, for example `PAYMENT_CAPTURED`, `FEES_ASSESSED`, `PAYOUT_INITIATED`.
+        description:
+          type:
+            - string
+            - 'null'
+        amountMinor:
+          type: integer
+          format: int64
+          description: Positive when the business is owed more, negative when less.
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+    PageInfo:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page.
+    Statement:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementLine'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     PhoneE164:
       type: string
       pattern: ^\+[1-9][0-9]{6,14}$
@@ -6447,16 +6773,6 @@ components:
         version:
           type: integer
           description: Same value as the ETag.
-    PageInfo:
-      type: object
-      required:
-        - nextCursor
-      properties:
-        nextCursor:
-          type:
-            - string
-            - 'null'
-          description: Pass as `cursor` to get the next page; null on the last page.
     LocationList:
       type: object
       required:
@@ -10961,6 +11277,112 @@ components:
       properties:
         accountNumber:
           type: string
+    PayoutSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - amountMinor
+        - currency
+        - status
+        - approvalReasons
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - PENDING_APPROVAL
+            - APPROVED
+            - PROCESSING
+            - PAID
+            - FAILED
+            - CANCELLED
+            - RETURNED
+        approvalReasons:
+          type: array
+          items:
+            type: string
+            enum:
+              - FIRST_PAYOUT
+              - LARGE_AMOUNT
+              - NEW_ACCOUNT
+              - RISK_REVIEW
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        exportedAt:
+          $ref: '#/components/schemas/Instant'
+        paidAt:
+          $ref: '#/components/schemas/Instant'
+        reference:
+          type:
+            - string
+            - 'null'
+        note:
+          type:
+            - string
+            - 'null'
+    PayoutSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    PayoutExport:
+      type: object
+      properties:
+        payoutIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          description: Only these, among those that are ready; all ready payouts when left out.
+    PayoutSettlement:
+      type: object
+      required:
+        - outcome
+      properties:
+        outcome:
+          type: string
+          enum:
+            - PAID
+            - FAILED
+            - RETURNED
+        reference:
+          type: string
+          maxLength: 120
+        reason:
+          type: string
+          maxLength: 500
     AuditEntryPage:
       type: object
       required:
@@ -11356,13 +11778,6 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
-    IfMatch:
-      name: If-Match
-      in: header
-      required: true
-      description: ETag of the version being updated.
-      schema:
-        type: string
     Cursor:
       name: cursor
       in: query
@@ -11379,6 +11794,13 @@ components:
         minimum: 1
         maximum: 100
         default: 25
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag of the version being updated.
+      schema:
+        type: string
     AppointmentIdParam:
       name: appointmentId
       in: path

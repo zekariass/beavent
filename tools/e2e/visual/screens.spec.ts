@@ -1,7 +1,14 @@
 import { execSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
-import { bookAsCustomer, deskBook, firstFreeStart, seedSalon } from "../tests/seed.ts";
+import {
+  bookAsCustomer,
+  deskBook,
+  firstFreeStart,
+  seedFinanceStaff,
+  seedPaidSale,
+  seedSalon,
+} from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
@@ -1681,5 +1688,86 @@ test("get paid · console page and the platform's review queue", async ({ browse
 
   // 4. The business sees why, and can try again.
   await everyLook("rejected");
+  await context.close();
+});
+
+// --- Stage 3.5: earnings and the finance desk ----------------------------------------------------------------------------
+// Needs the API started with BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000.
+
+test("earnings · the business's page and the finance desk", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedPaidSale("Abeba Beauty");
+  const reviewer = await seedFinanceStaff();
+
+  const context = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const desk = await context.newPage();
+  await desk.waitForTimeout(31_000); // a new code can be sent 30 seconds after the last one
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const earnings = `${WEB}/LANG/business/o/${salon.orgId}/earnings`;
+  const everyLook = async (name: string) => {
+    for (const scheme of SCHEMES) {
+      await desk.emulateMedia({ colorScheme: scheme });
+      for (const language of LANGUAGES) {
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await desk.setViewportSize(size);
+          await desk.goto(earnings.replace("LANG", language));
+          await shot(desk, `earnings-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+    await desk.emulateMedia({ colorScheme: "light" });
+    await desk.setViewportSize(DESKTOP);
+  };
+  await everyLook("checking");
+
+  const staff = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    acceptDownloads: true,
+  });
+  const admin = await staff.newPage();
+  await webSignIn(admin, `${ADMIN}/sign-in`, reviewer, reviewer);
+  await admin.goto(`${ADMIN}/payouts`);
+  const row = admin.getByRole("listitem").filter({ hasText: "Abeba Beauty" }).last();
+  await row.waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `earnings-admin-approval-${scheme}`);
+  }
+  await admin.emulateMedia({ colorScheme: "light" });
+  await admin.waitForTimeout(31_000);
+  const codes = codeCount(reviewer);
+  await admin.getByRole("button", { name: "Send code" }).click();
+  await admin.getByLabel(/Code sent to|Code/).fill(await codeFor(reviewer, codes));
+  await admin.getByRole("button", { name: "Confirm" }).click();
+  await row.getByText("Review").click();
+  await row.getByRole("radio", { name: "Approve" }).check();
+  await row.getByLabel(/Reason/).fill("Account checked against the bank letter");
+  await shot(admin, "earnings-admin-review-light");
+  await row.getByRole("button", { name: "Save decision" }).click();
+  await admin.getByRole("link", { name: "To pay" }).click();
+  await admin.getByRole("button", { name: "Download the bank batch" }).waitFor();
+  await shot(admin, "earnings-admin-ready-light");
+  await admin.getByRole("button", { name: "Download the bank batch" }).click();
+  await admin.getByRole("link", { name: "In a bank batch" }).click();
+  const processing = admin.getByRole("listitem").filter({ hasText: "Abeba Beauty" }).last();
+  await processing.getByText("Record what happened").click();
+  await processing.getByRole("radio", { name: "Paid" }).check();
+  const reference = `CBE-${Date.now()}`;
+  await processing.getByLabel("Bank reference (when paid)").fill(reference);
+  await shot(admin, "earnings-admin-settle-light");
+  await processing.getByRole("button", { name: "Save" }).click();
+  await admin.getByRole("link", { name: "Paid", exact: true }).click();
+  await admin.getByText(reference).first().waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `earnings-admin-paid-${scheme}`);
+  }
+  await staff.close();
+
+  await everyLook("paid");
   await context.close();
 });

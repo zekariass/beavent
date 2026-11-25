@@ -210,6 +210,8 @@ Applies to `PLATFORM_COLLECTS` sellers, refund disbursements and (optionally) st
 
 ## 10. Ledger postings
 
+*Built in slice 3.5 (25 Nov 2026):* `ledger/` (`Ledger`, `Postings`). Capture, fees, release, payout (initiated, settled, failed, returned) and money received for refund are posted; refunds and disputes (3.6, 3.9), reserves, promotions funded by the platform and the platform's provider fee are not yet.
+
 Sign convention: debit positive, credit negative. Every transaction balances per currency (deferred trigger); entries are immutable; balances are maintained in `ledger.balances`.
 
 Accounts (per currency): `PROVIDER_CLEARING` (per provider account), `SELLER_PENDING`, `SELLER_AVAILABLE`, `SELLER_RESERVE`, `SELLER_FEES_RECEIVABLE`, `SELLER_RECEIVABLE` (per org; refunds/disputes the platform funded under `PROVIDER_SPLIT`), `PLATFORM_FEE_REVENUE`, `PLATFORM_PROCESSING_COST`, `PLATFORM_PROMO_EXPENSE`, `TAX_PAYABLE`, `PAYOUTS_IN_TRANSIT`, `REFUNDS_PAYABLE`, `CUSTOMER_REFUND_PAYABLE`, `CASH_AT_SELLER`, `SUSPENSE`.

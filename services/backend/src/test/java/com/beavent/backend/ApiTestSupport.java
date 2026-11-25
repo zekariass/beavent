@@ -51,7 +51,8 @@ public abstract class ApiTestSupport {
     @SystemDb
     protected DSLContext system;
 
-    public record Call(int status, JsonNode body, String etag) {
+    /** {@code raw} is the response text; {@code body} is its JSON, or null for an empty or non-JSON answer. */
+    public record Call(int status, JsonNode body, String etag, String raw) {
 
         public String text(String field) {
             return body.get(field).asString();
@@ -97,8 +98,13 @@ public abstract class ApiTestSupport {
         }
         return new Call(
                 result.getResponse().getStatus(),
-                content.isEmpty() ? null : json.readTree(content),
-                result.getResponse().getHeader("ETag"));
+                content.isEmpty()
+                                || !String.valueOf(result.getResponse().getContentType())
+                                        .contains("json")
+                        ? null
+                        : json.readTree(content),
+                result.getResponse().getHeader("ETag"),
+                content);
     }
 
     protected static String newPhone() {

@@ -8,6 +8,7 @@ const sections = () => [
   { href: "/verification", label: "Verification queue" },
   { href: "/organizations", label: "Organizations" },
   { href: "/payout-accounts", label: "Payout accounts" },
+  { href: "/payouts", label: "Payouts" },
   { href: "/people", label: "People" },
   { href: "/audit", label: "Audit log" },
   { href: "/flags", label: "Feature flags" },

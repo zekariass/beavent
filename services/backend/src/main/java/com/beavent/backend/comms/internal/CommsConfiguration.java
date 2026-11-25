@@ -31,6 +31,14 @@ class CommsConfiguration {
                 .with("payout_account.*");
     }
 
+    /** A payout was paid, failed or rejected (plan 3.5). */
+    @Bean
+    Binding commsPayoutOutcomeBinding(Queue commsPayoutsQueue) {
+        return BindingBuilder.bind(commsPayoutsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payout.*");
+    }
+
     @Bean
     Queue commsWaitlistQueue() {
         return QueueBuilder.durable(WAITLIST_QUEUE)

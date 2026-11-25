@@ -148,7 +148,7 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
-        if (code.equals(Notifier.PAYOUT_CHANGED)) {
+        if (code.startsWith("PAYOUT_")) {
             return null;
         }
         if (code.equals(Notifier.WAITLIST_OFFER)) {

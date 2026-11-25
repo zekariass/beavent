@@ -29,6 +29,9 @@ final class Texts {
         if (code.equals(Notifier.PAYOUT_CHANGED)) {
             return payoutChanged(lang, data);
         }
+        if (code.equals(Notifier.PAYOUT_PAID) || code.equals(Notifier.PAYOUT_FAILED)) {
+            return payoutOutcome(code.equals(Notifier.PAYOUT_PAID), lang, data);
+        }
         String business = String.valueOf(data.get("business"));
         String ref = String.valueOf(data.get("reference"));
         ZonedDateTime start = Instant.parse(String.valueOf(data.get("startsAt")))
@@ -111,6 +114,39 @@ final class Texts {
                         business + ": the payout account was changed to " + account + ". Payouts to it start after "
                                 + date(from, lang) + ", " + time(from.toLocalTime(), lang)
                                 + ". If this wasn't you, tell us right away.");
+    }
+
+    /** A payout was paid, or did not go through (plan 3.5). */
+    private static Message payoutOutcome(boolean paid, String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String account = data.get("institution") + " " + data.get("last4");
+        String amount = birr(Long.parseLong(String.valueOf(data.get("amountMinor"))), am);
+        String note = String.valueOf(data.get("note"));
+        if (paid) {
+            return am
+                    ? new Message(business + " · ክፍያ ተልኳል", business + "፦ " + amount + " ወደ " + account + " ተልኳል።")
+                    : new Message(
+                            business + " · payout sent", business + ": " + amount + " was sent to " + account + ".");
+        }
+        String why = note.isBlank() ? "" : (am ? " ምክንያት፦ " : " Reason: ") + note + (am ? "።" : ".");
+        return am
+                ? new Message(
+                        business + " · ክፍያ አልተላከም",
+                        business + "፦ ወደ " + account + " የተዘጋጀው የ" + amount
+                                + " ክፍያ አልተላከም። ገንዘቡ በሒሳብዎ ውስጥ ነው፤ እንደገና ይሞከራል።" + why)
+                : new Message(
+                        business + " · payout not sent",
+                        business + ": the " + amount + " payout to " + account
+                                + " did not go through. The money is still yours and will be tried again." + why);
+    }
+
+    /** "Br 1,250" or "Br 88.50": whole birr without decimals (docs/design: never .00). */
+    static String birr(long minor, boolean am) {
+        String number = minor % 100 == 0
+                ? String.format(Locale.ENGLISH, "%,d", minor / 100)
+                : String.format(Locale.ENGLISH, "%,d.%02d", minor / 100, minor % 100);
+        return (am ? "ብር " : "Br ") + number;
     }
 
     private static String suffix(String place, boolean am) {

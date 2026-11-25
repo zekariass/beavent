@@ -115,3 +115,92 @@ PayoutAccountInput:
       type: string
       maxLength: 40
       description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
+PayoutRow:
+  type: object
+  required: [id, status, amountMinor, currency, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [SCHEDULED, PENDING_APPROVAL, APPROVED, PROCESSING, PAID, FAILED, CANCELLED, RETURNED]
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    institutionName:
+      type: [string, 'null']
+    accountMasked:
+      type: [string, 'null']
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    paidAt:
+      $ref: ../common/schemas.yaml#/Instant
+    failureMessage:
+      type: [string, 'null']
+Earnings:
+  type: object
+  required: [currency, pendingMinor, availableMinor, onTheWayMinor, paidOutMinor, schedule, minPayoutMinor, payouts]
+  properties:
+    currency:
+      type: string
+    pendingMinor:
+      type: integer
+      format: int64
+      description: Sold, not yet released (the service has not been delivered, or the payout delay has not passed).
+    availableMinor:
+      type: integer
+      format: int64
+      description: Ready for the next payout.
+    onTheWayMinor:
+      type: integer
+      format: int64
+      description: In payouts that are created but not paid yet.
+    paidOutMinor:
+      type: integer
+      format: int64
+    schedule:
+      type: string
+      enum: [DAILY, WEEKLY, MONTHLY, MANUAL]
+    weekday:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 7
+      description: 1 (Monday) to 7 for a weekly schedule.
+    minPayoutMinor:
+      type: integer
+      format: int64
+    payouts:
+      type: array
+      items:
+        $ref: '#/PayoutRow'
+StatementLine:
+  type: object
+  required: [transactionId, occurredAt, kind, amountMinor]
+  properties:
+    transactionId:
+      $ref: ../common/schemas.yaml#/Uuid
+    occurredAt:
+      $ref: ../common/schemas.yaml#/Instant
+    kind:
+      type: string
+      description: The ledger transaction kind, for example `PAYMENT_CAPTURED`, `FEES_ASSESSED`, `PAYOUT_INITIATED`.
+    description:
+      type: [string, 'null']
+    amountMinor:
+      type: integer
+      format: int64
+      description: Positive when the business is owed more, negative when less.
+    orderId:
+      $ref: ../common/schemas.yaml#/Uuid
+Statement:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/StatementLine'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo

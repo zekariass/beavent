@@ -146,3 +146,51 @@ payoutAccount:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+earnings:
+  get:
+    tags: [Payments]
+    operationId: getEarnings
+    summary: What the business is owed, what is on its way, and its latest payouts
+    description: Needs `payouts.view`. Amounts are what Beavent holds for the business (ArifPay mode).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: The overview.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Earnings
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+statement:
+  get:
+    tags: [Payments]
+    operationId: getStatement
+    summary: Sales, fees, refunds and payouts, newest first
+    description: |
+      Needs `payouts.view`. Each line is the net effect of one ledger transaction on what Beavent owes the business
+      (positive: more). Movements between the business's own balances (a release for payout) are left out.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: A page of the statement.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Statement
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

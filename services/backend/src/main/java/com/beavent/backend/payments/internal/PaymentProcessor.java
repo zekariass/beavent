@@ -51,13 +51,16 @@ class PaymentProcessor {
     private final ActiveProvider providers;
     private final List<PaymentFulfilment> fulfilments;
     private final Outbox outbox;
+    private final Captures captures;
 
     PaymentProcessor(
             @SystemDb DSLContext system,
             @SystemDb TransactionTemplate transactions,
             ActiveProvider providers,
             List<PaymentFulfilment> fulfilments,
-            Outbox outbox) {
+            Outbox outbox,
+            Captures captures) {
+        this.captures = captures;
         this.system = system;
         this.transactions = transactions;
         this.providers = providers;
@@ -224,6 +227,7 @@ class PaymentProcessor {
                     "DUPLICATE_PAYMENT",
                     "REQUESTED",
                     "duplicate:" + a.getId());
+            captures.receivedForRefund(a, intent.getOrderId());
             publish(a.getOrgId(), intent.getOrderId(), "payment.duplicate_received", a, a.getAmountMinor());
             return;
         }
@@ -284,10 +288,12 @@ class PaymentProcessor {
                     .set(ORDER_STATUS_HISTORY.ACTOR_KIND, "SYSTEM")
                     .set(ORDER_STATUS_HISTORY.REASON, late ? "Paid late; the time was still free" : "Payment received")
                     .execute();
+            captures.confirmed(a, orderId, now);
             publish(a.getOrgId(), orderId, "payment.succeeded", a, a.getAmountMinor());
         } else {
             // Nothing to honour any more (the time went, it was cancelled): the whole payment goes back.
             refund(a, orderId, a.getAmountMinor(), "ORDER_ADJUSTMENT", "APPROVED", "unfulfilled:" + intent.getId());
+            captures.receivedForRefund(a, orderId);
             publish(a.getOrgId(), orderId, "payment.refund_owed", a, a.getAmountMinor());
         }
     }

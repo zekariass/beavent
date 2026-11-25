@@ -1,6 +1,5 @@
 package com.beavent.backend.payments.internal;
 
-import static com.beavent.db.billing.Tables.FEE_ASSESSMENTS;
 import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.commerce.Tables.PAYMENT_SCHEDULE;
 import static com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS;
@@ -13,7 +12,6 @@ import com.beavent.backend.payments.internal.provider.PaymentProviderAdapter;
 import com.beavent.backend.payments.internal.provider.ProviderException;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.Ids;
-import com.beavent.backend.platform.MoneyMath;
 import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.SystemDb;
 import java.net.URI;
@@ -25,7 +23,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.JSONB;
-import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -181,17 +178,7 @@ class PaymentsService implements Payments {
      * in proportion to the part of the order this payment covers.
      */
     private long platformShare(UUID orderId, long paymentMinor) {
-        Long fees = system.select(DSL.sum(FEE_ASSESSMENTS.AMOUNT_MINOR.plus(FEE_ASSESSMENTS.VAT_MINOR)))
-                .from(FEE_ASSESSMENTS)
-                .where(FEE_ASSESSMENTS.ORDER_ID.eq(orderId), FEE_ASSESSMENTS.STATUS.eq("ASSESSED"))
-                .fetchOne(0, Long.class);
-        Long total = system.select(ORDERS.TOTAL_MINOR)
-                .from(ORDERS)
-                .where(ORDERS.ID.eq(orderId))
-                .fetchOne(ORDERS.TOTAL_MINOR);
-        if (fees == null || total == null || total <= 0) return 0;
-        long share = Math.min(fees, total);
-        return MoneyMath.allocate(paymentMinor, new long[] {share, total - share})[0];
+        return PlatformShare.of(system, orderId, paymentMinor).totalMinor();
     }
 
     /** Phase one, in a transaction: checks the order, finds the open attempt or creates the intent and a new attempt. */

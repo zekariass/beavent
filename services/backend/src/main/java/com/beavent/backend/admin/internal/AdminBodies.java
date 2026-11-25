@@ -127,6 +127,34 @@ public final class AdminBodies {
 
     public record AccountNumber(String accountNumber) {}
 
+    /** A seller payout in the finance queue; the account is masked (the bank batch carries the full number). */
+    public record PayoutSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            long amountMinor,
+            String currency,
+            String status,
+            List<String> approvalReasons,
+            String institutionName,
+            String accountName,
+            String accountNumberMasked,
+            Instant createdAt,
+            Instant exportedAt,
+            Instant paidAt,
+            String reference,
+            String note) {}
+
+    public record PayoutSettlement(
+            @NotNull @Pattern(regexp = "PAID|FAILED|RETURNED")
+            String outcome,
+
+            @Size(max = 120) String reference,
+            @Size(max = 500) String reason) {}
+
+    public record PayoutExport(List<UUID> payoutIds) {}
+
     public record Reason(@NotBlank @Size(min = 5, max = 500) String reason) {}
 
     public record AccessUrl(String url, Instant expiresAt) {}

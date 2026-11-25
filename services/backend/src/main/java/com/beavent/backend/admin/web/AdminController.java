@@ -8,6 +8,7 @@ import com.beavent.backend.admin.internal.AuditTrail;
 import com.beavent.backend.admin.internal.Directory;
 import com.beavent.backend.admin.internal.Flags;
 import com.beavent.backend.admin.internal.Kyb;
+import com.beavent.backend.admin.internal.PayoutDesk;
 import com.beavent.backend.admin.internal.PayoutReview;
 import com.beavent.backend.admin.internal.StaffAccess;
 import com.beavent.backend.platform.ApiException;
@@ -33,6 +34,7 @@ class AdminController {
     private final Directory directory;
     private final Kyb kyb;
     private final PayoutReview payouts;
+    private final PayoutDesk desk;
     private final AuditTrail auditTrail;
     private final Flags flags;
     private final DSLContext system;
@@ -41,12 +43,14 @@ class AdminController {
             Directory directory,
             Kyb kyb,
             PayoutReview payouts,
+            PayoutDesk desk,
             AuditTrail auditTrail,
             Flags flags,
             @SystemDb DSLContext system) {
         this.directory = directory;
         this.kyb = kyb;
         this.payouts = payouts;
+        this.desk = desk;
         this.auditTrail = auditTrail;
         this.flags = flags;
         this.system = system;
@@ -131,6 +135,35 @@ class AdminController {
     AdminBodies.PayoutAccountSummary decidePayoutAccount(
             @PathVariable UUID accountId, @Valid @RequestBody AdminBodies.Decision body) {
         return payouts.decide(StaffAccess.current(), accountId, body);
+    }
+
+    @GetMapping("/v1/admin/payouts")
+    AdminBodies.Page<AdminBodies.PayoutSummary> payoutQueue(
+            @RequestParam(required = false) String queue,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return desk.queue(StaffAccess.current(), queue, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/payouts/{payoutId}/decision")
+    AdminBodies.PayoutSummary decidePayout(@PathVariable UUID payoutId, @Valid @RequestBody AdminBodies.Decision body) {
+        return desk.decide(StaffAccess.current(), payoutId, body);
+    }
+
+    @PostMapping("/v1/admin/payouts/{payoutId}/settlement")
+    AdminBodies.PayoutSummary settlePayout(
+            @PathVariable UUID payoutId, @Valid @RequestBody AdminBodies.PayoutSettlement body) {
+        return desk.settle(StaffAccess.current(), payoutId, body);
+    }
+
+    @PostMapping("/v1/admin/payouts/export")
+    org.springframework.http.ResponseEntity<String> exportPayouts(
+            @RequestBody(required = false) AdminBodies.PayoutExport body) {
+        String csv = desk.export(StaffAccess.current(), body == null ? null : body.payoutIds());
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header("Content-Disposition", "attachment; filename=\"payouts.csv\"")
+                .body(csv);
     }
 
     @GetMapping("/v1/admin/audit-log")

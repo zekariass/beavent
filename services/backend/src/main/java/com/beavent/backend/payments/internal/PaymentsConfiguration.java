@@ -17,7 +17,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(PaymentsProperties.class)
+@EnableConfigurationProperties({PaymentsProperties.class, PayoutsProperties.class})
 class PaymentsConfiguration {
 
     /**

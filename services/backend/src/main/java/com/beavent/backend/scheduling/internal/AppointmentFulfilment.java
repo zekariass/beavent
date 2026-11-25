@@ -77,6 +77,25 @@ class AppointmentFulfilment implements PaymentFulfilment {
         }
     }
 
+    @Override
+    public Delivery delivery(UUID orgId, UUID orderId, Instant now) {
+        var a = system.select(APPOINTMENTS.STATUS, APPOINTMENTS.ENDS_AT)
+                .from(APPOINTMENTS)
+                .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                .fetchOne();
+        if (a == null) return null;
+        Instant ends = a.value2().toInstant();
+        DeliveryState state = switch (a.value1()) {
+            case "COMPLETED" -> DeliveryState.DELIVERED;
+            case "CONFIRMED", "ARRIVED", "IN_PROGRESS" ->
+                // Few salons tick "completed": a confirmed visit whose time has passed counts as done.
+                ends.isAfter(now) ? DeliveryState.PENDING : DeliveryState.DELIVERED;
+            case "CANCELLED", "NO_SHOW", "EXPIRED", "DECLINED" -> DeliveryState.VOID;
+            default -> DeliveryState.PENDING;
+        };
+        return new Delivery(state, ends);
+    }
+
     /** The booking is paid for: it is confirmed and the customer (or the business, for a request) is told. */
     private void confirm(
             com.beavent.db.scheduling.tables.records.AppointmentsRecord a, String from, String reason, Instant now) {

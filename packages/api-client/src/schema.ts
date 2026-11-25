@@ -106,6 +106,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the business is owed, what is on its way, and its latest payouts
+         * @description Needs `payouts.view`. Amounts are what Beavent holds for the business (ArifPay mode).
+         */
+        get: operations["getEarnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales, fees, refunds and payouts, newest first
+         * @description Needs `payouts.view`. Each line is the net effect of one ledger transaction on what Beavent owes the business
+         *     (positive: more). Movements between the business's own balances (a release for payout) are left out.
+         */
+        get: operations["getStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/otp/request": {
         parameters: {
             query?: never;
@@ -2301,6 +2342,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Seller payouts by queue, oldest first (default `APPROVAL`)
+         * @description Needs `admin.payments.view`.
+         */
+        get: operations["listPayoutsForFinance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The bank batch (CSV with full account numbers) of the payouts ready to pay (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code. The exported payouts become `PROCESSING`. Payouts of organizations
+         *     the staff member belongs to are left out.
+         */
+        post: operations["exportPayoutBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payoutId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a payout that waits for approval (reason required, step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code; staff cannot handle payouts of organizations they belong to.
+         *     Rejecting gives the money back to the business's available balance.
+         */
+        post: operations["decidePayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payoutId}/settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record what happened to a payout in the bank (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code. `PAID` needs the bank's reference; `FAILED` and `RETURNED` need a
+         *     reason and give the money back to the business. A payout is paid from `SCHEDULED`, `APPROVED` or `PROCESSING`.
+         */
+        post: operations["settlePayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -2551,6 +2675,67 @@ export interface components {
             accountName: string;
             /** @description Digits for a bank account (6 to 20); the wallet's mobile number for a wallet. */
             accountNumber: string;
+        };
+        PayoutRow: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            status: "SCHEDULED" | "PENDING_APPROVAL" | "APPROVED" | "PROCESSING" | "PAID" | "FAILED" | "CANCELLED" | "RETURNED";
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            institutionName?: string | null;
+            accountMasked?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            failureMessage?: string | null;
+        };
+        Earnings: {
+            currency: string;
+            /**
+             * Format: int64
+             * @description Sold, not yet released (the service has not been delivered, or the payout delay has not passed).
+             */
+            pendingMinor: number;
+            /**
+             * Format: int64
+             * @description Ready for the next payout.
+             */
+            availableMinor: number;
+            /**
+             * Format: int64
+             * @description In payouts that are created but not paid yet.
+             */
+            onTheWayMinor: number;
+            /** Format: int64 */
+            paidOutMinor: number;
+            /** @enum {string} */
+            schedule: "DAILY" | "WEEKLY" | "MONTHLY" | "MANUAL";
+            /** @description 1 (Monday) to 7 for a weekly schedule. */
+            weekday?: number | null;
+            /** Format: int64 */
+            minPayoutMinor: number;
+            payouts: components["schemas"]["PayoutRow"][];
+        };
+        StatementLine: {
+            transactionId: components["schemas"]["Uuid"];
+            occurredAt: components["schemas"]["Instant"];
+            /** @description The ledger transaction kind, for example `PAYMENT_CAPTURED`, `FEES_ASSESSED`, `PAYOUT_INITIATED`. */
+            kind: string;
+            description?: string | null;
+            /**
+             * Format: int64
+             * @description Positive when the business is owed more, negative when less.
+             */
+            amountMinor: number;
+            orderId?: components["schemas"]["Uuid"];
+        };
+        PageInfo: {
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
+        Statement: {
+            items: components["schemas"]["StatementLine"][];
+            page: components["schemas"]["PageInfo"];
         };
         /** @example +251911234567 */
         PhoneE164: string;
@@ -2872,10 +3057,6 @@ export interface components {
             marketplaceListed: boolean;
             /** @description Same value as the ETag. */
             version: number;
-        };
-        PageInfo: {
-            /** @description Pass as `cursor` to get the next page; null on the last page. */
-            nextCursor: string | null;
         };
         LocationList: {
             items: components["schemas"]["Location"][];
@@ -4596,6 +4777,40 @@ export interface components {
         AccountNumber: {
             accountNumber: string;
         };
+        PayoutSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "SCHEDULED" | "PENDING_APPROVAL" | "APPROVED" | "PROCESSING" | "PAID" | "FAILED" | "CANCELLED" | "RETURNED";
+            approvalReasons: ("FIRST_PAYOUT" | "LARGE_AMOUNT" | "NEW_ACCOUNT" | "RISK_REVIEW")[];
+            institutionName: string;
+            accountName: string;
+            accountNumberMasked: string;
+            createdAt: components["schemas"]["Instant"];
+            exportedAt?: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            reference?: string | null;
+            note?: string | null;
+        };
+        PayoutSummaryPage: {
+            items: components["schemas"]["PayoutSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        PayoutExport: {
+            /** @description Only these, among those that are ready; all ready payouts when left out. */
+            payoutIds?: components["schemas"]["Uuid"][];
+        };
+        PayoutSettlement: {
+            /** @enum {string} */
+            outcome: "PAID" | "FAILED" | "RETURNED";
+            reference?: string;
+            reason?: string;
+        };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
             page: components["schemas"]["PageInfo"];
@@ -4809,10 +5024,10 @@ export interface components {
     };
     parameters: {
         OrgId: components["schemas"]["Uuid"];
-        /** @description ETag of the version being updated. */
-        IfMatch: string;
         Cursor: string;
         Limit: number;
+        /** @description ETag of the version being updated. */
+        IfMatch: string;
         AppointmentIdParam: components["schemas"]["Uuid"];
     };
     requestBodies: never;
@@ -4973,6 +5188,60 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getEarnings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The overview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Earnings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getStatement: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the statement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Statement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -9495,6 +9764,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutAccountSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPayoutsForFinance: {
+        parameters: {
+            query?: {
+                queue?: "APPROVAL" | "READY" | "PROCESSING" | "PAID" | "FAILED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    exportPayoutBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PayoutExport"];
+            };
+        };
+        responses: {
+            /** @description The CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    decidePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    settlePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutSettlement"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummary"];
                 };
             };
             400: components["responses"]["BadRequest"];
