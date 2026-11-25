@@ -50,6 +50,10 @@ class Captures {
 
     /** A payment for an order that was confirmed. */
     void confirmed(PaymentAttemptsRecord a, UUID orderId, Instant now) {
+        if (a.getProviderAccountId() == null) {
+            tender(a, orderId);
+            return;
+        }
         boolean split = splitAtSource(a);
         PlatformShare share =
                 orderId == null ? PlatformShare.NONE : PlatformShare.of(system, orderId, a.getAmountMinor());
@@ -72,8 +76,28 @@ class Captures {
         }
     }
 
+    /**
+     * A gift card or balance paid for this part of the order: nothing arrives at the provider, the business keeps what it
+     * was paid when the value was sold, and is charged the platform's fees on this part (docs/04 §10).
+     */
+    private void tender(PaymentAttemptsRecord a, UUID orderId) {
+        PlatformShare share =
+                orderId == null ? PlatformShare.NONE : PlatformShare.of(system, orderId, a.getAmountMinor());
+        if (share.totalMinor() == 0) return;
+        Postings.Planned p = Postings.tenderFee(a.getOrgId(), share.feeMinor(), share.vatMinor());
+        ledger.post(new Posting(
+                p.kind(),
+                a.getOrgId(),
+                p.suffix() + ":" + a.getId(),
+                "Beavent fees on a gift card or balance",
+                new Links(a.getId(), null, null, orderId),
+                a.getCurrencyCode().trim(),
+                p.lines()));
+    }
+
     /** A payment that goes back to the payer: held as a debt, not as the seller's money. */
     void receivedForRefund(PaymentAttemptsRecord a, UUID orderId) {
+        if (a.getProviderAccountId() == null) return; // a tender goes back to where it came from, not to the payer
         Postings.Planned p = Postings.receivedForRefund(Account.clearing(a.getProviderAccountId()), a.getAmountMinor());
         ledger.post(new Posting(
                 p.kind(),

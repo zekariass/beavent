@@ -12,8 +12,10 @@ import com.beavent.backend.ledger.Ledger.Code;
 import com.beavent.backend.ledger.Ledger.Line;
 import com.beavent.backend.ledger.Ledger.Links;
 import com.beavent.backend.ledger.Ledger.Posting;
+import com.beavent.backend.ledger.Postings;
 import com.beavent.backend.payments.PaymentFulfilment;
 import com.beavent.backend.payments.Refunds;
+import com.beavent.backend.payments.StoredValue;
 import com.beavent.backend.payments.internal.provider.PaymentProviderAdapter;
 import com.beavent.backend.payments.internal.provider.ProviderException;
 import com.beavent.backend.payments.internal.provider.RefundRequest;
@@ -60,6 +62,7 @@ class RefundService implements Refunds {
     private final List<PaymentFulfilment> fulfilments;
     private final ActiveProvider providers;
     private final Outbox outbox;
+    private final List<StoredValue> storedValues;
 
     RefundService(
             @SystemDb DSLContext system,
@@ -68,7 +71,8 @@ class RefundService implements Refunds {
             Captures captures,
             List<PaymentFulfilment> fulfilments,
             ActiveProvider providers,
-            Outbox outbox) {
+            Outbox outbox,
+            List<StoredValue> storedValues) {
         this.system = system;
         this.transactions = transactions;
         this.ledger = ledger;
@@ -76,6 +80,7 @@ class RefundService implements Refunds {
         this.fulfilments = fulfilments;
         this.providers = providers;
         this.outbox = outbox;
+        this.storedValues = storedValues;
     }
 
     // --- settling an order -----------------------------------------------------------------------------------------
@@ -125,8 +130,27 @@ class RefundService implements Refunds {
                 .limit(1)
                 .fetchOne();
         if (attempt == null) return;
-        // The cap trigger runs before a conflict is noticed, so a repeat is recognised here.
-        if (system.fetchExists(REFUNDS, REFUNDS.IDEMPOTENCY_KEY.eq("cancel:" + intent.getId()))) return;
+        // The cap trigger runs before a conflict is noticed, so a repeat is recognised here, and so is a payment that
+        // was already refunded another way (a duplicate or late payment).
+        if (system.fetchExists(
+                REFUNDS,
+                REFUNDS.INTENT_ID
+                        .eq(intent.getId())
+                        .and(REFUNDS.STATUS.in("REQUESTED", "APPROVED", "PROCESSING", "SUCCEEDED")))) {
+            return;
+        }
+        if (attempt.getMethodCode().equals("GIFT_CARD")
+                || attempt.getMethodCode().equals("STORE_CREDIT")) {
+            refundInternal(intent, attempt, refundMinor, terms, now);
+            return;
+        }
+        if ("BALANCE".equals(terms.refundTo())
+                && !storedValues.isEmpty()
+                && intent.getPayerCustomerId() != null
+                && !captures.splitAtSource(attempt)) {
+            refundToBalance(intent, attempt, refundMinor, terms, now);
+            return;
+        }
         boolean byApi =
                 adapterOf(attempt).map(PaymentProviderAdapter::canRefundByApi).orElse(false);
         UUID refundId = system.insertInto(REFUNDS)
@@ -164,6 +188,164 @@ class RefundService implements Refunds {
                         refundMinor,
                         "currency",
                         attempt.getCurrencyCode().trim())));
+    }
+
+    /** What fraction of a refund is the platform's fees on it (rounded, split into fee and VAT). */
+    private long[] feesOn(com.beavent.db.payments.tables.records.PaymentIntentsRecord intent, long refundMinor) {
+        long captured = intent.getCapturedMinor();
+        PlatformShare share = intent.getOrderId() == null
+                ? PlatformShare.NONE
+                : PlatformShare.of(system, intent.getOrderId(), captured);
+        long reversed = share.totalMinor() == 0
+                ? 0
+                : MoneyMath.allocate(refundMinor, new long[] {share.totalMinor(), captured - share.totalMinor()})[0];
+        long vat = reversed == 0 ? 0 : MoneyMath.allocate(reversed, new long[] {share.vatMinor(), share.feeMinor()})[0];
+        return new long[] {reversed - vat, vat};
+    }
+
+    private UUID insertDoneRefund(
+            com.beavent.db.payments.tables.records.PaymentIntentsRecord intent,
+            PaymentAttemptsRecord attempt,
+            long refundMinor,
+            PaymentFulfilment.Settlement terms,
+            String method,
+            Instant now) {
+        return system.insertInto(REFUNDS)
+                .set(REFUNDS.ORG_ID, intent.getOrgId())
+                .set(REFUNDS.INTENT_ID, intent.getId())
+                .set(REFUNDS.ATTEMPT_ID, attempt.getId())
+                .set(REFUNDS.ORDER_ID, intent.getOrderId())
+                .set(REFUNDS.AMOUNT_MINOR, refundMinor)
+                .set(REFUNDS.CURRENCY_CODE, attempt.getCurrencyCode().trim())
+                .set(REFUNDS.REASON, terms.reason())
+                .set(REFUNDS.METHOD, method)
+                .set(REFUNDS.STATUS, "SUCCEEDED")
+                .set(REFUNDS.REQUESTED_BY, terms.requestedBy())
+                .set(REFUNDS.DECIDED_AT, now.atOffset(ZoneOffset.UTC))
+                .set(REFUNDS.SUCCEEDED_AT, now.atOffset(ZoneOffset.UTC))
+                .set(REFUNDS.DECISION_NOTE, "Under the booking's cancellation terms")
+                .set(REFUNDS.IDEMPOTENCY_KEY, "cancel:" + intent.getId())
+                .returning(REFUNDS.ID)
+                .fetchSingle(REFUNDS.ID);
+    }
+
+    /** A gift card or balance that paid for part of an order gives back what it spent; the fees on it go back too. */
+    private void refundInternal(
+            com.beavent.db.payments.tables.records.PaymentIntentsRecord intent,
+            PaymentAttemptsRecord attempt,
+            long refundMinor,
+            PaymentFulfilment.Settlement terms,
+            Instant now) {
+        boolean card = attempt.getMethodCode().equals("GIFT_CARD");
+        UUID refundId = insertDoneRefund(intent, attempt, refundMinor, terms, card ? "GIFT_CARD" : "STORE_CREDIT", now);
+        StoredValue values = storedValues.getFirst();
+        if (card) {
+            values.restoreGiftCard(
+                    intent.getOrgId(), attempt.getGiftCardId(), refundMinor, intent.getOrderId(), attempt.getId());
+        } else {
+            values.restoreBalance(
+                    intent.getOrgId(),
+                    intent.getPayerCustomerId(),
+                    attempt.getCurrencyCode().trim(),
+                    refundMinor,
+                    intent.getOrderId(),
+                    attempt.getId(),
+                    refundId);
+        }
+        long[] fees = feesOn(intent, refundMinor);
+        if (fees[0] + fees[1] > 0) {
+            Postings.Planned p = Postings.tenderFeeReturned(intent.getOrgId(), fees[0], fees[1]);
+            ledger.post(new Posting(
+                    p.kind(),
+                    intent.getOrgId(),
+                    "refund-feesback:" + refundId,
+                    "Fees given back on a gift card or balance",
+                    new Links(attempt.getId(), refundId, null, intent.getOrderId()),
+                    attempt.getCurrencyCode().trim(),
+                    p.lines()));
+        }
+        outbox.publish(new DomainEvent(
+                "payments.refund",
+                refundId,
+                "refund.credited",
+                1,
+                intent.getOrgId(),
+                Map.of(
+                        "refundId",
+                        refundId.toString(),
+                        "orderId",
+                        intent.getOrderId() == null ? "" : intent.getOrderId().toString(),
+                        "amountMinor",
+                        refundMinor,
+                        "currency",
+                        attempt.getCurrencyCode().trim())));
+    }
+
+    /**
+     * The customer chose to keep a refund as credit with the business: it goes to their balance at once. The business
+     * keeps the money (it now owes the customer that credit), and the platform's fees on it are given back, so they are
+     * charged only when the credit is spent.
+     */
+    private void refundToBalance(
+            com.beavent.db.payments.tables.records.PaymentIntentsRecord intent,
+            PaymentAttemptsRecord attempt,
+            long refundMinor,
+            PaymentFulfilment.Settlement terms,
+            Instant now) {
+        UUID refundId = insertDoneRefund(intent, attempt, refundMinor, terms, "STORE_CREDIT", now);
+        String currency = attempt.getCurrencyCode().trim();
+        storedValues
+                .getFirst()
+                .creditBalance(
+                        intent.getOrgId(),
+                        intent.getPayerCustomerId(),
+                        currency,
+                        refundMinor,
+                        intent.getOrderId(),
+                        attempt.getId(),
+                        refundId);
+        long[] fees = feesOn(intent, refundMinor);
+        long back = fees[0] + fees[1];
+        if (back > 0) {
+            // The fees come back into what the business is owed: still waiting for release, or already available.
+            boolean waiting = intent.getOrderId() != null
+                    && system.update(SCHEDULED_RELEASES)
+                                    .set(SCHEDULED_RELEASES.AMOUNT_MINOR, SCHEDULED_RELEASES.AMOUNT_MINOR.plus(back))
+                                    .set(SCHEDULED_RELEASES.SETTLED, true)
+                                    .where(SCHEDULED_RELEASES.ORG_ID.eq(intent.getOrgId()))
+                                    .and(SCHEDULED_RELEASES.ORDER_ID.eq(intent.getOrderId()))
+                                    .and(SCHEDULED_RELEASES.STATUS.eq("SCHEDULED"))
+                                    .execute()
+                            > 0;
+            java.util.List<Line> lines = new ArrayList<>();
+            if (fees[0] > 0) lines.add(new Line(Account.platform(Code.PLATFORM_FEE_REVENUE), fees[0]));
+            if (fees[1] > 0) lines.add(new Line(Account.platform(Code.TAX_PAYABLE), fees[1]));
+            lines.add(new Line(
+                    Account.seller(waiting ? Code.SELLER_PENDING : Code.SELLER_AVAILABLE, intent.getOrgId()), -back));
+            ledger.post(new Posting(
+                    "ADJUSTMENT",
+                    intent.getOrgId(),
+                    "refund-credit:" + refundId,
+                    "Refund kept as credit with the business",
+                    new Links(attempt.getId(), refundId, null, intent.getOrderId()),
+                    currency,
+                    lines));
+        }
+        outbox.publish(new DomainEvent(
+                "payments.refund",
+                refundId,
+                "refund.credited",
+                1,
+                intent.getOrgId(),
+                Map.of(
+                        "refundId",
+                        refundId.toString(),
+                        "orderId",
+                        intent.getOrderId() == null ? "" : intent.getOrderId().toString(),
+                        "amountMinor",
+                        refundMinor,
+                        "currency",
+                        currency)));
     }
 
     /**
@@ -472,7 +654,7 @@ class RefundService implements Refunds {
 
     @Override
     public Summary summary(UUID orgId, UUID orderId) {
-        var rows = system.select(REFUNDS.AMOUNT_MINOR, REFUNDS.STATUS, REFUNDS.CURRENCY_CODE)
+        var rows = system.select(REFUNDS.AMOUNT_MINOR, REFUNDS.STATUS, REFUNDS.CURRENCY_CODE, REFUNDS.METHOD)
                 .from(REFUNDS)
                 .where(REFUNDS.ORG_ID.eq(orgId), REFUNDS.ORDER_ID.eq(orderId))
                 .and(REFUNDS.STATUS.in(VISIBLE))
@@ -489,6 +671,9 @@ class RefundService implements Refunds {
         }
         long total = rows.stream().mapToLong(r -> r.value1()).sum();
         boolean allSent = rows.stream().allMatch(r -> r.value2().equals("SUCCEEDED"));
-        return new Summary(total, rows.get(0).value3().trim(), allSent ? "SENT" : "ON_THE_WAY");
+        boolean credited = rows.stream()
+                .allMatch(r -> r.value4().equals("STORE_CREDIT") || r.value4().equals("GIFT_CARD"));
+        return new Summary(
+                total, rows.get(0).value3().trim(), credited && allSent ? "CREDITED" : allSent ? "SENT" : "ON_THE_WAY");
     }
 }

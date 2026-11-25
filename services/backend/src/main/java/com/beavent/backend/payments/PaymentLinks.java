@@ -35,10 +35,12 @@ public interface PaymentLinks {
      *
      * @param state {@code OPEN}, {@code PAID} or {@code EXPIRED} (also a booking that was cancelled meanwhile)
      * @param purpose {@code DEPOSIT}, {@code FULL} or {@code BALANCE}
+     * @param subject {@code BOOKING} or {@code GIFT_CARD}
      */
     record Info(
             String state,
             String purpose,
+            String subject,
             long amountMinor,
             String currency,
             Instant expiresAt,
@@ -62,4 +64,12 @@ public interface PaymentLinks {
 
     /** After the payer came back: asks the provider about the open attempt, then answers like {@link #info}. */
     Info check(String token, Instant now);
+
+    /**
+     * Pays part or all of the payment with a gift card (the code the business gave); what it cannot cover is still
+     * paid through the provider. Answers like {@link #info}.
+     *
+     * @throws com.beavent.backend.platform.ApiException {@code NOT_FOUND} for a card that cannot be used
+     */
+    Info tender(String token, String code, Instant now);
 }

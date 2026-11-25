@@ -5,7 +5,13 @@ import type { Schemas } from "@beavent/api-client";
 import { price } from "@beavent/venue";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cancelAppointment, checkPayment, startPayment } from "@/lib/customer/actions";
+import { UseGiftCard } from "@/components/customer/UseGiftCard";
+import {
+  cancelAppointment,
+  checkPayment,
+  startPayment,
+  tenderAppointment,
+} from "@/lib/customer/actions";
 
 const primary =
   "bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:bg-surface disabled:text-fg-subtle";
@@ -113,6 +119,15 @@ export function PaymentStatus({
     setAsking(true);
   };
 
+  const spendBalance = async () => {
+    setBusy(true);
+    setError(null);
+    const r = await tenderAppointment(language, initial.id, "BALANCE");
+    if (r.ok) setDetail(r.value);
+    else setError(r.code === "CONFLICT" ? t("giftcards.use.busy") : t("giftcards.use.failed"));
+    setBusy(false);
+  };
+
   const cancel = async () => {
     setBusy(true);
     const r = await cancelAppointment(language, initial.id);
@@ -195,13 +210,23 @@ export function PaymentStatus({
         <section className="flex flex-col gap-2">
           <div className="flex justify-between gap-4">
             <span className="bv-type-body text-fg">
-              {payment.atVenueMinor > 0 ? t("payment.deposit") : t("payment.full")}
+              {payment.state !== "PAID" && payment.paidMinor > 0
+                ? t("payment.dueNow")
+                : payment.atVenueMinor > 0
+                  ? t("payment.deposit")
+                  : t("payment.full")}
             </span>
             <span className="bv-type-body-strong text-fg">
               {money(payment.dueNowMinor)}
               {payment.state === "PAID" ? ` · ${t("payment.paid")}` : ""}
             </span>
           </div>
+          {payment.state !== "PAID" && payment.paidMinor > 0 ? (
+            <div className="flex justify-between gap-4">
+              <span className="bv-type-body text-fg-muted">{t("payment.paid")}</span>
+              <span className="bv-type-body text-fg-muted">{money(payment.paidMinor)}</span>
+            </div>
+          ) : null}
           {payment.atVenueMinor > 0 ? (
             <div className="flex justify-between gap-4">
               <span className="bv-type-body text-fg-muted">{t("payment.atVenue")}</span>
@@ -235,6 +260,29 @@ export function PaymentStatus({
               <button type="button" className={secondary} disabled={busy} onClick={checkAgain}>
                 {t("payment.checkAgain")}
               </button>
+            ) : null}
+            {!asking && payment && (payment.balanceMinor ?? 0) > 0 ? (
+              <button
+                type="button"
+                className={secondary}
+                disabled={busy}
+                onClick={() => void spendBalance()}
+              >
+                {t("giftcards.use.balance", {
+                  amount: money(Math.min(payment.balanceMinor ?? 0, payment.dueNowMinor)),
+                })}
+              </button>
+            ) : null}
+            {!asking ? (
+              <UseGiftCard
+                language={language}
+                disabled={busy}
+                apply={async (code) => {
+                  const r = await tenderAppointment(language, initial.id, "GIFT_CARD", code);
+                  if (r.ok) setDetail(r.value);
+                  return r.ok ? { ok: true } : r;
+                }}
+              />
             ) : null}
             {!asking ? (
               <button type="button" className={quiet} disabled={busy} onClick={() => void cancel()}>

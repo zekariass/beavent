@@ -144,6 +144,7 @@ class OrdersService implements Orders {
                             line.parentIndex() == null ? null : lineIds.get(line.parentIndex()))
                     .set(ORDER_LINES.SERVICE_VARIANT_ID, in == null ? null : in.serviceVariantId())
                     .set(ORDER_LINES.ADDON_ID, in == null ? null : in.addonId())
+                    .set(ORDER_LINES.GIFT_CARD_PROGRAM_ID, in == null ? null : in.giftCardProgramId())
                     .set(ORDER_LINES.STAFF_ID, in == null ? null : in.staffId())
                     .set(ORDER_LINES.DESCRIPTION, line.description())
                     .set(ORDER_LINES.QUANTITY, line.quantity())
@@ -284,7 +285,10 @@ class OrdersService implements Orders {
                 throw new ApiException(
                         ProblemCode.VALIDATION_FAILED, "Quantities are positive and prices not negative.");
             }
-            if (in.serviceVariantId() != null) {
+            if (in.giftCardProgramId() != null) {
+                // A gift card is a multi-purpose voucher: not taxed when sold, taxed when it is spent (docs/04 §12).
+                items.add(new OrderPricing.Item(in, null, null, "VOUCHER_MULTI_PURPOSE"));
+            } else if (in.serviceVariantId() != null) {
                 var s = dsl.select(SERVICES.ID, SERVICES.CATEGORY_ID, SERVICES.TAX_CATEGORY_CODE)
                         .from(SERVICE_VARIANTS)
                         .join(SERVICES)

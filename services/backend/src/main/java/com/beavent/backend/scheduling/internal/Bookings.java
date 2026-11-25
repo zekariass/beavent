@@ -797,7 +797,8 @@ class Bookings {
             Cancellation cancellation,
             boolean canReschedule,
             Payments.Status payment,
-            Refunds.Summary refund) {}
+            Refunds.Summary refund,
+            long balanceMinor) {}
 
     /** The business behind one of the person's appointments (row-level security hides everyone else's). */
     java.util.Optional<UUID> orgOf(UUID appointmentId) {
@@ -871,7 +872,10 @@ class Bookings {
                         open && upcoming, free, policy.freeCancellationUntil(), fee, currency, paid - kept, kept),
                 open && !unpaid && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()),
                 payment,
-                a.getOrderId() == null ? null : refunds.summary(a.getOrgId(), a.getOrderId()));
+                a.getOrderId() == null ? null : refunds.summary(a.getOrgId(), a.getOrderId()),
+                payment != null && payment.state().equals("AWAITING_PAYMENT") && a.getOrderId() != null
+                        ? payments.balanceFor(a.getOrgId(), a.getOrderId(), userId)
+                        : 0);
     }
 
     /** What an appointment's rows say it contains and costs. */
@@ -1073,6 +1077,26 @@ class Bookings {
         return new PaymentRequest(paymentLinks.create(orgId, prepared.orderId(), actorUserId, now), prepared.sentTo());
     }
 
+    /**
+     * Pays part or all of what is due with a gift card or the customer's balance; answers where the booking stands.
+     * Call with the business's context bound for {@code userId}.
+     */
+    Detail tender(
+            UUID orgId,
+            UUID userId,
+            UUID appointmentId,
+            com.beavent.backend.payments.StoredValue.Kind kind,
+            String code,
+            Instant now) {
+        Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+        UUID orderId = orderOf(appointmentId);
+        if (!d.status().equals("PENDING_PAYMENT") || orderId == null) {
+            throw new ApiException(ProblemCode.CONFLICT, "This booking is not waiting for payment.");
+        }
+        payments.tender(orgId, orderId, kind, code, userId, now);
+        return transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+    }
+
     /** The person came back from paying: ask the provider now, then show where the booking stands. */
     Detail checkPayment(UUID orgId, UUID userId, UUID appointmentId, Instant now) {
         Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
@@ -1128,8 +1152,8 @@ class Bookings {
     }
 
     /** The person cancels: the time is free at once, a late fee is recorded when the free period has passed. */
-    Detail cancel(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
-        Detail cancelled = cancelIn(orgId, userId, appointmentId, reason, now);
+    Detail cancel(UUID orgId, UUID userId, UUID appointmentId, String reason, String refundTo, Instant now) {
+        Detail cancelled = cancelIn(orgId, userId, appointmentId, reason, refundTo, now);
         UUID orderId = orderOf(appointmentId);
         if (orderId != null
                 && cancelled.payment() != null
@@ -1140,7 +1164,7 @@ class Bookings {
         return cancelled;
     }
 
-    private Detail cancelIn(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
+    private Detail cancelIn(UUID orgId, UUID userId, UUID appointmentId, String reason, String refundTo, Instant now) {
         return transactions.execute(status -> {
             Detail before = detailIn(userId, appointmentId, now, true);
             if (!before.cancellation().allowed()) {
@@ -1151,6 +1175,7 @@ class Bookings {
                     .set(APPOINTMENTS.STATUS, "CANCELLED")
                     .set(APPOINTMENTS.CANCELLED_AT, utc(now))
                     .set(APPOINTMENTS.CANCELLED_BY, "CUSTOMER")
+                    .set(APPOINTMENTS.REFUND_TO, "BALANCE".equals(refundTo) ? "BALANCE" : "ORIGINAL")
                     .set(APPOINTMENTS.CANCEL_REASON, reason == null || reason.isBlank() ? null : reason.strip())
                     .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
                     .where(APPOINTMENTS.ID.eq(appointmentId))

@@ -25,8 +25,8 @@ public interface Refunds {
     /**
      * What has been refunded or is on its way for an order.
      *
-     * @param state {@code ON_THE_WAY}, {@code SENT} (all of it paid), or {@code NONE} (settled, and the business kept
-     *     all of it)
+     * @param state {@code ON_THE_WAY}, {@code SENT} (all of it paid), {@code CREDITED} (all of it back on a gift card or in
+     *     the customer's balance) or {@code NONE} (settled, and the business kept all of it)
      */
     record Summary(long amountMinor, String currency, String state) {}
 

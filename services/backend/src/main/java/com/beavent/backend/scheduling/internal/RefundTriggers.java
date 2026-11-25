@@ -56,6 +56,20 @@ class RefundTriggers {
         }
 
         @Bean
+        Binding schedulingRefundsExpired(Queue schedulingRefundsQueue) {
+            return BindingBuilder.bind(schedulingRefundsQueue)
+                    .to(new TopicExchange(Outbox.EXCHANGE))
+                    .with("appointment.expired");
+        }
+
+        @Bean
+        Binding schedulingRefundsPaymentExpired(Queue schedulingRefundsQueue) {
+            return BindingBuilder.bind(schedulingRefundsQueue)
+                    .to(new TopicExchange(Outbox.EXCHANGE))
+                    .with("appointment.payment_expired");
+        }
+
+        @Bean
         Binding schedulingRefundsDeclined(Queue schedulingRefundsQueue) {
             return BindingBuilder.bind(schedulingRefundsQueue)
                     .to(new TopicExchange(Outbox.EXCHANGE))

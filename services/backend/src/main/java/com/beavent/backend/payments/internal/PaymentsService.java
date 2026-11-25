@@ -6,6 +6,7 @@ import static com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS;
 import static com.beavent.db.payments.Tables.PAYMENT_INTENTS;
 
 import com.beavent.backend.payments.Payments;
+import com.beavent.backend.payments.StoredValue;
 import com.beavent.backend.payments.internal.provider.CollectionRequest;
 import com.beavent.backend.payments.internal.provider.CollectionResult;
 import com.beavent.backend.payments.internal.provider.PaymentProviderAdapter;
@@ -51,6 +52,7 @@ class PaymentsService implements Payments {
     private final SellerAccounts sellers;
     private final PaymentsProperties props;
     private final JsonMapper json;
+    private final List<StoredValue> storedValues;
 
     PaymentsService(
             DSLContext dsl,
@@ -61,7 +63,8 @@ class PaymentsService implements Payments {
             PaymentProcessor processor,
             SellerAccounts sellers,
             PaymentsProperties props,
-            JsonMapper json) {
+            JsonMapper json,
+            List<StoredValue> storedValues) {
         this.dsl = dsl;
         this.system = system;
         this.transactions = transactions;
@@ -71,6 +74,7 @@ class PaymentsService implements Payments {
         this.sellers = sellers;
         this.props = props;
         this.json = json;
+        this.storedValues = storedValues;
     }
 
     @Override
@@ -287,6 +291,171 @@ class PaymentsService implements Payments {
         return new Phase(null, attemptId, intentId, due.getAmountMinor(), currency, expires);
     }
 
+    // --- gift cards and balances
+    // ---------------------------------------------------------------------------------------
+
+    @Override
+    public Status tender(UUID orgId, UUID orderId, StoredValue.Kind kind, String code, UUID payerUserId, Instant now) {
+        StoredValue values = storedValues.stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(ProblemCode.PAYMENT_UNAVAILABLE, "Gift cards are not available."));
+        transactions.executeWithoutResult(status -> applyTender(values, orgId, orderId, kind, code, payerUserId, now));
+        return status(orgId, orderId, now);
+    }
+
+    @Override
+    public long balanceFor(UUID orgId, UUID orderId, UUID userId) {
+        if (storedValues.isEmpty() || userId == null) return 0;
+        var order = system.select(ORDERS.CUSTOMER_ID, ORDERS.CURRENCY_CODE)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId).and(ORDERS.ORG_ID.eq(orgId)))
+                .fetchOne();
+        if (order == null || order.value1() == null) return 0;
+        boolean theirs = system.fetchExists(
+                com.beavent.db.crm.Tables.CUSTOMERS,
+                com.beavent.db.crm.Tables.CUSTOMERS
+                        .ID
+                        .eq(order.value1())
+                        .and(com.beavent.db.crm.Tables.CUSTOMERS.USER_ID.eq(userId)));
+        if (!theirs) return 0;
+        return storedValues
+                .getFirst()
+                .balance(orgId, order.value1(), order.value2().trim())
+                .stream()
+                .mapToLong(StoredValue.Source::availableMinor)
+                .findFirst()
+                .orElse(0);
+    }
+
+    private void applyTender(
+            StoredValue values,
+            UUID orgId,
+            UUID orderId,
+            StoredValue.Kind kind,
+            String code,
+            UUID payerUserId,
+            Instant now) {
+        var order = system.select(ORDERS.STATUS, ORDERS.EXPIRES_AT, ORDERS.CURRENCY_CODE, ORDERS.CUSTOMER_ID)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId).and(ORDERS.ORG_ID.eq(orgId)))
+                .forUpdate()
+                .fetchOne();
+        if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+        Instant expires = order.value2() == null ? null : order.value2().toInstant();
+        if (!order.value1().equals("PENDING_PAYMENT") || expires == null || !expires.isAfter(now)) {
+            throw new ApiException(ProblemCode.HOLD_EXPIRED, "This booking is no longer waiting for payment.");
+        }
+        if (system.fetchExists(
+                com.beavent.db.commerce.Tables.ORDER_LINES,
+                com.beavent.db.commerce.Tables.ORDER_LINES
+                        .ORDER_ID
+                        .eq(orderId)
+                        .and(com.beavent.db.commerce.Tables.ORDER_LINES.LINE_TYPE.eq("GIFT_CARD")))) {
+            throw new ApiException(ProblemCode.CONFLICT, "A gift card cannot be paid for with a gift card or balance.");
+        }
+        String currency = order.value3().trim();
+        var due = system.selectFrom(PAYMENT_SCHEDULE)
+                .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("ONLINE"))
+                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                .orderBy(PAYMENT_SCHEDULE.SEQ)
+                .limit(1)
+                .forUpdate()
+                .fetchOne();
+        if (due == null) throw new ApiException(ProblemCode.CONFLICT, "Nothing is due online for this booking.");
+        // A payment already open at the provider must finish (or be cancelled) first: it may still be approved.
+        if (system.fetchExists(
+                PAYMENT_ATTEMPTS.join(PAYMENT_INTENTS).on(PAYMENT_INTENTS.ID.eq(PAYMENT_ATTEMPTS.INTENT_ID)),
+                PAYMENT_INTENTS
+                        .ORDER_ID
+                        .eq(orderId)
+                        .and(PAYMENT_ATTEMPTS.STATUS.in("AWAITING_CUSTOMER", "PROCESSING", "UNKNOWN")))) {
+            throw new ApiException(
+                    ProblemCode.CONFLICT, "A payment is in progress. Finish or cancel it before using a gift card.");
+        }
+        StoredValue.Source source;
+        if (kind == StoredValue.Kind.GIFT_CARD) {
+            source = values.giftCard(orgId, code, now)
+                    .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "This gift card cannot be used."));
+        } else {
+            boolean theirs = payerUserId != null
+                    && order.value4() != null
+                    && system.fetchExists(
+                            com.beavent.db.crm.Tables.CUSTOMERS,
+                            com.beavent.db.crm.Tables.CUSTOMERS
+                                    .ID
+                                    .eq(order.value4())
+                                    .and(com.beavent.db.crm.Tables.CUSTOMERS.USER_ID.eq(payerUserId)));
+            if (!theirs) throw new ApiException(ProblemCode.FORBIDDEN, "Sign in to use your balance.");
+            source = values.balance(orgId, order.value4(), currency)
+                    .orElseThrow(() -> new ApiException(ProblemCode.CONFLICT, "You have no balance here."));
+        }
+        if (!source.currency().trim().equals(currency)) {
+            throw new ApiException(ProblemCode.CONFLICT, "This gift card is in another currency.");
+        }
+        long take = Math.min(source.availableMinor(), due.getAmountMinor());
+        com.beavent.db.commerce.tables.records.PaymentScheduleRecord row = due;
+        if (take < due.getAmountMinor()) {
+            // The remainder stays with the row it was; the part paid with value gets a row of its own.
+            system.update(PAYMENT_SCHEDULE)
+                    .set(PAYMENT_SCHEDULE.AMOUNT_MINOR, due.getAmountMinor() - take)
+                    .where(PAYMENT_SCHEDULE.ID.eq(due.getId()))
+                    .execute();
+            system.update(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, due.getAmountMinor() - take)
+                    .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(due.getId()))
+                    .and(PAYMENT_INTENTS.STATUS.in("REQUIRES_METHOD", "FAILED"))
+                    .execute();
+            Short next = system.select(org.jooq.impl.DSL.max(PAYMENT_SCHEDULE.SEQ))
+                    .from(PAYMENT_SCHEDULE)
+                    .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                    .fetchOne(0, Short.class);
+            row = system.insertInto(PAYMENT_SCHEDULE)
+                    .set(PAYMENT_SCHEDULE.ORG_ID, orgId)
+                    .set(PAYMENT_SCHEDULE.ORDER_ID, orderId)
+                    .set(PAYMENT_SCHEDULE.SEQ, (short) ((next == null ? 0 : next) + 1))
+                    .set(PAYMENT_SCHEDULE.KIND, due.getKind())
+                    .set(PAYMENT_SCHEDULE.AMOUNT_MINOR, take)
+                    .set(PAYMENT_SCHEDULE.CURRENCY_CODE, currency)
+                    .set(PAYMENT_SCHEDULE.COLLECT_AT, "ONLINE")
+                    .returning()
+                    .fetchSingle();
+        } else {
+            system.update(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, take)
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(row.getId()))
+                    .and(PAYMENT_INTENTS.STATUS.in("REQUIRES_METHOD", "FAILED"))
+                    .execute();
+        }
+        UUID intentId = ensureIntent(orgId, orderId, row, currency, order.value4(), payerUserId, expires, "INTERNAL");
+        UUID attemptId = Ids.newId();
+        system.insertInto(PAYMENT_ATTEMPTS)
+                .set(PAYMENT_ATTEMPTS.ID, attemptId)
+                .set(PAYMENT_ATTEMPTS.ORG_ID, orgId)
+                .set(PAYMENT_ATTEMPTS.INTENT_ID, intentId)
+                .set(PAYMENT_ATTEMPTS.METHOD_CODE, kind == StoredValue.Kind.GIFT_CARD ? "GIFT_CARD" : "STORE_CREDIT")
+                .set(PAYMENT_ATTEMPTS.INTERACTION, "INTERNAL")
+                .set(PAYMENT_ATTEMPTS.AMOUNT_MINOR, take)
+                .set(PAYMENT_ATTEMPTS.CURRENCY_CODE, currency)
+                .set(PAYMENT_ATTEMPTS.STATUS, "CREATED")
+                .set(PAYMENT_ATTEMPTS.GIFT_CARD_ID, kind == StoredValue.Kind.GIFT_CARD ? source.id() : null)
+                .set(PAYMENT_ATTEMPTS.IDEMPOTENCY_KEY, "tender:" + attemptId)
+                .execute();
+        values.spend(source, take, orderId, attemptId, payerUserId);
+        processor.apply(
+                attemptId,
+                new com.beavent.backend.payments.internal.provider.StatusResult(
+                        com.beavent.backend.payments.internal.provider.AttemptStatus.SUCCEEDED,
+                        take,
+                        currency,
+                        attemptId.toString(),
+                        attemptId.toString(),
+                        null,
+                        "TENDER"),
+                now);
+    }
+
     /** The intent of a schedule row: found, or created waiting for a method; a paid one cannot be paid again. */
     UUID ensureIntent(
             UUID orgId,
@@ -362,25 +531,33 @@ class PaymentsService implements Payments {
                 .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
                 .orderBy(PAYMENT_SCHEDULE.SEQ)
                 .fetch();
-        var online =
-                rows.stream().filter(r -> r.getCollectAt().equals("ONLINE")).findFirst();
+        var onlineRows =
+                rows.stream().filter(r -> r.getCollectAt().equals("ONLINE")).toList();
         String currency = order.value3().trim();
         long atVenue = rows.stream()
                 .filter(r -> r.getCollectAt().equals("AT_VENUE"))
                 .mapToLong(r -> r.getAmountMinor() - r.getCollectedMinor())
                 .sum();
         Instant expires = order.value2() == null ? null : order.value2().toInstant();
-        if (online.isEmpty()) return new Status("NOT_REQUIRED", 0, 0, atVenue, currency, expires, null);
-        long dueNow = online.get().getAmountMinor();
+        if (onlineRows.isEmpty()) return new Status("NOT_REQUIRED", 0, 0, atVenue, currency, expires, null);
+        // What is due online is what is still unpaid (part may have been paid with a gift card or balance).
+        long onlineTotal =
+                onlineRows.stream().mapToLong(r -> r.getAmountMinor()).sum();
+        var firstDue =
+                onlineRows.stream().filter(r -> r.getStatus().equals("DUE")).findFirst();
         long paid = order.value4();
-        if (online.get().getStatus().equals("PAID")) {
-            return new Status("PAID", dueNow, paid, atVenue, currency, expires, null);
+        if (firstDue.isEmpty()) {
+            return new Status("PAID", onlineTotal, paid, atVenue, currency, expires, null);
         }
+        long dueNow = onlineRows.stream()
+                .filter(r -> r.getStatus().equals("DUE"))
+                .mapToLong(r -> r.getAmountMinor())
+                .sum();
         var attempt = system.select(PAYMENT_ATTEMPTS.STATUS, PAYMENT_ATTEMPTS.NEXT_ACTION)
                 .from(PAYMENT_ATTEMPTS)
                 .join(PAYMENT_INTENTS)
                 .on(PAYMENT_INTENTS.ID.eq(PAYMENT_ATTEMPTS.INTENT_ID))
-                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(online.get().getId()))
+                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(firstDue.get().getId()))
                 .orderBy(PAYMENT_ATTEMPTS.INITIATED_AT.desc())
                 .limit(1)
                 .fetchOne();

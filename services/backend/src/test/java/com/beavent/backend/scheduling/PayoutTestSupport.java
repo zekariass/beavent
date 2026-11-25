@@ -58,7 +58,8 @@ abstract class PayoutTestSupport extends SchedulingTestSupport {
 
     protected record Paid(String appointmentId, String attemptId, String token, String phone) {}
 
-    protected Paid payDeposit(Shop shop, int daysAhead) throws Exception {
+    /** A customer books and has not paid: the booking waits for its deposit. */
+    protected Paid bookUnpaid(Shop shop, int daysAhead) throws Exception {
         Person person = newPerson();
         Map<String, Object> hold = new HashMap<>();
         hold.put("items", List.of(item(shop.variant(), shop.abebe())));
@@ -72,13 +73,18 @@ abstract class PayoutTestSupport extends SchedulingTestSupport {
                         "holderKey", held.text("holderKey")),
                 person.token());
         assertThat(booked.status()).as(String.valueOf(booked.body())).isEqualTo(201);
-        String id = booked.text("id");
-        String nonce = call(post("/v1/me/appointments/" + id + "/payment"), Map.of("language", "en"), person.token())
+        return new Paid(booked.text("id"), null, person.token(), person.phone());
+    }
+
+    protected Paid payDeposit(Shop shop, int daysAhead) throws Exception {
+        Paid unpaid = bookUnpaid(shop, daysAhead);
+        String id = unpaid.appointmentId();
+        String nonce = call(post("/v1/me/appointments/" + id + "/payment"), Map.of("language", "en"), unpaid.token())
                 .text("attemptId");
         arifpay.pay(nonce);
-        Call checked = call(post("/v1/me/appointments/" + id + "/payment/check"), null, person.token());
+        Call checked = call(post("/v1/me/appointments/" + id + "/payment/check"), null, unpaid.token());
         assertThat(checked.text("status")).isEqualTo("CONFIRMED");
-        return new Paid(id, nonce, person.token(), person.phone());
+        return new Paid(id, nonce, unpaid.token(), unpaid.phone());
     }
 
     protected long owed(Shop shop, Code code) {

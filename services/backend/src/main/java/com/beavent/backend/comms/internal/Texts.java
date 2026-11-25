@@ -29,6 +29,9 @@ final class Texts {
         if (code.equals(Notifier.PAYOUT_CHANGED)) {
             return payoutChanged(lang, data);
         }
+        if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
+            return giftCardReceived(lang, data);
+        }
         if (code.equals(Notifier.PAYOUT_PAID) || code.equals(Notifier.PAYOUT_FAILED)) {
             return payoutOutcome(code.equals(Notifier.PAYOUT_PAID), lang, data);
         }
@@ -96,6 +99,14 @@ final class Texts {
                                         : " to confirm your booking " + ref + " on " + date + ", " + when)
                                 + ": " + url + " (open until " + by + ")";
             }
+            case Notifier.REFUND_CREDITED -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
+                yield am
+                        ? business + "፦ " + amount + " ለቀጠሮ " + ref
+                                + " በስጦታ ካርድዎ ላይ ወይም በሒሳብዎ ውስጥ ተመልሷል። ቀጣይ ቀጠሮ ሲይዙ መጠቀም ይችላሉ።"
+                        : business + ": " + amount + " is back with you for booking " + ref
+                                + ", on your gift card or in your balance. You can use it when you pay for your next booking.";
+            }
             case Notifier.REFUND_SENT -> {
                 String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
                 yield am
@@ -139,6 +150,39 @@ final class Texts {
                         business + ": the payout account was changed to " + account + ". Payouts to it start after "
                                 + date(from, lang) + ", " + time(from.toLocalTime(), lang)
                                 + ". If this wasn't you, tell us right away.");
+    }
+
+    /** A gift card for the recipient: who sent it, how much, the code, until when, and where to use it (plan 3.8). */
+    private static Message giftCardReceived(String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String sender = String.valueOf(data.get("sender"));
+        String amount = birr(Long.parseLong(String.valueOf(data.get("amountMinor"))), am);
+        String note = String.valueOf(data.get("message"));
+        String until = String.valueOf(data.get("expiresAt"));
+        String valid = "";
+        if (!until.isBlank()) {
+            ZonedDateTime z = Instant.parse(until).atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+            valid = am ? " እስከ " + date(z, lang) + " ድረስ ያገለግላል።" : " Valid until " + date(z, lang) + ".";
+        }
+        String quote = note.isBlank() ? "" : " «" + note + "»";
+        String url = String.valueOf(data.get("venueUrl"));
+        String code = String.valueOf(data.get("code"));
+        return am
+                ? new Message(
+                        business + " · የስጦታ ካርድ",
+                        (sender.isBlank()
+                                        ? "የ" + business + " የስጦታ ካርድ ተሰጥቶዎታል፦ "
+                                        : sender + " የ" + business + " የስጦታ ካርድ ልኮልዎታል፦ ")
+                                + amount + "። ኮድ፦ " + code + "።" + quote + valid
+                                + " ቀጠሮ ሲይዙ በክፍያ ላይ ይጠቀሙት፦ " + url)
+                : new Message(
+                        business + " · gift card",
+                        (sender.isBlank()
+                                        ? "You have been given a gift card for " + business + ": "
+                                        : sender + " sent you a gift card for " + business + ": ")
+                                + amount + ". Code: " + code + "." + quote + valid
+                                + " Use it when you pay for a booking: " + url);
     }
 
     /** A payout was paid, or did not go through (plan 3.5). */

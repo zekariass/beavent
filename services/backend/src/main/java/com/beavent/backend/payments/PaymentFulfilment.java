@@ -49,8 +49,9 @@ public interface PaymentFulfilment {
      *     goes back to the payer
      * @param reason a {@code payments.refunds.reason}
      * @param requestedBy {@code CUSTOMER}, {@code ORGANIZATION} or {@code SYSTEM}
+     * @param refundTo {@code ORIGINAL} (back the way it was paid) or {@code BALANCE} (kept as credit with the business)
      */
-    record Settlement(long retainMinor, String reason, String requestedBy) {}
+    record Settlement(long retainMinor, String reason, String requestedBy, String refundTo) {}
 
     /**
      * How an order that fell through is settled, given what was paid ({@code null}: it did not fall through, or the
@@ -60,8 +61,18 @@ public interface PaymentFulfilment {
         return null;
     }
 
-    /** What an order is for, in words a payer recognises (shown on a payment link's page). */
-    record Description(String reference, Instant startsAt, String timezone, List<String> items, String locationName) {}
+    /**
+     * What an order is for, in words a payer recognises (shown on a payment link's page).
+     *
+     * @param subject {@code BOOKING} or {@code GIFT_CARD}
+     */
+    record Description(
+            String subject,
+            String reference,
+            Instant startsAt,
+            String timezone,
+            List<String> items,
+            String locationName) {}
 
     /** The order described for its payer; {@code null} for an order that is not this module's. */
     default Description describe(UUID orgId, UUID orderId) {

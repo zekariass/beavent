@@ -80,12 +80,13 @@ export async function signOutCustomer(language: string) {
 export async function cancelAppointment(
   language: string,
   appointmentId: string,
+  refundTo?: "ORIGINAL" | "BALANCE",
 ): Promise<Result<Schemas["AppointmentDetail"]>> {
   const api = await customerApi(language);
   if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
   const { data, error } = await api.POST("/v1/me/appointments/{appointmentId}/cancel", {
     params: { path: { appointmentId } },
-    body: {},
+    body: refundTo ? { refundTo } : {},
   });
   if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
   revalidatePath(`/${language}/account/bookings`, "layout");
@@ -209,6 +210,76 @@ export async function checkLinkPayment(
 ): Promise<Result<Schemas["PaymentLink"]>> {
   const { data, error } = await publicApi(language).POST("/v1/public/payment-links/{token}/check", {
     params: { path: { token } },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  return { ok: true, value: data };
+}
+
+/** Pays part or all of a booking's deposit with a gift card (its code) or the person's credit with the business. */
+export async function tenderAppointment(
+  language: string,
+  appointmentId: string,
+  kind: "GIFT_CARD" | "BALANCE",
+  code?: string,
+): Promise<Result<Schemas["AppointmentDetail"]>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/appointments/{appointmentId}/payment/tender", {
+    params: { path: { appointmentId } },
+    body: { kind, ...(code ? { code } : {}) },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  revalidatePath(`/${language}/account/bookings`, "layout");
+  return { ok: true, value: data };
+}
+
+/** Pays part or all of a payment link with a gift card. No sign-in: the link's token is the credential. */
+export async function tenderLink(
+  language: string,
+  token: string,
+  code: string,
+): Promise<Result<Schemas["PaymentLink"]>> {
+  const { data, error } = await publicApi(language).POST(
+    "/v1/public/payment-links/{token}/tender",
+    {
+      params: { path: { token } },
+      body: { code },
+    },
+  );
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  return { ok: true, value: data };
+}
+
+/**
+ * Buys a gift card: the payment page to send the buyer to. The buyer must be signed in. The phone is as typed ("09…");
+ * a send date is a calendar day in Addis Ababa, sent that morning.
+ */
+export async function buyGiftCard(
+  language: string,
+  input: {
+    locationId: string;
+    amountMinor: number;
+    recipientName: string;
+    recipientPhone: string;
+    message: string;
+    sendOn: string;
+  },
+): Promise<Result<Schemas["GiftCardPurchase"]>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/gift-cards/purchases", {
+    body: {
+      locationId: input.locationId,
+      amountMinor: input.amountMinor,
+      ...(input.recipientName.trim() ? { recipientName: input.recipientName.trim() } : {}),
+      ...(input.recipientPhone.trim()
+        ? { recipientPhone: normalizePhone(input.recipientPhone) }
+        : {}),
+      ...(input.message.trim() ? { message: input.message.trim() } : {}),
+      ...(input.sendOn
+        ? { deliverAt: new Date(`${input.sendOn}T09:00:00+03:00`).toISOString() }
+        : {}),
+    },
   });
   if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
   return { ok: true, value: data };

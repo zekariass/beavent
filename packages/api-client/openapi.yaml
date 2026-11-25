@@ -48,6 +48,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: GiftCards
+    description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -279,6 +281,251 @@ paths:
                 $ref: '#/components/schemas/PaymentLink'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/gift-cards/program:
+    get:
+      tags:
+        - GiftCards
+      operationId: getGiftCardProgram
+      summary: The gift cards the business sells (none yet when `program` is null)
+      description: Needs `catalog.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The programme.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags:
+        - GiftCards
+      operationId: saveGiftCardProgram
+      summary: Set up what gift cards the business sells
+      description: Needs `catalog.manage`. Creates the programme the first time, then updates it.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftCardProgramInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardProgram'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/gift-cards:
+    get:
+      tags:
+        - GiftCards
+      operationId: listGiftCards
+      summary: Paid gift cards, newest first
+      description: Needs `catalog.manage`. The code is never shown after it was delivered (only its last four characters).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of cards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/gift-cards/{cardId}/void:
+    post:
+      tags:
+        - GiftCards
+      operationId: voidGiftCard
+      summary: Void a card (what is left on it is written off; audited)
+      description: Needs `refunds.create`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/locations/{locationId}/gift-cards:
+    get:
+      tags:
+        - GiftCards
+      operationId: getGiftCardOffer
+      summary: What gift cards can be bought at a place (nothing when the business does not sell them online)
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardOffer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/me/gift-cards/purchases:
+    post:
+      tags:
+        - GiftCards
+      operationId: buyGiftCard
+      summary: Start buying a gift card; pay through the returned link
+      description: |
+        The card is created waiting for payment and delivered to the recipient (at once, or on `deliverAt`) after the payment
+        is confirmed; a recipient without a phone number or email means the buyer. `payUrl` is a payment link, valid 30
+        minutes. `CONFLICT` when the business does not sell cards online.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftCardPurchaseInput'
+      responses:
+        '201':
+          description: Waiting for payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardPurchase'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/payment-links/{token}/tender:
+    post:
+      tags:
+        - Payments
+      operationId: tenderPaymentLink
+      summary: Pay part or all of the payment with a gift card
+      description: |
+        No sign-in. What the card cannot cover is still paid through the provider. `NOT_FOUND` for a code that cannot be
+        used (unknown, spent, expired, or another business's); `CONFLICT` when a payment is in progress or the link was paid.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  maxLength: 40
+      responses:
+        '200':
+          description: Where the payment stands now.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/payment/tender:
+    post:
+      tags:
+        - Booking
+      operationId: tenderMyAppointmentPayment
+      summary: Pay part or all of the deposit with a gift card or the balance with the business
+      description: |
+        `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+        covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+        is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kind
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - GIFT_CARD
+                    - BALANCE
+                code:
+                  type: string
+                  maxLength: 40
+      responses:
+        '200':
+          description: The booking, with where its payment stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/orgs/{orgId}/earnings:
     get:
       tags:
@@ -4445,6 +4692,14 @@ paths:
                 reason:
                   type: string
                   maxLength: 500
+                refundTo:
+                  type: string
+                  enum:
+                    - ORIGINAL
+                    - BALANCE
+                  description: |
+                    Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                    with the business at once (`BALANCE`).
       responses:
         '200':
           description: Cancelled.
@@ -6024,6 +6279,7 @@ components:
       required:
         - state
         - purpose
+        - subject
         - amountMinor
         - currency
         - expiresAt
@@ -6043,6 +6299,12 @@ components:
             - DEPOSIT
             - FULL
             - BALANCE
+        subject:
+          type: string
+          enum:
+            - BOOKING
+            - GIFT_CARD
+          description: What is being paid for; `items` are the services of a booking, or the recipient of a gift card.
         amountMinor:
           type: integer
           format: int64
@@ -6103,6 +6365,550 @@ components:
           format: int64
         currency:
           type: string
+    GiftCardProgram:
+      type: object
+      required:
+        - id
+        - name
+        - currency
+        - presetsMinor
+        - minMinor
+        - maxMinor
+        - sellOnline
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        currency:
+          type: string
+        presetsMinor:
+          type: array
+          items:
+            type: integer
+            format: int64
+        minMinor:
+          type: integer
+          format: int64
+        maxMinor:
+          type: integer
+          format: int64
+        validityMonths:
+          type:
+            - integer
+            - 'null'
+        sellOnline:
+          type: boolean
+    GiftCardSetup:
+      type: object
+      properties:
+        program:
+          oneOf:
+            - $ref: '#/components/schemas/GiftCardProgram'
+            - type: 'null'
+    GiftCardProgramInput:
+      type: object
+      required:
+        - name
+        - minMinor
+        - maxMinor
+        - sellOnline
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        presetsMinor:
+          type: array
+          maxItems: 8
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Amounts offered as buttons, each between the limits.
+        minMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        maxMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        validityMonths:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 60
+          description: How long a card is valid after it is delivered; null for no end.
+        sellOnline:
+          type: boolean
+    GiftCardRow:
+      type: object
+      required:
+        - id
+        - codeLast4
+        - initialMinor
+        - balanceMinor
+        - currency
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        codeLast4:
+          type: string
+          description: '`----` until the card is delivered.'
+        initialMinor:
+          type: integer
+          format: int64
+        balanceMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_DELIVERY
+            - ACTIVE
+            - DEPLETED
+            - EXPIRED
+            - VOID
+        recipientName:
+          type:
+            - string
+            - 'null'
+        purchaserName:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        deliverAt:
+          $ref: '#/components/schemas/Instant'
+        deliveredAt:
+          $ref: '#/components/schemas/Instant'
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+    PageInfo:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page.
+    GiftCardPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GiftCardRow'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    GiftCardOffer:
+      type: object
+      required:
+        - available
+        - presetsMinor
+      properties:
+        available:
+          type: boolean
+        name:
+          type:
+            - string
+            - 'null'
+        currency:
+          type:
+            - string
+            - 'null'
+        presetsMinor:
+          type: array
+          items:
+            type: integer
+            format: int64
+        minMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        maxMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        validityMonths:
+          type:
+            - integer
+            - 'null'
+    PhoneE164:
+      type: string
+      pattern: ^\+[1-9][0-9]{6,14}$
+      examples:
+        - '+251911234567'
+    GiftCardPurchaseInput:
+      type: object
+      required:
+        - locationId
+        - amountMinor
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        recipientName:
+          type: string
+          maxLength: 120
+        recipientPhone:
+          $ref: '#/components/schemas/PhoneE164'
+        recipientEmail:
+          type: string
+          format: email
+          maxLength: 200
+        message:
+          type: string
+          maxLength: 500
+        deliverAt:
+          $ref: '#/components/schemas/Instant'
+    GiftCardPurchase:
+      type: object
+      required:
+        - cardId
+        - orderId
+        - payUrl
+        - expiresAt
+      properties:
+        cardId:
+          $ref: '#/components/schemas/Uuid'
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        payUrl:
+          type: string
+          format: uri
+          description: The payment link to open to pay.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+    MyAppointmentPlace:
+      type: object
+      required:
+        - locationId
+        - businessName
+        - businessSlug
+        - locationName
+        - locationSlug
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        businessName:
+          type: string
+        businessSlug:
+          type: string
+        locationName:
+          type: string
+        locationSlug:
+          type: string
+        landmark:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+    CurrencyCode:
+      type: string
+      pattern: ^[A-Z]{3}$
+      examples:
+        - ETB
+    BookingAddon:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+    BookingItem:
+      type: object
+      required:
+        - variantId
+        - serviceName
+        - staffId
+        - staffName
+        - staffRequested
+        - start
+        - end
+        - priceMinor
+        - currency
+        - addons
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: string
+        variantName:
+          type:
+            - string
+            - 'null'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        staffName:
+          type: string
+        staffRequested:
+          type: boolean
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        priceMinor:
+          type: integer
+          format: int64
+          description: The service's price for this person here; add-ons are listed separately.
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingAddon'
+    BookingTerms:
+      type: object
+      required:
+        - requiresApproval
+        - allowPayAtVenue
+        - depositMode
+        - cancellationWindowMinutes
+        - freeCancellationUntil
+      description: The terms frozen in the appointment; several services apply the strictest rule of any.
+      properties:
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        depositMode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        cancellationWindowMinutes:
+          type: integer
+        freeCancellationUntil:
+          $ref: '#/components/schemas/Instant'
+        lateCancelFeePercent:
+          type: number
+        noShowFeePercent:
+          type: number
+    BookingSummary:
+      type: object
+      required:
+        - locationId
+        - timezone
+        - deliveryMode
+        - start
+        - end
+        - items
+        - totalMinor
+        - currency
+        - policy
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
+        deliveryMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - AT_CUSTOMER
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingItem'
+        totalMinor:
+          type: integer
+          format: int64
+          description: All-in total (services and add-ons).
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        policy:
+          $ref: '#/components/schemas/BookingTerms'
+    CancellationPreview:
+      type: object
+      required:
+        - allowed
+        - free
+        - freeUntil
+        - feeMinor
+        - refundMinor
+        - keptMinor
+      properties:
+        allowed:
+          type: boolean
+          description: False once the visit has started or the appointment is no longer active.
+        free:
+          type: boolean
+        freeUntil:
+          $ref: '#/components/schemas/Instant'
+        feeMinor:
+          type: integer
+          format: int64
+          description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
+        currency:
+          type:
+            - string
+            - 'null'
+        refundMinor:
+          type: integer
+          format: int64
+          description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+        keptMinor:
+          type: integer
+          format: int64
+          description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
+    PaymentStatus:
+      type: object
+      description: Where the online payment of a booking stands.
+      required:
+        - state
+        - dueNowMinor
+        - paidMinor
+        - atVenueMinor
+        - currency
+      properties:
+        state:
+          type: string
+          enum:
+            - NOT_REQUIRED
+            - AWAITING_PAYMENT
+            - PAID
+            - FAILED
+            - EXPIRED
+          description: |
+            `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+            may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+        dueNowMinor:
+          type: integer
+          format: int64
+        paidMinor:
+          type: integer
+          format: int64
+        atVenueMinor:
+          type: integer
+          format: int64
+          description: Left to pay at the venue.
+        currency:
+          type: string
+        expiresAt:
+          description: Until when the time is held for payment.
+          $ref: '#/components/schemas/Instant'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page of the attempt in progress, to reopen it.
+        balanceMinor:
+          type: integer
+          format: int64
+          description: What the signed-in person could pay now from their balance with the business (0 for none).
+    AppointmentRefund:
+      type: object
+      required:
+        - amountMinor
+        - currency
+        - state
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        state:
+          type: string
+          enum:
+            - ON_THE_WAY
+            - SENT
+            - CREDITED
+            - NONE
+          description: '`CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.'
+    AppointmentDetail:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - start
+        - end
+        - timezone
+        - booking
+        - cancellation
+        - canReschedule
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_PAYMENT
+            - REQUESTED
+            - CONFIRMED
+            - ARRIVED
+            - IN_PROGRESS
+            - COMPLETED
+            - CANCELLED
+            - NO_SHOW
+            - EXPIRED
+            - DECLINED
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type: string
+        note:
+          type:
+            - string
+            - 'null'
+        place:
+          $ref: '#/components/schemas/MyAppointmentPlace'
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+        cancellation:
+          $ref: '#/components/schemas/CancellationPreview'
+        canReschedule:
+          type: boolean
+        payment:
+          description: Present when the booking has an order to pay online.
+          $ref: '#/components/schemas/PaymentStatus'
+        refund:
+          description: |
+            Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+            happens) or a refund exists: what goes back to the customer.
+          $ref: '#/components/schemas/AppointmentRefund'
     PayoutRow:
       type: object
       required:
@@ -6221,16 +7027,6 @@ components:
           description: Positive when the business is owed more, negative when less.
         orderId:
           $ref: '#/components/schemas/Uuid'
-    PageInfo:
-      type: object
-      required:
-        - nextCursor
-      properties:
-        nextCursor:
-          type:
-            - string
-            - 'null'
-          description: Pass as `cursor` to get the next page; null on the last page.
     Statement:
       type: object
       required:
@@ -6243,11 +7039,6 @@ components:
             $ref: '#/components/schemas/StatementLine'
         page:
           $ref: '#/components/schemas/PageInfo'
-    PhoneE164:
-      type: string
-      pattern: ^\+[1-9][0-9]{6,14}$
-      examples:
-        - '+251911234567'
     OtpPurpose:
       type: string
       enum:
@@ -6860,11 +7651,6 @@ components:
           maxLength: 20
         geo:
           $ref: '#/components/schemas/GeoPoint'
-    CurrencyCode:
-      type: string
-      pattern: ^[A-Z]{3}$
-      examples:
-        - ETB
     LegalEntity:
       type: object
       required:
@@ -9119,48 +9905,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarStage'
-    PaymentStatus:
-      type: object
-      description: Where the online payment of a booking stands.
-      required:
-        - state
-        - dueNowMinor
-        - paidMinor
-        - atVenueMinor
-        - currency
-      properties:
-        state:
-          type: string
-          enum:
-            - NOT_REQUIRED
-            - AWAITING_PAYMENT
-            - PAID
-            - FAILED
-            - EXPIRED
-          description: |
-            `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
-            may try again while the time is held. `EXPIRED`: the time was not paid for in time.
-        dueNowMinor:
-          type: integer
-          format: int64
-        paidMinor:
-          type: integer
-          format: int64
-        atVenueMinor:
-          type: integer
-          format: int64
-          description: Left to pay at the venue.
-        currency:
-          type: string
-        expiresAt:
-          description: Until when the time is held for payment.
-          $ref: '#/components/schemas/Instant'
-        redirectUrl:
-          type:
-            - string
-            - 'null'
-          format: uri
-          description: The provider's page of the attempt in progress, to reopen it.
     CalendarAppointment:
       type: object
       required:
@@ -10152,132 +10896,6 @@ components:
           $ref: '#/components/schemas/Instant'
         serviceAreaId:
           $ref: '#/components/schemas/Uuid'
-    BookingAddon:
-      type: object
-      required:
-        - id
-        - name
-        - durationMinutes
-        - priceMinor
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        name:
-          type: string
-        durationMinutes:
-          type: integer
-        priceMinor:
-          type: integer
-          format: int64
-    BookingItem:
-      type: object
-      required:
-        - variantId
-        - serviceName
-        - staffId
-        - staffName
-        - staffRequested
-        - start
-        - end
-        - priceMinor
-        - currency
-        - addons
-      properties:
-        variantId:
-          $ref: '#/components/schemas/Uuid'
-        serviceName:
-          type: string
-        variantName:
-          type:
-            - string
-            - 'null'
-        staffId:
-          $ref: '#/components/schemas/Uuid'
-        staffName:
-          type: string
-        staffRequested:
-          type: boolean
-        start:
-          $ref: '#/components/schemas/Instant'
-        end:
-          $ref: '#/components/schemas/Instant'
-        priceMinor:
-          type: integer
-          format: int64
-          description: The service's price for this person here; add-ons are listed separately.
-        currency:
-          $ref: '#/components/schemas/CurrencyCode'
-        addons:
-          type: array
-          items:
-            $ref: '#/components/schemas/BookingAddon'
-    BookingTerms:
-      type: object
-      required:
-        - requiresApproval
-        - allowPayAtVenue
-        - depositMode
-        - cancellationWindowMinutes
-        - freeCancellationUntil
-      description: The terms frozen in the appointment; several services apply the strictest rule of any.
-      properties:
-        requiresApproval:
-          type: boolean
-        allowPayAtVenue:
-          type: boolean
-        depositMode:
-          type: string
-          enum:
-            - NONE
-            - PERCENT
-            - FIXED
-            - FULL
-        cancellationWindowMinutes:
-          type: integer
-        freeCancellationUntil:
-          $ref: '#/components/schemas/Instant'
-        lateCancelFeePercent:
-          type: number
-        noShowFeePercent:
-          type: number
-    BookingSummary:
-      type: object
-      required:
-        - locationId
-        - timezone
-        - deliveryMode
-        - start
-        - end
-        - items
-        - totalMinor
-        - currency
-        - policy
-      properties:
-        locationId:
-          $ref: '#/components/schemas/Uuid'
-        timezone:
-          type: string
-        deliveryMode:
-          type: string
-          enum:
-            - ON_PREMISES
-            - AT_CUSTOMER
-        start:
-          $ref: '#/components/schemas/Instant'
-        end:
-          $ref: '#/components/schemas/Instant'
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/BookingItem'
-        totalMinor:
-          type: integer
-          format: int64
-          description: All-in total (services and add-ons).
-        currency:
-          $ref: '#/components/schemas/CurrencyCode'
-        policy:
-          $ref: '#/components/schemas/BookingTerms'
     PaymentTerms:
       type: object
       description: |
@@ -10322,33 +10940,6 @@ components:
         payment:
           description: What would be paid now to book; absent when nothing is due online.
           $ref: '#/components/schemas/PaymentTerms'
-    MyAppointmentPlace:
-      type: object
-      required:
-        - locationId
-        - businessName
-        - businessSlug
-        - locationName
-        - locationSlug
-      properties:
-        locationId:
-          $ref: '#/components/schemas/Uuid'
-        businessName:
-          type: string
-        businessSlug:
-          type: string
-        locationName:
-          type: string
-        locationSlug:
-          type: string
-        landmark:
-          type:
-            - string
-            - 'null'
-        phone:
-          type:
-            - string
-            - 'null'
     MyAppointmentItem:
       type: object
       required:
@@ -10473,114 +11064,6 @@ components:
         payment:
           description: Present for `PENDING_PAYMENT`.
           $ref: '#/components/schemas/PaymentStatus'
-    CancellationPreview:
-      type: object
-      required:
-        - allowed
-        - free
-        - freeUntil
-        - feeMinor
-        - refundMinor
-        - keptMinor
-      properties:
-        allowed:
-          type: boolean
-          description: False once the visit has started or the appointment is no longer active.
-        free:
-          type: boolean
-        freeUntil:
-          $ref: '#/components/schemas/Instant'
-        feeMinor:
-          type: integer
-          format: int64
-          description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
-        currency:
-          type:
-            - string
-            - 'null'
-        refundMinor:
-          type: integer
-          format: int64
-          description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
-        keptMinor:
-          type: integer
-          format: int64
-          description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
-    AppointmentRefund:
-      type: object
-      required:
-        - amountMinor
-        - currency
-        - state
-      properties:
-        amountMinor:
-          type: integer
-          format: int64
-        currency:
-          type: string
-        state:
-          type: string
-          enum:
-            - ON_THE_WAY
-            - SENT
-            - NONE
-          description: '`NONE`: the business kept all of it.'
-    AppointmentDetail:
-      type: object
-      required:
-        - id
-        - reference
-        - status
-        - start
-        - end
-        - timezone
-        - booking
-        - cancellation
-        - canReschedule
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        reference:
-          type: string
-        status:
-          type: string
-          enum:
-            - PENDING_PAYMENT
-            - REQUESTED
-            - CONFIRMED
-            - ARRIVED
-            - IN_PROGRESS
-            - COMPLETED
-            - CANCELLED
-            - NO_SHOW
-            - EXPIRED
-            - DECLINED
-        start:
-          $ref: '#/components/schemas/Instant'
-        end:
-          $ref: '#/components/schemas/Instant'
-        timezone:
-          type: string
-        note:
-          type:
-            - string
-            - 'null'
-        place:
-          $ref: '#/components/schemas/MyAppointmentPlace'
-        booking:
-          $ref: '#/components/schemas/BookingSummary'
-        cancellation:
-          $ref: '#/components/schemas/CancellationPreview'
-        canReschedule:
-          type: boolean
-        payment:
-          description: Present when the booking has an order to pay online.
-          $ref: '#/components/schemas/PaymentStatus'
-        refund:
-          description: |
-            Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
-            happens) or a refund exists: what goes back to the customer.
-          $ref: '#/components/schemas/AppointmentRefund'
     WaitlistOffer:
       type: object
       required:
@@ -12200,6 +12683,8 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    NoContent:
+      description: Done.
     TooManyRequests:
       description: Rate limited; retry after the `Retry-After` header.
       headers:
@@ -12210,8 +12695,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NoContent:
-      description: Done.
     PreconditionFailed:
       description: The resource changed since it was read (If-Match did not match).
       content:
@@ -12249,6 +12732,12 @@ components:
         minimum: 1
         maximum: 100
         default: 25
+    AppointmentIdParam:
+      name: appointmentId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
     IfMatch:
       name: If-Match
       in: header
@@ -12256,9 +12745,3 @@ components:
       description: ETag of the version being updated.
       schema:
         type: string
-    AppointmentIdParam:
-      name: appointmentId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Uuid'

@@ -10,6 +10,7 @@ import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 import com.beavent.backend.payments.PaymentFulfilment;
 import com.beavent.backend.payments.PaymentLinks;
 import com.beavent.backend.payments.Payments;
+import com.beavent.backend.payments.StoredValue;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Outbox;
@@ -273,6 +274,7 @@ class PaymentLinkService implements PaymentLinks {
             return new Info(
                     stateOf(f, now),
                     f.kind(),
+                    d == null ? "BOOKING" : d.subject(),
                     f.amountMinor(),
                     f.currency(),
                     f.linkExpires(),
@@ -327,6 +329,17 @@ class PaymentLinkService implements PaymentLinks {
         Found f = find(token);
         if (f == null) return null;
         if (!stateOf(f, now).equals("PAID")) payments.check(f.orgId(), f.orderId(), now);
+        return info(token, now);
+    }
+
+    @Override
+    public Info tender(String token, String code, Instant now) {
+        Found f = find(token);
+        if (f == null) throw new ApiException(ProblemCode.NOT_FOUND, "This link is not valid.");
+        String state = stateOf(f, now);
+        if (state.equals("PAID")) throw new ApiException(ProblemCode.CONFLICT, "This has already been paid.");
+        if (!state.equals("OPEN")) throw new ApiException(ProblemCode.HOLD_EXPIRED, "This link is no longer open.");
+        payments.tender(f.orgId(), f.orderId(), StoredValue.Kind.GIFT_CARD, code, null, now);
         return info(token, now);
     }
 

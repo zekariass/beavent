@@ -67,6 +67,28 @@ public final class Postings {
                 List.of(new Line(clearing, grossMinor), new Line(Account.platform(Code.REFUNDS_PAYABLE), -grossMinor)));
     }
 
+    /**
+     * A gift card or balance paid for part of an order: no money arrives (the business was paid when the value was sold),
+     * but the platform's fees on that part are charged to the business.
+     */
+    public static Planned tenderFee(UUID orgId, long feeMinor, long vatMinor) {
+        check(feeMinor >= 0 && vatMinor >= 0 && feeMinor + vatMinor > 0, "fees are more than zero");
+        List<Line> lines = new ArrayList<>();
+        lines.add(new Line(Account.seller(Code.SELLER_AVAILABLE, orgId), feeMinor + vatMinor));
+        addFeeLines(lines, feeMinor, vatMinor);
+        return new Planned("FEES_ASSESSED", "fees", lines);
+    }
+
+    /** A tender was given back: the fees charged on it are given back to the business. */
+    public static Planned tenderFeeReturned(UUID orgId, long feeMinor, long vatMinor) {
+        check(feeMinor >= 0 && vatMinor >= 0 && feeMinor + vatMinor > 0, "fees are more than zero");
+        List<Line> lines = new ArrayList<>();
+        if (feeMinor > 0) lines.add(new Line(Account.platform(Code.PLATFORM_FEE_REVENUE), feeMinor));
+        if (vatMinor > 0) lines.add(new Line(Account.platform(Code.TAX_PAYABLE), vatMinor));
+        lines.add(new Line(Account.seller(Code.SELLER_AVAILABLE, orgId), -(feeMinor + vatMinor)));
+        return new Planned("ADJUSTMENT", "feesback", lines);
+    }
+
     /** The service was delivered: the seller's share can be paid out. */
     public static Planned released(UUID orgId, long netMinor) {
         check(netMinor > 0, "a release is more than zero");

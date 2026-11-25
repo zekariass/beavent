@@ -245,6 +245,7 @@ export default async function AppointmentPage({
               appointmentId={a.id}
               request={a.status === "REQUESTED"}
               feeText={cancelNotice(a, language, t)}
+              creditWith={(a.payment?.paidMinor ?? 0) > 0 ? (a.place?.businessName ?? null) : null}
             />
           ) : null}
           {finished && venueHref ? (

@@ -266,4 +266,38 @@ paymentLinkCheck:
               $ref: ./schemas.yaml#/PaymentLink
       '404':
         $ref: ../common/responses.yaml#/NotFound
+paymentLinkTender:
+  post:
+    tags: [Payments]
+    operationId: tenderPaymentLink
+    summary: Pay part or all of the payment with a gift card
+    description: |
+      No sign-in. What the card cannot cover is still paid through the provider. `NOT_FOUND` for a code that cannot be
+      used (unknown, spent, expired, or another business's); `CONFLICT` when a payment is in progress or the link was paid.
+    parameters:
+      - $ref: '#/LinkTokenParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code:
+                type: string
+                maxLength: 40
+    responses:
+      '200':
+        description: Where the payment stands now.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLink
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
 

@@ -48,6 +48,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: GiftCards
+    description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -74,6 +76,20 @@ paths:
     $ref: ./payments/paths.yaml#/paymentLinkStart
   /v1/public/payment-links/{token}/check:
     $ref: ./payments/paths.yaml#/paymentLinkCheck
+  /v1/orgs/{orgId}/gift-cards/program:
+    $ref: ./retention/paths.yaml#/giftCardProgram
+  /v1/orgs/{orgId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCards
+  /v1/orgs/{orgId}/gift-cards/{cardId}/void:
+    $ref: ./retention/paths.yaml#/giftCardVoid
+  /v1/public/locations/{locationId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCardOffer
+  /v1/me/gift-cards/purchases:
+    $ref: ./retention/paths.yaml#/giftCardPurchase
+  /v1/public/payment-links/{token}/tender:
+    $ref: ./payments/paths.yaml#/paymentLinkTender
+  /v1/me/appointments/{appointmentId}/payment/tender:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPaymentTender
   /v1/orgs/{orgId}/earnings:
     $ref: ./payments/paths.yaml#/earnings
   /v1/orgs/{orgId}/statement:

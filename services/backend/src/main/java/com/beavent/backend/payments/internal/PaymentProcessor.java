@@ -260,6 +260,20 @@ class PaymentProcessor {
                     .execute();
         }
         UUID orderId = intent.getOrderId();
+        // Part of the order was paid with a gift card or balance and part is still due: nothing is honoured until all
+        // of it is paid, but the part received is in the ledger.
+        if (orderId != null
+                && system.fetchExists(
+                        PAYMENT_SCHEDULE,
+                        PAYMENT_SCHEDULE
+                                .ORDER_ID
+                                .eq(orderId)
+                                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("ONLINE"))
+                                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE")))) {
+            captures.confirmed(a, orderId, now);
+            publish(a.getOrgId(), orderId, "payment.part_received", a, a.getAmountMinor());
+            return;
+        }
         String orderStatus = orderId == null
                 ? null
                 : system.select(ORDERS.STATUS)

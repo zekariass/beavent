@@ -189,7 +189,7 @@ Card-on-file no-show protection (Fresha's model) does not work where most custom
 
 ## 8. Refunds
 
-*Built in slice 3.6 (25 Nov 2026), deposits only:* `payments/Refunds`, `internal/RefundService`. Cancellations, declines and no-shows are settled by the booking's terms; ArifPay refunds are paid by hand from the admin console's Refunds queue, Chapa's through its API. Requests by customers or staff, store credit and gift cards, fiscal credit notes and disputes are not built yet.
+*Built in slice 3.6 (25 Nov 2026), deposits only:* `payments/Refunds`, `internal/RefundService`. Cancellations, declines and no-shows are settled by the booking's terms; ArifPay refunds are paid by hand from the admin console's Refunds queue, Chapa's through its API. *Slice 3.8 (26 Nov 2026):* a refund can go to **store credit** instead (`refundTo: BALANCE` on cancel; a `STORE_CREDIT` refund, `SUCCEEDED` at once, the fees on it returned, the customer's balance with that business credited), and what a **gift card or balance** paid goes back to it when the booking expires or is cancelled before it is confirmed (a `GIFT_CARD`/`STORE_CREDIT` refund of the tender). Gift cards are sold as orders and are the business's money from the sale; a tender moves no money and only charges the business the fees on the part it paid (`FEES_ASSESSED`). Requests by customers or staff, fiscal credit notes and disputes are not built yet.
 
 | Step | Rule |
 |---|---|

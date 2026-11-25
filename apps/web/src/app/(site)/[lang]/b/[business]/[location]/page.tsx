@@ -8,6 +8,7 @@ import { TeamRail } from "@/components/venue/TeamRail";
 import { VenueGallery } from "@/components/venue/VenueGallery";
 import { SiteHeader } from "@/components/SiteHeader";
 import { routeLanguage, translator } from "@/lib/i18n";
+import { publicApi } from "@/lib/customer/session";
 import { loadVenue } from "@/lib/venue";
 import { dualClock, openStatus, pick, venueFacts } from "@beavent/venue";
 
@@ -46,6 +47,13 @@ export default async function VenuePage({ params }: Props) {
   const venue = await loadVenue(business, location);
   if (!venue) notFound();
   const now = new Date();
+  // A failure to ask must not break the page: no gift card link then.
+  const giftCards = await publicApi(language)
+    .GET("/v1/public/locations/{locationId}/gift-cards", {
+      params: { path: { locationId: venue.locationId } },
+    })
+    .then((r) => r.data?.available === true)
+    .catch(() => false);
   const status = openStatus(venue, now);
   const area = pick(venue.area, language);
   const category = pick(venue.category, language);
@@ -118,6 +126,15 @@ export default async function VenuePage({ params }: Props) {
               <h2 className="bv-type-title2 text-fg">{t("venue.services")}</h2>
               <ServiceList venue={venue} language={language} />
             </section>
+
+            {giftCards ? (
+              <Link
+                href={`/${language}/b/${venue.businessSlug}/${venue.locationSlug}/gift-cards`}
+                className="bv-type-label inline-flex min-h-12 items-center self-start underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-focus"
+              >
+                {t("giftcards.buy.link")}
+              </Link>
+            ) : null}
 
             {venue.team.length > 0 ? (
               <section id="team" className="flex scroll-mt-16 flex-col gap-3">

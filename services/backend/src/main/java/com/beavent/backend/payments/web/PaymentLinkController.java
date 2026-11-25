@@ -6,6 +6,7 @@ import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.ProblemCode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
@@ -27,6 +28,7 @@ class PaymentLinkController {
     record InfoBody(
             String state,
             String purpose,
+            String subject,
             long amountMinor,
             String currency,
             Instant expiresAt,
@@ -54,6 +56,7 @@ class PaymentLinkController {
         return new InfoBody(
                 i.state(),
                 i.purpose(),
+                i.subject(),
                 i.amountMinor(),
                 i.currency(),
                 i.expiresAt(),
@@ -86,6 +89,15 @@ class PaymentLinkController {
                 started.expiresAt(),
                 started.amountMinor(),
                 started.currency());
+    }
+
+    record TenderInput(
+            @jakarta.validation.constraints.NotBlank @Size(max = 40)
+            String code) {}
+
+    @PostMapping("/v1/public/payment-links/{token}/tender")
+    InfoBody tender(@PathVariable String token, @Valid @RequestBody TenderInput input) {
+        return body(links.tender(token, input.code(), Instant.now()));
     }
 
     @PostMapping("/v1/public/payment-links/{token}/check")

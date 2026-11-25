@@ -4,7 +4,8 @@ import { createTranslator, type Language } from "@beavent/i18n";
 import type { Schemas } from "@beavent/api-client";
 import { price } from "@beavent/venue";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { checkLinkPayment, startLinkPayment } from "@/lib/customer/actions";
+import { UseGiftCard } from "@/components/customer/UseGiftCard";
+import { checkLinkPayment, startLinkPayment, tenderLink } from "@/lib/customer/actions";
 
 const primary =
   "bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:bg-surface disabled:text-fg-subtle";
@@ -102,15 +103,18 @@ export function PayLink({
   };
 
   const balance = link.purpose === "BALANCE";
+  const giftCard = link.subject === "GIFT_CARD";
   const money = price(link.amountMinor, link.currency, language);
   const paid = link.state === "PAID";
   const closed = link.state === "EXPIRED";
   const failed = outcome === "error" && !paid && !closed;
 
   const title = paid
-    ? balance
-      ? t("pay.title.paid")
-      : t("booking.done.booked")
+    ? giftCard
+      ? t("pay.title.giftCardPaid")
+      : balance
+        ? t("pay.title.paid")
+        : t("booking.done.booked")
     : closed
       ? t("pay.title.closed")
       : asking
@@ -121,13 +125,17 @@ export function PayLink({
             ? t("payment.title.stillWaiting")
             : outcome === "cancel"
               ? t("payment.title.cancelled")
-              : balance
-                ? t("pay.title.balance")
-                : t("payment.title.pending");
+              : giftCard
+                ? t("pay.title.giftCard")
+                : balance
+                  ? t("pay.title.balance")
+                  : t("payment.title.pending");
   const body = paid
-    ? balance
-      ? t("pay.body.paidBalance", { business: link.business })
-      : t("pay.body.paidDeposit", { business: link.business })
+    ? giftCard
+      ? t("pay.body.paidGiftCard", { business: link.business })
+      : balance
+        ? t("pay.body.paidBalance", { business: link.business })
+        : t("pay.body.paidDeposit", { business: link.business })
     : closed
       ? t("pay.body.closed", { business: link.business })
       : asking
@@ -162,7 +170,11 @@ export function PayLink({
           {[link.business, link.location].filter(Boolean).join(" · ")}
         </span>
         {link.items.length > 0 ? (
-          <span className="bv-type-body text-fg">{link.items.join(", ")}</span>
+          <span className="bv-type-body text-fg">
+            {giftCard
+              ? t("giftcards.list.to", { name: link.items.join(", ") })
+              : link.items.join(", ")}
+          </span>
         ) : null}
         {when ? (
           <>
@@ -183,11 +195,13 @@ export function PayLink({
 
       <section className="flex justify-between gap-4">
         <span className="bv-type-body text-fg">
-          {balance
-            ? t("pay.balance")
-            : link.purpose === "FULL"
-              ? t("payment.full")
-              : t("payment.deposit")}
+          {giftCard
+            ? t("pay.giftCard")
+            : balance
+              ? t("pay.balance")
+              : link.purpose === "FULL"
+                ? t("payment.full")
+                : t("payment.deposit")}
         </span>
         <span className="bv-type-body-strong text-fg">
           {money}
@@ -207,6 +221,17 @@ export function PayLink({
               {t("payment.checkAgain")}
             </button>
           ) : null}
+          {giftCard ? null : (
+            <UseGiftCard
+              language={language}
+              disabled={busy}
+              apply={async (code) => {
+                const r = await tenderLink(language, token, code);
+                if (r.ok) setLink(r.value);
+                return r.ok ? { ok: true } : r;
+              }}
+            />
+          )}
         </section>
       ) : null}
     </>

@@ -27,7 +27,8 @@ import org.springframework.test.context.ActiveProfiles;
             "beavent.payments.worker-interval-ms=300",
             // The local profile switches the seller gate off for development; tests run with it on, as in production.
             "beavent.payments.require-seller-readiness=true",
-            "beavent.payouts.worker-interval-ms=3600000"
+            "beavent.payouts.worker-interval-ms=3600000",
+            "beavent.retention.worker-interval-ms=3600000"
         })
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("local")

@@ -329,6 +329,10 @@ PaymentStatus:
       type: [string, 'null']
       format: uri
       description: The provider's page of the attempt in progress, to reopen it.
+    balanceMinor:
+      type: integer
+      format: int64
+      description: What the signed-in person could pay now from their balance with the business (0 for none).
 PaymentStart:
   type: object
   required: [attemptId, expiresAt, amountMinor, currency]
@@ -537,8 +541,8 @@ AppointmentRefund:
       type: string
     state:
       type: string
-      enum: [ON_THE_WAY, SENT, NONE]
-      description: '`NONE`: the business kept all of it.'
+      enum: [ON_THE_WAY, SENT, CREDITED, NONE]
+      description: '`CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.'
 AppointmentStatus:
   type: object
   required: [status]

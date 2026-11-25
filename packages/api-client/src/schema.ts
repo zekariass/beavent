@@ -165,6 +165,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/gift-cards/program": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The gift cards the business sells (none yet when `program` is null)
+         * @description Needs `catalog.manage`.
+         */
+        get: operations["getGiftCardProgram"];
+        /**
+         * Set up what gift cards the business sells
+         * @description Needs `catalog.manage`. Creates the programme the first time, then updates it.
+         */
+        put: operations["saveGiftCardProgram"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paid gift cards, newest first
+         * @description Needs `catalog.manage`. The code is never shown after it was delivered (only its last four characters).
+         */
+        get: operations["listGiftCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gift-cards/{cardId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a card (what is left on it is written off; audited)
+         * @description Needs `refunds.create`.
+         */
+        post: operations["voidGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/locations/{locationId}/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What gift cards can be bought at a place (nothing when the business does not sell them online) */
+        get: operations["getGiftCardOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/gift-cards/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start buying a gift card; pay through the returned link
+         * @description The card is created waiting for payment and delivered to the recipient (at once, or on `deliverAt`) after the payment
+         *     is confirmed; a recipient without a phone number or email means the buyer. `payUrl` is a payment link, valid 30
+         *     minutes. `CONFLICT` when the business does not sell cards online.
+         */
+        post: operations["buyGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/tender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay part or all of the payment with a gift card
+         * @description No sign-in. What the card cannot cover is still paid through the provider. `NOT_FOUND` for a code that cannot be
+         *     used (unknown, spent, expired, or another business's); `CONFLICT` when a payment is in progress or the link was paid.
+         */
+        post: operations["tenderPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/payment/tender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay part or all of the deposit with a gift card or the balance with the business
+         * @description `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+         *     covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+         *     is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+         */
+        post: operations["tenderMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/earnings": {
         parameters: {
             query?: never;
@@ -2830,6 +2976,11 @@ export interface components {
             state: "OPEN" | "PAID" | "EXPIRED";
             /** @enum {string} */
             purpose: "DEPOSIT" | "FULL" | "BALANCE";
+            /**
+             * @description What is being paid for; `items` are the services of a booking, or the recipient of a gift card.
+             * @enum {string}
+             */
+            subject: "BOOKING" | "GIFT_CARD";
             /** Format: int64 */
             amountMinor: number;
             currency: string;
@@ -2859,6 +3010,239 @@ export interface components {
             /** Format: int64 */
             amountMinor: number;
             currency: string;
+        };
+        GiftCardProgram: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            currency: string;
+            presetsMinor: number[];
+            /** Format: int64 */
+            minMinor: number;
+            /** Format: int64 */
+            maxMinor: number;
+            validityMonths?: number | null;
+            sellOnline: boolean;
+        };
+        GiftCardSetup: {
+            program?: components["schemas"]["GiftCardProgram"] | null;
+        };
+        GiftCardProgramInput: {
+            name: string;
+            /** @description Amounts offered as buttons, each between the limits. */
+            presetsMinor?: number[];
+            /** Format: int64 */
+            minMinor: number;
+            /** Format: int64 */
+            maxMinor: number;
+            /** @description How long a card is valid after it is delivered; null for no end. */
+            validityMonths?: number | null;
+            sellOnline: boolean;
+        };
+        GiftCardRow: {
+            id: components["schemas"]["Uuid"];
+            /** @description `----` until the card is delivered. */
+            codeLast4: string;
+            /** Format: int64 */
+            initialMinor: number;
+            /** Format: int64 */
+            balanceMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "PENDING_DELIVERY" | "ACTIVE" | "DEPLETED" | "EXPIRED" | "VOID";
+            recipientName?: string | null;
+            purchaserName?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            deliverAt?: components["schemas"]["Instant"];
+            deliveredAt?: components["schemas"]["Instant"];
+            expiresAt?: components["schemas"]["Instant"];
+        };
+        PageInfo: {
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
+        GiftCardPage: {
+            items: components["schemas"]["GiftCardRow"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        GiftCardOffer: {
+            available: boolean;
+            name?: string | null;
+            currency?: string | null;
+            presetsMinor: number[];
+            /** Format: int64 */
+            minMinor?: number | null;
+            /** Format: int64 */
+            maxMinor?: number | null;
+            validityMonths?: number | null;
+        };
+        /** @example +251911234567 */
+        PhoneE164: string;
+        GiftCardPurchaseInput: {
+            locationId: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            amountMinor: number;
+            recipientName?: string;
+            recipientPhone?: components["schemas"]["PhoneE164"];
+            /** Format: email */
+            recipientEmail?: string;
+            message?: string;
+            deliverAt?: components["schemas"]["Instant"];
+        };
+        GiftCardPurchase: {
+            cardId: components["schemas"]["Uuid"];
+            orderId: components["schemas"]["Uuid"];
+            /**
+             * Format: uri
+             * @description The payment link to open to pay.
+             */
+            payUrl: string;
+            expiresAt: components["schemas"]["Instant"];
+        };
+        MyAppointmentPlace: {
+            locationId: components["schemas"]["Uuid"];
+            businessName: string;
+            businessSlug: string;
+            locationName: string;
+            locationSlug: string;
+            landmark?: string | null;
+            phone?: string | null;
+        };
+        /** @example ETB */
+        CurrencyCode: string;
+        BookingAddon: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+        };
+        BookingItem: {
+            variantId: components["schemas"]["Uuid"];
+            serviceName: string;
+            variantName?: string | null;
+            staffId: components["schemas"]["Uuid"];
+            staffName: string;
+            staffRequested: boolean;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description The service's price for this person here; add-ons are listed separately.
+             */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            addons: components["schemas"]["BookingAddon"][];
+        };
+        /** @description The terms frozen in the appointment; several services apply the strictest rule of any. */
+        BookingTerms: {
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            /** @enum {string} */
+            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            cancellationWindowMinutes: number;
+            freeCancellationUntil: components["schemas"]["Instant"];
+            lateCancelFeePercent?: number;
+            noShowFeePercent?: number;
+        };
+        BookingSummary: {
+            locationId: components["schemas"]["Uuid"];
+            timezone: string;
+            /** @enum {string} */
+            deliveryMode: "ON_PREMISES" | "AT_CUSTOMER";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            items: components["schemas"]["BookingItem"][];
+            /**
+             * Format: int64
+             * @description All-in total (services and add-ons).
+             */
+            totalMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            policy: components["schemas"]["BookingTerms"];
+        };
+        CancellationPreview: {
+            /** @description False once the visit has started or the appointment is no longer active. */
+            allowed: boolean;
+            free: boolean;
+            freeUntil: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description Late-cancellation fee if cancelled now (0 when free), on the whole price.
+             */
+            feeMinor: number;
+            currency?: string | null;
+            /**
+             * Format: int64
+             * @description What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+             */
+            refundMinor: number;
+            /**
+             * Format: int64
+             * @description What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
+             */
+            keptMinor: number;
+        };
+        /** @description Where the online payment of a booking stands. */
+        PaymentStatus: {
+            /**
+             * @description `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+             *     may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+             * @enum {string}
+             */
+            state: "NOT_REQUIRED" | "AWAITING_PAYMENT" | "PAID" | "FAILED" | "EXPIRED";
+            /** Format: int64 */
+            dueNowMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Left to pay at the venue.
+             */
+            atVenueMinor: number;
+            currency: string;
+            /** @description Until when the time is held for payment. */
+            expiresAt?: components["schemas"]["Instant"];
+            /**
+             * Format: uri
+             * @description The provider's page of the attempt in progress, to reopen it.
+             */
+            redirectUrl?: string | null;
+            /**
+             * Format: int64
+             * @description What the signed-in person could pay now from their balance with the business (0 for none).
+             */
+            balanceMinor?: number;
+        };
+        AppointmentRefund: {
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /**
+             * @description `CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.
+             * @enum {string}
+             */
+            state: "ON_THE_WAY" | "SENT" | "CREDITED" | "NONE";
+        };
+        AppointmentDetail: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            timezone: string;
+            note?: string | null;
+            place?: components["schemas"]["MyAppointmentPlace"];
+            booking: components["schemas"]["BookingSummary"];
+            cancellation: components["schemas"]["CancellationPreview"];
+            canReschedule: boolean;
+            /** @description Present when the booking has an order to pay online. */
+            payment?: components["schemas"]["PaymentStatus"];
+            /**
+             * @description Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+             *     happens) or a refund exists: what goes back to the customer.
+             */
+            refund?: components["schemas"]["AppointmentRefund"];
         };
         PayoutRow: {
             id: components["schemas"]["Uuid"];
@@ -2913,16 +3297,10 @@ export interface components {
             amountMinor: number;
             orderId?: components["schemas"]["Uuid"];
         };
-        PageInfo: {
-            /** @description Pass as `cursor` to get the next page; null on the last page. */
-            nextCursor: string | null;
-        };
         Statement: {
             items: components["schemas"]["StatementLine"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** @example +251911234567 */
-        PhoneE164: string;
         /**
          * @description SIGN_IN creates the account on first use (phone-first sign-up).
          * @enum {string}
@@ -3169,8 +3547,6 @@ export interface components {
             postalCode?: string;
             geo?: components["schemas"]["GeoPoint"];
         };
-        /** @example ETB */
-        CurrencyCode: string;
         LegalEntity: {
             id: components["schemas"]["Uuid"];
             countryCode: components["schemas"]["CountryCode"];
@@ -4030,32 +4406,6 @@ export interface components {
             status: "BOOKED" | "STARTED" | "DONE" | "CANCELLED" | "NO_SHOW";
             stages: components["schemas"]["CalendarStage"][];
         };
-        /** @description Where the online payment of a booking stands. */
-        PaymentStatus: {
-            /**
-             * @description `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
-             *     may try again while the time is held. `EXPIRED`: the time was not paid for in time.
-             * @enum {string}
-             */
-            state: "NOT_REQUIRED" | "AWAITING_PAYMENT" | "PAID" | "FAILED" | "EXPIRED";
-            /** Format: int64 */
-            dueNowMinor: number;
-            /** Format: int64 */
-            paidMinor: number;
-            /**
-             * Format: int64
-             * @description Left to pay at the venue.
-             */
-            atVenueMinor: number;
-            currency: string;
-            /** @description Until when the time is held for payment. */
-            expiresAt?: components["schemas"]["Instant"];
-            /**
-             * Format: uri
-             * @description The provider's page of the attempt in progress, to reopen it.
-             */
-            redirectUrl?: string | null;
-        };
         CalendarAppointment: {
             id: components["schemas"]["Uuid"];
             reference: string;
@@ -4428,57 +4778,6 @@ export interface components {
             start: components["schemas"]["Instant"];
             serviceAreaId?: components["schemas"]["Uuid"];
         };
-        BookingAddon: {
-            id: components["schemas"]["Uuid"];
-            name: string;
-            durationMinutes: number;
-            /** Format: int64 */
-            priceMinor: number;
-        };
-        BookingItem: {
-            variantId: components["schemas"]["Uuid"];
-            serviceName: string;
-            variantName?: string | null;
-            staffId: components["schemas"]["Uuid"];
-            staffName: string;
-            staffRequested: boolean;
-            start: components["schemas"]["Instant"];
-            end: components["schemas"]["Instant"];
-            /**
-             * Format: int64
-             * @description The service's price for this person here; add-ons are listed separately.
-             */
-            priceMinor: number;
-            currency: components["schemas"]["CurrencyCode"];
-            addons: components["schemas"]["BookingAddon"][];
-        };
-        /** @description The terms frozen in the appointment; several services apply the strictest rule of any. */
-        BookingTerms: {
-            requiresApproval: boolean;
-            allowPayAtVenue: boolean;
-            /** @enum {string} */
-            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
-            cancellationWindowMinutes: number;
-            freeCancellationUntil: components["schemas"]["Instant"];
-            lateCancelFeePercent?: number;
-            noShowFeePercent?: number;
-        };
-        BookingSummary: {
-            locationId: components["schemas"]["Uuid"];
-            timezone: string;
-            /** @enum {string} */
-            deliveryMode: "ON_PREMISES" | "AT_CUSTOMER";
-            start: components["schemas"]["Instant"];
-            end: components["schemas"]["Instant"];
-            items: components["schemas"]["BookingItem"][];
-            /**
-             * Format: int64
-             * @description All-in total (services and add-ons).
-             */
-            totalMinor: number;
-            currency: components["schemas"]["CurrencyCode"];
-            policy: components["schemas"]["BookingTerms"];
-        };
         /**
          * @description What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
          *     signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
@@ -4506,15 +4805,6 @@ export interface components {
             booking: components["schemas"]["BookingSummary"];
             /** @description What would be paid now to book; absent when nothing is due online. */
             payment?: components["schemas"]["PaymentTerms"];
-        };
-        MyAppointmentPlace: {
-            locationId: components["schemas"]["Uuid"];
-            businessName: string;
-            businessSlug: string;
-            locationName: string;
-            locationSlug: string;
-            landmark?: string | null;
-            phone?: string | null;
         };
         MyAppointmentItem: {
             variantId: components["schemas"]["Uuid"];
@@ -4561,59 +4851,6 @@ export interface components {
             booking: components["schemas"]["BookingSummary"];
             /** @description Present for `PENDING_PAYMENT`. */
             payment?: components["schemas"]["PaymentStatus"];
-        };
-        CancellationPreview: {
-            /** @description False once the visit has started or the appointment is no longer active. */
-            allowed: boolean;
-            free: boolean;
-            freeUntil: components["schemas"]["Instant"];
-            /**
-             * Format: int64
-             * @description Late-cancellation fee if cancelled now (0 when free), on the whole price.
-             */
-            feeMinor: number;
-            currency?: string | null;
-            /**
-             * Format: int64
-             * @description What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
-             */
-            refundMinor: number;
-            /**
-             * Format: int64
-             * @description What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
-             */
-            keptMinor: number;
-        };
-        AppointmentRefund: {
-            /** Format: int64 */
-            amountMinor: number;
-            currency: string;
-            /**
-             * @description `NONE`: the business kept all of it.
-             * @enum {string}
-             */
-            state: "ON_THE_WAY" | "SENT" | "NONE";
-        };
-        AppointmentDetail: {
-            id: components["schemas"]["Uuid"];
-            reference: string;
-            /** @enum {string} */
-            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
-            start: components["schemas"]["Instant"];
-            end: components["schemas"]["Instant"];
-            timezone: string;
-            note?: string | null;
-            place?: components["schemas"]["MyAppointmentPlace"];
-            booking: components["schemas"]["BookingSummary"];
-            cancellation: components["schemas"]["CancellationPreview"];
-            canReschedule: boolean;
-            /** @description Present when the booking has an order to pay online. */
-            payment?: components["schemas"]["PaymentStatus"];
-            /**
-             * @description Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
-             *     happens) or a refund exists: what goes back to the customer.
-             */
-            refund?: components["schemas"]["AppointmentRefund"];
         };
         WaitlistOffer: {
             id: components["schemas"]["Uuid"];
@@ -5243,6 +5480,13 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Done. */
+        NoContent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         /** @description Rate limited; retry after the `Retry-After` header. */
         TooManyRequests: {
             headers: {
@@ -5252,13 +5496,6 @@ export interface components {
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
             };
-        };
-        /** @description Done. */
-        NoContent: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
         };
         /** @description The resource changed since it was read (If-Match did not match). */
         PreconditionFailed: {
@@ -5275,9 +5512,9 @@ export interface components {
         LinkTokenParam: string;
         Cursor: string;
         Limit: number;
+        AppointmentIdParam: components["schemas"]["Uuid"];
         /** @description ETag of the version being updated. */
         IfMatch: string;
-        AppointmentIdParam: components["schemas"]["Uuid"];
     };
     requestBodies: never;
     headers: never;
@@ -5515,6 +5752,230 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getGiftCardProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The programme. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardSetup"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    saveGiftCardProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardProgramInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardProgram"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listGiftCards: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    voidGiftCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                cardId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getGiftCardOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardOffer"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    buyGiftCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardPurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Waiting for payment. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPurchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    tenderPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Where the payment stands now. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    tenderMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "GIFT_CARD" | "BALANCE";
+                    code?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The booking, with where its payment stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getEarnings: {
@@ -9309,6 +9770,12 @@ export interface operations {
             content: {
                 "application/json": {
                     reason?: string;
+                    /**
+                     * @description Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                     *     with the business at once (`BALANCE`).
+                     * @enum {string}
+                     */
+                    refundTo?: "ORIGINAL" | "BALANCE";
                 };
             };
         };

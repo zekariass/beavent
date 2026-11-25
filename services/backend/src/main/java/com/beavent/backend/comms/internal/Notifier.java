@@ -43,6 +43,10 @@ class Notifier {
     static final String REFUND_SENT = "APPOINTMENT_REFUND_SENT";
     /** A link to pay a deposit or a balance was made for the booking (plan 3.7). */
     static final String PAYMENT_LINK = "APPOINTMENT_PAYMENT_LINK";
+    /** A refund was kept as credit or put back on a gift card (plan 3.8). */
+    static final String REFUND_CREDITED = "APPOINTMENT_REFUND_CREDITED";
+    /** A gift card arrived for the recipient (plan 3.8). */
+    static final String GIFT_CARD_RECEIVED = "GIFT_CARD_RECEIVED";
 
     static final String CANCELLED = "APPOINTMENT_CANCELLED";
     static final String RESCHEDULED = "APPOINTMENT_RESCHEDULED";
@@ -242,6 +246,46 @@ class Notifier {
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
         String type = message.getMessageProperties().getReceivedRoutingKey();
         var body = json.readTree(message.getBody());
+        if (type.equals("gift_card.delivered")) {
+            UUID orgId = UUID.fromString(message.getMessageProperties().<String>getHeader("org_id"));
+            String customer = body.get("recipientCustomerId").asString();
+            if (customer.isBlank()) return;
+            Map<String, Object> data = new LinkedHashMap<>();
+            for (String key :
+                    List.of("code", "sender", "message", "business", "venueUrl", "currency", "expiresAt", "cardId")) {
+                data.put(key, body.get(key).asString());
+            }
+            data.put("amountMinor", body.get("amountMinor").asLong());
+            data.put("timezone", "Africa/Addis_Ababa");
+            processedMessages.runOnce(CONSUMER, messageId, () -> {
+                system.insertInto(NOTIFICATIONS)
+                        .set(NOTIFICATIONS.ID, Ids.newId())
+                        .set(NOTIFICATIONS.ORG_ID, orgId)
+                        .set(NOTIFICATIONS.RECIPIENT_CUSTOMER_ID, UUID.fromString(customer))
+                        .set(NOTIFICATIONS.CATEGORY, "TRANSACTIONAL")
+                        .set(NOTIFICATIONS.TEMPLATE_CODE, GIFT_CARD_RECEIVED)
+                        .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
+                        .set(NOTIFICATIONS.DEDUPE_KEY, GIFT_CARD_RECEIVED + ":" + data.get("cardId"))
+                        .set(NOTIFICATIONS.SEND_AFTER, Instant.now().atOffset(ZoneOffset.UTC))
+                        .onConflictDoNothing()
+                        .execute();
+            });
+            return;
+        }
+        if (type.equals("refund.credited")) {
+            UUID orderId = UUID.fromString(body.get("orderId").asString());
+            Map<String, Object> extra = Map.of(
+                    "refundId", body.get("refundId").asString(),
+                    "refundMinor", body.get("amountMinor").asLong());
+            processedMessages.runOnce(CONSUMER, messageId, () -> {
+                UUID appointmentId = system.select(APPOINTMENTS.ID)
+                        .from(APPOINTMENTS)
+                        .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                        .fetchOne(APPOINTMENTS.ID);
+                if (appointmentId != null) handle(type, appointmentId, true, Instant.now(), extra);
+            });
+            return;
+        }
         if (type.equals("payment_link.created")) {
             UUID orderId = UUID.fromString(body.get("orderId").asString());
             Map<String, Object> extra = Map.of(
@@ -346,6 +390,7 @@ class Notifier {
             }
             case "refund.succeeded" -> add(orgId, customerId, userId, REFUND_SENT, data, now, start);
             case "payment_link.created" -> add(orgId, customerId, userId, PAYMENT_LINK, data, now, start);
+            case "refund.credited" -> add(orgId, customerId, userId, REFUND_CREDITED, data, now, start);
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, RESCHEDULED, data, now, start);

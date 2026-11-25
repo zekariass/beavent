@@ -206,7 +206,7 @@ Statement:
       $ref: ../common/schemas.yaml#/PageInfo
 PaymentLink:
   type: object
-  required: [state, purpose, amountMinor, currency, expiresAt, business, items]
+  required: [state, purpose, subject, amountMinor, currency, expiresAt, business, items]
   properties:
     state:
       type: string
@@ -215,6 +215,10 @@ PaymentLink:
     purpose:
       type: string
       enum: [DEPOSIT, FULL, BALANCE]
+    subject:
+      type: string
+      enum: [BOOKING, GIFT_CARD]
+      description: What is being paid for; `items` are the services of a booking, or the recipient of a gift card.
     amountMinor:
       type: integer
       format: int64

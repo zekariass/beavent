@@ -127,14 +127,21 @@ class AppointmentFulfilment implements PaymentFulfilment {
                             || !a.getCancelledAt().toInstant().isAfter(policy.freeCancellationUntil());
                     if (!free) keep = Math.min(paidMinor, percent(total, policy.lateCancelFeePercent()));
                 }
-                return new Settlement(keep, "APPOINTMENT_CANCELLED", by);
+                return new Settlement(keep, "APPOINTMENT_CANCELLED", by, a.getRefundTo());
             }
             case "NO_SHOW" -> {
                 return new Settlement(
-                        Math.min(paidMinor, percent(total, policy.noShowFeePercent())), "ORDER_ADJUSTMENT", "SYSTEM");
+                        Math.min(paidMinor, percent(total, policy.noShowFeePercent())),
+                        "ORDER_ADJUSTMENT",
+                        "SYSTEM",
+                        a.getRefundTo());
+            }
+            case "EXPIRED" -> {
+                // Unpaid in time: only what a gift card or balance already paid goes back.
+                return new Settlement(0, "ORDER_ADJUSTMENT", "SYSTEM", "ORIGINAL");
             }
             case "DECLINED" -> {
-                return new Settlement(0, "APPOINTMENT_CANCELLED", "ORGANIZATION");
+                return new Settlement(0, "APPOINTMENT_CANCELLED", "ORGANIZATION", "ORIGINAL");
             }
             default -> {
                 return null;
@@ -157,7 +164,8 @@ class AppointmentFulfilment implements PaymentFulfilment {
                 .from(com.beavent.db.tenant.Tables.LOCATIONS)
                 .where(com.beavent.db.tenant.Tables.LOCATIONS.ID.eq(a.getLocationId()))
                 .fetchOne(com.beavent.db.tenant.Tables.LOCATIONS.NAME);
-        return new Description(a.getReference(), a.getStartsAt().toInstant(), a.getTimezone(), items, location);
+        return new Description(
+                "BOOKING", a.getReference(), a.getStartsAt().toInstant(), a.getTimezone(), items, location);
     }
 
     /** {@code percent} % of {@code total}, rounded half up. */

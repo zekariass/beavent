@@ -266,6 +266,7 @@ export function refundNotice(a: AppointmentMoney, language: Language, t: Transla
   if (!r) return t("appointment.refund.arranging");
   const amount = price(r.amountMinor, r.currency, language);
   if (r.state === "SENT") return t("appointment.refund.sent", { amount });
+  if (r.state === "CREDITED") return t("appointment.refund.credited", { amount });
   if (r.state === "NONE") {
     return t("appointment.refund.none", { amount: price(paid, r.currency, language) });
   }
