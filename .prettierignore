@@ -20,3 +20,4 @@ packages/ui/tokens.css
 apps/business-mobile/ios
 apps/business-mobile/android
 apps/business-mobile/expo-env.d.ts
+apps/web/public/maplibre

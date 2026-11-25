@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { FilterBar } from "@/components/discovery/FilterBar";
 import { NoResults } from "@/components/discovery/NoResults";
 import { ResultsList } from "@/components/discovery/ResultsList";
+import { ResultsWithMap } from "@/components/discovery/ResultsWithMap";
 import { SearchBar } from "@/components/discovery/SearchBar";
 import { SiteHeader } from "@/components/SiteHeader";
 import { loadCity, loadPlaces } from "@/lib/discovery";
@@ -56,7 +57,9 @@ export default async function SearchPage({ params, searchParams }: Props) {
         {page.items.length === 0 ? (
           <NoResults language={language} filters={filters} />
         ) : (
-          <ResultsList key={query} initial={page} language={language} query={query} scope={{}} />
+          <ResultsWithMap language={language} filters={filters} scope={{}}>
+            <ResultsList key={query} initial={page} language={language} query={query} scope={{}} />
+          </ResultsWithMap>
         )}
       </main>
     </div>

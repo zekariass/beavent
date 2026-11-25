@@ -14,7 +14,7 @@
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
 | 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. 2.6 done: clients, forms and patch tests, waitlist, front-desk groups and series. Stage 2 exit checks pass on the local stack (one journey test, live update 0.8 s, availability median 50 ms); **only the rehearsal with real phones remains, blocked on D4 (SMS provider)** |
 | 3 Commerce and online payments | **In progress** | Re-cut 24 Nov 2026: ArifPay is the default provider (Beavent collects, pays sellers out, refunds by hand), Chapa switchable (§1, L1–L2). 3.1 (provider choice and adapters), 3.2 (orders, tax and fees), 3.3 (deposits and prepayment at booking) and 3.4 (seller "Get paid") done; next 3.5 ledger, seller balances and payouts |
-| 8.1 Discovery and search | **In progress** (built alongside Stage 3; it needs no payments) | Slices 1 (backend), 2 (web) and 3 (consumer app) done (25 Nov 2026). Left: the map on web and in the app (G8), and events (Stage 6) |
+| 8.1 Discovery and search | **In progress** (built alongside Stage 3; it needs no payments) | Slices 1 (backend), 2 (web), 3 (consumer app) and 4 (the map) done (25–26 Nov 2026). Left: choosing the map provider for production (G8), and events (Stage 6) |
 | 4–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
@@ -42,7 +42,7 @@ Approved (2026-11-19). Installed only in the step that builds the screen, with `
 | `expo-haptics`, Noto Sans Ethiopic | ✅ installed | Feedback; Ge'ez text |
 | `expo-camera` | 7.3 | Ticket scanner (business app) |
 | `expo-brightness` | 6.5 | Ticket pass screen |
-| `expo-maps` (mobile), MapLibre GL JS (web) | 8.1 | Venue map and search map; tile provider and keys decided first (G8) |
+| `expo-maps` (mobile), MapLibre GL JS (web) | ✅ installed in 8.1 | Search map (venue map preview later); tile provider and keys still to choose for production (G8) |
 
 Anything else needs approval first. No new backend dependency is planned for Stage 2.
 
@@ -603,7 +603,7 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 
 **Goal:** customers find businesses and events, and everyone is kept informed.
 
-**8.1 Discovery projector and search.** *In progress.* Slices 1 (backend), 2 (web) and 3 (consumer app) ✅ done 25 Nov 2026; the map waits for G8.
+**8.1 Discovery projector and search.** *In progress.* Slices 1 (backend), 2 (web), 3 (consumer app) and 4 (the map) ✅ done; events wait for Stage 6 and the production map provider is still to choose (G8).
 - Projector builds `discovery.listings` for locations and events (venue pages already exist from 2.2; this makes them findable).
 - Search API: full-text + trigram + map, with Amharic/Latin transliteration aliases; availability-aware "when" filter (G2) using the 2.1 engine and `next_available_at`.
 - Web: home, city and category landing pages (SEO) and search with map (MapLibre GL JS). Consumer app: Explore tab (S-01, S-02) and map (S-03, `expo-maps`), installed in this step.
@@ -622,7 +622,11 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 
 *Slice 3 — consumer app (done).* In `apps/public-mobile`: **Explore** (C-1: location selector for the whole city or a sub-city, remembered; search entry; category chips; groups of places in rails or one list while the market is small, same rules as the web), **Search** (C-2, full-screen modal: recent searches and popular categories while empty; suggestions as categories and places while typing, from one Ge'ez syllable or two Latin letters, debounced 250 ms, Ge'ez and Latin spellings find each other; no error flash while typing) and **Results** (S-02, also category pages: filter chips for Filters / Open now / At your place, a filter sheet whose footer shows "Show N places" and applies on confirm, infinite scroll by cursor, "You've seen all N places", empty state with removable chips, skeleton and error with retry). Result rows open the place or booking that service. The search lives in the route's params, so a results page can be reopened. New shared parts: `BottomSheet` and `SearchField` in `@beavent/native` (plus search and close icons), the search filters model and `activeFilterChips` in `@beavent/venue` (web and app use the same code), more strings (am, en). `npm run bundle:check`: 1,822 KB gzip of 4,000 KB. Checked on the app's web build at phone width in Amharic and English, light and dark: Explore, search (empty, typing, Ge'ez query), results, the filter sheet, the location sheet and the empty state.
 - Deviations: **Services only** (no All/Services/Events scope tabs until Stage 6); **no map pill** (G8); the **tab bar is covered** on Results (it is a root stack screen, not an `explore/` stack inside the tab); the sheet has **no swipe-down dismissal**; **When** offers Any, Today and Tomorrow plus a part of the day, not a date picker; **no cached feed or offline banner** yet (an error with retry shows instead); no Saved or Book-again groups (8.2); **not run on a device or simulator**, only the web build.
-- Still to build in 8.1: the map on web and in the app (needs G8); events in results (Stage 6).
+- Still to build in 8.1: events in results (Stage 6). The map is slice 4, below.
+
+*Slice 4 — the map (done).* **Web:** MapLibre GL JS beside the list from 1024 px (a sticky panel) and full screen behind a Map / List pill on phones, loaded only when shown. Each place is a pill with its "from" price; choosing one shows a card with a View link; moving the map shows **Search this area**, which puts the map window in the URL (`bbox`) so the list shows only what the map shows (a "Map area" chip, removable, in the empty state and counted in the filters). In dark mode the light raster tiles are toned down. The map starts on every place of the search (or Addis Ababa). **App:** a map screen under the header (`/map`, same params as Results; a "Map" pill on Results opens it, a "List" pill returns) with `expo-maps`: Apple Maps on iOS with a price pill per place and the chosen one in the primary colour, Google Maps markers on Android; a strip of place cards that follows the chosen pin and moves it when swiped; Search this area. Shared: the `bbox` filter, `toPinsQuery` and the starting window (`CITY_WINDOW`) in `@beavent/venue`. Tests: map-window parsing and queries (venue package). The `web` copy of MapLibre's worker is served from `/maplibre/` (copied from `node_modules` by `scripts/copy-map-worker.mjs` before `dev` and `build`, not committed).
+- **G8 (decision, 26 Nov 2026): the provider is configuration, not code.** Web: `NEXT_PUBLIC_MAP_STYLE_URL` takes the chosen provider's MapLibre style (with its key); without it the map uses OpenStreetMap's public tiles, **which is for development only** (their usage policy does not allow production traffic). App: iOS uses Apple Maps (no key); **Android needs a Google Maps API key** (`android.config.googleMaps.apiKey` in the app config), not set yet. Before the pilot: choose the web tile provider and quality-check its Ethiopian data, and create the Android key.
+- Deviations: the web card for a chosen pin has no photo (pins carry title and price only); the app's pins on Android are markers with the price in the callout, not pills; no clustering, no "near me" button (needs the location permission flow), no venue-page map preview yet (the venue page keeps "Open in maps"); the browser build of the app shows "The map isn't available here." instead of a map.
 
 **8.2 Profiles and saved.**
 - Organization and organizer profile pages (brand page S-18 for multi-location businesses); follow organizer, plus auto-follow after purchase.

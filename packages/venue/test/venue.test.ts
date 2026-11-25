@@ -282,3 +282,45 @@ test("links and slugs", () => {
   assert.equal(slugOf("Addis Ababa"), "addis-ababa");
   assert.equal(slugOf("  Café & Bar "), "cafe-bar");
 });
+
+// --- map area -------------------------------------------------------------------------------------------------------
+
+import {
+  activeFilterChips,
+  activeFilterCount,
+  parseBox,
+  parseFilters,
+  toApiQuery,
+  toPinsQuery,
+  toRecord,
+} from "../src/index.ts";
+
+test("a map window is four sensible numbers, rounded", () => {
+  assert.equal(parseBox("38.66682,8.94163,38.77706,9.13695"), "38.66682,8.94163,38.77706,9.13695");
+  assert.equal(parseBox("38.1234567,8.1,38.9,9.1"), "38.12346,8.1,38.9,9.1");
+  assert.equal(parseBox("38.9,8.1,38.1,9.1"), undefined); // west after east
+  assert.equal(parseBox("38,8,39"), undefined);
+  assert.equal(parseBox("a,b,c,d"), undefined);
+  assert.equal(parseBox("38,8,39,95"), undefined); // past the pole
+  assert.equal(parseBox(undefined), undefined);
+});
+
+test("the map window rides along in the filters, the API query and the pins query", () => {
+  const filters = parseFilters({ q: "braids", bbox: "38.6,8.9,38.8,9.1" });
+  assert.equal(filters.bbox, "38.6,8.9,38.8,9.1");
+  assert.equal(toRecord(filters).bbox, "38.6,8.9,38.8,9.1");
+  assert.equal(activeFilterCount(filters), 1);
+  const api = toApiQuery(filters, { market: "ET", limit: 20 });
+  assert.deepEqual([api.west, api.south, api.east, api.north], [38.6, 8.9, 38.8, 9.1]);
+  const pins = toPinsQuery(filters, { market: "ET", window: "38.62,8.82,38.95,9.15" });
+  assert.deepEqual([pins.west, pins.south, pins.east, pins.north], [38.6, 8.9, 38.8, 9.1]);
+  assert.equal("limit" in pins || "cursor" in pins || "sort" in pins, false);
+  // Without a window of its own the pins fall back to the given one (the whole city).
+  const city = toPinsQuery({ q: "braids" }, { market: "ET", window: "38.62,8.82,38.95,9.15" });
+  assert.deepEqual([city.west, city.south, city.east, city.north], [38.62, 8.82, 38.95, 9.15]);
+  const en = createTranslator("en");
+  assert.deepEqual(
+    activeFilterChips(filters, "en", en).map((c) => c.label),
+    ["“braids”", "Map area"],
+  );
+});

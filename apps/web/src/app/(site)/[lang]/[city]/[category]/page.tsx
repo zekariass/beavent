@@ -6,6 +6,7 @@ import { CategoryChips } from "@/components/discovery/CategoryChips";
 import { FilterBar } from "@/components/discovery/FilterBar";
 import { NoResults } from "@/components/discovery/NoResults";
 import { ResultsList } from "@/components/discovery/ResultsList";
+import { ResultsWithMap } from "@/components/discovery/ResultsWithMap";
 import { SiteHeader } from "@/components/SiteHeader";
 import {
   categoryBySlug,
@@ -110,13 +111,15 @@ export default async function LandingPage({ params, searchParams }: Props) {
             body={t("landing.empty.body", { city: names.city })}
           />
         ) : (
-          <ResultsList
-            key={query}
-            initial={page}
-            language={language}
-            query={query}
-            scope={{ category: category.code }}
-          />
+          <ResultsWithMap language={language} filters={filters} scope={{ category: category.code }}>
+            <ResultsList
+              key={query}
+              initial={page}
+              language={language}
+              query={query}
+              scope={{ category: category.code }}
+            />
+          </ResultsWithMap>
         )}
         <section className="flex flex-col gap-3 border-t border-border pt-6">
           <h2 className="bv-type-title2 text-fg">{t("landing.more", { city: names.city })}</h2>

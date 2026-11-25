@@ -1,7 +1,7 @@
 import { createApiClient, type Schemas } from "@beavent/api-client";
 import type { Language } from "@beavent/i18n";
-import { slugOf, type SearchPage } from "@beavent/venue";
-import { toApiQuery, type Filters } from "@/lib/search-filters";
+import { CITY_WINDOW, slugOf, type SearchPage, type SearchPins } from "@beavent/venue";
+import { toApiQuery, toPinsQuery, type Filters } from "@/lib/search-filters";
 
 /** Server-side client: the API's internal address when set (containers), otherwise the public one. */
 const server = createApiClient({
@@ -81,3 +81,18 @@ export const landingHref = (language: Language, city: AdminArea, category: Categ
 export const categoryBySlug = (categories: Category[], slug: string): Category | undefined =>
   categories.find((c) => slugOf(c.code) === slug && c.kind === "SERVICE") ??
   categories.find((c) => slugOf(c.code) === slug);
+
+/** Pins for the map inside the filters' map window (or the whole city). */
+export async function loadPins(
+  filters: Filters,
+  scope: { category?: string; area?: string } = {},
+): Promise<SearchPins> {
+  const { data, response } = await server.GET("/v1/public/search/pins", {
+    params: {
+      query: toPinsQuery(filters, { market: MARKET.code, window: CITY_WINDOW, ...scope }),
+    },
+    cache: "no-store",
+  });
+  if (!data) throw new Error(`pins: ${response.status}`);
+  return data;
+}

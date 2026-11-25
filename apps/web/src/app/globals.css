@@ -1,6 +1,8 @@
 @import "tailwindcss";
 /* Beavent tokens: colours (light/dark), radii, type scale, type roles — generated from packages/ui. */
 @import "@beavent/ui/tokens.css";
+/* Map (MapLibre GL JS): its own controls and attribution. */
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme inline {
   --font-sans: var(--font-latin, system-ui), var(--font-ethiopic, system-ui), system-ui, sans-serif;
@@ -19,4 +21,11 @@ html[data-script="Ethi"] body,
 :lang(ti) {
   font-family: var(--font-ethiopic, system-ui), var(--font-latin, system-ui), system-ui, sans-serif;
   line-height: 1.7;
+}
+
+/* The raster map tiles are light; in dark mode tone them down so the map is not a bright block. */
+@media (prefers-color-scheme: dark) {
+  .bv-map .maplibregl-canvas {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+  }
 }

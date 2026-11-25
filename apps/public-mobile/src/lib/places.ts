@@ -1,5 +1,12 @@
 import type { ApiClient, Schemas } from "@beavent/api-client";
-import { toApiQuery, type Filters, type SearchPage } from "@beavent/venue";
+import {
+  CITY_WINDOW,
+  toApiQuery,
+  toPinsQuery,
+  type Filters,
+  type SearchPage,
+  type SearchPins,
+} from "@beavent/venue";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -33,6 +40,19 @@ export async function fetchPlaces(
     },
   });
   if (!data) throw new Error(`search: ${response.status}`);
+  return data;
+}
+
+/** Pins for the map inside the filters' map window (or the whole city). */
+export async function fetchPins(
+  api: ApiClient,
+  filters: Filters,
+  scope: { category?: string; area?: string } = {},
+): Promise<SearchPins> {
+  const { data, response } = await api.GET("/v1/public/search/pins", {
+    params: { query: toPinsQuery(filters, { market: MARKET.code, window: CITY_WINDOW, ...scope }) },
+  });
+  if (!data) throw new Error(`pins: ${response.status}`);
   return data;
 }
 

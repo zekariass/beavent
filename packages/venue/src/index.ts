@@ -235,6 +235,8 @@ export function waitlistWhen(
 export type SearchItem = Schemas["SearchItem"];
 export type SearchMenuLine = Schemas["SearchMenuLine"];
 export type SearchPage = Schemas["SearchPage"];
+export type SearchPin = Schemas["SearchPin"];
+export type SearchPins = Schemas["SearchPins"];
 
 /** "250 m" under a kilometre (rounded to 10 m), otherwise "1.2 km". */
 export function distanceText(meters: number, language: Language, t: Translate): string {
@@ -354,5 +356,7 @@ export function activeFilterChips(
       remove: { language: undefined },
     });
   if (filters.area) chips.push({ key: "area", label: filters.area, remove: { area: undefined } });
+  if (filters.bbox)
+    chips.push({ key: "bbox", label: t("filter.mapArea"), remove: { bbox: undefined } });
   return chips;
 }

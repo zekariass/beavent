@@ -45,7 +45,7 @@ export function ResultsList({
 
   return (
     <div className="flex flex-col">
-      <ul className="grid gap-x-10 md:grid-cols-2">
+      <ul className="grid">
         {items.map((item) => (
           <VenueResultRow key={item.id} item={item} language={language} />
         ))}

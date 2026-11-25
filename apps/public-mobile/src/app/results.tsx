@@ -1,4 +1,4 @@
-import { Chip, Divider, EmptyState, Skeleton, Text, useApp } from "@beavent/native";
+import { Button, Chip, Divider, EmptyState, Skeleton, Text, useApp } from "@beavent/native";
 import { layout, space } from "@beavent/ui";
 import {
   activeFilterChips,
@@ -173,6 +173,26 @@ export default function ResultsScreen() {
         onApply={apply}
         onClose={() => setSheet((s) => ({ ...s, open: false }))}
       />
+      {state.status === "ready" && state.items.length > 0 ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            bottom: space[6],
+            start: 0,
+            end: 0,
+            flexDirection: "row",
+            justifyContent: "center",
+            zIndex: 1,
+          }}
+        >
+          <Button
+            variant="secondary"
+            label={t("map.show")}
+            onPress={() => router.push({ pathname: "/map", params: toRecord(filters) })}
+          />
+        </View>
+      ) : null}
       {state.status === "loading" ? (
         <View style={{ padding: layout.gutter, gap: space[4] }}>
           {header}

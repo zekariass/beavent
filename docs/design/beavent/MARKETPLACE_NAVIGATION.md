@@ -115,7 +115,7 @@ apps/public-mobile/src/app/
 The business app is a separate project (`apps/business-mobile`): `src/app/(tabs)/{index (Schedule), more}.tsx` today,
 with `calendar`, `check-in` and `sales` added by their stages (§6).
 
-**Implemented so far:** `(tabs)/index.tsx` (Explore: location, search entry, categories, groups of places), `search.tsx` (C-2, full-screen modal with a fade), `results.tsx` (S-02, pushed over the tabs; also serves category pages as `?category=CODE`; the tab bar is covered rather than kept, a deviation from §3.1's `explore/` stack), `(tabs)/bookings.tsx`, `(tabs)/account.tsx`, `sign-in.tsx` (modal) in `public-mobile`; Business mode (Schedule, More) moved to `apps/business-mobile` on 24 Nov 2026. The tab group is named `(tabs)` rather than `(consumer)`.
+**Implemented so far:** `(tabs)/index.tsx` (Explore: location, search entry, categories, groups of places), `search.tsx` (C-2, full-screen modal with a fade), `map.tsx` (S-03, pushed from Results), `results.tsx` (S-02, pushed over the tabs; also serves category pages as `?category=CODE`; the tab bar is covered rather than kept, a deviation from §3.1's `explore/` stack), `(tabs)/bookings.tsx`, `(tabs)/account.tsx`, `sign-in.tsx` (modal) in `public-mobile`; Business mode (Schedule, More) moved to `apps/business-mobile` on 24 Nov 2026. The tab group is named `(tabs)` rather than `(consumer)`.
 
 Template files removed in that change (kept here for the record): `src/app/explore.tsx`, `src/components/app-tabs.web.tsx` "Expo Starter" bar, `hint-row.tsx`, `web-badge.tsx`, starter images (A4).
 
