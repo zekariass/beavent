@@ -24,6 +24,8 @@ function Shell() {
           headerTitleStyle: { color: colors.text },
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
+          // iOS would print the previous route's name ("(tabs)") next to the arrow.
+          headerBackButtonDisplayMode: "minimal",
           contentStyle: { backgroundColor: colors.background },
         }}
       >

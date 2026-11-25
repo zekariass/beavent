@@ -37,6 +37,23 @@ describe("translation", () => {
   });
 });
 
+describe("an engine without Intl.PluralRules (Hermes, the phone apps)", () => {
+  test("plurals follow the rules of the language", () => {
+    const original = Object.getOwnPropertyDescriptor(Intl, "PluralRules")!;
+    Object.defineProperty(Intl, "PluralRules", { ...original, value: undefined });
+    try {
+      const en = createTranslator("en");
+      assert.equal(en("bookings.count", { count: 1 }), "1 booking");
+      assert.equal(en("bookings.count", { count: 3 }), "3 bookings");
+      const am = createTranslator("am");
+      assert.equal(am("bookings.count", { count: 0 }), "ምንም ቀጠሮ የለም");
+      assert.equal(am("bookings.count", { count: 3 }), "3 ቀጠሮዎች");
+    } finally {
+      Object.defineProperty(Intl, "PluralRules", original);
+    }
+  });
+});
+
 describe("language choice", () => {
   test("negotiates from Accept-Language and lists", () => {
     assert.equal(negotiateLanguage("en-US,en;q=0.9,am;q=0.8"), "en");

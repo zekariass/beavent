@@ -62,9 +62,14 @@ export default function SearchScreen() {
     };
   }, [api, active, typed]);
 
+  // Close the search modal first: a screen opened from inside a modal would itself be shown as a modal (iOS).
+  const go = (href: Parameters<typeof router.push>[0]) => {
+    router.dismiss();
+    router.push(href);
+  };
   const submit = (q: string) => {
     void addRecentSearch(q);
-    router.replace({ pathname: "/results", params: { q } });
+    go({ pathname: "/results", params: { q } });
   };
   const suggestions = active && suggested ? suggested.value : undefined;
   const heading = (label: string) => (
@@ -123,9 +128,7 @@ export default function SearchScreen() {
                   <ListRow
                     key={`${c.kind}-${c.code}`}
                     title={pick(c.name, language)}
-                    onPress={() =>
-                      router.replace({ pathname: "/results", params: { category: c.code } })
-                    }
+                    onPress={() => go({ pathname: "/results", params: { category: c.code } })}
                     chevron
                   />
                 ))}
@@ -141,7 +144,7 @@ export default function SearchScreen() {
                     subtitle={[pick(p.category, language), pick(p.area, language)]
                       .filter(Boolean)
                       .join(" · ")}
-                    onPress={() => router.replace(`/b/${p.businessSlug}/${p.locationSlug}`)}
+                    onPress={() => go(`/b/${p.businessSlug}/${p.locationSlug}`)}
                     chevron
                   />
                 ))}
@@ -178,9 +181,7 @@ export default function SearchScreen() {
                       key={c.id}
                       label={pick(c.name, language)}
                       selected={false}
-                      onPress={() =>
-                        router.replace({ pathname: "/results", params: { category: c.code } })
-                      }
+                      onPress={() => go({ pathname: "/results", params: { category: c.code } })}
                     />
                   ))}
                 </View>
