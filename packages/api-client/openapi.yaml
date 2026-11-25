@@ -55,7 +55,7 @@ tags:
   - name: Reference
     description: Markets, languages, categories, administrative areas
   - name: Payments
-    description: Payment provider notifications (ArifPay by default, or Chapa)
+    description: Payment provider notifications (ArifPay by default, or Chapa), banks, and how a business gets paid
 paths:
   /v1/hooks/{provider}:
     post:
@@ -106,6 +106,112 @@ paths:
                 $ref: '#/components/schemas/HookReceipt'
         '404':
           description: That provider is not configured on this deployment.
+  /v1/ref/banks:
+    get:
+      tags:
+        - Payments
+      operationId: listBanks
+      summary: Banks and wallets a business can be paid into
+      security: []
+      parameters:
+        - name: countryCode
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+      responses:
+        '200':
+          description: Banks and wallets, in the order screens list them.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/orgs/{orgId}/payments/setup:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentsSetup
+      summary: Whether the business may take online payments, and its payout account
+      description: Needs `payouts.view`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The setup.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentsSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/payout-accounts:
+    post:
+      tags:
+        - Payments
+      operationId: addPayoutAccount
+      summary: Add a payout account for review
+      description: |
+        Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+        registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+        payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutAccountInput'
+      responses:
+        '201':
+          description: Added, waiting for review.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/payout-accounts/{accountId}:
+    delete:
+      tags:
+        - Payments
+      operationId: withdrawPayoutAccount
+      summary: Withdraw the account that is waiting for review
+      description: Needs `payouts.manage` and a fresh code.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Withdrawn.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/auth/otp/request:
     post:
       tags:
@@ -4952,6 +5058,110 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/payout-accounts:
+    get:
+      tags:
+        - Admin
+      operationId: listPayoutAccountsForReview
+      summary: Payout accounts waiting for review, oldest first (default `PENDING`)
+      description: Needs `admin.payments.view`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - VERIFIED
+              - FAILED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payout-accounts/{accountId}/reveal:
+    post:
+      tags:
+        - Admin
+      operationId: revealPayoutAccountNumber
+      summary: The full account number, to check it against the bank's letter (step-up, audited)
+      description: Needs `admin.payouts.approve` and a fresh code.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutReveal'
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountNumber'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/payout-accounts/{accountId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decidePayoutAccount
+      summary: Verify or reject a payout account (reason required, step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+        `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/admin/audit-log:
     get:
       tags:
@@ -5194,96 +5404,35 @@ components:
       properties:
         received:
           type: boolean
-    PhoneE164:
-      type: string
-      pattern: ^\+[1-9][0-9]{6,14}$
-      examples:
-        - '+251911234567'
-    OtpPurpose:
-      type: string
-      enum:
-        - SIGN_IN
-        - VERIFY_PHONE
-        - STEP_UP
-        - CLAIM_GUEST_ORDERS
-        - CHANGE_PAYOUT_ACCOUNT
-      description: SIGN_IN creates the account on first use (phone-first sign-up).
-    OtpChannel:
-      type: string
-      enum:
-        - SMS
-        - TELEGRAM
-        - WHATSAPP
-        - VOICE
-        - EMAIL
-    ClientApp:
-      type: string
-      enum:
-        - MOBILE_APP
-        - BUSINESS_APP
-        - WEB_MARKETPLACE
-        - PARTNER_PORTAL
-        - ADMIN_CONSOLE
-    LanguageCode:
-      type: string
-      description: BCP 47 language code (am, om, ti, so, en, sw, ...).
-      examples:
-        - am
-    OtpRequest:
+    Bank:
       type: object
-      description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
       required:
-        - purpose
-        - clientApp
-      oneOf:
-        - required:
-            - phone
-        - required:
-            - email
+        - code
+        - kind
+        - names
       properties:
-        phone:
-          $ref: '#/components/schemas/PhoneE164'
-        email:
+        code:
           type: string
-          format: email
-          maxLength: 200
-        purpose:
-          $ref: '#/components/schemas/OtpPurpose'
-        channel:
-          allOf:
-            - $ref: '#/components/schemas/OtpChannel'
-          description: Defaults to SMS for phones and EMAIL for email addresses.
-        clientApp:
-          $ref: '#/components/schemas/ClientApp'
-        language:
-          $ref: '#/components/schemas/LanguageCode'
-    Uuid:
-      type: string
-      format: uuid
-    Instant:
-      type: string
-      format: date-time
-      description: RFC 3339, UTC.
-    OtpChallenge:
+          description: What a payout account stores as its institution.
+        kind:
+          type: string
+          enum:
+            - BANK
+            - MOBILE_MONEY
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: The name per language (`en`, `am`).
+    BankList:
       type: object
       required:
-        - challengeId
-        - expiresAt
-        - resendAfter
-        - channel
+        - items
       properties:
-        challengeId:
-          $ref: '#/components/schemas/Uuid'
-        expiresAt:
-          $ref: '#/components/schemas/Instant'
-        resendAfter:
-          $ref: '#/components/schemas/Instant'
-        channel:
-          $ref: '#/components/schemas/OtpChannel'
-        codeLength:
-          type: integer
-          examples:
-            - 6
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bank'
     Problem:
       type: object
       description: RFC 9457 problem details with Beavent's stable `code`.
@@ -5347,6 +5496,217 @@ components:
                 type: string
               message:
                 type: string
+    Uuid:
+      type: string
+      format: uuid
+    Instant:
+      type: string
+      format: date-time
+      description: RFC 3339, UTC.
+    PayoutAccount:
+      type: object
+      description: A payout account as screens show it. The number is only ever masked.
+      required:
+        - id
+        - kind
+        - institutionCode
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - isDefault
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum:
+            - BANK_ACCOUNT
+            - MOBILE_MONEY
+        institutionCode:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+          description: '`••••6789`.'
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+          description: '`PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`).'
+        isDefault:
+          type: boolean
+        payoutsAllowedAfter:
+          description: Payouts to a new account wait for a 72-hour cooling-off after it was added.
+          $ref: '#/components/schemas/Instant'
+        reviewedAt:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PaymentsSetup:
+      type: object
+      required:
+        - provider
+        - collectionMode
+        - ready
+        - enforced
+        - blockers
+        - organizationStatus
+      properties:
+        provider:
+          type: string
+          enum:
+            - ARIFPAY
+            - CHAPA
+        collectionMode:
+          type: string
+          enum:
+            - PLATFORM_COLLECTS
+            - PROVIDER_SPLIT
+        ready:
+          type: boolean
+          description: The business is verified and has a verified payout account (and, in Chapa mode, a subaccount).
+        enforced:
+          type: boolean
+          description: When false (local development only) deposits are asked for even if the business is not ready.
+        blockers:
+          type: array
+          items:
+            type: string
+            enum:
+              - ORGANIZATION_NOT_VERIFIED
+              - NO_PAYOUT_ACCOUNT
+              - PAYOUT_ACCOUNT_IN_REVIEW
+              - PAYOUT_ACCOUNT_REJECTED
+              - SUBACCOUNT_MISSING
+        organizationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        legalEntityName:
+          type: string
+          description: The account holder's name must match it.
+        active:
+          $ref: '#/components/schemas/PayoutAccount'
+        pending:
+          $ref: '#/components/schemas/PayoutAccount'
+        rejected:
+          $ref: '#/components/schemas/PayoutAccount'
+    PayoutAccountInput:
+      type: object
+      required:
+        - institutionCode
+        - accountName
+        - accountNumber
+      properties:
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        institutionCode:
+          type: string
+          maxLength: 40
+        accountName:
+          type: string
+          maxLength: 200
+        accountNumber:
+          type: string
+          maxLength: 40
+          description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
+    PhoneE164:
+      type: string
+      pattern: ^\+[1-9][0-9]{6,14}$
+      examples:
+        - '+251911234567'
+    OtpPurpose:
+      type: string
+      enum:
+        - SIGN_IN
+        - VERIFY_PHONE
+        - STEP_UP
+        - CLAIM_GUEST_ORDERS
+        - CHANGE_PAYOUT_ACCOUNT
+      description: SIGN_IN creates the account on first use (phone-first sign-up).
+    OtpChannel:
+      type: string
+      enum:
+        - SMS
+        - TELEGRAM
+        - WHATSAPP
+        - VOICE
+        - EMAIL
+    ClientApp:
+      type: string
+      enum:
+        - MOBILE_APP
+        - BUSINESS_APP
+        - WEB_MARKETPLACE
+        - PARTNER_PORTAL
+        - ADMIN_CONSOLE
+    LanguageCode:
+      type: string
+      description: BCP 47 language code (am, om, ti, so, en, sw, ...).
+      examples:
+        - am
+    OtpRequest:
+      type: object
+      description: Send a one-time code to a phone (SMS, Telegram, WhatsApp, voice) or to an email address (channel EMAIL).
+      required:
+        - purpose
+        - clientApp
+      oneOf:
+        - required:
+            - phone
+        - required:
+            - email
+      properties:
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+        email:
+          type: string
+          format: email
+          maxLength: 200
+        purpose:
+          $ref: '#/components/schemas/OtpPurpose'
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/OtpChannel'
+          description: Defaults to SMS for phones and EMAIL for email addresses.
+        clientApp:
+          $ref: '#/components/schemas/ClientApp'
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+    OtpChallenge:
+      type: object
+      required:
+        - challengeId
+        - expiresAt
+        - resendAfter
+        - channel
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Uuid'
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        resendAfter:
+          $ref: '#/components/schemas/Instant'
+        channel:
+          $ref: '#/components/schemas/OtpChannel'
+        codeLength:
+          type: integer
+          examples:
+            - 6
     DeviceInfo:
       type: object
       required:
@@ -10517,6 +10877,90 @@ components:
           minLength: 5
           maxLength: 500
           description: Recorded in the audit log and shown to the organization for rejections and requests.
+    PayoutAccountSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - organizationStatus
+        - legalEntityName
+        - legalEntityStatus
+        - kind
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - createdAt
+        - payoutsAllowedAfter
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        organizationStatus:
+          type: string
+        legalEntityName:
+          type: string
+        legalEntityStatus:
+          type: string
+        kind:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        payoutsAllowedAfter:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PayoutAccountSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutAccountSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    PayoutReveal:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Why the full number is needed; recorded in the audit log.
+    AccountNumber:
+      type: object
+      required:
+        - accountNumber
+      properties:
+        accountNumber:
+          type: string
     AuditEntryPage:
       type: object
       required:
@@ -10851,16 +11295,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    TooManyRequests:
-      description: Rate limited; retry after the `Retry-After` header.
-      headers:
-        Retry-After:
-          schema:
-            type: integer
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: Missing or invalid access token.
       content:
@@ -10873,8 +11307,12 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NoContent:
-      description: Done.
+    NotFound:
+      description: Not found (also returned when the resource belongs to another organization).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Conflict:
       description: Conflicts with existing data.
       content:
@@ -10887,12 +11325,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NotFound:
-      description: Not found (also returned when the resource belongs to another organization).
+    TooManyRequests:
+      description: Rate limited; retry after the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    NoContent:
+      description: Done.
     PreconditionFailed:
       description: The resource changed since it was read (If-Match did not match).
       content:

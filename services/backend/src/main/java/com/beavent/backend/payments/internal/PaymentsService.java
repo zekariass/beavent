@@ -1,5 +1,6 @@
 package com.beavent.backend.payments.internal;
 
+import static com.beavent.db.billing.Tables.FEE_ASSESSMENTS;
 import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.commerce.Tables.PAYMENT_SCHEDULE;
 import static com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS;
@@ -12,6 +13,7 @@ import com.beavent.backend.payments.internal.provider.PaymentProviderAdapter;
 import com.beavent.backend.payments.internal.provider.ProviderException;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.Ids;
+import com.beavent.backend.platform.MoneyMath;
 import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.SystemDb;
 import java.net.URI;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.JSONB;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,6 +52,7 @@ class PaymentsService implements Payments {
     private final ActiveProvider providers;
     private final ProviderAccounts accounts;
     private final PaymentProcessor processor;
+    private final SellerAccounts sellers;
     private final PaymentsProperties props;
     private final JsonMapper json;
 
@@ -59,6 +63,7 @@ class PaymentsService implements Payments {
             ActiveProvider providers,
             ProviderAccounts accounts,
             PaymentProcessor processor,
+            SellerAccounts sellers,
             PaymentsProperties props,
             JsonMapper json) {
         this.dsl = dsl;
@@ -67,6 +72,7 @@ class PaymentsService implements Payments {
         this.providers = providers;
         this.accounts = accounts;
         this.processor = processor;
+        this.sellers = sellers;
         this.props = props;
         this.json = json;
     }
@@ -94,12 +100,23 @@ class PaymentsService implements Payments {
     @Override
     public Started start(UUID orgId, UUID orderId, Payer payer, Urls urls, String description, Instant now) {
         PaymentProviderAdapter adapter = providers.adapter();
-        if (adapter.collectionMode().equals("PROVIDER_SPLIT")) {
-            // Chapa mode pays the seller at source and needs the seller's subaccount (slice 3.4).
+        if (!sellers.available(orgId)) {
             throw new ApiException(ProblemCode.PAYMENT_UNAVAILABLE, "This business cannot take online payments yet.");
         }
         Phase phase = transactions.execute(status -> begin(orgId, orderId, payer, adapter, now));
         if (phase.resume() != null) return phase.resume();
+        // Chapa mode pays the seller at source: their subaccount, and the platform's share of this payment.
+        CollectionRequest.Split split = null;
+        if (adapter.collectionMode().equals("PROVIDER_SPLIT")) {
+            String sub = sellers.subAccountOf(orgId);
+            if (sub == null) sub = sellers.ensureSubAccount(orgId);
+            if (sub == null) {
+                processor.fail(phase.attemptId(), "INVALID_REQUEST", "No subaccount for the seller", now);
+                throw new ApiException(
+                        ProblemCode.PAYMENT_UNAVAILABLE, "This business cannot take online payments yet.");
+            }
+            split = new CollectionRequest.Split(sub, platformShare(orderId, phase.amountMinor()));
+        }
 
         CollectionResult created;
         try {
@@ -117,7 +134,7 @@ class PaymentsService implements Payments {
                     URI.create(props.notifyBaseUrl() + "/v1/hooks/"
                             + adapter.providerCode().toLowerCase()),
                     phase.expiresAt(),
-                    null));
+                    split));
         } catch (ProviderException e) {
             log.warn("Creating the collection for attempt {} failed: {}", phase.attemptId(), e.getMessage());
             if (e.code() == com.beavent.backend.payments.internal.provider.FailureCode.PROVIDER_UNAVAILABLE) {
@@ -157,6 +174,24 @@ class PaymentsService implements Payments {
                 phase.expiresAt(),
                 phase.amountMinor(),
                 phase.currency());
+    }
+
+    /**
+     * The platform's share of one payment of an order (Chapa mode): the fees assessed on the order, with their VAT,
+     * in proportion to the part of the order this payment covers.
+     */
+    private long platformShare(UUID orderId, long paymentMinor) {
+        Long fees = system.select(DSL.sum(FEE_ASSESSMENTS.AMOUNT_MINOR.plus(FEE_ASSESSMENTS.VAT_MINOR)))
+                .from(FEE_ASSESSMENTS)
+                .where(FEE_ASSESSMENTS.ORDER_ID.eq(orderId), FEE_ASSESSMENTS.STATUS.eq("ASSESSED"))
+                .fetchOne(0, Long.class);
+        Long total = system.select(ORDERS.TOTAL_MINOR)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId))
+                .fetchOne(ORDERS.TOTAL_MINOR);
+        if (fees == null || total == null || total <= 0) return 0;
+        long share = Math.min(fees, total);
+        return MoneyMath.allocate(paymentMinor, new long[] {share, total - share})[0];
     }
 
     /** Phase one, in a transaction: checks the order, finds the open attempt or creates the intent and a new attempt. */

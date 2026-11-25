@@ -301,3 +301,101 @@ adminFlag:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+adminPayoutAccounts:
+  get:
+    tags: [Admin]
+    operationId: listPayoutAccountsForReview
+    summary: Payout accounts waiting for review, oldest first (default `PENDING`)
+    description: Needs `admin.payments.view`.
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [PENDING, VERIFIED, FAILED]
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PayoutAccountSummaryPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminPayoutAccountReveal:
+  post:
+    tags: [Admin]
+    operationId: revealPayoutAccountNumber
+    summary: The full account number, to check it against the bank's letter (step-up, audited)
+    description: Needs `admin.payouts.approve` and a fresh code.
+    parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/PayoutReveal
+    responses:
+      '200':
+        description: The number.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AccountNumber
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+adminPayoutAccountDecision:
+  post:
+    tags: [Admin]
+    operationId: decidePayoutAccount
+    summary: Verify or reject a payout account (reason required, step-up, audited)
+    description: |
+      Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+      `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+    parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/Decision
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PayoutAccountSummary
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict

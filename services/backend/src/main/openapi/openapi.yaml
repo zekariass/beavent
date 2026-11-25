@@ -55,11 +55,19 @@ tags:
   - name: Reference
     description: Markets, languages, categories, administrative areas
   - name: Payments
-    description: Payment provider notifications (ArifPay by default, or Chapa)
+    description: Payment provider notifications (ArifPay by default, or Chapa), banks, and how a business gets paid
 paths:
   # --- payments ---------------------------------------------------------------------------------------------
   /v1/hooks/{provider}:
     $ref: ./payments/paths.yaml#/providerHook
+  /v1/ref/banks:
+    $ref: ./payments/paths.yaml#/banks
+  /v1/orgs/{orgId}/payments/setup:
+    $ref: ./payments/paths.yaml#/paymentsSetup
+  /v1/orgs/{orgId}/payout-accounts:
+    $ref: ./payments/paths.yaml#/payoutAccounts
+  /v1/orgs/{orgId}/payout-accounts/{accountId}:
+    $ref: ./payments/paths.yaml#/payoutAccount
   # --- identity ---------------------------------------------------------------------------------------------
   /v1/auth/otp/request:
     $ref: ./identity/paths.yaml#/otpRequest
@@ -303,6 +311,12 @@ paths:
     $ref: ./admin/paths.yaml#/adminCaseDocumentUrl
   /v1/admin/verification-cases/{caseId}/decision:
     $ref: ./admin/paths.yaml#/adminCaseDecision
+  /v1/admin/payout-accounts:
+    $ref: ./admin/paths.yaml#/adminPayoutAccounts
+  /v1/admin/payout-accounts/{accountId}/reveal:
+    $ref: ./admin/paths.yaml#/adminPayoutAccountReveal
+  /v1/admin/payout-accounts/{accountId}/decision:
+    $ref: ./admin/paths.yaml#/adminPayoutAccountDecision
   /v1/admin/audit-log:
     $ref: ./admin/paths.yaml#/adminAuditLog
   /v1/admin/feature-flags:

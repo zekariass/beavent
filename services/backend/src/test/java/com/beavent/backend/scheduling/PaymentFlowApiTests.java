@@ -29,6 +29,13 @@ class PaymentFlowApiTests extends SchedulingTestSupport {
 
     /** A haircut costs Br 500 (50,000 minor); the policy asks new customers for 20 %: Br 100 now, Br 400 at the venue. */
     private Shop depositShop() throws Exception {
+        Shop shop = unreadyDepositShop();
+        makePaymentsReady(shop.salon());
+        return shop;
+    }
+
+    /** The same policy, for a business that has not been verified or set up a payout account (plan 3.4). */
+    private Shop unreadyDepositShop() throws Exception {
         Shop shop = shop();
         Call policy = call(
                 put(shop.salon().path("/booking-policies")),
@@ -131,6 +138,26 @@ class PaymentFlowApiTests extends SchedulingTestSupport {
         // A business without a deposit has nothing to show.
         Shop free = shop();
         assertThat(hold(free, at10(3)).body().has("payment")).isFalse();
+    }
+
+    @Test
+    void aBusinessThatCannotTakeOnlinePaymentsYetIsPaidAtTheVenue() throws Exception {
+        Shop shop = unreadyDepositShop(); // a deposit policy, but not verified and no payout account
+        Call held = hold(shop, at10(3));
+        assertThat(held.status()).as(String.valueOf(held.body())).isEqualTo(201);
+        assertThat(held.body().has("payment")).as("no deposit is promised").isFalse();
+        Call booked = book(shop, held, newPerson().token());
+        assertThat(booked.status()).as(String.valueOf(booked.body())).isEqualTo(201);
+        assertThat(booked.text("status")).isEqualTo("CONFIRMED");
+        assertThat(booked.body().has("payment")).isFalse();
+        assertThat(system.fetchValue(
+                        "select count(*) from commerce.orders where org_id = ?::uuid",
+                        shop.salon().id()))
+                .isEqualTo(0L);
+        // Once verified and set up, the next customer is asked for the deposit.
+        makePaymentsReady(shop.salon());
+        assertThat(hold(shop, at10(4)).body().get("payment").get("depositMinor").asLong())
+                .isEqualTo(10_000);
     }
 
     @Test

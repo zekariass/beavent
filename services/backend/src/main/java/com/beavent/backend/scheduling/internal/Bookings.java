@@ -156,6 +156,7 @@ class Bookings {
     private final JsonMapper json;
     private final Orders orders;
     private final Payments payments;
+    private final com.beavent.backend.payments.SellerPayments sellers;
     private final String webUrl;
     private final Duration paymentWindow;
 
@@ -170,6 +171,7 @@ class Bookings {
             JsonMapper json,
             Orders orders,
             Payments payments,
+            com.beavent.backend.payments.SellerPayments sellers,
             @Value("${beavent.web.public-url}") String webUrl,
             @Value("${beavent.booking.payment-window:15m}") Duration paymentWindow) {
         this.dsl = dsl;
@@ -182,6 +184,7 @@ class Bookings {
         this.json = json;
         this.orders = orders;
         this.payments = payments;
+        this.sellers = sellers;
         this.webUrl = webUrl;
         this.paymentWindow = paymentWindow;
     }
@@ -510,7 +513,8 @@ class Bookings {
             Orders.Quote quote = orders.quote(orgId, basket);
             DepositRules.Terms terms = DepositRules.terms(
                     plan.policy(), quote.totalMinor(), quote.buyerFeesMinor(), customerFacts(orgId, customerId));
-            boolean pay = terms.required();
+            // A business that cannot take online payments yet (not verified, no payout account) is paid at the venue.
+            boolean pay = terms.required() && sellers.available(orgId);
             Instant payBy = now.plus(paymentWindow);
             UUID orderId = null;
             if (pay) {
@@ -652,7 +656,7 @@ class Bookings {
                     quote.totalMinor(),
                     quote.buyerFeesMinor(),
                     customerId == null ? DepositRules.Customer.UNKNOWN : customerFacts(orgId, customerId));
-            return terms.required() ? terms : null;
+            return terms.required() && sellers.available(orgId) ? terms : null;
         } catch (RuntimeException e) {
             log.warn("Could not estimate the deposit for a hold at {}: {}", orgId, e.getMessage());
             return null;

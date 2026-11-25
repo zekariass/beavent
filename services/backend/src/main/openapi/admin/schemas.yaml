@@ -294,3 +294,63 @@ FlagUpdate:
       type: string
       minLength: 5
       maxLength: 500
+PayoutAccountSummary:
+  type: object
+  required: [id, orgId, organization, marketCode, organizationStatus, legalEntityName, legalEntityStatus, kind, institutionName, accountName, accountNumberMasked, status, createdAt, payoutsAllowedAfter]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    organization:
+      type: string
+    marketCode:
+      type: string
+    organizationStatus:
+      type: string
+    legalEntityName:
+      type: string
+    legalEntityStatus:
+      type: string
+    kind:
+      type: string
+    institutionName:
+      type: string
+    accountName:
+      type: string
+    accountNumberMasked:
+      type: string
+    status:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, FAILED]
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    payoutsAllowedAfter:
+      $ref: ../common/schemas.yaml#/Instant
+    decisionNote:
+      type: [string, 'null']
+PayoutAccountSummaryPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/PayoutAccountSummary'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+PayoutReveal:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500
+      description: Why the full number is needed; recorded in the audit log.
+AccountNumber:
+  type: object
+  required: [accountNumber]
+  properties:
+    accountNumber:
+      type: string

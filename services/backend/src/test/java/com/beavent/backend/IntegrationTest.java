@@ -24,7 +24,9 @@ import org.springframework.test.context.ActiveProfiles;
             "beavent.scheduling.sweep-interval-ms=500",
             // Payments are looked up soon after a notification, and open ones polled often enough for tests to wait on
             // them.
-            "beavent.payments.worker-interval-ms=300"
+            "beavent.payments.worker-interval-ms=300",
+            // The local profile switches the seller gate off for development; tests run with it on, as in production.
+            "beavent.payments.require-seller-readiness=true"
         })
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("local")

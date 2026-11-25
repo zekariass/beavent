@@ -1559,3 +1559,127 @@ test("deposits · the consumer app's unpaid booking and the business app's visit
     await new Promise((r) => setTimeout(r, 31_000));
   }
 });
+
+// --- Stage 3.4: get paid ------------------------------------------------------------------------------------------
+
+async function webSignIn(page: Page, signInUrl: string, phone: string, local: string) {
+  await page.goto(signInUrl);
+  await page.getByLabel(/Phone number or/).fill(local);
+  const seen = codeCount(phone);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/sign-in"));
+}
+
+test("get paid · console page and the platform's review queue", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty");
+  // A reviewer: signs in once through the API so the account exists, then gets the finance role.
+  const reviewerPhone = newPhone();
+  const challenge = await api("POST", "/v1/auth/otp/request", {
+    phone: reviewerPhone,
+    purpose: "SIGN_IN",
+    clientApp: "MOBILE_APP",
+    channel: "SMS",
+  });
+  await api("POST", "/v1/auth/otp/verify", {
+    challengeId: challenge.challengeId,
+    code: await codeFor(reviewerPhone),
+  });
+  execSync(`db/scripts/grant-staff-role.sh ${reviewerPhone} FINANCE ET`, {
+    cwd: "../..",
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      PGHOST: "localhost",
+      PGPORT: "5433",
+      PGUSER: "beavent",
+      PGDATABASE: "beavent",
+      PGPASSWORD: "beavent",
+    },
+  });
+
+  const context = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const desk = await context.newPage();
+  // The seed signed this person in a moment ago: a new code can be sent 30 seconds after the last one.
+  await desk.waitForTimeout(31_000);
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  await desk.getByRole("heading", { name: "Your businesses" }).waitFor();
+
+  const page = `${WEB}/LANG/business/o/${salon.orgId}/get-paid`;
+  const everyLook = async (name: string) => {
+    for (const scheme of SCHEMES) {
+      await desk.emulateMedia({ colorScheme: scheme });
+      for (const language of LANGUAGES) {
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await desk.setViewportSize(size);
+          await desk.goto(page.replace("LANG", language));
+          await shot(desk, `getpaid-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+    await desk.emulateMedia({ colorScheme: "light" });
+    await desk.setViewportSize(DESKTOP);
+  };
+
+  // 1. Nothing yet: the form, with the registered name filled in.
+  await everyLook("empty");
+
+  // 2. The code step, then waiting for review.
+  await desk.goto(page.replace("LANG", "en"));
+  await desk.getByLabel("Bank or wallet").selectOption({ label: "Commercial Bank of Ethiopia" });
+  await desk.getByLabel("Account number").fill("1000 1234 56789");
+  await desk.waitForTimeout(31_000); // a new code can be sent 30 seconds after the last one
+  const seen = codeCount(salon.phone);
+  await desk.getByRole("button", { name: "Send me a code" }).click();
+  await desk.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await shot(desk, "getpaid-code-en-light-desktop");
+  await desk.getByRole("button", { name: "Confirm and send for review" }).click();
+  await desk.getByText("We check new accounts").waitFor();
+  await everyLook("waiting");
+
+  // 3. The reviewer: queue, a fresh code, the full number, a rejection with its reason.
+  const staff = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const admin = await staff.newPage();
+  await webSignIn(admin, `${ADMIN}/sign-in`, reviewerPhone, reviewerPhone);
+  await admin.goto(`${ADMIN}/payout-accounts`);
+  await admin.getByText("Abeba Beauty").first().waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `getpaid-admin-queue-${scheme}`);
+  }
+  await admin.emulateMedia({ colorScheme: "light" });
+  await admin.waitForTimeout(31_000); // a new code can be sent 30 seconds after the last one
+  const reviewCodes = codeCount(reviewerPhone);
+  await admin.getByRole("button", { name: "Send code" }).click();
+  await admin.getByLabel(/Code sent to|Code/).fill(await codeFor(reviewerPhone, reviewCodes));
+  await admin.getByRole("button", { name: "Confirm" }).click();
+  // Earlier runs may have left waiting accounts: ours is the newest, at the end of the oldest-first queue.
+  const row = admin.getByRole("listitem").filter({ hasText: "Abeba Beauty" }).last();
+  await row.getByText("Review").click();
+  await row.getByLabel("Why do you need the full number?").fill("Check against the bank letter");
+  await row.getByRole("button", { name: "Show the full number" }).click();
+  await row.getByText("1000123456789").waitFor();
+  await row.getByRole("radio", { name: "Reject" }).check();
+  await row
+    .getByLabel(/Reason \(audited; shown to the business/)
+    .fill("The number does not match the bank's letter. Please check it and add it again.");
+  await shot(admin, "getpaid-admin-review-light");
+  await row.getByRole("button", { name: "Save decision" }).click();
+  // The decided account leaves the waiting list; it is under "Rejected" now, with the reason.
+  await admin.getByRole("link", { name: "Rejected" }).click();
+  await admin.getByText("The number does not match the bank's letter").first().waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `getpaid-admin-rejected-${scheme}`);
+  }
+  await staff.close();
+
+  // 4. The business sees why, and can try again.
+  await everyLook("rejected");
+  await context.close();
+});

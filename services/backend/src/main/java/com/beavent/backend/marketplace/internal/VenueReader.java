@@ -59,6 +59,7 @@ class VenueReader implements Venues {
     private final TransactionTemplate transactions;
     private final FileAccess files;
     private final BookingPolicies policies;
+    private final com.beavent.backend.payments.SellerPayments sellers;
     private final JsonMapper json;
 
     VenueReader(
@@ -66,8 +67,10 @@ class VenueReader implements Venues {
             TransactionTemplate transactions,
             FileAccess files,
             BookingPolicies policies,
+            com.beavent.backend.payments.SellerPayments sellers,
             JsonMapper json) {
         this.dsl = dsl;
+        this.sellers = sellers;
         this.transactions = transactions;
         this.files = files;
         this.policies = policies;
@@ -179,6 +182,8 @@ class VenueReader implements Venues {
         boolean anyBookable = groups.stream().anyMatch(g -> !g.services().isEmpty());
         List<Person> team = team(locationId);
         BookingPolicies.Policy p = policies.effective(locationId, null);
+        // A business that cannot take online payments yet is paid at the venue, whatever its policy says.
+        boolean online = sellers.available(orgId);
         List<Other> others = dsl.select(LOCATIONS.SLUG, LOCATIONS.NAME, PLACES.LANDMARK)
                 .from(LOCATIONS)
                 .join(PLACES)
@@ -217,10 +222,10 @@ class VenueReader implements Venues {
                 team,
                 new Policy(
                         p.requiresApproval(),
-                        p.allowPayAtVenue(),
-                        p.depositMode(),
-                        p.depositPercent(),
-                        p.depositFixedMinor(),
+                        p.allowPayAtVenue() || !online,
+                        online ? p.depositMode() : "NONE",
+                        online ? p.depositPercent() : null,
+                        online ? p.depositFixedMinor() : null,
                         p.depositAppliesTo(),
                         p.currency(),
                         p.cancellationWindowMinutes(),

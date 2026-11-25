@@ -27,6 +27,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ref/banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Banks and wallets a business can be paid into */
+        get: operations["listBanks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payments/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the business may take online payments, and its payout account
+         * @description Needs `payouts.view`.
+         */
+        get: operations["getPaymentsSetup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payout-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a payout account for review
+         * @description Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+         *     registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+         *     payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+         */
+        post: operations["addPayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payout-accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw the account that is waiting for review
+         * @description Needs `payouts.manage` and a fresh code.
+         */
+        delete: operations["withdrawPayoutAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/otp/request": {
         parameters: {
             query?: never;
@@ -2161,6 +2240,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payout-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payout accounts waiting for review, oldest first (default `PENDING`)
+         * @description Needs `admin.payments.view`.
+         */
+        get: operations["listPayoutAccountsForReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payout-accounts/{accountId}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The full account number, to check it against the bank's letter (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code.
+         */
+        post: operations["revealPayoutAccountNumber"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payout-accounts/{accountId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify or reject a payout account (reason required, step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+         *     `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+         */
+        post: operations["decidePayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -2321,6 +2461,97 @@ export interface components {
         HookReceipt: {
             received: boolean;
         };
+        Bank: {
+            /** @description What a payout account stores as its institution. */
+            code: string;
+            /** @enum {string} */
+            kind: "BANK" | "MOBILE_MONEY";
+            /** @description The name per language (`en`, `am`). */
+            names: {
+                [key: string]: string;
+            };
+        };
+        BankList: {
+            items: components["schemas"]["Bank"][];
+        };
+        /** @description RFC 9457 problem details with Beavent's stable `code`. */
+        Problem: {
+            /**
+             * Format: uri
+             * @example urn:beavent:problem:slot-taken
+             */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            /**
+             * Format: uri-reference
+             * @description The request path that produced this problem.
+             */
+            instance?: string;
+            /** @enum {string} */
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "PAYMENT_UNAVAILABLE" | "INTERNAL";
+            requestId?: string;
+            /** @description Field-level validation errors. */
+            errors?: {
+                field: string;
+                message: string;
+            }[];
+        };
+        /** Format: uuid */
+        Uuid: string;
+        /**
+         * Format: date-time
+         * @description RFC 3339, UTC.
+         */
+        Instant: string;
+        /** @description A payout account as screens show it. The number is only ever masked. */
+        PayoutAccount: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            kind: "BANK_ACCOUNT" | "MOBILE_MONEY";
+            institutionCode: string;
+            institutionName: string;
+            accountName: string;
+            /** @description `••••6789`. */
+            accountNumberMasked: string;
+            /**
+             * @description `PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`).
+             * @enum {string}
+             */
+            status: "UNVERIFIED" | "PENDING" | "VERIFIED" | "FAILED";
+            isDefault: boolean;
+            /** @description Payouts to a new account wait for a 72-hour cooling-off after it was added. */
+            payoutsAllowedAfter?: components["schemas"]["Instant"];
+            reviewedAt?: components["schemas"]["Instant"];
+            decisionNote?: string | null;
+        };
+        PaymentsSetup: {
+            /** @enum {string} */
+            provider: "ARIFPAY" | "CHAPA";
+            /** @enum {string} */
+            collectionMode: "PLATFORM_COLLECTS" | "PROVIDER_SPLIT";
+            /** @description The business is verified and has a verified payout account (and, in Chapa mode, a subaccount). */
+            ready: boolean;
+            /** @description When false (local development only) deposits are asked for even if the business is not ready. */
+            enforced: boolean;
+            blockers: ("ORGANIZATION_NOT_VERIFIED" | "NO_PAYOUT_ACCOUNT" | "PAYOUT_ACCOUNT_IN_REVIEW" | "PAYOUT_ACCOUNT_REJECTED" | "SUBACCOUNT_MISSING")[];
+            /** @enum {string} */
+            organizationStatus: "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
+            legalEntityId?: components["schemas"]["Uuid"];
+            /** @description The account holder's name must match it. */
+            legalEntityName?: string;
+            active?: components["schemas"]["PayoutAccount"];
+            pending?: components["schemas"]["PayoutAccount"];
+            rejected?: components["schemas"]["PayoutAccount"];
+        };
+        PayoutAccountInput: {
+            legalEntityId?: components["schemas"]["Uuid"];
+            institutionCode: string;
+            accountName: string;
+            /** @description Digits for a bank account (6 to 20); the wallet's mobile number for a wallet. */
+            accountNumber: string;
+        };
         /** @example +251911234567 */
         PhoneE164: string;
         /**
@@ -2348,13 +2579,6 @@ export interface components {
             clientApp: components["schemas"]["ClientApp"];
             language?: components["schemas"]["LanguageCode"];
         } & (unknown | unknown);
-        /** Format: uuid */
-        Uuid: string;
-        /**
-         * Format: date-time
-         * @description RFC 3339, UTC.
-         */
-        Instant: string;
         OtpChallenge: {
             challengeId: components["schemas"]["Uuid"];
             expiresAt: components["schemas"]["Instant"];
@@ -2362,30 +2586,6 @@ export interface components {
             channel: components["schemas"]["OtpChannel"];
             /** @example 6 */
             codeLength?: number;
-        };
-        /** @description RFC 9457 problem details with Beavent's stable `code`. */
-        Problem: {
-            /**
-             * Format: uri
-             * @example urn:beavent:problem:slot-taken
-             */
-            type: string;
-            title: string;
-            status: number;
-            detail?: string;
-            /**
-             * Format: uri-reference
-             * @description The request path that produced this problem.
-             */
-            instance?: string;
-            /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "PAYMENT_UNAVAILABLE" | "INTERNAL";
-            requestId?: string;
-            /** @description Field-level validation errors. */
-            errors?: {
-                field: string;
-                message: string;
-            }[];
         };
         DeviceInfo: {
             installationId: string;
@@ -4367,6 +4567,35 @@ export interface components {
             /** @description Recorded in the audit log and shown to the organization for rejections and requests. */
             reason: string;
         };
+        PayoutAccountSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            organizationStatus: string;
+            legalEntityName: string;
+            legalEntityStatus: string;
+            kind: string;
+            institutionName: string;
+            accountName: string;
+            accountNumberMasked: string;
+            /** @enum {string} */
+            status: "UNVERIFIED" | "PENDING" | "VERIFIED" | "FAILED";
+            createdAt: components["schemas"]["Instant"];
+            payoutsAllowedAfter: components["schemas"]["Instant"];
+            decisionNote?: string | null;
+        };
+        PayoutAccountSummaryPage: {
+            items: components["schemas"]["PayoutAccountSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        PayoutReveal: {
+            /** @description Why the full number is needed; recorded in the audit log. */
+            reason: string;
+        };
+        AccountNumber: {
+            accountNumber: string;
+        };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
             page: components["schemas"]["PageInfo"];
@@ -4497,16 +4726,6 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Rate limited; retry after the `Retry-After` header. */
-        TooManyRequests: {
-            headers: {
-                "Retry-After"?: number;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
         /** @description Missing or invalid access token. */
         Unauthorized: {
             headers: {
@@ -4525,12 +4744,14 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Done. */
-        NoContent: {
+        /** @description Not found (also returned when the resource belongs to another organization). */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
-            content?: never;
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
         };
         /** @description Conflicts with existing data. */
         Conflict: {
@@ -4550,14 +4771,22 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Not found (also returned when the resource belongs to another organization). */
-        NotFound: {
+        /** @description Rate limited; retry after the `Retry-After` header. */
+        TooManyRequests: {
             headers: {
+                "Retry-After"?: number;
                 [name: string]: unknown;
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
             };
+        };
+        /** @description Done. */
+        NoContent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
         };
         /** @description The resource changed since it was read (If-Match did not match). */
         PreconditionFailed: {
@@ -4643,6 +4872,110 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    listBanks: {
+        parameters: {
+            query: {
+                countryCode: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Banks and wallets, in the order screens list them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getPaymentsSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentsSetup"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addPayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutAccountInput"];
+            };
+        };
+        responses: {
+            /** @description Added, waiting for review. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    withdrawPayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     requestOtp: {
@@ -9074,6 +9407,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPayoutAccountsForReview: {
+        parameters: {
+            query?: {
+                status?: "PENDING" | "VERIFIED" | "FAILED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccountSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    revealPayoutAccountNumber: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutReveal"];
+            };
+        };
+        responses: {
+            /** @description The number. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNumber"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    decidePayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccountSummary"];
                 };
             };
             400: components["responses"]["BadRequest"];

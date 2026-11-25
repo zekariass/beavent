@@ -113,6 +113,28 @@ class ChapaAdapterTest {
     }
 
     @Test
+    void createsASubaccountWithAZeroDefaultSplit() {
+        chapa.on(
+                "POST /v1/subaccount",
+                200,
+                "{\"status\":\"success\",\"message\":\"Subaccount created successfully\",\"data\":{\"subaccount_id\":\"SUB-9\"}}");
+        String id = adapter.createSubAccount("Abeba Beauty", "Abeba Beauty PLC", "946", "1000123456789");
+        assertThat(id).isEqualTo("SUB-9");
+        JsonNode body = json.readTree(chapa.last().body());
+        assertThat(body.path("bank_code").asString()).isEqualTo("946");
+        assertThat(body.path("account_number").asString()).isEqualTo("1000123456789");
+        assertThat(body.path("split_type").asString()).isEqualTo("flat");
+        assertThat(body.path("split_value").asInt()).isZero();
+        chapa.on(
+                "POST /v1/subaccount",
+                400,
+                "{\"status\":\"failed\",\"message\":{\"bank_code\":[\"Unknown bank code.\"]}}");
+        assertThatThrownBy(() -> adapter.createSubAccount("x", "x", "0", "1"))
+                .isInstanceOf(ProviderException.class)
+                .hasMessageContaining("Unknown bank code");
+    }
+
+    @Test
     void refundsThroughTheApi() {
         chapa.on(
                 "POST /v1/refund/att-1",

@@ -14,6 +14,22 @@ class CommsConfiguration {
 
     static final String APPOINTMENTS_QUEUE = "beavent.comms.appointments";
     static final String WAITLIST_QUEUE = "beavent.comms.waitlist";
+    static final String PAYOUTS_QUEUE = "beavent.comms.payouts";
+
+    /** A payout account was added or changed: the people who manage payouts are told (plan 3.4). */
+    @Bean
+    Queue commsPayoutsQueue() {
+        return QueueBuilder.durable(PAYOUTS_QUEUE)
+                .deadLetterExchange(Outbox.DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    Binding commsPayoutsBinding(Queue commsPayoutsQueue) {
+        return BindingBuilder.bind(commsPayoutsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payout_account.*");
+    }
 
     @Bean
     Queue commsWaitlistQueue() {

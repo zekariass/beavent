@@ -165,6 +165,32 @@ public final class ChapaAdapter implements PaymentProviderAdapter {
         return List.of(new NormalizedEvent("COLLECTION", event, txRef, txRef, map(raw)));
     }
 
+    /** A subaccount whose own split is zero: every payment carries its split explicitly (the platform's flat share). */
+    @Override
+    public String createSubAccount(String businessName, String accountName, String bankCode, String accountNumber) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("business_name", businessName);
+        body.put("account_name", accountName);
+        body.put("bank_code", bankCode);
+        body.put("account_number", accountNumber);
+        body.put("split_type", "flat");
+        body.put("split_value", 0);
+        JsonNode answer = call(() -> http.post()
+                .uri("/v1/subaccount")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .toEntity(String.class));
+        String id = answer.path("data").path("subaccount_id").asString("");
+        if (!"success".equals(answer.path("status").asString("")) || id.isBlank()) {
+            String message = answer.path("message").isString()
+                    ? answer.path("message").asString()
+                    : answer.path("message").toString();
+            throw new ProviderException(FailureCode.INVALID_REQUEST, "Chapa refused the subaccount: " + message, false);
+        }
+        return id;
+    }
+
     @Override
     public RefundResult refund(RefundRequest r) {
         Map<String, Object> body = new LinkedHashMap<>();

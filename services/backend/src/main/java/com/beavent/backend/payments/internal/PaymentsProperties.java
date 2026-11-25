@@ -18,6 +18,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record PaymentsProperties(
         @DefaultValue("ARIFPAY") String provider,
         @DefaultValue("SANDBOX") String environment,
+        /** Open online payments only to verified businesses with a verified payout account (docs/07 3.4). */
+        @DefaultValue("true") boolean requireSellerReadiness,
         String notifyBaseUrl,
         @DefaultValue("5s") Duration connectTimeout,
         @DefaultValue("20s") Duration readTimeout,
