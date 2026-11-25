@@ -122,6 +122,7 @@ Problem:
         - PATCH_TEST_REQUIRED
         - PRECONDITION_REQUIRED
         - RATE_LIMITED
+        - PAYMENT_UNAVAILABLE
         - INTERNAL
     requestId:
       type: string

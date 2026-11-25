@@ -22,6 +22,11 @@ import org.springframework.test.context.ActiveProfiles;
             // Messages and booking time-outs run often enough for tests to wait on them.
             "beavent.comms.dispatch-interval-ms=300",
             "beavent.scheduling.sweep-interval-ms=500",
+            // Payments are looked up soon after a notification, and open ones polled often enough for tests to wait on
+            // them.
+            "beavent.payments.worker-interval-ms=300",
+            // The local profile switches the seller gate off for development; tests run with it on, as in production.
+            "beavent.payments.require-seller-readiness=true",
             // Search tests refresh the listings themselves; a background sweep would only add load.
             "beavent.discovery.sweep-interval-ms=3600000"
         })

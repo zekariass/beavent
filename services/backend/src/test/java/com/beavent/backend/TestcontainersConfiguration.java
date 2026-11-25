@@ -1,5 +1,6 @@
 package com.beavent.backend;
 
+import com.beavent.backend.payments.FakeArifPay;
 import java.nio.file.Path;
 import java.time.Duration;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -50,6 +51,20 @@ public class TestcontainersConfiguration {
                 .withExposedPorts(8333)
                 .waitingFor(Wait.forHttp("/").forPort(8333).forStatusCodeMatching(code -> code < 500))
                 .withStartupTimeout(Duration.ofMinutes(2));
+    }
+
+    /** ArifPay's checkout, in-process: payment tests drive what the payer does (see {@link FakeArifPay}). */
+    @Bean(destroyMethod = "close")
+    FakeArifPay fakeArifPay() {
+        return new FakeArifPay();
+    }
+
+    @Bean
+    DynamicPropertyRegistrar arifPayProperties(FakeArifPay arifpay) {
+        return registry -> {
+            registry.add("beavent.payments.arifpay.base-url", arifpay::url);
+            registry.add("beavent.payments.arifpay.api-key", () -> FakeArifPay.KEY);
+        };
     }
 
     /** Points the files module at the storage container (credentials and buckets as in the local profile). */

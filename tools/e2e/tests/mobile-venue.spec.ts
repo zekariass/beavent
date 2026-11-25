@@ -5,7 +5,7 @@ const MOBILE = process.env.MOBILE_URL ?? "http://localhost:19006";
 
 /** Plan step 2.2: the same venue page in the consumer app (web build of apps/public-mobile), opened from a link. */
 test("the consumer app opens a place from its link", async ({ browser }) => {
-  const salon = await seedSalon("Abeba Beauty");
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
   const context = await browser.newContext({
     locale: "en-US",
     viewport: { width: 390, height: 844 },

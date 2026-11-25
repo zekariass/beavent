@@ -57,7 +57,7 @@ tags:
   - name: Reference
     description: Markets, languages, categories, administrative areas
   - name: Payments
-    description: Payment provider notifications (ArifPay by default, or Chapa)
+    description: Payment provider notifications (ArifPay by default, or Chapa), banks, and how a business gets paid
 paths:
   /v1/hooks/{provider}:
     post:
@@ -108,6 +108,112 @@ paths:
                 $ref: '#/components/schemas/HookReceipt'
         '404':
           description: That provider is not configured on this deployment.
+  /v1/ref/banks:
+    get:
+      tags:
+        - Payments
+      operationId: listBanks
+      summary: Banks and wallets a business can be paid into
+      security: []
+      parameters:
+        - name: countryCode
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+      responses:
+        '200':
+          description: Banks and wallets, in the order screens list them.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/orgs/{orgId}/payments/setup:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentsSetup
+      summary: Whether the business may take online payments, and its payout account
+      description: Needs `payouts.view`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The setup.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentsSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/payout-accounts:
+    post:
+      tags:
+        - Payments
+      operationId: addPayoutAccount
+      summary: Add a payout account for review
+      description: |
+        Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+        registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+        payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutAccountInput'
+      responses:
+        '201':
+          description: Added, waiting for review.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/payout-accounts/{accountId}:
+    delete:
+      tags:
+        - Payments
+      operationId: withdrawPayoutAccount
+      summary: Withdraw the account that is waiting for review
+      description: Needs `payouts.manage` and a fresh code.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Withdrawn.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/auth/otp/request:
     post:
       tags:
@@ -4204,6 +4310,68 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/payment:
+    post:
+      tags:
+        - Booking
+      operationId: startMyAppointmentPayment
+      summary: Start (or resume) paying the deposit of an unpaid booking
+      description: |
+        Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+        `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+        already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+        out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                  maxLength: 5
+                  description: The language of the pages the provider sends the person back to.
+      responses:
+        '200':
+          description: Where to pay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/me/appointments/{appointmentId}/payment/check:
+    post:
+      tags:
+        - Booking
+      operationId: checkMyAppointmentPayment
+      summary: Ask the provider where the payment stands, then return the booking
+      description: |
+        For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+        key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+        `AWAITING_PAYMENT`.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The booking, with its payment state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/me/appointments/{appointmentId}/reschedule:
     post:
       tags:
@@ -5028,6 +5196,110 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/payout-accounts:
+    get:
+      tags:
+        - Admin
+      operationId: listPayoutAccountsForReview
+      summary: Payout accounts waiting for review, oldest first (default `PENDING`)
+      description: Needs `admin.payments.view`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - VERIFIED
+              - FAILED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payout-accounts/{accountId}/reveal:
+    post:
+      tags:
+        - Admin
+      operationId: revealPayoutAccountNumber
+      summary: The full account number, to check it against the bank's letter (step-up, audited)
+      description: Needs `admin.payouts.approve` and a fresh code.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutReveal'
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountNumber'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/payout-accounts/{accountId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decidePayoutAccount
+      summary: Verify or reject a payout account (reason required, step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+        `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/admin/audit-log:
     get:
       tags:
@@ -5270,6 +5542,226 @@ components:
       properties:
         received:
           type: boolean
+    Bank:
+      type: object
+      required:
+        - code
+        - kind
+        - names
+      properties:
+        code:
+          type: string
+          description: What a payout account stores as its institution.
+        kind:
+          type: string
+          enum:
+            - BANK
+            - MOBILE_MONEY
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: The name per language (`en`, `am`).
+    BankList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bank'
+    Problem:
+      type: object
+      description: RFC 9457 problem details with Beavent's stable `code`.
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri
+          examples:
+            - urn:beavent:problem:slot-taken
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+          description: The request path that produced this problem.
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - STEP_UP_REQUIRED
+            - NOT_FOUND
+            - CONFLICT
+            - SLOT_TAKEN
+            - HOLD_EXPIRED
+            - SOLD_OUT
+            - IMMUTABLE
+            - CONCURRENT_UPDATE
+            - IDEMPOTENCY_IN_PROGRESS
+            - PRECONDITION_FAILED
+            - IDEMPOTENCY_KEY_REUSED
+            - REFERENCE_NOT_FOUND
+            - CONSTRAINT_VIOLATION
+            - PATCH_TEST_REQUIRED
+            - PRECONDITION_REQUIRED
+            - RATE_LIMITED
+            - PAYMENT_UNAVAILABLE
+            - INTERNAL
+        requestId:
+          type: string
+        errors:
+          type: array
+          description: Field-level validation errors.
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    Uuid:
+      type: string
+      format: uuid
+    Instant:
+      type: string
+      format: date-time
+      description: RFC 3339, UTC.
+    PayoutAccount:
+      type: object
+      description: A payout account as screens show it. The number is only ever masked.
+      required:
+        - id
+        - kind
+        - institutionCode
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - isDefault
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum:
+            - BANK_ACCOUNT
+            - MOBILE_MONEY
+        institutionCode:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+          description: '`••••6789`.'
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+          description: '`PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`).'
+        isDefault:
+          type: boolean
+        payoutsAllowedAfter:
+          description: Payouts to a new account wait for a 72-hour cooling-off after it was added.
+          $ref: '#/components/schemas/Instant'
+        reviewedAt:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PaymentsSetup:
+      type: object
+      required:
+        - provider
+        - collectionMode
+        - ready
+        - enforced
+        - blockers
+        - organizationStatus
+      properties:
+        provider:
+          type: string
+          enum:
+            - ARIFPAY
+            - CHAPA
+        collectionMode:
+          type: string
+          enum:
+            - PLATFORM_COLLECTS
+            - PROVIDER_SPLIT
+        ready:
+          type: boolean
+          description: The business is verified and has a verified payout account (and, in Chapa mode, a subaccount).
+        enforced:
+          type: boolean
+          description: When false (local development only) deposits are asked for even if the business is not ready.
+        blockers:
+          type: array
+          items:
+            type: string
+            enum:
+              - ORGANIZATION_NOT_VERIFIED
+              - NO_PAYOUT_ACCOUNT
+              - PAYOUT_ACCOUNT_IN_REVIEW
+              - PAYOUT_ACCOUNT_REJECTED
+              - SUBACCOUNT_MISSING
+        organizationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        legalEntityName:
+          type: string
+          description: The account holder's name must match it.
+        active:
+          $ref: '#/components/schemas/PayoutAccount'
+        pending:
+          $ref: '#/components/schemas/PayoutAccount'
+        rejected:
+          $ref: '#/components/schemas/PayoutAccount'
+    PayoutAccountInput:
+      type: object
+      required:
+        - institutionCode
+        - accountName
+        - accountNumber
+      properties:
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        institutionCode:
+          type: string
+          maxLength: 40
+        accountName:
+          type: string
+          maxLength: 200
+        accountNumber:
+          type: string
+          maxLength: 40
+          description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
     PhoneE164:
       type: string
       pattern: ^\+[1-9][0-9]{6,14}$
@@ -5333,13 +5825,6 @@ components:
           $ref: '#/components/schemas/ClientApp'
         language:
           $ref: '#/components/schemas/LanguageCode'
-    Uuid:
-      type: string
-      format: uuid
-    Instant:
-      type: string
-      format: date-time
-      description: RFC 3339, UTC.
     OtpChallenge:
       type: object
       required:
@@ -5360,68 +5845,6 @@ components:
           type: integer
           examples:
             - 6
-    Problem:
-      type: object
-      description: RFC 9457 problem details with Beavent's stable `code`.
-      required:
-        - type
-        - title
-        - status
-        - code
-      properties:
-        type:
-          type: string
-          format: uri
-          examples:
-            - urn:beavent:problem:slot-taken
-        title:
-          type: string
-        status:
-          type: integer
-        detail:
-          type: string
-        instance:
-          type: string
-          format: uri-reference
-          description: The request path that produced this problem.
-        code:
-          type: string
-          enum:
-            - VALIDATION_FAILED
-            - UNAUTHENTICATED
-            - FORBIDDEN
-            - STEP_UP_REQUIRED
-            - NOT_FOUND
-            - CONFLICT
-            - SLOT_TAKEN
-            - HOLD_EXPIRED
-            - SOLD_OUT
-            - IMMUTABLE
-            - CONCURRENT_UPDATE
-            - IDEMPOTENCY_IN_PROGRESS
-            - PRECONDITION_FAILED
-            - IDEMPOTENCY_KEY_REUSED
-            - REFERENCE_NOT_FOUND
-            - CONSTRAINT_VIOLATION
-            - PATCH_TEST_REQUIRED
-            - PRECONDITION_REQUIRED
-            - RATE_LIMITED
-            - INTERNAL
-        requestId:
-          type: string
-        errors:
-          type: array
-          description: Field-level validation errors.
-          items:
-            type: object
-            required:
-              - field
-              - message
-            properties:
-              field:
-                type: string
-              message:
-                type: string
     DeviceInfo:
       type: object
       required:
@@ -8193,6 +8616,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarStage'
+    PaymentStatus:
+      type: object
+      description: Where the online payment of a booking stands.
+      required:
+        - state
+        - dueNowMinor
+        - paidMinor
+        - atVenueMinor
+        - currency
+      properties:
+        state:
+          type: string
+          enum:
+            - NOT_REQUIRED
+            - AWAITING_PAYMENT
+            - PAID
+            - FAILED
+            - EXPIRED
+          description: |
+            `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+            may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+        dueNowMinor:
+          type: integer
+          format: int64
+        paidMinor:
+          type: integer
+          format: int64
+        atVenueMinor:
+          type: integer
+          format: int64
+          description: Left to pay at the venue.
+        currency:
+          type: string
+        expiresAt:
+          description: Until when the time is held for payment.
+          $ref: '#/components/schemas/Instant'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page of the attempt in progress, to reopen it.
     CalendarAppointment:
       type: object
       required:
@@ -8260,6 +8725,9 @@ components:
                 count:
                   type: integer
             - type: 'null'
+        payment:
+          description: Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired).
+          $ref: '#/components/schemas/PaymentStatus'
         forms:
           type: array
           description: Forms the client fills in before this visit (attached to its services), and whether they have.
@@ -9307,6 +9775,30 @@ components:
           $ref: '#/components/schemas/CurrencyCode'
         policy:
           $ref: '#/components/schemas/BookingTerms'
+    PaymentTerms:
+      type: object
+      description: |
+        What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+        signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+      required:
+        - depositMinor
+        - atVenueMinor
+        - totalMinor
+        - currency
+      properties:
+        depositMinor:
+          type: integer
+          format: int64
+          description: Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+        atVenueMinor:
+          type: integer
+          format: int64
+        totalMinor:
+          type: integer
+          format: int64
+          description: The all-in price.
+        currency:
+          type: string
     Hold:
       type: object
       required:
@@ -9324,6 +9816,9 @@ components:
           $ref: '#/components/schemas/Instant'
         booking:
           $ref: '#/components/schemas/BookingSummary'
+        payment:
+          description: What would be paid now to book; absent when nothing is due online.
+          $ref: '#/components/schemas/PaymentTerms'
     MyAppointmentPlace:
       type: object
       required:
@@ -9464,10 +9959,17 @@ components:
         status:
           type: string
           enum:
+            - PENDING_PAYMENT
             - REQUESTED
             - CONFIRMED
+          description: |
+            `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+            confirmed when the payment arrives (start it with `POST …/payment`).
         booking:
           $ref: '#/components/schemas/BookingSummary'
+        payment:
+          description: Present for `PENDING_PAYMENT`.
+          $ref: '#/components/schemas/PaymentStatus'
     CancellationPreview:
       type: object
       required:
@@ -9539,6 +10041,32 @@ components:
           $ref: '#/components/schemas/CancellationPreview'
         canReschedule:
           type: boolean
+        payment:
+          description: Present when the booking has an order to pay online.
+          $ref: '#/components/schemas/PaymentStatus'
+    PaymentStart:
+      type: object
+      required:
+        - attemptId
+        - expiresAt
+        - amountMinor
+        - currency
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page to send the person to; they come back to the booking's payment page.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
     WaitlistOffer:
       type: object
       required:
@@ -10718,6 +11246,90 @@ components:
           minLength: 5
           maxLength: 500
           description: Recorded in the audit log and shown to the organization for rejections and requests.
+    PayoutAccountSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - organizationStatus
+        - legalEntityName
+        - legalEntityStatus
+        - kind
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - createdAt
+        - payoutsAllowedAfter
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        organizationStatus:
+          type: string
+        legalEntityName:
+          type: string
+        legalEntityStatus:
+          type: string
+        kind:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        payoutsAllowedAfter:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PayoutAccountSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutAccountSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    PayoutReveal:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Why the full number is needed; recorded in the audit log.
+    AccountNumber:
+      type: object
+      required:
+        - accountNumber
+      properties:
+        accountNumber:
+          type: string
     AuditEntryPage:
       type: object
       required:
@@ -11052,16 +11664,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    TooManyRequests:
-      description: Rate limited; retry after the `Retry-After` header.
-      headers:
-        Retry-After:
-          schema:
-            type: integer
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: Missing or invalid access token.
       content:
@@ -11074,8 +11676,12 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NoContent:
-      description: Done.
+    NotFound:
+      description: Not found (also returned when the resource belongs to another organization).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Conflict:
       description: Conflicts with existing data.
       content:
@@ -11088,14 +11694,26 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NotFound:
-      description: Not found (also returned when the resource belongs to another organization).
+    TooManyRequests:
+      description: Rate limited; retry after the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    NoContent:
+      description: Done.
     PreconditionFailed:
       description: The resource changed since it was read (If-Match did not match).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: A service the request depends on (online payment) is unavailable; try again shortly.
       content:
         application/problem+json:
           schema:

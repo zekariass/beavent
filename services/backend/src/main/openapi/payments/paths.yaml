@@ -44,3 +44,105 @@ providerHook:
               $ref: ./schemas.yaml#/HookReceipt
       '404':
         description: That provider is not configured on this deployment.
+banks:
+  get:
+    tags: [Payments]
+    operationId: listBanks
+    summary: Banks and wallets a business can be paid into
+    security: []
+    parameters:
+      - name: countryCode
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 2
+          maxLength: 2
+    responses:
+      '200':
+        description: Banks and wallets, in the order screens list them.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BankList
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+paymentsSetup:
+  get:
+    tags: [Payments]
+    operationId: getPaymentsSetup
+    summary: Whether the business may take online payments, and its payout account
+    description: Needs `payouts.view`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: The setup.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentsSetup
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+payoutAccounts:
+  post:
+    tags: [Payments]
+    operationId: addPayoutAccount
+    summary: Add a payout account for review
+    description: |
+      Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+      registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+      payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/PayoutAccountInput
+    responses:
+      '201':
+        description: Added, waiting for review.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PayoutAccount
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+payoutAccount:
+  delete:
+    tags: [Payments]
+    operationId: withdrawPayoutAccount
+    summary: Withdraw the account that is waiting for review
+    description: Needs `payouts.manage` and a fresh code.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Withdrawn.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

@@ -4,3 +4,114 @@ HookReceipt:
   properties:
     received:
       type: boolean
+Bank:
+  type: object
+  required: [code, kind, names]
+  properties:
+    code:
+      type: string
+      description: What a payout account stores as its institution.
+    kind:
+      type: string
+      enum: [BANK, MOBILE_MONEY]
+    names:
+      type: object
+      additionalProperties:
+        type: string
+      description: The name per language (`en`, `am`).
+BankList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Bank'
+PayoutAccount:
+  type: object
+  description: A payout account as screens show it. The number is only ever masked.
+  required: [id, kind, institutionCode, institutionName, accountName, accountNumberMasked, status, isDefault]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      type: string
+      enum: [BANK_ACCOUNT, MOBILE_MONEY]
+    institutionCode:
+      type: string
+    institutionName:
+      type: string
+    accountName:
+      type: string
+    accountNumberMasked:
+      type: string
+      description: "`••••6789`."
+    status:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, FAILED]
+      description: "`PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`)."
+    isDefault:
+      type: boolean
+    payoutsAllowedAfter:
+      description: Payouts to a new account wait for a 72-hour cooling-off after it was added.
+      $ref: ../common/schemas.yaml#/Instant
+    reviewedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    decisionNote:
+      type: [string, 'null']
+PaymentsSetup:
+  type: object
+  required: [provider, collectionMode, ready, enforced, blockers, organizationStatus]
+  properties:
+    provider:
+      type: string
+      enum: [ARIFPAY, CHAPA]
+    collectionMode:
+      type: string
+      enum: [PLATFORM_COLLECTS, PROVIDER_SPLIT]
+    ready:
+      type: boolean
+      description: The business is verified and has a verified payout account (and, in Chapa mode, a subaccount).
+    enforced:
+      type: boolean
+      description: When false (local development only) deposits are asked for even if the business is not ready.
+    blockers:
+      type: array
+      items:
+        type: string
+        enum:
+          - ORGANIZATION_NOT_VERIFIED
+          - NO_PAYOUT_ACCOUNT
+          - PAYOUT_ACCOUNT_IN_REVIEW
+          - PAYOUT_ACCOUNT_REJECTED
+          - SUBACCOUNT_MISSING
+    organizationStatus:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+    legalEntityId:
+      $ref: ../common/schemas.yaml#/Uuid
+    legalEntityName:
+      type: string
+      description: The account holder's name must match it.
+    active:
+      $ref: '#/PayoutAccount'
+    pending:
+      $ref: '#/PayoutAccount'
+    rejected:
+      $ref: '#/PayoutAccount'
+PayoutAccountInput:
+  type: object
+  required: [institutionCode, accountName, accountNumber]
+  properties:
+    legalEntityId:
+      $ref: ../common/schemas.yaml#/Uuid
+    institutionCode:
+      type: string
+      maxLength: 40
+    accountName:
+      type: string
+      maxLength: 200
+    accountNumber:
+      type: string
+      maxLength: 40
+      description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.

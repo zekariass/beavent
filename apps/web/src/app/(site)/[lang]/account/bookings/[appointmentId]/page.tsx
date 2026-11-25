@@ -42,16 +42,19 @@ export default async function AppointmentPage({
   const venueHref = a.place
     ? `/${language}/b/${a.place.businessSlug}/${a.place.locationSlug}`
     : null;
+  const heldUntil = a.payment?.expiresAt ? formatDualTime(a.payment.expiresAt, prefs).primary : "";
   const banner =
-    a.status === "REQUESTED"
-      ? t("appointment.requested", { name: business })
-      : a.status === "DECLINED"
-        ? t("appointment.declined", { name: business })
-        : a.status === "EXPIRED"
-          ? t("appointment.expired")
-          : a.status === "CANCELLED"
-            ? t("appointment.cancelled")
-            : null;
+    a.status === "PENDING_PAYMENT" && a.payment?.state !== "EXPIRED"
+      ? t("appointment.payBanner", { time: heldUntil })
+      : a.status === "REQUESTED"
+        ? t("appointment.requested", { name: business })
+        : a.status === "DECLINED"
+          ? t("appointment.declined", { name: business })
+          : a.status === "EXPIRED"
+            ? t("appointment.expired")
+            : a.status === "CANCELLED"
+              ? t("appointment.cancelled")
+              : null;
   const names = await menuNames(a.place ? [a.place] : [], language);
   const finished = ["CANCELLED", "DECLINED", "EXPIRED", "COMPLETED", "NO_SHOW"].includes(a.status);
   const free = a.booking.policy.freeCancellationUntil;
@@ -90,11 +93,23 @@ export default async function AppointmentPage({
           <p
             role="status"
             className={`bv-type-body rounded-lg px-4 py-3 text-fg ${
-              a.status === "REQUESTED" ? "bg-info-subtle" : "bg-surface"
+              a.status === "REQUESTED" || a.status === "PENDING_PAYMENT"
+                ? "bg-info-subtle"
+                : "bg-surface"
             }`}
           >
             {banner}
           </p>
+        ) : null}
+        {a.status === "PENDING_PAYMENT" && a.payment && a.payment.state !== "EXPIRED" ? (
+          <Link
+            href={`/${language}/account/bookings/${a.id}/payment?result=pending`}
+            className={`${primary} self-stretch sm:self-start`}
+          >
+            {t("payment.payNow", {
+              amount: price(a.payment.dueNowMinor, a.payment.currency, language),
+            })}
+          </Link>
         ) : null}
 
         {forms.length > 0 ? (
@@ -178,6 +193,28 @@ export default async function AppointmentPage({
               {price(a.booking.totalMinor, a.booking.currency, language)}
             </span>
           </div>
+          {a.payment && a.payment.state !== "NOT_REQUIRED" && !finished ? (
+            <>
+              <div className="flex justify-between">
+                <span className="bv-type-body text-fg">
+                  {a.payment.state === "PAID" ? t("appointment.depositPaid") : t("payment.dueNow")}
+                </span>
+                <span className="bv-type-body text-fg">
+                  {price(a.payment.dueNowMinor, a.payment.currency, language)}
+                </span>
+              </div>
+              {a.payment.atVenueMinor > 0 ? (
+                <div className="flex justify-between">
+                  <span className="bv-type-body text-fg-muted">
+                    {t("appointment.payAtVenueLeft")}
+                  </span>
+                  <span className="bv-type-body text-fg-muted">
+                    {price(a.payment.atVenueMinor, a.payment.currency, language)}
+                  </span>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
 
         {!finished && a.booking.policy.cancellationWindowMinutes > 0 ? (

@@ -66,7 +66,7 @@ class PaymentsConfiguration {
 
     @Bean
     PublicEndpoints paymentHooksPublicEndpoints() {
-        return () -> List.of("/v1/hooks/arifpay", "/v1/hooks/chapa");
+        return () -> List.of("/v1/hooks/arifpay", "/v1/hooks/chapa", "/v1/ref/banks");
     }
 
     private static RestClient.Builder client(PaymentsProperties props) {

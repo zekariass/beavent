@@ -92,6 +92,39 @@ export async function cancelAppointment(
   return { ok: true, value: data };
 }
 
+/**
+ * Starts (or resumes) paying the deposit of an unpaid booking: the payment provider's page to send the person to. The
+ * provider sends them back to the booking's payment page, which asks {@link checkPayment}.
+ */
+export async function startPayment(
+  language: string,
+  appointmentId: string,
+): Promise<Result<Schemas["PaymentStart"]>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/appointments/{appointmentId}/payment", {
+    params: { path: { appointmentId } },
+    body: { language },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  return { ok: true, value: data };
+}
+
+/** Asks the provider where the payment stands (the person came back, or is waiting), then returns the booking. */
+export async function checkPayment(
+  language: string,
+  appointmentId: string,
+): Promise<Result<Schemas["AppointmentDetail"]>> {
+  const api = await customerApi(language);
+  if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  const { data, error } = await api.POST("/v1/me/appointments/{appointmentId}/payment/check", {
+    params: { path: { appointmentId } },
+  });
+  if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
+  if (data.status !== "PENDING_PAYMENT") revalidatePath(`/${language}/account/bookings`, "layout");
+  return { ok: true, value: data };
+}
+
 export async function rescheduleAppointment(
   language: string,
   appointmentId: string,

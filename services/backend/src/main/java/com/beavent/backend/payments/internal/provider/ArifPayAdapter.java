@@ -37,6 +37,7 @@ public final class ArifPayAdapter implements PaymentProviderAdapter {
                 "/api/checkout/session/cancel/{id}");
     }
 
+    private static final java.util.regex.Pattern ETHIOPIAN_MOBILE = java.util.regex.Pattern.compile("251[79]\\d{8}");
     private static final DateTimeFormatter EXPIRE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final RestClient http;
@@ -103,7 +104,10 @@ public final class ArifPayAdapter implements PaymentProviderAdapter {
         item.put("price", Money.toDecimal(r.amountMinor()));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("nonce", r.reference());
-        if (r.phone() != null) body.put("phone", localPhone(r.phone()));
+        // The payer's number is optional for ArifPay and refused when it is not 2519…/2517… (a foreign or odd number).
+        if (r.phone() != null && ETHIOPIAN_MOBILE.matcher(localPhone(r.phone())).matches()) {
+            body.put("phone", localPhone(r.phone()));
+        }
         if (r.email() != null) body.put("email", r.email());
         body.put("lang", "am".equals(r.language()) ? "AM" : "EN");
         body.put("items", List.of(item));

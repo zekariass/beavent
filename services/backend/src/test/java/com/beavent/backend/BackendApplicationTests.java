@@ -20,7 +20,8 @@ class BackendApplicationTests {
         JdbcTemplate owner = new JdbcTemplate(ownerDataSource);
         Integer applied = owner.queryForObject(
                 "select count(*) from flyway_schema_history where success and version is not null", Integer.class);
-        assertThat(applied).isEqualTo(36); // db/migration: V1_00 .. V1_99 baseline + V2_01 .. V2_10 + V3_01 + V8_01
+        assertThat(applied)
+                .isEqualTo(38); // db/migration: V1_00 .. V1_99 baseline + V2_01 .. V2_10 + V3_01 .. V3_03 + V8_01
 
         Integer tables = owner.queryForObject("""
                 select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -28,7 +29,7 @@ class BackendApplicationTests {
                        'commerce','scheduling','retention','stock','payments','ledger','billing','fiscal','marketing',
                        'comms','discovery','trust')
                 """, Integer.class);
-        assertThat(tables).isEqualTo(264);
+        assertThat(tables).isEqualTo(265);
 
         String postgis =
                 owner.queryForObject("select extversion from pg_extension where extname = 'postgis'", String.class);

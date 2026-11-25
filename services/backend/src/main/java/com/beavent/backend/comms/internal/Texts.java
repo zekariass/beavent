@@ -26,6 +26,9 @@ final class Texts {
 
     static Message render(String code, String preferred, Map<String, Object> data) {
         String lang = language(preferred);
+        if (code.equals(Notifier.PAYOUT_CHANGED)) {
+            return payoutChanged(lang, data);
+        }
         String business = String.valueOf(data.get("business"));
         String ref = String.valueOf(data.get("reference"));
         ZonedDateTime start = Instant.parse(String.valueOf(data.get("startsAt")))
@@ -88,6 +91,26 @@ final class Texts {
         };
         String subject = am ? business + " · ቀጠሮ " + ref : business + " · booking " + ref;
         return new Message(subject, text);
+    }
+
+    /** The people who manage payouts hear that the account changed and when payouts to it start (plan 3.4). */
+    private static Message payoutChanged(String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String account = data.get("institution") + " " + data.get("last4");
+        ZonedDateTime from = Instant.parse(String.valueOf(data.get("allowedAfter")))
+                .atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+        String when = date(from, lang) + "፣ " + time(from.toLocalTime(), lang);
+        return am
+                ? new Message(
+                        business + " · የክፍያ መቀበያ መለያ",
+                        business + "፦ የክፍያ መቀበያ መለያው ወደ " + account + " ተቀይሯል። ክፍያ ወደዚህ መለያ መላክ የሚጀምረው ከ" + when
+                                + " በኋላ ነው። ይህን ያደረጉት እርስዎ ካልሆኑ ወዲያውኑ ያሳውቁን።")
+                : new Message(
+                        business + " · payout account",
+                        business + ": the payout account was changed to " + account + ". Payouts to it start after "
+                                + date(from, lang) + ", " + time(from.toLocalTime(), lang)
+                                + ". If this wasn't you, tell us right away.");
     }
 
     private static String suffix(String place, boolean am) {

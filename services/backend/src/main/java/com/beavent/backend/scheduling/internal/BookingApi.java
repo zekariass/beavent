@@ -50,13 +50,35 @@ public class BookingApi {
             String currency,
             PolicyBody policy) {}
 
-    public record HoldBody(UUID holdId, String holderKey, Instant expiresAt, SummaryBody booking) {}
+    /**
+     * What the customer would pay now to book (a person not signed in yet counts as new), and what is left for the
+     * venue; null when nothing is due online.
+     */
+    public record PaymentTermsBody(long depositMinor, long atVenueMinor, long totalMinor, String currency) {}
+
+    /** Where an unpaid booking's online payment stands (docs/04 §6). */
+    public record PaymentBody(
+            String state,
+            long dueNowMinor,
+            long paidMinor,
+            long atVenueMinor,
+            String currency,
+            Instant expiresAt,
+            String redirectUrl) {}
+
+    /** The provider's page to send the person to, and when it stops accepting payment. */
+    public record PaymentStartBody(
+            UUID attemptId, String redirectUrl, Instant expiresAt, long amountMinor, String currency) {}
+
+    public record HoldBody(
+            UUID holdId, String holderKey, Instant expiresAt, SummaryBody booking, PaymentTermsBody payment) {}
 
     public record AppointmentBody(
             UUID id,
             String reference,
             String status,
             SummaryBody booking,
+            PaymentBody payment,
             @com.fasterxml.jackson.annotation.JsonIgnore boolean replayed) {}
 
     public record PlaceBody(
@@ -103,7 +125,8 @@ public class BookingApi {
             PlaceBody place,
             SummaryBody booking,
             CancellationBody cancellation,
-            boolean canReschedule) {}
+            boolean canReschedule,
+            PaymentBody payment) {}
 
     private final Bookings bookings;
 
@@ -119,7 +142,19 @@ public class BookingApi {
             Instant start,
             Instant now) {
         Bookings.Held held = bookings.hold(orgId, locationId, items, serviceAreaId, start, now);
-        return new HoldBody(held.holdId(), held.holderKey(), held.expiresAt(), summary(held.plan()));
+        DepositRules.Terms t = held.payment();
+        return new HoldBody(
+                held.holdId(),
+                held.holderKey(),
+                held.expiresAt(),
+                summary(held.plan()),
+                t == null
+                        ? null
+                        : new PaymentTermsBody(
+                                t.depositMinor(),
+                                t.atVenueMinor(),
+                                t.totalMinor(),
+                                held.plan().currency()));
     }
 
     public void release(UUID holdId, String holderKey) {
@@ -129,7 +164,42 @@ public class BookingApi {
     public AppointmentBody confirm(UUID orgId, UUID userId, UUID holdId, String holderKey, String note, Instant now) {
         Bookings.Booked booked = bookings.confirm(orgId, userId, holdId, holderKey, note, now);
         return new AppointmentBody(
-                booked.appointmentId(), booked.reference(), booked.status(), summary(booked.plan()), booked.replayed());
+                booked.appointmentId(),
+                booked.reference(),
+                booked.status(),
+                summary(booked.plan()),
+                paymentBody(booked.payment()),
+                booked.replayed());
+    }
+
+    private static PaymentBody paymentBody(com.beavent.backend.payments.Payments.Status p) {
+        return p == null
+                ? null
+                : new PaymentBody(
+                        p.state(),
+                        p.dueNowMinor(),
+                        p.paidMinor(),
+                        p.atVenueMinor(),
+                        p.currency(),
+                        p.expiresAt(),
+                        p.redirectUrl() == null ? null : p.redirectUrl().toString());
+    }
+
+    /** Starts (or resumes) the online payment of the person's unpaid booking. */
+    public PaymentStartBody startPayment(UUID orgId, UUID userId, UUID appointmentId, String language, Instant now) {
+        var started = bookings.startPayment(orgId, userId, appointmentId, language, now);
+        return new PaymentStartBody(
+                started.attemptId(),
+                started.redirectUrl() == null ? null : started.redirectUrl().toString(),
+                started.expiresAt(),
+                started.amountMinor(),
+                started.currency());
+    }
+
+    /** The person came back from paying: asks the provider, then shows where the booking stands. */
+    public DetailBody checkPayment(
+            UUID orgId, UUID userId, UUID appointmentId, Instant now, PublicLocations locations) {
+        return detailBody(bookings.checkPayment(orgId, userId, appointmentId, now), locations);
     }
 
     /** The person's appointments, newest first, with where they are (public names, also for closed places). */
@@ -367,7 +437,8 @@ public class BookingApi {
                                 n.phone()),
                 summary(d.plan()),
                 new CancellationBody(c.allowed(), c.free(), c.freeUntil(), c.feeMinor(), c.currency()),
-                d.canReschedule());
+                d.canReschedule(),
+                paymentBody(d.payment()));
     }
 
     private static SummaryBody summary(Bookings.Plan plan) {

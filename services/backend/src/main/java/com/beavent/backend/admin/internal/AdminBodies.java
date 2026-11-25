@@ -107,6 +107,26 @@ public final class AdminBodies {
 
             @NotBlank @Size(min = 5, max = 500) String reason) {}
 
+    /** A payout account waiting for (or past) review; the number is masked, see {@code reveal}. */
+    public record PayoutAccountSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            String organizationStatus,
+            String legalEntityName,
+            String legalEntityStatus,
+            String kind,
+            String institutionName,
+            String accountName,
+            String accountNumberMasked,
+            String status,
+            Instant createdAt,
+            Instant payoutsAllowedAfter,
+            String decisionNote) {}
+
+    public record AccountNumber(String accountNumber) {}
+
     public record Reason(@NotBlank @Size(min = 5, max = 500) String reason) {}
 
     public record AccessUrl(String url, Instant expiresAt) {}

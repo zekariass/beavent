@@ -46,6 +46,18 @@ public interface PaymentProviderAdapter {
     /** The events in a notification body (already known to be JSON). */
     List<NormalizedEvent> parseNotification(byte[] rawBody);
 
+    /**
+     * Creates the seller's subaccount for split settlement (Chapa mode): the seller's share of every payment settles to
+     * the bank account, the platform keeps what each payment's split says.
+     *
+     * @param bankCode the provider's own code for the bank or wallet
+     * @return the provider's id for the subaccount
+     * @throws UnsupportedOperationException when {@link #collectionMode()} is not {@code PROVIDER_SPLIT}
+     */
+    default String createSubAccount(String businessName, String accountName, String bankCode, String accountNumber) {
+        throw new UnsupportedOperationException(providerCode() + " has no subaccounts");
+    }
+
     /** @throws UnsupportedOperationException when {@link #canRefundByApi()} is false */
     RefundResult refund(RefundRequest request);
 

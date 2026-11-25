@@ -46,6 +46,9 @@ class Notifier {
     /** A time opened up for someone on the waitlist (plan 2.6, S-15). */
     static final String WAITLIST_OFFER = "APPOINTMENT_WAITLIST_OFFER";
 
+    /** A payout account was added or changed (plan 3.4): sent to the people who manage payouts. */
+    static final String PAYOUT_CHANGED = "PAYOUT_ACCOUNT_CHANGED";
+
     static final List<String> REMINDERS = List.of(REMINDER_24H, REMINDER_2H);
     static final String CONSUMER = "comms.appointments";
 
@@ -63,6 +66,68 @@ class Notifier {
         this.processedMessages = processedMessages;
         this.json = json;
         this.webUrl = webUrl.replaceAll("/+$", "");
+    }
+
+    @RabbitListener(queues = CommsConfiguration.PAYOUTS_QUEUE)
+    void onPayoutEvent(Message message) {
+        UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
+        if (!"payout_account.changed".equals(message.getMessageProperties().getReceivedRoutingKey())) return;
+        UUID orgId = UUID.fromString(message.getMessageProperties().<String>getHeader("org_id"));
+        var body = json.readTree(message.getBody());
+        processedMessages.runOnce(
+                CONSUMER + ".payouts",
+                messageId,
+                () -> payoutChanged(
+                        orgId,
+                        body.get("payoutAccountId").asString(),
+                        body.get("institutionName").asString(),
+                        body.get("last4").asString(),
+                        body.get("allowedAfter").asString(),
+                        Instant.now()));
+    }
+
+    /**
+     * Tells everyone who may manage the business's payouts (the owners, and roles with the right) that the payout
+     * account changed and when payouts to it start. A security message: it goes by every verified channel they have.
+     * Runs in a system transaction.
+     */
+    void payoutChanged(
+            UUID orgId, String accountId, String institution, String last4, String allowedAfter, Instant now) {
+        String business = system.select(ORGANIZATIONS.DISPLAY_NAME)
+                .from(ORGANIZATIONS)
+                .where(ORGANIZATIONS.ID.eq(orgId))
+                .fetchSingle(ORGANIZATIONS.DISPLAY_NAME);
+        List<UUID> people = system.selectDistinct(DSL.field("m.user_id", UUID.class))
+                .from(DSL.table("tenant.members").as("m"))
+                .leftJoin(DSL.table("tenant.role_permissions").as("rp"))
+                .on(DSL.field("rp.role_id", UUID.class).eq(DSL.field("m.role_id", UUID.class)))
+                .where(
+                        DSL.field("m.org_id", UUID.class).eq(orgId),
+                        DSL.field("m.status", String.class).eq("ACTIVE"),
+                        DSL.field("m.is_owner", Boolean.class)
+                                .isTrue()
+                                .or(DSL.field("rp.permission_code", String.class)
+                                        .eq("payouts.manage")))
+                .fetch(0, UUID.class);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("business", business);
+        data.put("institution", institution);
+        data.put("last4", last4);
+        data.put("allowedAfter", allowedAfter);
+        data.put("timezone", "Africa/Addis_Ababa");
+        for (UUID user : people) {
+            system.insertInto(NOTIFICATIONS)
+                    .set(NOTIFICATIONS.ID, Ids.newId())
+                    .set(NOTIFICATIONS.ORG_ID, orgId)
+                    .set(NOTIFICATIONS.RECIPIENT_USER_ID, user)
+                    .set(NOTIFICATIONS.CATEGORY, "SECURITY")
+                    .set(NOTIFICATIONS.TEMPLATE_CODE, PAYOUT_CHANGED)
+                    .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
+                    .set(NOTIFICATIONS.DEDUPE_KEY, PAYOUT_CHANGED + ":" + accountId + ":" + user)
+                    .set(NOTIFICATIONS.SEND_AFTER, now.atOffset(ZoneOffset.UTC))
+                    .onConflictDoNothing()
+                    .execute();
+        }
     }
 
     @RabbitListener(queues = CommsConfiguration.WAITLIST_QUEUE)
