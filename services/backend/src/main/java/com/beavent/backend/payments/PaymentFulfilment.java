@@ -40,4 +40,22 @@ public interface PaymentFulfilment {
     default Delivery delivery(UUID orgId, UUID orderId, Instant now) {
         return null;
     }
+
+    /**
+     * What the business's terms say about a sale whose order was cancelled or not attended.
+     *
+     * @param retainMinor how much of what was paid the business keeps (a late-cancellation or no-show fee); the rest
+     *     goes back to the payer
+     * @param reason a {@code payments.refunds.reason}
+     * @param requestedBy {@code CUSTOMER}, {@code ORGANIZATION} or {@code SYSTEM}
+     */
+    record Settlement(long retainMinor, String reason, String requestedBy) {}
+
+    /**
+     * How an order that fell through is settled, given what was paid ({@code null}: it did not fall through, or the
+     * order is not this module's).
+     */
+    default Settlement settlement(UUID orgId, UUID orderId, long paidMinor, Instant now) {
+        return null;
+    }
 }

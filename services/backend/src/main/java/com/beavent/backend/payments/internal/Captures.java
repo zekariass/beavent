@@ -85,7 +85,7 @@ class Captures {
                 p.lines()));
     }
 
-    private boolean splitAtSource(PaymentAttemptsRecord a) {
+    boolean splitAtSource(PaymentAttemptsRecord a) {
         String code = system.select(PROVIDER_ACCOUNTS.PROVIDER_CODE)
                 .from(PROVIDER_ACCOUNTS)
                 .where(PROVIDER_ACCOUNTS.ID.eq(a.getProviderAccountId()))

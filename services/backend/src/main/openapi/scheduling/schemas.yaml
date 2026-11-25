@@ -468,7 +468,7 @@ MyAppointmentList:
         $ref: '#/MyAppointment'
 CancellationPreview:
   type: object
-  required: [allowed, free, freeUntil, feeMinor]
+  required: [allowed, free, freeUntil, feeMinor, refundMinor, keptMinor]
   properties:
     allowed:
       type: boolean
@@ -480,9 +480,17 @@ CancellationPreview:
     feeMinor:
       type: integer
       format: int64
-      description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+      description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
     currency:
       type: [string, 'null']
+    refundMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+    keptMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
 AppointmentDetail:
   type: object
   required: [id, reference, status, start, end, timezone, booking, cancellation, canReschedule]
@@ -513,6 +521,24 @@ AppointmentDetail:
     payment:
       description: Present when the booking has an order to pay online.
       $ref: '#/PaymentStatus'
+    refund:
+      description: |
+        Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+        happens) or a refund exists: what goes back to the customer.
+      $ref: '#/AppointmentRefund'
+AppointmentRefund:
+  type: object
+  required: [amountMinor, currency, state]
+  properties:
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    state:
+      type: string
+      enum: [ON_THE_WAY, SENT, NONE]
+      description: '`NONE`: the business kept all of it.'
 AppointmentStatus:
   type: object
   required: [status]

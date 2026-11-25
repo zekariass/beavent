@@ -8,7 +8,7 @@ import {
   zoned,
 } from "@beavent/calendar";
 import { createTranslator, formatDuration, type Language } from "@beavent/i18n";
-import { calendarLanguage, localDateOf, localToInstant } from "@beavent/venue";
+import { calendarLanguage, localDateOf, localToInstant, price } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import {
@@ -623,6 +623,13 @@ export function MoveForm({
             ))}
           </select>
         </Label>
+      ) : null}
+      {appointment.payment && appointment.payment.paidMinor > 0 ? (
+        <p className="bv-type-body text-fg-muted">
+          {t("portal.calendar.cancelRefund", {
+            amount: price(appointment.payment.paidMinor, appointment.payment.currency, language),
+          })}
+        </p>
       ) : null}
       <label className="flex min-h-10 items-center gap-2">
         <input

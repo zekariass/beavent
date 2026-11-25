@@ -77,6 +77,12 @@ final class Texts {
                 am
                         ? business + " ላይ የነበረዎት ቀጠሮ " + ref + " (" + date + "፣ " + when + ") ተሰርዟል።"
                         : "Your booking " + ref + " at " + business + " on " + date + ", " + when + " is cancelled.";
+            case Notifier.REFUND_SENT -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
+                yield am
+                        ? business + "፦ " + amount + " ተመላሽ ተልኳል። ቀጠሮ " + ref + "።"
+                        : business + ": " + amount + " was refunded to you for booking " + ref + ".";
+            }
             case Notifier.RESCHEDULED ->
                 am
                         ? business + "፦ ቀጠሮዎ " + ref + " ወደ " + date + "፣ " + when + " ተዛውሯል።"

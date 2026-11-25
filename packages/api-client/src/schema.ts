@@ -2425,6 +2425,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Refunds by queue, oldest first (default `PAY`)
+         * @description Needs `admin.payments.view`. `APPROVAL`: duplicate payments waiting for a decision; `PAY`: approved refunds finance
+         *     pays by hand, and ones the provider could not pay; `PROCESSING`: being paid through the provider; `PAID`.
+         */
+        get: operations["listRefundsForFinance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refunds/{refundId}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a refund that waits for a decision (step-up, audited)
+         * @description Needs `admin.payments.refund` and a fresh code.
+         */
+        post: operations["approveRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refunds/{refundId}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that a refund was paid to the customer by hand (step-up, audited)
+         * @description Needs `admin.payments.refund` and a fresh code. The customer is told. A refund the provider is paying is refused
+         *     (`CONFLICT`) unless the provider failed it.
+         */
+        post: operations["payRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -4370,10 +4432,30 @@ export interface components {
             freeUntil: components["schemas"]["Instant"];
             /**
              * Format: int64
-             * @description Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+             * @description Late-cancellation fee if cancelled now (0 when free), on the whole price.
              */
             feeMinor: number;
             currency?: string | null;
+            /**
+             * Format: int64
+             * @description What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+             */
+            refundMinor: number;
+            /**
+             * Format: int64
+             * @description What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
+             */
+            keptMinor: number;
+        };
+        AppointmentRefund: {
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /**
+             * @description `NONE`: the business kept all of it.
+             * @enum {string}
+             */
+            state: "ON_THE_WAY" | "SENT" | "NONE";
         };
         AppointmentDetail: {
             id: components["schemas"]["Uuid"];
@@ -4390,6 +4472,11 @@ export interface components {
             canReschedule: boolean;
             /** @description Present when the booking has an order to pay online. */
             payment?: components["schemas"]["PaymentStatus"];
+            /**
+             * @description Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+             *     happens) or a refund exists: what goes back to the customer.
+             */
+            refund?: components["schemas"]["AppointmentRefund"];
         };
         PaymentStart: {
             attemptId: components["schemas"]["Uuid"];
@@ -4810,6 +4897,42 @@ export interface components {
             outcome: "PAID" | "FAILED" | "RETURNED";
             reference?: string;
             reason?: string;
+        };
+        RefundSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "REQUESTED" | "APPROVED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "REJECTED" | "CANCELLED";
+            /** @enum {string} */
+            method: "ORIGINAL_METHOD" | "PAYOUT" | "STORE_CREDIT" | "GIFT_CARD" | "CASH" | "MANUAL_BANK_TRANSFER";
+            reason: string;
+            requestedBy: string;
+            customerName?: string | null;
+            /** @description Where to pay it. */
+            customerPhone?: string | null;
+            /** @description How the customer paid (the payment method code). */
+            paidWith?: string | null;
+            bookingReference?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            reference?: string | null;
+            note?: string | null;
+        };
+        RefundSummaryPage: {
+            items: components["schemas"]["RefundSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RefundApproval: {
+            note?: string;
+        };
+        RefundPayment: {
+            reference: string;
+            note?: string;
         };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
@@ -9879,6 +10002,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listRefundsForFinance: {
+        parameters: {
+            query?: {
+                queue?: "APPROVAL" | "PAY" | "PROCESSING" | "PAID";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    approveRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefundApproval"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    payRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundPayment"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummary"];
                 };
             };
             400: components["responses"]["BadRequest"];

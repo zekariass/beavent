@@ -112,7 +112,17 @@ public class BookingApi {
 
     public record MineList(List<MineBody> items) {}
 
-    public record CancellationBody(boolean allowed, boolean free, Instant freeUntil, long feeMinor, String currency) {}
+    public record CancellationBody(
+            boolean allowed,
+            boolean free,
+            Instant freeUntil,
+            long feeMinor,
+            String currency,
+            long refundMinor,
+            long keptMinor) {}
+
+    /** What is refunded for a cancelled booking: {@code ON_THE_WAY}, {@code SENT}, or {@code NONE} (all of it kept). */
+    public record RefundBody(long amountMinor, String currency, String state) {}
 
     public record DetailBody(
             UUID id,
@@ -126,7 +136,8 @@ public class BookingApi {
             SummaryBody booking,
             CancellationBody cancellation,
             boolean canReschedule,
-            PaymentBody payment) {}
+            PaymentBody payment,
+            RefundBody refund) {}
 
     private final Bookings bookings;
 
@@ -436,9 +447,22 @@ public class BookingApi {
                                 n.landmark(),
                                 n.phone()),
                 summary(d.plan()),
-                new CancellationBody(c.allowed(), c.free(), c.freeUntil(), c.feeMinor(), c.currency()),
+                new CancellationBody(
+                        c.allowed(),
+                        c.free(),
+                        c.freeUntil(),
+                        c.feeMinor(),
+                        c.currency(),
+                        c.refundMinor(),
+                        c.keptMinor()),
                 d.canReschedule(),
-                paymentBody(d.payment()));
+                paymentBody(d.payment()),
+                d.refund() == null
+                        ? null
+                        : new RefundBody(
+                                d.refund().amountMinor(),
+                                d.refund().currency(),
+                                d.refund().state()));
     }
 
     private static SummaryBody summary(Bookings.Plan plan) {

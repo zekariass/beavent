@@ -390,6 +390,8 @@ Bottom sheet:
 - `destructive` **Cancel booking**; `secondary` **Keep booking**.
 After: the detail screen updates to `CANCELLED` with the refund row; a toast is not used.
 
+**Implementation note (plan 3.6, 25 Nov 2026):** the question is built inline on the detail page (web and app), not as a sheet, and states the money first: "Your deposit of Br 360 will be refunded.", "Cancelling now keeps Br 180 of your deposit and refunds Br 180." or "Cancelling now keeps your deposit of Br 360." (the wording lives in `packages/venue`, shared by web and app). There is no refund method line or reason chips yet: the refund goes to the phone number the booking was made with, and finance sends it by hand (ArifPay). After cancelling, the detail page says where the refund stands: "We're arranging your refund.", "Your refund of Br 360 is on its way. We send it to the phone number you booked with.", "Br 360 was refunded to you." or, when the business kept all of it, "Your deposit of Br 360 was kept under the cancellation terms." A text message follows when it is paid. Gap G4 is closed: the cancellation preview carries `refundMinor` and `keptMinor`.
+
 ### S-14 Book again
 
 From a past appointment, Book again opens the booking flow at **S-08 Time** with the same services (current versions; removed services are dropped with an `info` Banner "Box braids — long is no longer offered") and the same professional preselected if still bookable (else Any professional with a Banner). The user can step back to change services.

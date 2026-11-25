@@ -39,6 +39,9 @@ class Notifier {
     static final String REQUESTED = "APPOINTMENT_REQUESTED";
     static final String DECLINED = "APPOINTMENT_DECLINED";
     static final String EXPIRED = "APPOINTMENT_EXPIRED";
+    /** A refund was paid to the customer (plan 3.6). */
+    static final String REFUND_SENT = "APPOINTMENT_REFUND_SENT";
+
     static final String CANCELLED = "APPOINTMENT_CANCELLED";
     static final String RESCHEDULED = "APPOINTMENT_RESCHEDULED";
     static final String REMINDER_24H = "APPOINTMENT_REMINDER_24H";
@@ -237,6 +240,20 @@ class Notifier {
         UUID messageId = UUID.fromString(message.getMessageProperties().getMessageId());
         String type = message.getMessageProperties().getReceivedRoutingKey();
         var body = json.readTree(message.getBody());
+        if (type.equals("refund.succeeded")) {
+            UUID orderId = UUID.fromString(body.get("orderId").asString());
+            Map<String, Object> extra = Map.of(
+                    "refundId", body.get("refundId").asString(),
+                    "refundMinor", body.get("amountMinor").asLong());
+            processedMessages.runOnce(CONSUMER, messageId, () -> {
+                UUID appointmentId = system.select(APPOINTMENTS.ID)
+                        .from(APPOINTMENTS)
+                        .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                        .fetchOne(APPOINTMENTS.ID);
+                if (appointmentId != null) handle(type, appointmentId, true, Instant.now(), extra);
+            });
+            return;
+        }
         UUID appointmentId = UUID.fromString(body.get("appointmentId").asString());
         // The front desk may book or move without telling the customer now (reminders still follow).
         boolean notify = !body.has("notify") || body.get("notify").asBoolean();
@@ -245,6 +262,10 @@ class Notifier {
 
     /** Runs inside a system-role transaction. */
     void handle(String eventType, UUID appointmentId, boolean notify, Instant now) {
+        handle(eventType, appointmentId, notify, now, Map.of());
+    }
+
+    void handle(String eventType, UUID appointmentId, boolean notify, Instant now, Map<String, Object> extra) {
         var a = system.select(
                         APPOINTMENTS.ORG_ID,
                         APPOINTMENTS.CUSTOMER_ID,
@@ -280,6 +301,7 @@ class Notifier {
         data.put("location", a.value7());
         data.put("landmark", a.value8());
         data.put("phone", a.value9());
+        data.putAll(extra);
         data.put(
                 "services",
                 system.select(APPOINTMENT_ITEMS.SERVICE_NAME)
@@ -303,6 +325,7 @@ class Notifier {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, CANCELLED, data, now, start);
             }
+            case "refund.succeeded" -> add(orgId, customerId, userId, REFUND_SENT, data, now, start);
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, RESCHEDULED, data, now, start);
@@ -343,7 +366,9 @@ class Notifier {
                 .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
                 .set(
                         NOTIFICATIONS.DEDUPE_KEY,
-                        code + ":" + data.getOrDefault("offerId", data.get("appointmentId")) + ":" + start)
+                        code + ":"
+                                + data.getOrDefault("refundId", data.getOrDefault("offerId", data.get("appointmentId")))
+                                + ":" + start)
                 .set(NOTIFICATIONS.SEND_AFTER, sendAfter.atOffset(ZoneOffset.UTC))
                 .onConflictDoNothing()
                 .execute();

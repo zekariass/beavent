@@ -526,4 +526,106 @@ adminPayoutExport:
         $ref: ../common/responses.yaml#/Unauthorized
       '403':
         $ref: ../common/responses.yaml#/Forbidden
+adminRefunds:
+  get:
+    tags: [Admin]
+    operationId: listRefundsForFinance
+    summary: Refunds by queue, oldest first (default `PAY`)
+    description: |
+      Needs `admin.payments.view`. `APPROVAL`: duplicate payments waiting for a decision; `PAY`: approved refunds finance
+      pays by hand, and ones the provider could not pay; `PROCESSING`: being paid through the provider; `PAID`.
+    parameters:
+      - name: queue
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [APPROVAL, PAY, PROCESSING, PAID]
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/RefundSummaryPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminRefundApproval:
+  post:
+    tags: [Admin]
+    operationId: approveRefund
+    summary: Approve a refund that waits for a decision (step-up, audited)
+    description: Needs `admin.payments.refund` and a fresh code.
+    parameters:
+      - name: refundId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/RefundApproval
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/RefundSummary
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+adminRefundPayment:
+  post:
+    tags: [Admin]
+    operationId: payRefund
+    summary: Record that a refund was paid to the customer by hand (step-up, audited)
+    description: |
+      Needs `admin.payments.refund` and a fresh code. The customer is told. A refund the provider is paying is refused
+      (`CONFLICT`) unless the provider failed it.
+    parameters:
+      - name: refundId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/RefundPayment
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/RefundSummary
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
 

@@ -118,7 +118,8 @@ class PayoutService implements Payouts {
                 .fetchOne();
         if (r == null || !r.getStatus().equals("SCHEDULED")) return;
         PaymentFulfilment.Delivery delivery = null;
-        if (r.getOrderId() != null) {
+        // A sale settled by cancellation terms (the part the business keeps) waits for no visit.
+        if (r.getOrderId() != null && !r.getSettled()) {
             for (PaymentFulfilment f : fulfilments) {
                 delivery = f.delivery(r.getOrgId(), r.getOrderId(), now);
                 if (delivery != null) break;

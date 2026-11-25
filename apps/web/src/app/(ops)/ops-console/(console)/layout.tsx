@@ -9,6 +9,7 @@ const sections = () => [
   { href: "/organizations", label: "Organizations" },
   { href: "/payout-accounts", label: "Payout accounts" },
   { href: "/payouts", label: "Payouts" },
+  { href: "/refunds", label: "Refunds" },
   { href: "/people", label: "People" },
   { href: "/audit", label: "Audit log" },
   { href: "/flags", label: "Feature flags" },

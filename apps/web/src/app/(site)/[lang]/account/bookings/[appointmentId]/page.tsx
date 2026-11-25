@@ -1,6 +1,6 @@
 import { defaultDisplayPreferences, formatDualDate, formatDualTime } from "@beavent/calendar";
 import { formatDuration, localized } from "@beavent/i18n";
-import { calendarLanguage, price } from "@beavent/venue";
+import { calendarLanguage, cancelNotice, price, refundNotice } from "@beavent/venue";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -55,6 +55,7 @@ export default async function AppointmentPage({
             : a.status === "CANCELLED"
               ? t("appointment.cancelled")
               : null;
+  const refundText = refundNotice(a, language, t);
   const names = await menuNames(a.place ? [a.place] : [], language);
   const finished = ["CANCELLED", "DECLINED", "EXPIRED", "COMPLETED", "NO_SHOW"].includes(a.status);
   const free = a.booking.policy.freeCancellationUntil;
@@ -99,6 +100,11 @@ export default async function AppointmentPage({
             }`}
           >
             {banner}
+          </p>
+        ) : null}
+        {refundText ? (
+          <p role="status" className="bv-type-body text-fg">
+            {refundText}
           </p>
         ) : null}
         {a.status === "PENDING_PAYMENT" && a.payment && a.payment.state !== "EXPIRED" ? (
@@ -238,17 +244,7 @@ export default async function AppointmentPage({
               language={language}
               appointmentId={a.id}
               request={a.status === "REQUESTED"}
-              feeText={
-                a.cancellation.free
-                  ? t("appointment.cancelFree")
-                  : t("appointment.cancelFee", {
-                      amount: price(
-                        a.cancellation.feeMinor,
-                        a.cancellation.currency ?? "ETB",
-                        language,
-                      ),
-                    })
-              }
+              feeText={cancelNotice(a, language, t)}
             />
           ) : null}
           {finished && venueHref ? (

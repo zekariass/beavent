@@ -1,6 +1,7 @@
 package com.beavent.backend.payments.internal;
 
 import com.beavent.backend.payments.Payouts;
+import com.beavent.backend.payments.Refunds;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,9 +15,11 @@ class PayoutWorker {
     private static final Logger log = LoggerFactory.getLogger(PayoutWorker.class);
 
     private final Payouts payouts;
+    private final Refunds refunds;
 
-    PayoutWorker(Payouts payouts) {
+    PayoutWorker(Payouts payouts, Refunds refunds) {
         this.payouts = payouts;
+        this.refunds = refunds;
     }
 
     @Scheduled(
@@ -26,8 +29,17 @@ class PayoutWorker {
         Instant now = Instant.now();
         try {
             int released = payouts.releaseDue(now);
+            int settled = refunds.sweep(now);
             int created = payouts.createDue(now);
-            if (released + created > 0) log.info("Released {} sales, created {} payouts", released, created);
+            int moved = refunds.processApiRefunds(now);
+            if (released + created + settled + moved > 0) {
+                log.info(
+                        "Released {} sales, settled {} orders, created {} payouts, moved {} refunds",
+                        released,
+                        settled,
+                        created,
+                        moved);
+            }
         } catch (RuntimeException e) {
             log.warn("Payout worker failed; it runs again shortly", e);
         }

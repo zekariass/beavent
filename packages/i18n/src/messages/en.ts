@@ -272,6 +272,7 @@ export const en = {
   "portal.calendar.cancel.FOLLOWING": "This and the following visits",
   "portal.calendar.cancel.GROUP": "The whole group",
   "portal.calendar.cancelReason": "Reason (optional)",
+  "portal.calendar.cancelRefund": "The deposit of {amount} is refunded to the customer.",
   "portal.calendar.cancelConfirm": "Cancel",
   "portal.calendar.keep": "Keep",
   "portal.calendar.done": "Done",
@@ -560,6 +561,15 @@ export const en = {
   "appointment.cancel": "Cancel booking",
   "appointment.cancelRequest": "Cancel request",
   "appointment.cancelTitle": "Cancel this booking?",
+  "appointment.cancelRefundAll": "Your deposit of {amount} will be refunded.",
+  "appointment.cancelRefundSome":
+    "Cancelling now keeps {kept} of your deposit and refunds {refund}.",
+  "appointment.cancelKeepAll": "Cancelling now keeps your deposit of {kept}.",
+  "appointment.refund.arranging": "We're arranging your refund.",
+  "appointment.refund.onTheWay":
+    "Your refund of {amount} is on its way. We send it to the phone number you booked with.",
+  "appointment.refund.sent": "{amount} was refunded to you.",
+  "appointment.refund.none": "Your deposit of {amount} was kept under the cancellation terms.",
   "appointment.cancelFree": "You won't be charged.",
   "appointment.cancelFee": "Cancelling now costs {amount} (late cancellation fee).",
   "appointment.keep": "Keep booking",

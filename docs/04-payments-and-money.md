@@ -187,6 +187,8 @@ Card-on-file no-show protection (Fresha's model) does not work where most custom
 
 ## 8. Refunds
 
+*Built in slice 3.6 (25 Nov 2026), deposits only:* `payments/Refunds`, `internal/RefundService`. Cancellations, declines and no-shows are settled by the booking's terms; ArifPay refunds are paid by hand from the admin console's Refunds queue, Chapa's through its API. Requests by customers or staff, store credit and gift cards, fiscal credit notes and disputes are not built yet.
+
 | Step | Rule |
 |---|---|
 | Who can request | Customer (within the event refund policy / appointment cancellation window), organization (`refunds.create` permission), platform (finance/support), system (event cancelled, duplicate payment) |

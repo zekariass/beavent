@@ -1,7 +1,9 @@
 package com.beavent.backend.scheduling.internal;
 
+import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
+import static com.beavent.db.scheduling.Tables.APPOINTMENT_STATUS_HISTORY;
 import static com.beavent.db.scheduling.Tables.SCHEDULE_RESERVATIONS;
 
 import com.beavent.backend.payments.PaymentFulfilment;
@@ -94,6 +96,59 @@ class AppointmentFulfilment implements PaymentFulfilment {
             default -> DeliveryState.PENDING;
         };
         return new Delivery(state, ends);
+    }
+
+    @Override
+    public Settlement settlement(UUID orgId, UUID orderId, long paidMinor, Instant now) {
+        var a = system.selectFrom(APPOINTMENTS)
+                .where(APPOINTMENTS.ORDER_ID.eq(orderId))
+                .fetchOne();
+        if (a == null) return null;
+        long total = system.select(ORDERS.TOTAL_MINOR)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId))
+                .fetchSingle(ORDERS.TOTAL_MINOR);
+        Bookings.Policy policy = json.readValue(a.getPolicySnapshot().data(), Bookings.Policy.class);
+        switch (a.getStatus()) {
+            case "CANCELLED" -> {
+                String by = a.getCancelledBy() == null ? "SYSTEM" : a.getCancelledBy();
+                long keep = 0;
+                if (by.equals("CUSTOMER")) {
+                    // Free while the business had not accepted a request, and until the frozen free-cancellation time.
+                    boolean wasRequest = system.fetchExists(
+                            APPOINTMENT_STATUS_HISTORY,
+                            APPOINTMENT_STATUS_HISTORY
+                                    .APPOINTMENT_ID
+                                    .eq(a.getId())
+                                    .and(APPOINTMENT_STATUS_HISTORY.FROM_STATUS.eq("REQUESTED"))
+                                    .and(APPOINTMENT_STATUS_HISTORY.TO_STATUS.eq("CANCELLED")));
+                    boolean free = wasRequest
+                            || policy.freeCancellationUntil() == null
+                            || !a.getCancelledAt().toInstant().isAfter(policy.freeCancellationUntil());
+                    if (!free) keep = Math.min(paidMinor, percent(total, policy.lateCancelFeePercent()));
+                }
+                return new Settlement(keep, "APPOINTMENT_CANCELLED", by);
+            }
+            case "NO_SHOW" -> {
+                return new Settlement(
+                        Math.min(paidMinor, percent(total, policy.noShowFeePercent())), "ORDER_ADJUSTMENT", "SYSTEM");
+            }
+            case "DECLINED" -> {
+                return new Settlement(0, "APPOINTMENT_CANCELLED", "ORGANIZATION");
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /** {@code percent} % of {@code total}, rounded half up. */
+    static long percent(long total, java.math.BigDecimal percent) {
+        if (percent == null) return 0;
+        return java.math.BigDecimal.valueOf(total)
+                .multiply(percent)
+                .divide(java.math.BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
+                .longValueExact();
     }
 
     /** The booking is paid for: it is confirmed and the customer (or the business, for a request) is told. */

@@ -304,14 +304,10 @@ export function seal(plain: string): string {
 }
 
 /**
- * A verified business with a verified payout account and a 10 % + VAT fee, whose customer paid the 20 % deposit on the
- * ArifPay stub; the visit is marked done, its money due for release and the business's payouts daily. With the API
- * started with `BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000` the worker then releases the money and makes the first payout,
- * which waits for approval (first payout). Returns once the payout exists.
+ * A verified business with a verified payout account and a 10 % + VAT fee, whose customer booked and paid the 20 %
+ * deposit on the ArifPay stub (the booking is confirmed, a week ahead).
  */
-export async function seedPaidSale(
-  name = "Abeba Beauty",
-): Promise<SeededSalon & { payoutId: string }> {
+export async function seedPaidBooking(name = "Abeba Beauty") {
   const salon = await seedSalon(name, { deposit: true });
   const org = salon.orgId;
   sql(`update tenant.organizations set verification_status = 'VERIFIED' where id = '${org}'`);
@@ -352,7 +348,19 @@ export async function seedPaidSale(
     if (d.status === "CONFIRMED") break;
     await new Promise((r) => setTimeout(r, 1000));
   }
+  return { salon, booked: booked as { id: string; phone: string; token: string } };
+}
 
+/**
+ * A paid deposit whose visit is marked done, its money due for release and the business's payouts daily. With the API
+ * started with `BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000` the worker then releases the money and makes the first payout,
+ * which waits for approval (first payout). Returns once the payout exists.
+ */
+export async function seedPaidSale(
+  name = "Abeba Beauty",
+): Promise<SeededSalon & { payoutId: string }> {
+  const { salon, booked } = await seedPaidBooking(name);
+  const org = salon.orgId;
   sql(`update scheduling.appointments set status = 'COMPLETED' where id = '${booked.id}'`);
   sql(
     `update ledger.scheduled_releases set release_at = now() - interval '1 minute' where org_id = '${org}'`,

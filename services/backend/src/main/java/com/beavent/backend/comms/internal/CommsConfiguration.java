@@ -66,4 +66,12 @@ class CommsConfiguration {
                 .to(new TopicExchange(Outbox.EXCHANGE))
                 .with("appointment.*");
     }
+
+    /** A refund was paid: the customer is told (plan 3.6). */
+    @Bean
+    Binding commsRefundsBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("refund.succeeded");
+    }
 }

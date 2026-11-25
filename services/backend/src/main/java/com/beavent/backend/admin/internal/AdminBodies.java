@@ -155,6 +155,33 @@ public final class AdminBodies {
 
     public record PayoutExport(List<UUID> payoutIds) {}
 
+    /** A refund in the finance queue, with who to pay and how. */
+    public record RefundSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            long amountMinor,
+            String currency,
+            String status,
+            String method,
+            String reason,
+            String requestedBy,
+            String customerName,
+            String customerPhone,
+            String paidWith,
+            String bookingReference,
+            Instant createdAt,
+            Instant paidAt,
+            String reference,
+            String note) {}
+
+    public record RefundPayment(
+            @NotBlank @Size(max = 120) String reference,
+            @Size(max = 500) String note) {}
+
+    public record RefundApproval(@Size(max = 500) String note) {}
+
     public record Reason(@NotBlank @Size(min = 5, max = 500) String reason) {}
 
     public record AccessUrl(String url, Instant expiresAt) {}

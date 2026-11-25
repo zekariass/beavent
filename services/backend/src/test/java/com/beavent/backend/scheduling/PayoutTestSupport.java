@@ -56,7 +56,7 @@ abstract class PayoutTestSupport extends SchedulingTestSupport {
         return shop;
     }
 
-    protected record Paid(String appointmentId, String attemptId) {}
+    protected record Paid(String appointmentId, String attemptId, String token, String phone) {}
 
     protected Paid payDeposit(Shop shop, int daysAhead) throws Exception {
         Person person = newPerson();
@@ -78,7 +78,7 @@ abstract class PayoutTestSupport extends SchedulingTestSupport {
         arifpay.pay(nonce);
         Call checked = call(post("/v1/me/appointments/" + id + "/payment/check"), null, person.token());
         assertThat(checked.text("status")).isEqualTo("CONFIRMED");
-        return new Paid(id, nonce);
+        return new Paid(id, nonce, person.token(), person.phone());
     }
 
     protected long owed(Shop shop, Code code) {

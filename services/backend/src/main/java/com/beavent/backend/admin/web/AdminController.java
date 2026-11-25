@@ -10,6 +10,7 @@ import com.beavent.backend.admin.internal.Flags;
 import com.beavent.backend.admin.internal.Kyb;
 import com.beavent.backend.admin.internal.PayoutDesk;
 import com.beavent.backend.admin.internal.PayoutReview;
+import com.beavent.backend.admin.internal.RefundDesk;
 import com.beavent.backend.admin.internal.StaffAccess;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.ProblemCode;
@@ -35,6 +36,7 @@ class AdminController {
     private final Kyb kyb;
     private final PayoutReview payouts;
     private final PayoutDesk desk;
+    private final RefundDesk refundDesk;
     private final AuditTrail auditTrail;
     private final Flags flags;
     private final DSLContext system;
@@ -44,6 +46,7 @@ class AdminController {
             Kyb kyb,
             PayoutReview payouts,
             PayoutDesk desk,
+            RefundDesk refundDesk,
             AuditTrail auditTrail,
             Flags flags,
             @SystemDb DSLContext system) {
@@ -51,6 +54,7 @@ class AdminController {
         this.kyb = kyb;
         this.payouts = payouts;
         this.desk = desk;
+        this.refundDesk = refundDesk;
         this.auditTrail = auditTrail;
         this.flags = flags;
         this.system = system;
@@ -164,6 +168,26 @@ class AdminController {
                 .contentType(org.springframework.http.MediaType.parseMediaType("text/csv;charset=UTF-8"))
                 .header("Content-Disposition", "attachment; filename=\"payouts.csv\"")
                 .body(csv);
+    }
+
+    @GetMapping("/v1/admin/refunds")
+    AdminBodies.Page<AdminBodies.RefundSummary> refundQueue(
+            @RequestParam(required = false) String queue,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return refundDesk.queue(StaffAccess.current(), queue, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/refunds/{refundId}/approval")
+    AdminBodies.RefundSummary approveRefund(
+            @PathVariable UUID refundId, @Valid @RequestBody(required = false) AdminBodies.RefundApproval body) {
+        return refundDesk.approve(StaffAccess.current(), refundId, body == null ? null : body.note());
+    }
+
+    @PostMapping("/v1/admin/refunds/{refundId}/payment")
+    AdminBodies.RefundSummary payRefund(
+            @PathVariable UUID refundId, @Valid @RequestBody AdminBodies.RefundPayment body) {
+        return refundDesk.pay(StaffAccess.current(), refundId, body);
     }
 
     @GetMapping("/v1/admin/audit-log")

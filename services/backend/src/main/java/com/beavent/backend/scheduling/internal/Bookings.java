@@ -25,6 +25,7 @@ import com.beavent.backend.catalog.ServicePricing;
 import com.beavent.backend.commerce.Orders;
 import com.beavent.backend.identity.People;
 import com.beavent.backend.payments.Payments;
+import com.beavent.backend.payments.Refunds;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Ids;
@@ -156,6 +157,7 @@ class Bookings {
     private final JsonMapper json;
     private final Orders orders;
     private final Payments payments;
+    private final Refunds refunds;
     private final com.beavent.backend.payments.SellerPayments sellers;
     private final String webUrl;
     private final Duration paymentWindow;
@@ -171,6 +173,7 @@ class Bookings {
             JsonMapper json,
             Orders orders,
             Payments payments,
+            Refunds refunds,
             com.beavent.backend.payments.SellerPayments sellers,
             @Value("${beavent.web.public-url}") String webUrl,
             @Value("${beavent.booking.payment-window:15m}") Duration paymentWindow) {
@@ -184,6 +187,7 @@ class Bookings {
         this.json = json;
         this.orders = orders;
         this.payments = payments;
+        this.refunds = refunds;
         this.sellers = sellers;
         this.webUrl = webUrl;
         this.paymentWindow = paymentWindow;
@@ -764,7 +768,14 @@ class Bookings {
      * not accepted a request), otherwise the late-cancellation fee on the all-in total. No money moves before Stage 3:
      * the fee is recorded with the cancellation.
      */
-    record Cancellation(boolean allowed, boolean free, Instant freeUntil, long feeMinor, String currency) {}
+    record Cancellation(
+            boolean allowed,
+            boolean free,
+            Instant freeUntil,
+            long feeMinor,
+            String currency,
+            long refundMinor,
+            long keptMinor) {}
 
     record Detail(
             UUID id,
@@ -778,7 +789,8 @@ class Bookings {
             Plan plan,
             Cancellation cancellation,
             boolean canReschedule,
-            Payments.Status payment) {}
+            Payments.Status payment,
+            Refunds.Summary refund) {}
 
     /** The business behind one of the person's appointments (row-level security hides everyone else's). */
     java.util.Optional<UUID> orgOf(UUID appointmentId) {
@@ -861,6 +873,10 @@ class Bookings {
                 policy,
                 total,
                 currency);
+        Payments.Status payment = a.getOrderId() == null ? null : payments.status(a.getOrgId(), a.getOrderId(), now);
+        // What cancelling now gives back: the deposit, less the late-cancellation fee once the free period is over.
+        long paid = payment == null ? 0 : payment.paidMinor();
+        long kept = Math.min(paid, fee);
         return new Detail(
                 a.getId(),
                 a.getLocationId(),
@@ -871,9 +887,11 @@ class Bookings {
                 a.getTimezone(),
                 a.getCustomerNote(),
                 plan,
-                new Cancellation(open && upcoming, free, policy.freeCancellationUntil(), fee, currency),
+                new Cancellation(
+                        open && upcoming, free, policy.freeCancellationUntil(), fee, currency, paid - kept, kept),
                 open && !unpaid && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()),
-                a.getOrderId() == null ? null : payments.status(a.getOrgId(), a.getOrderId(), now));
+                payment,
+                a.getOrderId() == null ? null : refunds.summary(a.getOrgId(), a.getOrderId()));
     }
 
     /** An unpaid booking is closed: its order goes with it (the payment is stopped by the caller after commit). */
