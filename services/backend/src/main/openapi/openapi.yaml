@@ -251,6 +251,10 @@ paths:
     $ref: ./scheduling/paths.yaml#/myAppointment
   /v1/me/appointments/{appointmentId}/cancel:
     $ref: ./scheduling/paths.yaml#/myAppointmentCancel
+  /v1/me/appointments/{appointmentId}/payment:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPayment
+  /v1/me/appointments/{appointmentId}/payment/check:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPaymentCheck
   /v1/me/appointments/{appointmentId}/reschedule:
     $ref: ./scheduling/paths.yaml#/myAppointmentReschedule
   /v1/me/waitlist:

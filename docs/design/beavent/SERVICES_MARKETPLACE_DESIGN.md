@@ -313,6 +313,16 @@ If no single professional can do everything: notice `info` Banner "No one person
 - Network error on submit: `danger` Banner "Couldn't confirm. Nothing was charged." + Try again (idempotency key reused, so retries are safe).
 **Interaction.** "Change" links jump back to the step and return here on Continue. The total never changes on this screen without a visible line explaining why.
 
+**Implementation note (plan 3.3, 25 Nov 2026):** deposits are built on web and in the consumer app. The review step shows **Pay now to book Br 360** and **Pay at the venue Br 1,440** with one sentence ("A deposit confirms your booking and counts towards the price. We hold this time while you pay."), and the button reads **Pay deposit and book** (**Pay and book** when the whole price is due; **Confirm and pay deposit** after the inline code). There is no method list: the person chooses telebirr, CBE Birr, M-PESA, card or bank app on the payment provider's own page, and comes back to a **payment page** (below), so the sticky bar and C-7 waiting screen are not separate screens. The estimate for a person who is not signed in yet assumes a new customer; confirming decides for real, so a returning customer who is not asked for a deposit is simply booked. Not built: the promo code row, "For someone else", and the venue-not-enabled gate (3.4).
+
+**The payment page** (`/{lang}/account/bookings/{id}/payment`; the provider sends the person back here; unpaid bookings are paid from here): the title is the state, and every state is Beavent's answer, never the provider's redirect.
+- *Checking your payment…*: asked every 3 seconds for up to two minutes; the time held until `HH:mm` and the amounts; no buttons while asking.
+- *You're booked* (paid): where, what, when, **Deposit Br 360 · Paid**, **At the venue Br 1,440**, **See my bookings**.
+- *The payment didn't go through* / *Payment cancelled*: "Nothing was charged." the held-until time, primary **Try again with Br 360** or **Pay Br 360**, quiet **Cancel booking**.
+- *We haven't received your payment yet* (nothing confirmed after two minutes): "If you've paid, we'll text you as soon as it's confirmed", **Pay Br 360**, **I've paid, check again**.
+- *The time was released* (not paid in time): **Choose another time**. A booking the person cancelled says "This booking is cancelled."
+In the consumer app the provider's page opens outside the app; the booking screen (S-11) waits, asking every 4 seconds while it is unpaid, with **Pay Br 360** and **I've paid, check again** right under the banner.
+
 ### S-10b Booking confirmation
 
 SuccessState (COMPONENT 8.5).

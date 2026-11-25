@@ -28,7 +28,11 @@ import org.junit.jupiter.api.Test;
 class BookingMessagesTests extends SchedulingTestSupport {
 
     static void waitFor(String what, BooleanSupplier condition) throws InterruptedException {
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(20));
+        waitFor(what, condition, 20_000);
+    }
+
+    static void waitFor(String what, BooleanSupplier condition, long timeoutMillis) throws InterruptedException {
+        Instant deadline = Instant.now().plus(Duration.ofMillis(timeoutMillis));
         while (!condition.getAsBoolean()) {
             if (Instant.now().isAfter(deadline)) {
                 throw new AssertionError("timed out waiting for " + what);

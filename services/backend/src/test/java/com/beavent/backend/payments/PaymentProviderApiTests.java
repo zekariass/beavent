@@ -65,7 +65,8 @@ class PaymentProviderApiTests extends ApiTestSupport {
                 .fetch();
         assertThat(stored).singleElement().satisfies(e -> {
             assertThat(e.getSignatureValid()).isFalse();
-            assertThat(e.getStatus()).isEqualTo("RECEIVED");
+            // Stored as received; the payment worker may already have looked at it (nothing of ours matches it).
+            assertThat(e.getStatus()).isIn("RECEIVED", "IGNORED");
             assertThat(e.getProviderAccountId()).isNotNull();
         });
     }

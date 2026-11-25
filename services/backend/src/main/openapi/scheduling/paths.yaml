@@ -307,6 +307,66 @@ myAppointmentCancel:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+myAppointmentPayment:
+  post:
+    tags: [Booking]
+    operationId: startMyAppointmentPayment
+    summary: Start (or resume) paying the deposit of an unpaid booking
+    description: |
+      Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+      `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+      already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+      out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              language:
+                type: string
+                maxLength: 5
+                description: The language of the pages the provider sends the person back to.
+    responses:
+      '200':
+        description: Where to pay.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentStart
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
+myAppointmentPaymentCheck:
+  post:
+    tags: [Booking]
+    operationId: checkMyAppointmentPayment
+    summary: Ask the provider where the payment stands, then return the booking
+    description: |
+      For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+      key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+      `AWAITING_PAYMENT`.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The booking, with its payment state.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
 myAppointmentReschedule:
   post:
     tags: [Booking]

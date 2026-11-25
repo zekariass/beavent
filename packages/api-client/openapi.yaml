@@ -4202,6 +4202,68 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/payment:
+    post:
+      tags:
+        - Booking
+      operationId: startMyAppointmentPayment
+      summary: Start (or resume) paying the deposit of an unpaid booking
+      description: |
+        Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+        `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+        already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+        out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                  maxLength: 5
+                  description: The language of the pages the provider sends the person back to.
+      responses:
+        '200':
+          description: Where to pay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/me/appointments/{appointmentId}/payment/check:
+    post:
+      tags:
+        - Booking
+      operationId: checkMyAppointmentPayment
+      summary: Ask the provider where the payment stands, then return the booking
+      description: |
+        For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+        key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+        `AWAITING_PAYMENT`.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The booking, with its payment state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/me/appointments/{appointmentId}/reschedule:
     post:
       tags:
@@ -5268,6 +5330,7 @@ components:
             - PATCH_TEST_REQUIRED
             - PRECONDITION_REQUIRED
             - RATE_LIMITED
+            - PAYMENT_UNAVAILABLE
             - INTERNAL
         requestId:
           type: string
@@ -8055,6 +8118,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarStage'
+    PaymentStatus:
+      type: object
+      description: Where the online payment of a booking stands.
+      required:
+        - state
+        - dueNowMinor
+        - paidMinor
+        - atVenueMinor
+        - currency
+      properties:
+        state:
+          type: string
+          enum:
+            - NOT_REQUIRED
+            - AWAITING_PAYMENT
+            - PAID
+            - FAILED
+            - EXPIRED
+          description: |
+            `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+            may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+        dueNowMinor:
+          type: integer
+          format: int64
+        paidMinor:
+          type: integer
+          format: int64
+        atVenueMinor:
+          type: integer
+          format: int64
+          description: Left to pay at the venue.
+        currency:
+          type: string
+        expiresAt:
+          description: Until when the time is held for payment.
+          $ref: '#/components/schemas/Instant'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page of the attempt in progress, to reopen it.
     CalendarAppointment:
       type: object
       required:
@@ -8122,6 +8227,9 @@ components:
                 count:
                   type: integer
             - type: 'null'
+        payment:
+          description: Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired).
+          $ref: '#/components/schemas/PaymentStatus'
         forms:
           type: array
           description: Forms the client fills in before this visit (attached to its services), and whether they have.
@@ -9169,6 +9277,30 @@ components:
           $ref: '#/components/schemas/CurrencyCode'
         policy:
           $ref: '#/components/schemas/BookingTerms'
+    PaymentTerms:
+      type: object
+      description: |
+        What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+        signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+      required:
+        - depositMinor
+        - atVenueMinor
+        - totalMinor
+        - currency
+      properties:
+        depositMinor:
+          type: integer
+          format: int64
+          description: Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+        atVenueMinor:
+          type: integer
+          format: int64
+        totalMinor:
+          type: integer
+          format: int64
+          description: The all-in price.
+        currency:
+          type: string
     Hold:
       type: object
       required:
@@ -9186,6 +9318,9 @@ components:
           $ref: '#/components/schemas/Instant'
         booking:
           $ref: '#/components/schemas/BookingSummary'
+        payment:
+          description: What would be paid now to book; absent when nothing is due online.
+          $ref: '#/components/schemas/PaymentTerms'
     MyAppointmentPlace:
       type: object
       required:
@@ -9326,10 +9461,17 @@ components:
         status:
           type: string
           enum:
+            - PENDING_PAYMENT
             - REQUESTED
             - CONFIRMED
+          description: |
+            `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+            confirmed when the payment arrives (start it with `POST …/payment`).
         booking:
           $ref: '#/components/schemas/BookingSummary'
+        payment:
+          description: Present for `PENDING_PAYMENT`.
+          $ref: '#/components/schemas/PaymentStatus'
     CancellationPreview:
       type: object
       required:
@@ -9401,6 +9543,32 @@ components:
           $ref: '#/components/schemas/CancellationPreview'
         canReschedule:
           type: boolean
+        payment:
+          description: Present when the booking has an order to pay online.
+          $ref: '#/components/schemas/PaymentStatus'
+    PaymentStart:
+      type: object
+      required:
+        - attemptId
+        - expiresAt
+        - amountMinor
+        - currency
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page to send the person to; they come back to the booking's payment page.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
     WaitlistOffer:
       type: object
       required:
@@ -10727,6 +10895,12 @@ components:
             $ref: '#/components/schemas/Problem'
     PreconditionFailed:
       description: The resource changed since it was read (If-Match did not match).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: A service the request depends on (online payment) is unavailable; try again shortly.
       content:
         application/problem+json:
           schema:

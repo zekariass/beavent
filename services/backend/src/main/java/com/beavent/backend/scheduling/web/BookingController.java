@@ -143,6 +143,30 @@ class BookingController {
                 .call(() -> bookings.cancel(orgId, userId, appointmentId, reason, Instant.now(), locations));
     }
 
+    record StartPaymentBody(@Size(max = 5) String language) {}
+
+    /** Starts (or resumes) paying the deposit of an unpaid booking: the provider's page to send the person to. */
+    @PostMapping("/v1/me/appointments/{appointmentId}/payment")
+    BookingApi.PaymentStartBody startPayment(
+            @PathVariable UUID appointmentId,
+            @Valid @RequestBody(required = false) StartPaymentBody body,
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        UUID orgId = orgOf(userId, appointmentId);
+        String language = body == null ? null : body.language();
+        return RequestContext.forOrganization(userId, orgId)
+                .call(() -> bookings.startPayment(orgId, userId, appointmentId, language, Instant.now()));
+    }
+
+    /** The person came back from the provider's page: asks the provider now and shows where the booking stands. */
+    @PostMapping("/v1/me/appointments/{appointmentId}/payment/check")
+    BookingApi.DetailBody checkPayment(@PathVariable UUID appointmentId, @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        UUID orgId = orgOf(userId, appointmentId);
+        return RequestContext.forOrganization(userId, orgId)
+                .call(() -> bookings.checkPayment(orgId, userId, appointmentId, Instant.now(), locations));
+    }
+
     @PostMapping("/v1/me/appointments/{appointmentId}/reschedule")
     BookingApi.DetailBody reschedule(
             @PathVariable UUID appointmentId,

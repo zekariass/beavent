@@ -3,6 +3,7 @@ package com.beavent.backend.scheduling.internal;
 import static com.beavent.db.catalog.Tables.ADDONS;
 import static com.beavent.db.catalog.Tables.SERVICES;
 import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
+import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
 import static com.beavent.db.crm.Tables.PATCH_TESTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
@@ -21,7 +22,9 @@ import static com.beavent.db.tenant.Tables.LOCATIONS;
 import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 
 import com.beavent.backend.catalog.ServicePricing;
+import com.beavent.backend.commerce.Orders;
 import com.beavent.backend.identity.People;
+import com.beavent.backend.payments.Payments;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Ids;
@@ -49,6 +52,9 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.JSONB;
 import org.jooq.impl.DSL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.type.TypeReference;
@@ -110,7 +116,8 @@ class Bookings {
             int cancellationWindowMinutes,
             Instant freeCancellationUntil,
             BigDecimal lateCancelFeePercent,
-            BigDecimal noShowFeePercent) {}
+            BigDecimal noShowFeePercent,
+            String depositAppliesTo) {}
 
     record Plan(
             UUID locationId,
@@ -124,9 +131,20 @@ class Bookings {
             long totalMinor,
             String currency) {}
 
-    record Held(UUID holdId, String holderKey, Instant expiresAt, Plan plan) {}
+    /** @param payment what the customer would pay now (unknown customers count as new); null when nothing is due online */
+    record Held(UUID holdId, String holderKey, Instant expiresAt, Plan plan, DepositRules.Terms payment) {}
 
-    record Booked(UUID appointmentId, String reference, String status, Plan plan, boolean replayed) {}
+    /** @param payment the online payment still to make ({@code PENDING_PAYMENT} appointments), else null */
+    record Booked(
+            UUID appointmentId,
+            String reference,
+            String status,
+            Plan plan,
+            boolean replayed,
+            UUID orderId,
+            Payments.Status payment) {}
+
+    private static final Logger log = LoggerFactory.getLogger(Bookings.class);
 
     private final DSLContext dsl;
     private final TransactionTemplate transactions;
@@ -136,6 +154,10 @@ class Bookings {
     private final People people;
     private final Outbox outbox;
     private final JsonMapper json;
+    private final Orders orders;
+    private final Payments payments;
+    private final String webUrl;
+    private final Duration paymentWindow;
 
     Bookings(
             DSLContext dsl,
@@ -145,7 +167,11 @@ class Bookings {
             BookingPolicies policies,
             People people,
             Outbox outbox,
-            JsonMapper json) {
+            JsonMapper json,
+            Orders orders,
+            Payments payments,
+            @Value("${beavent.web.public-url}") String webUrl,
+            @Value("${beavent.booking.payment-window:15m}") Duration paymentWindow) {
         this.dsl = dsl;
         this.transactions = transactions;
         this.availabilities = availabilities;
@@ -154,6 +180,10 @@ class Bookings {
         this.people = people;
         this.outbox = outbox;
         this.json = json;
+        this.orders = orders;
+        this.payments = payments;
+        this.webUrl = webUrl;
+        this.paymentWindow = paymentWindow;
     }
 
     private static OffsetDateTime utc(Instant instant) {
@@ -220,7 +250,7 @@ class Bookings {
                         .set(SCHEDULE_RESERVATIONS.HOLD_EXPIRES_AT, utc(expires));
                 insert.execute(); // a lost race fails here: 23P01 → SLOT_TAKEN
             }
-            return new Held(holdId, holderKey, expires, plan);
+            return new Held(holdId, holderKey, expires, plan, depositTerms(orgId, plan, null, now));
         });
     }
 
@@ -364,7 +394,8 @@ class Bookings {
                 window,
                 start.minus(Duration.ofMinutes(window)),
                 late,
-                noShow);
+                noShow,
+                first.depositAppliesTo());
     }
 
     /** A window to reserve, tagged with the appointment row (item, stage seq or unit index) it is recorded against. */
@@ -425,6 +456,10 @@ class Bookings {
     /**
      * Turns the hold into an appointment for the signed-in person. Repeating the call for a hold that is already an
      * appointment returns that appointment. Call with the business's context bound for {@code userId}.
+     *
+     * <p>When the business's policy asks for a deposit (or full payment) from this customer, the appointment is made
+     * {@code PENDING_PAYMENT} with an order and a payment schedule; its time stays reserved for the payment window and
+     * the customer pays through {@link #startPayment}. Nothing is sent to the customer until the payment is confirmed.
      */
     Booked confirm(UUID orgId, UUID userId, UUID holdId, String holderKey, String note, Instant now) {
         return transactions.execute(status -> {
@@ -437,14 +472,28 @@ class Bookings {
             }
             Plan plan = json.readValue(hold.getPlan().data(), Plan.class);
             if ("CONVERTED".equals(hold.getStatus()) && hold.getAppointmentId() != null) {
-                var existing = dsl.select(APPOINTMENTS.REFERENCE, APPOINTMENTS.STATUS, APPOINTMENTS.BOOKED_BY_USER_ID)
+                var existing = dsl.select(
+                                APPOINTMENTS.REFERENCE,
+                                APPOINTMENTS.STATUS,
+                                APPOINTMENTS.BOOKED_BY_USER_ID,
+                                APPOINTMENTS.ORDER_ID)
                         .from(APPOINTMENTS)
                         .where(APPOINTMENTS.ID.eq(hold.getAppointmentId()))
                         .fetchSingle();
                 if (!userId.equals(existing.value3())) {
                     throw new ApiException(ProblemCode.NOT_FOUND, "There is no such hold.");
                 }
-                return new Booked(hold.getAppointmentId(), existing.value1(), existing.value2(), plan, true);
+                Payments.Status payment = existing.value2().equals("PENDING_PAYMENT") && existing.value4() != null
+                        ? payments.status(orgId, existing.value4(), now)
+                        : null;
+                return new Booked(
+                        hold.getAppointmentId(),
+                        existing.value1(),
+                        existing.value2(),
+                        plan,
+                        true,
+                        existing.value4(),
+                        payment);
             }
             if (!"ACTIVE".equals(hold.getStatus())
                     || !hold.getExpiresAt().toInstant().isAfter(now)) {
@@ -455,7 +504,31 @@ class Bookings {
             requirePatchTests(
                     customerId, plan.items().stream().map(PlanItem::variantId).toList(), plan.start());
 
-            String appointmentStatus = plan.policy().requiresApproval() ? "REQUESTED" : "CONFIRMED";
+            // Does this customer pay a deposit? The all-in price (tax and the platform's fees included) decides how
+            // much.
+            Orders.Basket basket = basket(plan, customerId, userId, now);
+            Orders.Quote quote = orders.quote(orgId, basket);
+            DepositRules.Terms terms = DepositRules.terms(
+                    plan.policy(), quote.totalMinor(), quote.buyerFeesMinor(), customerFacts(orgId, customerId));
+            boolean pay = terms.required();
+            Instant payBy = now.plus(paymentWindow);
+            UUID orderId = null;
+            if (pay) {
+                orderId = orders.place(orgId, basket, "PENDING_PAYMENT", payBy, userId)
+                        .orderId();
+                payments.plan(
+                        orgId,
+                        orderId,
+                        plan.currency(),
+                        terms.atVenueMinor() == 0
+                                ? List.of(new Payments.Installment("FULL", terms.depositMinor(), "ONLINE"))
+                                : List.of(
+                                        new Payments.Installment("DEPOSIT", terms.depositMinor(), "ONLINE"),
+                                        new Payments.Installment("BALANCE", terms.atVenueMinor(), "AT_VENUE")));
+            }
+
+            String appointmentStatus =
+                    pay ? "PENDING_PAYMENT" : plan.policy().requiresApproval() ? "REQUESTED" : "CONFIRMED";
             UUID appointmentId = Ids.newId();
             String reference = reference();
             dsl.insertInto(APPOINTMENTS)
@@ -464,6 +537,7 @@ class Bookings {
                     .set(APPOINTMENTS.LOCATION_ID, plan.locationId())
                     .set(APPOINTMENTS.CUSTOMER_ID, customerId)
                     .set(APPOINTMENTS.BOOKED_BY_USER_ID, userId)
+                    .set(APPOINTMENTS.ORDER_ID, orderId)
                     .set(APPOINTMENTS.REFERENCE, reference)
                     .set(APPOINTMENTS.SOURCE, "DIRECT_LINK")
                     .set(APPOINTMENTS.STATUS, appointmentStatus)
@@ -483,6 +557,7 @@ class Bookings {
                     .set(SCHEDULE_RESERVATIONS.STATUS, "RELEASED")
                     .where(SCHEDULE_RESERVATIONS.HOLD_ID.eq(holdId))
                     .execute();
+            // Unpaid time stays reserved until the payment window ends (the unpaid-booking sweep releases it).
             writeItems(orgId, appointmentId, plan);
             hold.setStatus("CONVERTED");
             hold.setAppointmentId(appointmentId);
@@ -494,20 +569,94 @@ class Bookings {
                     .set(APPOINTMENT_STATUS_HISTORY.TO_STATUS, appointmentStatus)
                     .set(APPOINTMENT_STATUS_HISTORY.ACTOR_USER_ID, userId)
                     .execute();
-            outbox.publish(new DomainEvent(
-                    "scheduling.appointment",
-                    appointmentId,
-                    appointmentStatus.equals("REQUESTED") ? "appointment.requested" : "appointment.booked",
-                    1,
-                    orgId,
-                    Map.of(
-                            "appointmentId", appointmentId,
-                            "reference", reference,
-                            "locationId", plan.locationId(),
-                            "customerId", customerId,
-                            "startsAt", plan.start().toString())));
-            return new Booked(appointmentId, reference, appointmentStatus, plan, false);
+            if (!pay) {
+                outbox.publish(new DomainEvent(
+                        "scheduling.appointment",
+                        appointmentId,
+                        appointmentStatus.equals("REQUESTED") ? "appointment.requested" : "appointment.booked",
+                        1,
+                        orgId,
+                        Map.of(
+                                "appointmentId", appointmentId,
+                                "reference", reference,
+                                "locationId", plan.locationId(),
+                                "customerId", customerId,
+                                "startsAt", plan.start().toString())));
+            }
+            Payments.Status payment = pay
+                    ? new Payments.Status(
+                            "AWAITING_PAYMENT",
+                            terms.depositMinor(),
+                            0,
+                            terms.atVenueMinor(),
+                            plan.currency(),
+                            payBy,
+                            null)
+                    : null;
+            return new Booked(appointmentId, reference, appointmentStatus, plan, false, orderId, payment);
         });
+    }
+
+    /** The order's lines for a plan: each service with its add-ons below it, at the prices frozen in the plan. */
+    private Orders.Basket basket(Plan plan, UUID customerId, UUID userId, Instant now) {
+        List<Orders.LineInput> lines = new ArrayList<>();
+        for (PlanItem item : plan.items()) {
+            int parent = lines.size();
+            String name = item.variantName() == null || item.variantName().isBlank()
+                    ? item.serviceName()
+                    : item.serviceName() + " · " + item.variantName();
+            lines.add(new Orders.LineInput(
+                    "SERVICE", item.variantId(), null, item.staffId(), null, name, 1, item.priceMinor()));
+            for (PlanAddon addon : item.addons()) {
+                lines.add(new Orders.LineInput(
+                        "ADDON", null, addon.id(), item.staffId(), parent, addon.name(), 1, addon.priceMinor()));
+            }
+        }
+        return new Orders.Basket(
+                plan.locationId(), customerId, userId, "DIRECT_LINK", plan.currency(), lines, null, plan.start(), now);
+    }
+
+    /** What the business knows about the customer, for deposits that apply to some customers only. */
+    private DepositRules.Customer customerFacts(UUID orgId, UUID customerId) {
+        boolean completed = dsl.fetchExists(
+                APPOINTMENTS,
+                APPOINTMENTS
+                        .ORG_ID
+                        .eq(orgId)
+                        .and(APPOINTMENTS.CUSTOMER_ID.eq(customerId))
+                        .and(APPOINTMENTS.STATUS.eq("COMPLETED")));
+        int noShows = dsl.fetchCount(
+                APPOINTMENTS,
+                APPOINTMENTS
+                        .ORG_ID
+                        .eq(orgId)
+                        .and(APPOINTMENTS.CUSTOMER_ID.eq(customerId))
+                        .and(APPOINTMENTS.STATUS.eq("NO_SHOW")));
+        boolean marketplace = dsl.select(CUSTOMERS.MARKETPLACE_ACQUIRED_AT)
+                        .from(CUSTOMERS)
+                        .where(CUSTOMERS.ID.eq(customerId))
+                        .fetchOne(CUSTOMERS.MARKETPLACE_ACQUIRED_AT)
+                != null;
+        return new DepositRules.Customer(!completed, marketplace, noShows >= DepositRules.FLAGGED_NO_SHOWS);
+    }
+
+    /**
+     * What the customer would pay now for a plan, for the review screen (a person not signed in yet counts as new);
+     * null when nothing is due online. A failure here only hides the estimate: confirming decides for real.
+     */
+    private DepositRules.Terms depositTerms(UUID orgId, Plan plan, UUID customerId, Instant now) {
+        try {
+            Orders.Quote quote = orders.quote(orgId, basket(plan, customerId, null, now));
+            DepositRules.Terms terms = DepositRules.terms(
+                    plan.policy(),
+                    quote.totalMinor(),
+                    quote.buyerFeesMinor(),
+                    customerId == null ? DepositRules.Customer.UNKNOWN : customerFacts(orgId, customerId));
+            return terms.required() ? terms : null;
+        } catch (RuntimeException e) {
+            log.warn("Could not estimate the deposit for a hold at {}: {}", orgId, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -624,7 +773,8 @@ class Bookings {
             String note,
             Plan plan,
             Cancellation cancellation,
-            boolean canReschedule) {}
+            boolean canReschedule,
+            Payments.Status payment) {}
 
     /** The business behind one of the person's appointments (row-level security hides everyone else's). */
     java.util.Optional<UUID> orgOf(UUID appointmentId) {
@@ -686,8 +836,9 @@ class Bookings {
         }
         Instant start = a.getStartsAt().toInstant();
         boolean upcoming = start.isAfter(now);
-        boolean open = a.getStatus().equals("CONFIRMED") || a.getStatus().equals("REQUESTED");
-        boolean free = a.getStatus().equals("REQUESTED") || now.isBefore(policy.freeCancellationUntil());
+        boolean unpaid = a.getStatus().equals("PENDING_PAYMENT");
+        boolean open = a.getStatus().equals("CONFIRMED") || a.getStatus().equals("REQUESTED") || unpaid;
+        boolean free = unpaid || a.getStatus().equals("REQUESTED") || now.isBefore(policy.freeCancellationUntil());
         long fee = free
                 ? 0
                 : new BigDecimal(total)
@@ -717,7 +868,83 @@ class Bookings {
                 a.getCustomerNote(),
                 plan,
                 new Cancellation(open && upcoming, free, policy.freeCancellationUntil(), fee, currency),
-                open && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()));
+                open && !unpaid && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()),
+                a.getOrderId() == null ? null : payments.status(a.getOrgId(), a.getOrderId(), now));
+    }
+
+    /** An unpaid booking is closed: its order goes with it (the payment is stopped by the caller after commit). */
+    private void closeOrder(UUID orgId, UUID appointmentId, String orderStatus, UUID actor, Instant now) {
+        UUID orderId = orderOf(appointmentId);
+        if (orderId != null) closeOrder(dsl, orgId, orderId, orderStatus, actor, now);
+    }
+
+    static void closeOrder(DSLContext db, UUID orgId, UUID orderId, String orderStatus, UUID actor, Instant now) {
+        db.update(ORDERS)
+                .set(ORDERS.STATUS, orderStatus)
+                .set(ORDERS.CANCELLED_AT, utc(now))
+                .set(
+                        ORDERS.CANCEL_REASON,
+                        orderStatus.equals("EXPIRED") ? "Not paid in time" : "Cancelled before payment")
+                .set(ORDERS.VERSION, ORDERS.VERSION.plus(1))
+                .where(ORDERS.ID.eq(orderId).and(ORDERS.STATUS.eq("PENDING_PAYMENT")))
+                .execute();
+        db.insertInto(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY)
+                .set(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.ORG_ID, orgId)
+                .set(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.ORDER_ID, orderId)
+                .set(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.FROM_STATUS, "PENDING_PAYMENT")
+                .set(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.TO_STATUS, orderStatus)
+                .set(com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.ACTOR_USER_ID, actor)
+                .set(
+                        com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY.ACTOR_KIND,
+                        actor == null ? "SYSTEM" : "CUSTOMER")
+                .execute();
+    }
+
+    UUID orderOf(UUID appointmentId) {
+        return transactions.execute(status -> dsl.select(APPOINTMENTS.ORDER_ID)
+                .from(APPOINTMENTS)
+                .where(APPOINTMENTS.ID.eq(appointmentId))
+                .fetchOne(APPOINTMENTS.ORDER_ID));
+    }
+
+    /**
+     * Starts (or resumes) the online payment of the person's unpaid booking: the provider's page to send them to. Call
+     * with the business's context bound for {@code userId}; only the person's own appointment is found.
+     *
+     * @param language the language of the pages the provider sends the person back to ({@code am}, {@code en}, {@code om})
+     */
+    Payments.Started startPayment(UUID orgId, UUID userId, UUID appointmentId, String language, Instant now) {
+        Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+        UUID orderId = orderOf(appointmentId);
+        if (!d.status().equals("PENDING_PAYMENT") || orderId == null) {
+            throw new ApiException(ProblemCode.CONFLICT, "This booking is not waiting for payment.");
+        }
+        People.Person person = people.find(userId).orElseThrow(() -> new ApiException(ProblemCode.UNAUTHENTICATED));
+        String lang = language == null || language.isBlank() ? "en" : language;
+        String back = webUrl + "/" + lang + "/account/bookings/" + appointmentId + "/payment?result=";
+        String what = d.plan().items().isEmpty()
+                ? d.reference()
+                : d.plan().items().getFirst().serviceName();
+        return payments.start(
+                orgId,
+                orderId,
+                new Payments.Payer(userId, person.phone(), person.email(), lang),
+                new Payments.Urls(
+                        java.net.URI.create(back + "success"),
+                        java.net.URI.create(back + "cancel"),
+                        java.net.URI.create(back + "error")),
+                "Beavent · " + what + " · " + d.reference(),
+                now);
+    }
+
+    /** The person came back from paying: ask the provider now, then show where the booking stands. */
+    Detail checkPayment(UUID orgId, UUID userId, UUID appointmentId, Instant now) {
+        Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+        UUID orderId = orderOf(appointmentId);
+        if (orderId != null && d.payment() != null && !d.payment().state().equals("PAID")) {
+            payments.check(orgId, orderId, now);
+        }
+        return transactions.execute(status -> detailIn(userId, appointmentId, now, false));
     }
 
     /** Releases every reservation of the appointment (its stages' and resource units'). */
@@ -728,22 +955,24 @@ class Bookings {
     static void releaseReservations(DSLContext dsl, UUID appointmentId) {
         dsl.update(SCHEDULE_RESERVATIONS)
                 .set(SCHEDULE_RESERVATIONS.STATUS, "RELEASED")
-                .where(
-                        SCHEDULE_RESERVATIONS.STATUS.ne("RELEASED"),
-                        SCHEDULE_RESERVATIONS
-                                .APPOINTMENT_STAGE_ID
-                                .in(DSL.select(APPOINTMENT_ITEM_STAGES.ID)
-                                        .from(APPOINTMENT_ITEM_STAGES)
-                                        .join(APPOINTMENT_ITEMS)
-                                        .on(APPOINTMENT_ITEMS.ID.eq(APPOINTMENT_ITEM_STAGES.APPOINTMENT_ITEM_ID))
-                                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId)))
-                                .or(SCHEDULE_RESERVATIONS.APPOINTMENT_RESOURCE_ID.in(DSL.select(
-                                                APPOINTMENT_ITEM_RESOURCES.ID)
-                                        .from(APPOINTMENT_ITEM_RESOURCES)
-                                        .join(APPOINTMENT_ITEMS)
-                                        .on(APPOINTMENT_ITEMS.ID.eq(APPOINTMENT_ITEM_RESOURCES.APPOINTMENT_ITEM_ID))
-                                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId)))))
+                .where(SCHEDULE_RESERVATIONS.STATUS.ne("RELEASED"), ofAppointment(appointmentId))
                 .execute();
+    }
+
+    /** The reservations of an appointment: those of its stages and of its resource units. */
+    static org.jooq.Condition ofAppointment(UUID appointmentId) {
+        return SCHEDULE_RESERVATIONS
+                .APPOINTMENT_STAGE_ID
+                .in(DSL.select(APPOINTMENT_ITEM_STAGES.ID)
+                        .from(APPOINTMENT_ITEM_STAGES)
+                        .join(APPOINTMENT_ITEMS)
+                        .on(APPOINTMENT_ITEMS.ID.eq(APPOINTMENT_ITEM_STAGES.APPOINTMENT_ITEM_ID))
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId)))
+                .or(SCHEDULE_RESERVATIONS.APPOINTMENT_RESOURCE_ID.in(DSL.select(APPOINTMENT_ITEM_RESOURCES.ID)
+                        .from(APPOINTMENT_ITEM_RESOURCES)
+                        .join(APPOINTMENT_ITEMS)
+                        .on(APPOINTMENT_ITEMS.ID.eq(APPOINTMENT_ITEM_RESOURCES.APPOINTMENT_ITEM_ID))
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))));
     }
 
     private void history(UUID orgId, UUID appointmentId, String from, String to, UUID actor, String reason) {
@@ -764,6 +993,18 @@ class Bookings {
 
     /** The person cancels: the time is free at once, a late fee is recorded when the free period has passed. */
     Detail cancel(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
+        Detail cancelled = cancelIn(orgId, userId, appointmentId, reason, now);
+        UUID orderId = orderOf(appointmentId);
+        if (orderId != null
+                && cancelled.payment() != null
+                && !cancelled.payment().state().equals("PAID")) {
+            // Stop collecting once the cancellation is committed; a payment that still arrives is refunded.
+            payments.cancel(orgId, orderId, "CANCELLED");
+        }
+        return cancelled;
+    }
+
+    private Detail cancelIn(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
         return transactions.execute(status -> {
             Detail before = detailIn(userId, appointmentId, now, true);
             if (!before.cancellation().allowed()) {
@@ -783,6 +1024,7 @@ class Bookings {
                     .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))
                     .execute();
             Cancellation c = before.cancellation();
+            if (before.status().equals("PENDING_PAYMENT")) closeOrder(orgId, appointmentId, "CANCELLED", userId, now);
             history(
                     orgId,
                     appointmentId,

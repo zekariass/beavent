@@ -12,9 +12,11 @@ import {
   type VenueService,
 } from "@beavent/venue";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { DayStrip, TimeGrid, addDays, localDateOf, todayIn } from "@/components/booking/time";
 import { book, findTimes, holdTime, releaseHold, sendCode, type ItemChoice } from "./actions";
+import { startPayment } from "@/lib/customer/actions";
 
 interface Picked {
   serviceId: string;
@@ -47,6 +49,7 @@ export function BookingFlow({
   preselect?: { serviceId?: string; staffId?: string };
 }) {
   const t = useMemo(() => createTranslator(language), [language]);
+  const router = useRouter();
   const prefs = useMemo(
     () => defaultDisplayPreferences(calendarLanguage(language), venue.timezone),
     [language, venue.timezone],
@@ -163,6 +166,7 @@ export function BookingFlow({
   const [givenName, setGivenName] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [done, setDone] = useState<Schemas["Appointment"] | null>(null);
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (step !== "review") return;
@@ -214,7 +218,18 @@ export function BookingFlow({
         code: challenge && !askName ? code : undefined,
         ...(askName ? { givenName, fatherName } : {}),
       });
-      if (r.ok) {
+      if (r.ok && r.appointment.status === "PENDING_PAYMENT") {
+        // A deposit is due: the time is held while the person pays on the provider's page.
+        setPaying(true);
+        const payment = await startPayment(language, r.appointment.id);
+        const paymentPage = `/${language}/account/bookings/${r.appointment.id}/payment`;
+        if (payment.ok && payment.value.redirectUrl) {
+          window.location.assign(payment.value.redirectUrl);
+        } else {
+          // The booking exists and its time is held: continue from its payment page, where paying can be retried.
+          router.push(`${paymentPage}?result=pending`);
+        }
+      } else if (r.ok) {
         setDone(r.appointment);
         go("done");
       } else if (r.code === "NAME_NEEDED") {
@@ -239,6 +254,19 @@ export function BookingFlow({
     });
 
   const requiresApproval = hold?.booking.policy.requiresApproval ?? venue.policy.requiresApproval;
+  // A deposit (or full payment) is paid on the provider's page right after booking; the labels say so.
+  const bookLabel = hold?.payment
+    ? hold.payment.atVenueMinor > 0
+      ? t("booking.review.payAndBook")
+      : t("booking.review.payFullAndBook")
+    : requiresApproval
+      ? t("booking.review.requestBook")
+      : t("booking.review.book");
+  const codeLabel = hold?.payment
+    ? t("booking.signIn.payWithCode")
+    : requiresApproval
+      ? t("booking.signIn.requestWithCode")
+      : t("booking.signIn.bookWithCode");
   const venueHref = `/${language}/b/${venue.businessSlug}/${venue.locationSlug}`;
 
   // --- pieces ------------------------------------------------------------------------------------------------
@@ -585,8 +613,35 @@ export function BookingFlow({
                   </li>
                 ))}
               </ul>
+              {hold.payment ? (
+                <div className="flex flex-col gap-2 border-y border-border py-3">
+                  <div className="flex justify-between gap-4">
+                    <span className="bv-type-body-strong text-fg">
+                      {t("booking.review.payNow")}
+                    </span>
+                    <span className="bv-type-body-strong text-fg">
+                      {price(hold.payment.depositMinor, hold.payment.currency, language)}
+                    </span>
+                  </div>
+                  {hold.payment.atVenueMinor > 0 ? (
+                    <div className="flex justify-between gap-4">
+                      <span className="bv-type-body text-fg-muted">
+                        {t("booking.review.atVenueAmount")}
+                      </span>
+                      <span className="bv-type-body text-fg-muted">
+                        {price(hold.payment.atVenueMinor, hold.payment.currency, language)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <p className="bv-type-caption text-fg-muted">
+                    {hold.payment.atVenueMinor > 0
+                      ? t("booking.review.depositNote")
+                      : t("booking.review.fullNote")}
+                  </p>
+                </div>
+              ) : null}
               <ul className="bv-type-body flex flex-col gap-2 text-fg">
-                {hold.booking.policy.allowPayAtVenue ? (
+                {hold.booking.policy.allowPayAtVenue && !hold.payment ? (
                   <li>{t("booking.review.payAtVenue")}</li>
                 ) : null}
                 {hold.booking.policy.cancellationWindowMinutes > 0 ? (
@@ -655,10 +710,10 @@ export function BookingFlow({
                   <button
                     type="button"
                     className={primaryButton}
-                    disabled={pending || expired || !givenName.trim()}
+                    disabled={pending || paying || expired || !givenName.trim()}
                     onClick={confirm}
                   >
-                    {requiresApproval ? t("booking.review.requestBook") : t("booking.review.book")}
+                    {bookLabel}
                   </button>
                 </div>
               ) : signedInAs ? (
@@ -669,10 +724,10 @@ export function BookingFlow({
                   <button
                     type="button"
                     className={primaryButton}
-                    disabled={pending || expired}
+                    disabled={pending || paying || expired}
                     onClick={confirm}
                   >
-                    {requiresApproval ? t("booking.review.requestBook") : t("booking.review.book")}
+                    {bookLabel}
                   </button>
                 </div>
               ) : challenge ? (
@@ -692,12 +747,10 @@ export function BookingFlow({
                   <button
                     type="button"
                     className={primaryButton}
-                    disabled={pending || expired || code.trim().length < 4}
+                    disabled={pending || paying || expired || code.trim().length < 4}
                     onClick={confirm}
                   >
-                    {requiresApproval
-                      ? t("booking.signIn.requestWithCode")
-                      : t("booking.signIn.bookWithCode")}
+                    {codeLabel}
                   </button>
                 </div>
               ) : (
@@ -724,6 +777,14 @@ export function BookingFlow({
                   </button>
                 </div>
               )}
+              {paying ? (
+                <p
+                  role="status"
+                  className="bv-type-body rounded-lg bg-info-subtle px-4 py-3 text-fg"
+                >
+                  {t("booking.payment.redirecting")}
+                </p>
+              ) : null}
             </section>
           ) : null}
         </main>

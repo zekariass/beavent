@@ -24,3 +24,10 @@ export async function codeFor(destination: string, seen = 0): Promise<string> {
 }
 
 export const newPhone = () => `+2519${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+
+/**
+ * A phone number whose last four digits are `ending`. The payment stubs decide what a payer does by them (ArifPay stub:
+ * 0001 pays, 0002 is declined, 0003 never pays, 0005 pays without a notification).
+ */
+export const phoneEnding = (ending: string) =>
+  `+2519${String(Math.floor(Math.random() * 1e4)).padStart(4, "0")}${ending}`;

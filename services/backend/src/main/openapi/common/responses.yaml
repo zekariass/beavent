@@ -52,3 +52,9 @@ TooManyRequests:
     application/problem+json:
       schema:
         $ref: ./schemas.yaml#/Problem
+ServiceUnavailable:
+  description: A service the request depends on (online payment) is unavailable; try again shortly.
+  content:
+    application/problem+json:
+      schema:
+        $ref: ./schemas.yaml#/Problem

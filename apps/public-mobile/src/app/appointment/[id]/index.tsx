@@ -50,6 +50,22 @@ export default function AppointmentScreen() {
       };
     }, [api, id]),
   );
+  // While the deposit is unpaid, ask now and then: the person pays on the provider's page, outside the app.
+  const waitingForPayment = a !== null && a !== "error" && a.status === "PENDING_PAYMENT";
+  useFocusEffect(
+    useCallback(() => {
+      if (!waitingForPayment) return;
+      const timer = setInterval(() => {
+        api
+          .POST("/v1/me/appointments/{appointmentId}/payment/check", {
+            params: { path: { appointmentId: id! } },
+          })
+          .then(({ data }) => data && setA(data))
+          .catch(() => undefined);
+      }, 4000);
+      return () => clearInterval(timer);
+    }, [api, id, waitingForPayment]),
+  );
   const names = useMenuNames(a && a !== "error" && a.place ? [a.place] : []);
 
   if (a === "error")
@@ -73,17 +89,47 @@ export default function AppointmentScreen() {
   const minutes = Math.round((new Date(a.end).getTime() - new Date(a.start).getTime()) / 60000);
   const business = a.place?.businessName ?? "";
   const finished = ["CANCELLED", "DECLINED", "EXPIRED", "COMPLETED", "NO_SHOW"].includes(a.status);
+  const heldUntil = a.payment?.expiresAt ? formatDualTime(a.payment.expiresAt, prefs).primary : "";
   const banner =
-    a.status === "REQUESTED"
-      ? { tone: "info" as const, text: t("appointment.requested", { name: business }) }
-      : a.status === "DECLINED"
-        ? { tone: "warning" as const, text: t("appointment.declined", { name: business }) }
-        : a.status === "EXPIRED"
-          ? { tone: "warning" as const, text: t("appointment.expired") }
-          : a.status === "CANCELLED"
-            ? { tone: "info" as const, text: t("appointment.cancelled") }
-            : null;
+    a.status === "PENDING_PAYMENT" && a.payment?.state !== "EXPIRED"
+      ? { tone: "info" as const, text: t("appointment.payBanner", { time: heldUntil }) }
+      : a.status === "REQUESTED"
+        ? { tone: "info" as const, text: t("appointment.requested", { name: business }) }
+        : a.status === "DECLINED"
+          ? { tone: "warning" as const, text: t("appointment.declined", { name: business }) }
+          : a.status === "EXPIRED"
+            ? { tone: "warning" as const, text: t("appointment.expired") }
+            : a.status === "CANCELLED"
+              ? { tone: "info" as const, text: t("appointment.cancelled") }
+              : null;
   const free = a.booking.policy.freeCancellationUntil;
+
+  async function pay() {
+    setBusy(true);
+    setError(null);
+    const { data, error: problem } = await api.POST("/v1/me/appointments/{appointmentId}/payment", {
+      params: { path: { appointmentId: a && a !== "error" ? a.id : "" } },
+      body: { language },
+    });
+    setBusy(false);
+    if (data?.redirectUrl) await Linking.openURL(data.redirectUrl).catch(() => undefined);
+    else if (!data) {
+      setError(
+        problem && "code" in problem && problem.code === "PAYMENT_UNAVAILABLE"
+          ? t("booking.payment.unavailable")
+          : t("booking.error"),
+      );
+    }
+  }
+
+  async function checkPaid() {
+    setBusy(true);
+    const { data } = await api.POST("/v1/me/appointments/{appointmentId}/payment/check", {
+      params: { path: { appointmentId: a && a !== "error" ? a.id : "" } },
+    });
+    setBusy(false);
+    if (data) setA(data);
+  }
 
   async function cancel() {
     setBusy(true);
@@ -120,6 +166,25 @@ export default function AppointmentScreen() {
       </View>
       {banner ? <Banner tone={banner.tone}>{banner.text}</Banner> : null}
       {error ? <Banner tone="danger">{error}</Banner> : null}
+      {a.status === "PENDING_PAYMENT" && a.payment && a.payment.state !== "EXPIRED" ? (
+        <View style={{ gap: space[3] }}>
+          <Button
+            block
+            loading={busy}
+            label={t("payment.payNow", {
+              amount: price(a.payment.dueNowMinor, a.payment.currency, language),
+            })}
+            onPress={pay}
+          />
+          <Button
+            block
+            variant="secondary"
+            disabled={busy}
+            label={t("payment.checkAgain")}
+            onPress={checkPaid}
+          />
+        </View>
+      ) : null}
 
       {!finished && forms.length > 0 ? (
         <Section title={t("appointment.forms.title")}>
@@ -208,6 +273,30 @@ export default function AppointmentScreen() {
             {price(a.booking.totalMinor, a.booking.currency, language)}
           </Text>
         </View>
+        {a.payment && a.payment.state !== "NOT_REQUIRED" && !finished ? (
+          <View style={{ gap: space[1], paddingBottom: space[3] }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}>
+              <Text role="body">
+                {a.payment.state === "PAID" ? t("appointment.depositPaid") : t("payment.dueNow")}
+              </Text>
+              <Text role="body" numeric>
+                {price(a.payment.dueNowMinor, a.payment.currency, language)}
+              </Text>
+            </View>
+            {a.payment.atVenueMinor > 0 ? (
+              <View
+                style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}
+              >
+                <Text role="body" tone="muted">
+                  {t("appointment.payAtVenueLeft")}
+                </Text>
+                <Text role="body" tone="muted" numeric>
+                  {price(a.payment.atVenueMinor, a.payment.currency, language)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       {!finished && a.booking.policy.cancellationWindowMinutes > 0 ? (

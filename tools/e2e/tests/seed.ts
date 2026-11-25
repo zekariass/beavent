@@ -32,7 +32,10 @@ export interface SeededSalon {
  * A business with the whole menu a venue page needs, built through the real API: opening hours, a service group with
  * a multi-variant service and an add-on, a second service outside any group, a team member and a booking policy.
  */
-export async function seedSalon(name: string): Promise<SeededSalon> {
+export async function seedSalon(
+  name: string,
+  options: { deposit?: boolean } = {},
+): Promise<SeededSalon> {
   const phone = newPhone();
   const challenge = await api("POST", "/v1/auth/otp/request", {
     phone,
@@ -181,7 +184,10 @@ export async function seedSalon(name: string): Promise<SeededSalon> {
     {
       cancellationWindowMinutes: 1440,
       lateCancelFeePercent: 50,
-      deposit: { mode: "PERCENT", percent: 20, appliesTo: "NEW_CUSTOMERS" },
+      // Off by default: a deposit sends new customers to the payment provider (see deposit-booking.spec.ts).
+      deposit: options.deposit
+        ? { mode: "PERCENT", percent: 20, appliesTo: "NEW_CUSTOMERS" }
+        : { mode: "NONE" },
     },
     token,
   );

@@ -10,6 +10,7 @@ import {
   useApp,
 } from "@beavent/native";
 import { space } from "@beavent/ui";
+import { price } from "@beavent/venue";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Linking, View } from "react-native";
@@ -95,6 +96,25 @@ export default function VisitScreen() {
             .map((a) => `${t(`portal.clients.note.${a.kind}`)}: ${a.body}`)
             .join("\n")}
         </Banner>
+      ) : null}
+      {visit.payment ? (
+        <Text role="body" tone={visit.payment.state === "PAID" ? "muted" : "default"}>
+          {visit.payment.state === "PAID"
+            ? t("portal.calendar.depositPaid", {
+                paid: price(visit.payment.paidMinor, visit.payment.currency, language),
+                venue: price(visit.payment.atVenueMinor, visit.payment.currency, language),
+              })
+            : visit.payment.state === "AWAITING_PAYMENT"
+              ? t("portal.calendar.depositAwaiting", {
+                  amount: price(visit.payment.dueNowMinor, visit.payment.currency, language),
+                  time: visit.payment.expiresAt
+                    ? (range(visit.payment.expiresAt, visit.payment.expiresAt).standard.split(
+                        "–",
+                      )[0] ?? "")
+                    : "",
+                })
+              : t("portal.calendar.depositExpired")}
+        </Text>
       ) : null}
       {visit.forms.length > 0 ? (
         <View style={{ gap: space[1] }}>

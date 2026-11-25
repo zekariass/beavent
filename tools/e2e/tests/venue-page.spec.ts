@@ -3,7 +3,7 @@ import { seedSalon } from "./seed.ts";
 
 /** Plan step 2.2: the public page of a place, opened from a shared link in either language. */
 test("a shared link shows the place, its menu, team, hours and rules", async ({ page }) => {
-  const salon = await seedSalon("Abeba Beauty");
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
 
   // The shared link has no language: it follows the browser (here English), and the page is complete.
   await page.goto(`/b/${salon.orgSlug}/${salon.locationSlug}`);

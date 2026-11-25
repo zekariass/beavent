@@ -99,6 +99,30 @@ class ArifPayAdapterTest {
     }
 
     @Test
+    void leavesTheNumberOutWhenItIsNotAnEthiopianMobile() {
+        arifpay.on(
+                "POST /api/checkout/session",
+                200,
+                "{\"error\":false,\"data\":{\"sessionId\":\"S3\",\"paymentUrl\":\"https://pay.test/S3\"}}");
+        CollectionRequest foreign = new CollectionRequest(
+                "att-9",
+                100,
+                "ETB",
+                "x",
+                "+14155550123",
+                null,
+                "en",
+                URI.create("https://b.test"),
+                URI.create("https://b.test"),
+                URI.create("https://b.test"),
+                URI.create("https://b.test"),
+                Instant.now(),
+                null);
+        adapter.createCollection(foreign);
+        assertThat(json.readTree(arifpay.last().body()).has("phone")).isFalse();
+    }
+
+    @Test
     void sendsPaymentMethodsWhenConfigured() {
         arifpay.on(
                 "POST /api/checkout/session",

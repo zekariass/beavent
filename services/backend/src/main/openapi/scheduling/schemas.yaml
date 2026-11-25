@@ -279,6 +279,73 @@ BookingSummary:
       $ref: ../common/schemas.yaml#/CurrencyCode
     policy:
       $ref: '#/BookingTerms'
+PaymentTerms:
+  type: object
+  description: |
+    What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+    signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+  required: [depositMinor, atVenueMinor, totalMinor, currency]
+  properties:
+    depositMinor:
+      type: integer
+      format: int64
+      description: Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+    atVenueMinor:
+      type: integer
+      format: int64
+    totalMinor:
+      type: integer
+      format: int64
+      description: The all-in price.
+    currency:
+      type: string
+PaymentStatus:
+  type: object
+  description: Where the online payment of a booking stands.
+  required: [state, dueNowMinor, paidMinor, atVenueMinor, currency]
+  properties:
+    state:
+      type: string
+      enum: [NOT_REQUIRED, AWAITING_PAYMENT, PAID, FAILED, EXPIRED]
+      description: |
+        `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+        may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+    dueNowMinor:
+      type: integer
+      format: int64
+    paidMinor:
+      type: integer
+      format: int64
+    atVenueMinor:
+      type: integer
+      format: int64
+      description: Left to pay at the venue.
+    currency:
+      type: string
+    expiresAt:
+      description: Until when the time is held for payment.
+      $ref: ../common/schemas.yaml#/Instant
+    redirectUrl:
+      type: [string, 'null']
+      format: uri
+      description: The provider's page of the attempt in progress, to reopen it.
+PaymentStart:
+  type: object
+  required: [attemptId, expiresAt, amountMinor, currency]
+  properties:
+    attemptId:
+      $ref: ../common/schemas.yaml#/Uuid
+    redirectUrl:
+      type: [string, 'null']
+      format: uri
+      description: The provider's page to send the person to; they come back to the booking's payment page.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
 Hold:
   type: object
   required: [holdId, holderKey, expiresAt, booking]
@@ -292,6 +359,9 @@ Hold:
       $ref: ../common/schemas.yaml#/Instant
     booking:
       $ref: '#/BookingSummary'
+    payment:
+      description: What would be paid now to book; absent when nothing is due online.
+      $ref: '#/PaymentTerms'
 BookInput:
   type: object
   required: [locationId, holdId, holderKey]
@@ -317,9 +387,15 @@ Appointment:
       description: Six characters people can read out over the phone.
     status:
       type: string
-      enum: [REQUESTED, CONFIRMED]
+      enum: [PENDING_PAYMENT, REQUESTED, CONFIRMED]
+      description: |
+        `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+        confirmed when the payment arrives (start it with `POST …/payment`).
     booking:
       $ref: '#/BookingSummary'
+    payment:
+      description: Present for `PENDING_PAYMENT`.
+      $ref: '#/PaymentStatus'
 MyAppointmentPlace:
   type: object
   required: [locationId, businessName, businessSlug, locationName, locationSlug]
@@ -434,6 +510,9 @@ AppointmentDetail:
       $ref: '#/CancellationPreview'
     canReschedule:
       type: boolean
+    payment:
+      description: Present when the booking has an order to pay online.
+      $ref: '#/PaymentStatus'
 AppointmentStatus:
   type: object
   required: [status]
@@ -577,6 +656,9 @@ CalendarAppointment:
             count:
               type: integer
         - type: 'null'
+    payment:
+      description: Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired).
+      $ref: '#/PaymentStatus'
     forms:
       type: array
       description: Forms the client fills in before this visit (attached to its services), and whether they have.

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 import { codeCount, codeFor, newPhone } from "../tests/support.ts";
 import { bookAsCustomer, deskBook, firstFreeStart, seedSalon } from "../tests/seed.ts";
@@ -245,7 +246,7 @@ test("business app schedule and preferences", async ({ page }) => {
 });
 
 test("venue page · both languages, both themes, phone and desktop", async ({ browser }) => {
-  const salon = await seedSalon("Abeba Beauty");
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
   for (const scheme of SCHEMES) {
     for (const language of LANGUAGES) {
       const context = await browser.newContext({
@@ -1230,4 +1231,331 @@ test("front desk · group, series, cancelling", async ({ browser }) => {
     }
   }
   await context.close();
+});
+
+// --- Stage 3.3: deposits ---------------------------------------------------------------------------------------------
+
+const STUB = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+
+test("deposits · review, payment pages, booking, console, apps", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
+  const dayOffset = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const slot = (n: number) => firstFreeStart(salon, dayOffset(n), dayOffset(n));
+  const pending = await bookAsCustomer(salon, await slot(7), "Selam Bekele");
+  const failed = await bookAsCustomer(salon, await slot(8), "Hiwot Alemu");
+  const paid = await bookAsCustomer(salon, await slot(9), "Meron Tesfaye");
+  // Left to run out: its payment time is cut short in the local database; the API's own sweep then expires it.
+  const expired = await bookAsCustomer(salon, await slot(10), "Liya Tadesse");
+  execSync(
+    `docker exec beavent-postgres-1 psql -U beavent -d beavent -c "update commerce.orders o set expires_at = now() - interval '1 minute' from scheduling.appointments a where a.order_id = o.id and a.id = '${expired.id}'"`,
+    { stdio: "ignore" },
+  );
+  const startPay = async (who: { id: string; token: string }) => {
+    const started = await api(
+      "POST",
+      `/v1/me/appointments/${who.id}/payment`,
+      { language: "en" },
+      who.token,
+    );
+    return String(started.redirectUrl).split("/pay/")[1]!;
+  };
+  const stubComplete = (session: string, status: "SUCCESS" | "FAILED") =>
+    fetch(`${STUB}/__stub/sessions/${session}/complete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+  await stubComplete(await startPay(failed), "FAILED");
+  await stubComplete(await startPay(paid), "SUCCESS");
+  for (let i = 0; i < 40; i += 1) {
+    const d = await api("GET", `/v1/me/appointments/${paid.id}`, undefined, paid.token);
+    if (d.status === "CONFIRMED") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // 1. The review step: what is paid now and what is left (not signed in: the hold shows it).
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        colorScheme: scheme,
+        locale: language === "am" ? "am-ET" : "en-US",
+        timezoneId: "Africa/Addis_Ababa",
+        viewport: DESKTOP,
+      });
+      const page = await context.newPage();
+      await page.goto(`${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+      await page
+        .getByRole("button", { name: language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids" })
+        .click();
+      const next = language === "am" ? "ቀጥል" : "Continue";
+      await page.getByRole("button", { name: next }).first().click();
+      await page.getByRole("button", { name: /›/ }).first().click();
+      await page.locator("fieldset button[aria-pressed]").first().click();
+      await page.getByRole("button", { name: next }).first().click();
+      await page.getByText(language === "am" ? "አሁን ይክፈሉ" : "Pay now to book").waitFor();
+      await shot(page, `deposit-review-web-${language}-${scheme}-desktop`);
+      await page.setViewportSize(PHONE);
+      await shot(page, `deposit-review-web-${language}-${scheme}-phone`);
+      await context.close();
+    }
+  }
+
+  // 2. The payment page in each state, and the booking page, signed in by cookie (the session the customer got).
+  const pages: Array<[string, { id: string; token: string }, string]> = [
+    ["pending", pending, "pending"],
+    ["checking", pending, "success"],
+    ["cancelled", pending, "cancel"],
+    ["failed", failed, "error"],
+    ["paid", paid, "success"],
+  ];
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        const view = async (who: { token: string }) => {
+          const context = await browser.newContext({
+            colorScheme: scheme,
+            locale: language === "am" ? "am-ET" : "en-US",
+            timezoneId: "Africa/Addis_Ababa",
+            viewport: size,
+          });
+          await context.addCookies([{ name: "bv_web_access", value: who.token, url: WEB }]);
+          return context;
+        };
+        for (const [state, who, result] of pages) {
+          const context = await view(who);
+          const page = await context.newPage();
+          await page.goto(`${WEB}/${language}/account/bookings/${who.id}/payment?result=${result}`);
+          await page.getByRole("status").waitFor();
+          if (state === "checking") await page.waitForTimeout(1500);
+          if (state === "failed") await page.waitForTimeout(1500); // the page asks once, then reads "try again"
+          await shot(page, `deposit-payment-${state}-${language}-${scheme}-${viewport}`);
+          await context.close();
+        }
+        for (const [state, who] of [
+          ["pending", pending],
+          ["paid", paid],
+        ] as const) {
+          const context = await view(who);
+          const page = await context.newPage();
+          await page.goto(`${WEB}/${language}/account/bookings/${who.id}`);
+          await page.getByRole("heading", { level: 1 }).waitFor();
+          await shot(page, `deposit-booking-${state}-${language}-${scheme}-${viewport}`);
+          await context.close();
+        }
+      }
+    }
+  }
+
+  // 3. The business console: the paid booking and the one still waiting.
+  const context = await browser.newContext({ timezoneId: "Africa/Addis_Ababa", viewport: DESKTOP });
+  const desk = await context.newPage();
+  await desk.waitForTimeout(31_000);
+  await desk.goto(`${WEB}/en/business/sign-in`);
+  await desk.getByLabel("Phone number or email").fill(salon.phone);
+  const seen = codeCount(salon.phone);
+  await desk.getByRole("button", { name: "Send code" }).click();
+  await desk.getByLabel(/Code sent to/).fill(await codeFor(salon.phone, seen));
+  await desk.getByRole("button", { name: "Sign in" }).click();
+  await desk.getByRole("heading", { name: "Your businesses" }).waitFor();
+  for (const scheme of SCHEMES) {
+    await desk.emulateMedia({ colorScheme: scheme });
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await desk.setViewportSize(size);
+        for (const [state, name, at] of [
+          ["paid", "Meron Tesfaye", paid.booking.start],
+          ["waiting", "Selam Bekele", pending.booking.start],
+        ] as const) {
+          const when = new Date(new Date(at).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+          await desk.goto(`${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${when}`);
+          await desk.getByRole("button", { name: new RegExp(name) }).click();
+          await shot(desk, `deposit-console-${state}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+  }
+  await context.close();
+
+  // 4. The expired booking (its window has run out by now), then the apps.
+  for (let i = 0; i < 90; i += 1) {
+    const d = await api("GET", `/v1/me/appointments/${expired.id}`, undefined, expired.token);
+    if (d.status === "EXPIRED") break;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        const c = await browser.newContext({
+          colorScheme: scheme,
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          viewport: size,
+        });
+        await c.addCookies([{ name: "bv_web_access", value: expired.token, url: WEB }]);
+        const p = await c.newPage();
+        await p.goto(`${WEB}/${language}/account/bookings/${expired.id}/payment?result=success`);
+        await p.getByRole("status").waitFor();
+        await shot(p, `deposit-payment-expired-${language}-${scheme}-${viewport}`);
+        await c.close();
+      }
+    }
+  }
+  for (const language of LANGUAGES) {
+    const app = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1100 },
+    });
+    const ap = await app.newPage();
+    await ap.goto(`${MOBILE}/b/${salon.orgSlug}/${salon.locationSlug}/book`);
+    await ap
+      .getByRole("button", { name: language === "am" ? "ጨምር ቦክስ ሹሩባ" : "Add Box braids" })
+      .click();
+    const next = language === "am" ? "ቀጥል" : "Continue";
+    await ap.getByRole("button", { name: next }).click();
+    await ap
+      .getByRole("button", { name: /\d:\d\d.*, / })
+      .filter({ visible: true })
+      .first()
+      .waitFor();
+    await ap
+      .getByRole("button", { name: /\d:\d\d.*, / })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await ap.getByRole("button", { name: next }).click();
+    await ap
+      .getByText(language === "am" ? "አሁን ይክፈሉ" : "Pay now to book")
+      .filter({ visible: true })
+      .first()
+      .waitFor();
+    for (const scheme of SCHEMES) {
+      await ap.emulateMedia({ colorScheme: scheme });
+      await ap.waitForTimeout(300);
+      await shot(ap, `deposit-review-app-${language}-${scheme}`);
+    }
+    await app.close();
+  }
+});
+
+test("deposits · the consumer app's unpaid booking and the business app's visit", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
+  const dayOffset = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const pending = await bookAsCustomer(
+    salon,
+    await firstFreeStart(salon, dayOffset(7), dayOffset(7)),
+    "Selam Bekele",
+  );
+  const paid = await bookAsCustomer(
+    salon,
+    await firstFreeStart(salon, dayOffset(8), dayOffset(8)),
+    "Meron Tesfaye",
+  );
+  const started = await api(
+    "POST",
+    `/v1/me/appointments/${paid.id}/payment`,
+    { language: "en" },
+    paid.token,
+  );
+  await fetch(`${STUB}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "SUCCESS" }),
+  });
+  for (let i = 0; i < 40; i += 1) {
+    const d = await api("GET", `/v1/me/appointments/${paid.id}`, undefined, paid.token);
+    if (d.status === "CONFIRMED") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const dateOf = (iso: string) =>
+    new Date(new Date(iso).getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+
+  for (const language of LANGUAGES) {
+    const am = language === "am";
+    // The consumer app: the unpaid booking (waiting, with Pay) and the paid one (deposit lines).
+    const app = await browser.newContext({
+      locale: am ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1100 },
+    });
+    const ap = await app.newPage();
+    await ap.waitForTimeout(31_000); // the seed signed these phones in moments ago (codes are 30 s apart)
+    await ap.goto(`${MOBILE}/bookings`);
+    await ap
+      .getByRole("button", { name: am ? "ይግቡ" : "Sign in" })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await ap.getByRole("textbox").filter({ visible: true }).first().fill(pending.phone);
+    const seen = codeCount(pending.phone);
+    await ap
+      .getByRole("button")
+      .filter({ hasText: am ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await ap
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(pending.phone, seen));
+    await ap.getByRole("button").filter({ visible: true }).last().click();
+    await ap.waitForTimeout(1500);
+    for (const scheme of SCHEMES) {
+      await ap.emulateMedia({ colorScheme: scheme });
+      await ap.goto(`${MOBILE}/appointment/${pending.id}`);
+      await ap.waitForTimeout(1500);
+      await shot(ap, `deposit-app-booking-unpaid-${language}-${scheme}`);
+    }
+    await app.close();
+
+    // The business app: the visit with its deposit.
+    const biz = await browser.newContext({
+      locale: am ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: { width: 390, height: 1000 },
+    });
+    const bp = await biz.newPage();
+    await bp.goto(BUSINESS_APP);
+    await bp.getByRole("textbox").first().fill(salon.phone);
+    const sawOwner = codeCount(salon.phone);
+    await bp
+      .getByRole("button")
+      .filter({ hasText: am ? "ኮድ" : "Send code" })
+      .first()
+      .click();
+    await bp
+      .getByRole("textbox")
+      .last()
+      .fill(await codeFor(salon.phone, sawOwner));
+    await bp.getByRole("button").filter({ visible: true }).last().click();
+    await bp.waitForTimeout(2000);
+    for (const scheme of SCHEMES) {
+      await bp.emulateMedia({ colorScheme: scheme });
+      for (const [state, visit] of [
+        ["waiting", pending],
+        ["paid", paid],
+      ] as const) {
+        await bp.goto(`${BUSINESS_APP}/visit/${visit.id}?date=${dateOf(visit.booking.start)}`);
+        await bp.waitForTimeout(1500);
+        await shot(bp, `deposit-business-app-visit-${state}-${language}-${scheme}`);
+      }
+    }
+    await biz.close();
+    // The owner's last code was asked moments ago: the next language waits the 30 s out.
+    await new Promise((r) => setTimeout(r, 31_000));
+  }
 });

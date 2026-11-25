@@ -1706,6 +1706,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/appointments/{appointmentId}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start (or resume) paying the deposit of an unpaid booking
+         * @description Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+         *     `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+         *     already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+         *     out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+         */
+        post: operations["startMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/payment/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the provider where the payment stands, then return the booking
+         * @description For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+         *     key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+         *     `AWAITING_PAYMENT`.
+         */
+        post: operations["checkMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/appointments/{appointmentId}/reschedule": {
         parameters: {
             query?: never;
@@ -2334,7 +2379,7 @@ export interface components {
              */
             instance?: string;
             /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "PAYMENT_UNAVAILABLE" | "INTERNAL";
             requestId?: string;
             /** @description Field-level validation errors. */
             errors?: {
@@ -3405,6 +3450,32 @@ export interface components {
             status: "BOOKED" | "STARTED" | "DONE" | "CANCELLED" | "NO_SHOW";
             stages: components["schemas"]["CalendarStage"][];
         };
+        /** @description Where the online payment of a booking stands. */
+        PaymentStatus: {
+            /**
+             * @description `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+             *     may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+             * @enum {string}
+             */
+            state: "NOT_REQUIRED" | "AWAITING_PAYMENT" | "PAID" | "FAILED" | "EXPIRED";
+            /** Format: int64 */
+            dueNowMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Left to pay at the venue.
+             */
+            atVenueMinor: number;
+            currency: string;
+            /** @description Until when the time is held for payment. */
+            expiresAt?: components["schemas"]["Instant"];
+            /**
+             * Format: uri
+             * @description The provider's page of the attempt in progress, to reopen it.
+             */
+            redirectUrl?: string | null;
+        };
         CalendarAppointment: {
             id: components["schemas"]["Uuid"];
             reference: string;
@@ -3425,6 +3496,8 @@ export interface components {
                 index: number;
                 count: number;
             } | null;
+            /** @description Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired). */
+            payment?: components["schemas"]["PaymentStatus"];
             /** @description Forms the client fills in before this visit (attached to its services), and whether they have. */
             forms: {
                 formId: components["schemas"]["Uuid"];
@@ -3826,12 +3899,33 @@ export interface components {
             currency: components["schemas"]["CurrencyCode"];
             policy: components["schemas"]["BookingTerms"];
         };
+        /**
+         * @description What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+         *     signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+         */
+        PaymentTerms: {
+            /**
+             * Format: int64
+             * @description Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+             */
+            depositMinor: number;
+            /** Format: int64 */
+            atVenueMinor: number;
+            /**
+             * Format: int64
+             * @description The all-in price.
+             */
+            totalMinor: number;
+            currency: string;
+        };
         Hold: {
             holdId: components["schemas"]["Uuid"];
             /** @description Proof that the hold is yours; send it to confirm or release. */
             holderKey: string;
             expiresAt: components["schemas"]["Instant"];
             booking: components["schemas"]["BookingSummary"];
+            /** @description What would be paid now to book; absent when nothing is due online. */
+            payment?: components["schemas"]["PaymentTerms"];
         };
         MyAppointmentPlace: {
             locationId: components["schemas"]["Uuid"];
@@ -3878,9 +3972,15 @@ export interface components {
             id: components["schemas"]["Uuid"];
             /** @description Six characters people can read out over the phone. */
             reference: string;
-            /** @enum {string} */
-            status: "REQUESTED" | "CONFIRMED";
+            /**
+             * @description `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+             *     confirmed when the payment arrives (start it with `POST …/payment`).
+             * @enum {string}
+             */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED";
             booking: components["schemas"]["BookingSummary"];
+            /** @description Present for `PENDING_PAYMENT`. */
+            payment?: components["schemas"]["PaymentStatus"];
         };
         CancellationPreview: {
             /** @description False once the visit has started or the appointment is no longer active. */
@@ -3907,6 +4007,20 @@ export interface components {
             booking: components["schemas"]["BookingSummary"];
             cancellation: components["schemas"]["CancellationPreview"];
             canReschedule: boolean;
+            /** @description Present when the booking has an order to pay online. */
+            payment?: components["schemas"]["PaymentStatus"];
+        };
+        PaymentStart: {
+            attemptId: components["schemas"]["Uuid"];
+            /**
+             * Format: uri
+             * @description The provider's page to send the person to; they come back to the booking's payment page.
+             */
+            redirectUrl?: string | null;
+            expiresAt: components["schemas"]["Instant"];
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
         };
         WaitlistOffer: {
             id: components["schemas"]["Uuid"];
@@ -4447,6 +4561,15 @@ export interface components {
         };
         /** @description The resource changed since it was read (If-Match did not match). */
         PreconditionFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description A service the request depends on (online payment) is unavailable; try again shortly. */
+        ServiceUnavailable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -8248,6 +8371,63 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    startMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The language of the pages the provider sends the person back to. */
+                    language?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Where to pay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStart"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking, with its payment state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     rescheduleMyAppointment: {
