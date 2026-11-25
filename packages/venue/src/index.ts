@@ -4,6 +4,7 @@
 import type { Schemas } from "@beavent/api-client";
 import {
   defaultDisplayPreferences,
+  formatDualDate,
   formatClock,
   formatEthiopianTime,
   gregorianToJdn,
@@ -192,4 +193,82 @@ export function localToInstant(date: string, time: string, timeZone: string): st
   const seen = zoned(guess, timeZone);
   const asIfUtc = Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute);
   return new Date(guess - (asIfUtc - guess)).toISOString();
+}
+
+/**
+ * A waitlist entry's days and times of day in words ("Wed, Nov 25, Thu, Nov 26 · Morning, Evening"), each day in the
+ * reader's calendar.
+ */
+export function waitlistWhen(
+  days: readonly string[],
+  parts: readonly string[],
+  language: Language,
+  t: Translate,
+): string {
+  const lang = calendarLanguage(language);
+  const prefs = defaultDisplayPreferences(lang);
+  const sep = language === "am" ? "፣ " : ", ";
+  const dayText = days
+    .map((d) => {
+      const [y, m, day] = d.split("-").map(Number) as [number, number, number];
+      return formatDualDate({ year: y, month: m, day }, prefs, { weekday: true }).primary;
+    })
+    .join(sep);
+  const partText = parts
+    .map((p) =>
+      t(
+        p === "MORNING"
+          ? "booking.time.morning"
+          : p === "AFTERNOON"
+            ? "booking.time.afternoon"
+            : "booking.time.evening",
+      ),
+    )
+    .join(sep);
+  return t("waitlist.when", { days: dayText, parts: partText });
+}
+
+/** The parts of a customer's appointment that say what happens to the money. */
+export type AppointmentMoney = Pick<Schemas["AppointmentDetail"], "status" | "refund"> & {
+  payment?: { paidMinor: number; currency: string } | null;
+  cancellation: Pick<
+    Schemas["AppointmentDetail"]["cancellation"],
+    "free" | "feeMinor" | "currency" | "refundMinor" | "keptMinor"
+  >;
+};
+
+/** What cancelling now means for the money, in words, before the person confirms (S-13). */
+export function cancelNotice(a: AppointmentMoney, language: Language, t: Translate): string {
+  const c = a.cancellation;
+  const currency = c.currency ?? a.payment?.currency ?? "ETB";
+  if ((a.payment?.paidMinor ?? 0) > 0) {
+    if (c.keptMinor === 0) {
+      return t("appointment.cancelRefundAll", { amount: price(c.refundMinor, currency, language) });
+    }
+    return c.refundMinor === 0
+      ? t("appointment.cancelKeepAll", { kept: price(c.keptMinor, currency, language) })
+      : t("appointment.cancelRefundSome", {
+          kept: price(c.keptMinor, currency, language),
+          refund: price(c.refundMinor, currency, language),
+        });
+  }
+  return c.free
+    ? t("appointment.cancelFree")
+    : t("appointment.cancelFee", { amount: price(c.feeMinor, currency, language) });
+}
+
+/** What became of the deposit of a booking that was cancelled, declined or missed; null when nothing was paid. */
+export function refundNotice(a: AppointmentMoney, language: Language, t: Translate): string | null {
+  if (!["CANCELLED", "DECLINED", "NO_SHOW"].includes(a.status)) return null;
+  const paid = a.payment?.paidMinor ?? 0;
+  if (paid <= 0) return null;
+  const r = a.refund;
+  if (!r) return t("appointment.refund.arranging");
+  const amount = price(r.amountMinor, r.currency, language);
+  if (r.state === "SENT") return t("appointment.refund.sent", { amount });
+  if (r.state === "CREDITED") return t("appointment.refund.credited", { amount });
+  if (r.state === "NONE") {
+    return t("appointment.refund.none", { amount: price(paid, r.currency, language) });
+  }
+  return t("appointment.refund.onTheWay", { amount });
 }

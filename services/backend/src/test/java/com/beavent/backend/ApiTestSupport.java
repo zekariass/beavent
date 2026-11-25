@@ -13,6 +13,7 @@ import com.beavent.backend.platform.messaging.LoggingSmsGateway;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
@@ -51,7 +52,8 @@ public abstract class ApiTestSupport {
     @SystemDb
     protected DSLContext system;
 
-    public record Call(int status, JsonNode body, String etag) {
+    /** {@code raw} is the response text; {@code body} is its JSON, or null for an empty or non-JSON answer. */
+    public record Call(int status, JsonNode body, String etag, String raw) {
 
         public String text(String field) {
             return body.get(field).asString();
@@ -97,18 +99,27 @@ public abstract class ApiTestSupport {
         }
         return new Call(
                 result.getResponse().getStatus(),
-                content.isEmpty() ? null : json.readTree(content),
-                result.getResponse().getHeader("ETag"));
+                content.isEmpty()
+                                || !String.valueOf(result.getResponse().getContentType())
+                                        .contains("json")
+                        ? null
+                        : json.readTree(content),
+                result.getResponse().getHeader("ETag"),
+                content);
     }
 
     protected static String newPhone() {
         return "+2519" + String.format("%08d", ThreadLocalRandom.current().nextInt(100_000_000));
     }
 
+    /** The newest one-time code sent to the phone (other texts, such as notices, may arrive after it). */
     protected String lastCode(String phone) {
-        Matcher matcher = Pattern.compile("(\\d{6})").matcher(sms.lastMessageTo(phone));
-        assertThat(matcher.find()).isTrue();
-        return matcher.group(1);
+        List<String> messages = sms.messagesTo(phone);
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Matcher matcher = Pattern.compile("(?<!\\d)(\\d{6})(?!\\d)").matcher(messages.get(i));
+            if (matcher.find()) return matcher.group(1);
+        }
+        throw new AssertionError("No code was sent to " + phone);
     }
 
     protected String requestCode(String phone, String purpose, String token) throws Exception {
@@ -178,6 +189,26 @@ public abstract class ApiTestSupport {
     }
 
     // --- organizations ----------------------------------------------------------------------------------------
+
+    /**
+     * Makes the business ready to take online payments, as after platform review: verified, with a verified default
+     * payout account (plan 3.4).
+     */
+    protected void makePaymentsReady(Salon salon) {
+        system.execute(
+                "update tenant.organizations set verification_status = 'VERIFIED' where id = ?::uuid", salon.id());
+        system.execute(
+                "update tenant.legal_entities set verification_status = 'VERIFIED' where org_id = ?::uuid", salon.id());
+        system.execute(
+                "insert into payments.payout_accounts (org_id, legal_entity_id, kind, country_code, currency_code, "
+                        + "institution_code, institution_name, account_name, account_number_masked, details_secret_ref, "
+                        + "verification_status, verified_via, is_default, reviewed_by, reviewed_at) "
+                        + "select e.org_id, e.id, 'BANK_ACCOUNT', e.country_code, e.functional_currency, 'CBETETAA', "
+                        + "'Commercial Bank of Ethiopia', e.registered_name, '••••0001', 'box:v1:test', 'VERIFIED', 'MANUAL', "
+                        + "true, (select id from iam.users limit 1), now() from tenant.legal_entities e where e.org_id = ?::uuid "
+                        + "limit 1",
+                salon.id());
+    }
 
     /** An organization with an owner, a legal entity and two locations in Addis Ababa. */
     public record Salon(java.util.UUID id, Person owner, java.util.UUID location1, java.util.UUID location2) {

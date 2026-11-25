@@ -80,18 +80,21 @@ export function DayStrip({
   language,
   withTimes,
   onSelect,
+  count = 7,
 }: {
   from: string;
-  selected: string;
+  /** One day, or several (the waitlist chooses up to seven). */
+  selected: string | ReadonlySet<string>;
   language: Language;
   withTimes: Set<string> | null;
   onSelect: (date: string) => void;
+  count?: number;
 }) {
   const lang = calendarLanguage(language);
   const ethiopianFirst = defaultDisplayPreferences(lang).calendar === "ETHIOPIAN";
   return (
     <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-      {Array.from({ length: 7 }, (_, i) => addDays(from, i)).map((date) => {
+      {Array.from({ length: count }, (_, i) => addDays(from, i)).map((date) => {
         const [y, m, d] = date.split("-").map(Number) as [number, number, number];
         const weekday =
           WEEKDAYS[lang][isoWeekday(gregorianToJdn({ year: y, month: m, day: d })) - 1]!;
@@ -102,7 +105,7 @@ export function DayStrip({
           timeZone: "UTC",
         }).format(Date.UTC(y, m - 1, d));
         const ethiopian = `${ETHIOPIAN_MONTHS[lang][eth.month - 1]} ${eth.day}`;
-        const isSelected = date === selected;
+        const isSelected = typeof selected === "string" ? date === selected : selected.has(date);
         const empty = withTimes != null && !withTimes.has(date);
         return (
           <button

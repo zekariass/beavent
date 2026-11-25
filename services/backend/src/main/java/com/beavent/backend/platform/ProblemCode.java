@@ -28,6 +28,8 @@ public enum ProblemCode {
             "This service needs a patch test at the venue first. Call them to book one."),
     PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "This request requires an If-Match header."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please wait and try again."),
+    PAYMENT_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "Online payment is unavailable right now. Please try again in a moment."),
     INTERNAL(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on our side.");
 
     private final HttpStatus status;

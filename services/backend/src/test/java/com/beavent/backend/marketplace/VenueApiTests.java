@@ -105,6 +105,14 @@ class VenueApiTests extends ApiTestSupport {
                         Map.of("mode", "PERCENT", "percent", 20, "appliesTo", "NEW_CUSTOMERS")),
                 t);
 
+        // Not verified yet and no payout account: the page promises no deposit, the business is paid at the venue.
+        Call early =
+                call(get("/v1/public/venues/" + orgSlug(salon) + "/" + locationSlug(salon.location1())), null, null);
+        assertThat(early.body().get("policy").get("depositMode").asString()).isEqualTo("NONE");
+        assertThat(early.body().get("policy").get("allowPayAtVenue").asBoolean())
+                .isTrue();
+        makePaymentsReady(salon);
+
         Call page =
                 call(get("/v1/public/venues/" + orgSlug(salon) + "/" + locationSlug(salon.location1())), null, null);
         assertThat(page.status()).as(String.valueOf(page.body())).isEqualTo(200);

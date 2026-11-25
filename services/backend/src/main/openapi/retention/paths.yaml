@@ -1,0 +1,156 @@
+giftCardProgram:
+  get:
+    tags: [GiftCards]
+    operationId: getGiftCardProgram
+    summary: The gift cards the business sells (none yet when `program` is null)
+    description: Needs `catalog.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: The programme.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GiftCardSetup
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  put:
+    tags: [GiftCards]
+    operationId: saveGiftCardProgram
+    summary: Set up what gift cards the business sells
+    description: Needs `catalog.manage`. Creates the programme the first time, then updates it.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/GiftCardProgramInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GiftCardProgram
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+giftCards:
+  get:
+    tags: [GiftCards]
+    operationId: listGiftCards
+    summary: Paid gift cards, newest first
+    description: Needs `catalog.manage`. The code is never shown after it was delivered (only its last four characters).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: A page of cards.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GiftCardPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+giftCardVoid:
+  post:
+    tags: [GiftCards]
+    operationId: voidGiftCard
+    summary: Void a card (what is left on it is written off; audited)
+    description: Needs `refunds.create`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: cardId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason:
+                type: string
+                minLength: 5
+                maxLength: 500
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+giftCardOffer:
+  get:
+    tags: [GiftCards]
+    operationId: getGiftCardOffer
+    summary: What gift cards can be bought at a place (nothing when the business does not sell them online)
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The offer.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GiftCardOffer
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+giftCardPurchase:
+  post:
+    tags: [GiftCards]
+    operationId: buyGiftCard
+    summary: Start buying a gift card; pay through the returned link
+    description: |
+      The card is created waiting for payment and delivered to the recipient (at once, or on `deliverAt`) after the payment
+      is confirmed; a recipient without a phone number or email means the buyer. `payUrl` is a payment link, valid 30
+      minutes. `CONFLICT` when the business does not sell cards online.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/GiftCardPurchaseInput
+    responses:
+      '201':
+        description: Waiting for payment.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/GiftCardPurchase
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict

@@ -1,12 +1,26 @@
 "use client";
 
 import type { Schemas } from "@beavent/api-client";
-import { formatStandardTime, zoned } from "@beavent/calendar";
+import {
+  defaultDisplayPreferences,
+  formatDualDate,
+  formatDualTime,
+  formatStandardTime,
+  zoned,
+} from "@beavent/calendar";
 import { createTranslator, formatDuration, type Language } from "@beavent/i18n";
-import { localDateOf, localToInstant } from "@beavent/venue";
+import { calendarLanguage, localDateOf, localToInstant, price } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { blockTime, bookAtDesk, findCustomers, moveAppointment, removeBlock } from "./actions";
+import {
+  blockTime,
+  bookAtDesk,
+  cancelAtDesk,
+  findCustomers,
+  moveAppointment,
+  removeBlock,
+  sendPaymentLink,
+} from "./actions";
 
 /** A bookable option for the desk: a service variant and who does it. */
 export interface ServiceOption {
@@ -74,6 +88,7 @@ export function NewPanel({
   start,
   zone,
   services,
+  team,
   onClose,
 }: {
   language: Language;
@@ -83,11 +98,20 @@ export function NewPanel({
   start: string;
   zone: string;
   services: ServiceOption[];
+  team: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const t = createTranslator(language);
   const router = useRouter();
   const [mode, setMode] = useState<"appointment" | "block">("appointment");
+  // Repeating (a series) or more people at the same time (a group); not both.
+  const [every, setEvery] = useState(0);
+  const [count, setCount] = useState(4);
+  const [skipTaken, setSkipTaken] = useState(false);
+  const [guests, setGuests] = useState<
+    { name: string; phone: string; variantId: string; staffId: string }[]
+  >([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const options = services.filter((s) => s.staffIds.includes(staff.id));
   const [variantId, setVariantId] = useState(options[0]?.variantId ?? "");
   const [query, setQuery] = useState("");
@@ -122,9 +146,9 @@ export function NewPanel({
 
   const book = (anyway: boolean) =>
     run(async () => {
-      const phoneE164 = phone.trim()
-        ? phone.replace(/[^\d+]/g, "").replace(/^0(?=[79]\d{8}$)/, "+251")
-        : undefined;
+      const e164 = (raw: string) =>
+        raw.trim() ? raw.replace(/[^\d+]/g, "").replace(/^0(?=[79]\d{8}$)/, "+251") : undefined;
+      const phoneE164 = e164(phone);
       const r = await bookAtDesk(language, orgId, {
         locationId,
         start,
@@ -135,10 +159,27 @@ export function NewPanel({
         source,
         notifyCustomer: notify,
         bookAnyway: anyway,
+        guests: guests.map((g) => ({
+          name: g.name.trim(),
+          phone: e164(g.phone),
+          variantId: g.variantId,
+          staffId: g.staffId,
+        })),
+        ...(every > 0 ? { repeat: { everyWeeks: every, count }, skipTaken } : {}),
       });
       if (r.ok) {
         router.refresh();
-        onClose();
+        if (r.skipped && r.skipped.length > 0) {
+          const prefs = defaultDisplayPreferences(calendarLanguage(language), zone);
+          setNotice(
+            t("portal.calendar.repeat.skipped", {
+              count: r.skipped.length,
+              dates: r.skipped
+                .map((d) => formatDualDate(d, prefs, { weekday: true }).primary)
+                .join(language === "am" ? "፣ " : ", "),
+            }),
+          );
+        } else onClose();
       } else if (r.code === "SLOT_TAKEN") setBusy(true);
       else setError(r.message || t("booking.error"));
     });
@@ -282,6 +323,143 @@ export function NewPanel({
           <Label text={t("portal.calendar.teamNote")}>
             <input value={note} onChange={(e) => setNote(e.target.value)} className={field} />
           </Label>
+          {guests.map((g, i) => {
+            const set = (change: Partial<typeof g>) =>
+              setGuests(guests.map((x, j) => (j === i ? { ...x, ...change } : x)));
+            const doers = team.filter((m) =>
+              services.find((o) => o.variantId === g.variantId)?.staffIds.includes(m.id),
+            );
+            return (
+              <fieldset key={i} className="flex flex-col gap-2 border-t border-border pt-3">
+                <legend className="bv-type-label text-fg">
+                  {t("portal.calendar.guest", { n: i + 2 })}
+                </legend>
+                <Label text={t("portal.calendar.customerName")}>
+                  <input
+                    value={g.name}
+                    onChange={(e) => set({ name: e.target.value })}
+                    className={field}
+                  />
+                </Label>
+                <Label text={t("portal.calendar.customerPhone")}>
+                  <input
+                    value={g.phone}
+                    onChange={(e) => set({ phone: e.target.value })}
+                    inputMode="tel"
+                    placeholder="09…"
+                    className={field}
+                  />
+                </Label>
+                <Label text={t("portal.calendar.service")}>
+                  <select
+                    value={g.variantId}
+                    onChange={(e) => {
+                      const option = services.find((o) => o.variantId === e.target.value);
+                      set({
+                        variantId: e.target.value,
+                        staffId: option?.staffIds.includes(g.staffId)
+                          ? g.staffId
+                          : (option?.staffIds[0] ?? ""),
+                      });
+                    }}
+                    className={field}
+                  >
+                    {services.map((o) => (
+                      <option key={o.variantId} value={o.variantId}>
+                        {o.label} · {formatDuration(o.durationMinutes, t)}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+                <Label text={t("portal.calendar.person")}>
+                  <select
+                    value={g.staffId}
+                    onChange={(e) => set({ staffId: e.target.value })}
+                    className={field}
+                  >
+                    {doers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+                <button
+                  type="button"
+                  className={`${secondary} self-start`}
+                  onClick={() => setGuests(guests.filter((_, j) => j !== i))}
+                >
+                  {t("portal.calendar.remove")}
+                </button>
+              </fieldset>
+            );
+          })}
+          {every === 0 && guests.length < 9 ? (
+            <button
+              type="button"
+              className={`${secondary} self-start`}
+              onClick={() => {
+                const option = services.find((o) => o.staffIds.some((id) => id !== staff.id));
+                const first = option ?? services[0];
+                setGuests([
+                  ...guests,
+                  {
+                    name: "",
+                    phone: "",
+                    variantId: first?.variantId ?? "",
+                    staffId:
+                      first?.staffIds.find((id) => id !== staff.id) ?? first?.staffIds[0] ?? "",
+                  },
+                ]);
+              }}
+            >
+              {t("portal.calendar.addPerson")}
+            </button>
+          ) : null}
+          {guests.length === 0 ? (
+            <div className="flex flex-col gap-2">
+              <Label text={t("portal.calendar.repeat")}>
+                <select
+                  value={every}
+                  onChange={(e) => setEvery(Number(e.target.value))}
+                  className={field}
+                >
+                  <option value={0}>{t("portal.calendar.repeat.none")}</option>
+                  {[1, 2, 3, 4].map((n) => (
+                    <option key={n} value={n}>
+                      {t("portal.calendar.repeat.every", { count: n })}
+                    </option>
+                  ))}
+                </select>
+              </Label>
+              {every > 0 ? (
+                <>
+                  <Label text={t("portal.calendar.repeat.times")}>
+                    <select
+                      value={count}
+                      onChange={(e) => setCount(Number(e.target.value))}
+                      className={field}
+                    >
+                      {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </Label>
+                  <label className="flex min-h-10 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={skipTaken}
+                      onChange={(e) => setSkipTaken(e.target.checked)}
+                      className="size-4 accent-[var(--bv-color-primary)]"
+                    />
+                    <span className="bv-type-body text-fg">{t("portal.calendar.repeat.skip")}</span>
+                  </label>
+                </>
+              ) : null}
+            </div>
+          ) : null}
           <label className="flex min-h-10 items-center gap-2">
             <input
               type="checkbox"
@@ -298,11 +476,23 @@ export function NewPanel({
             pending={pending}
             onAnyway={() => book(true)}
           />
-          {!busy ? (
+          {notice ? (
+            <div role="status" className="flex flex-col gap-2 rounded-lg bg-info-subtle px-3 py-2">
+              <p className="bv-type-body text-fg">{notice}</p>
+              <button type="button" className={secondary} onClick={onClose}>
+                {t("portal.calendar.done")}
+              </button>
+            </div>
+          ) : !busy ? (
             <button
               type="button"
               className={primary}
-              disabled={pending || !variantId || (!customerId && name.trim().length === 0)}
+              disabled={
+                pending ||
+                !variantId ||
+                (!customerId && name.trim().length === 0) ||
+                guests.some((g) => !g.name.trim() || !g.staffId)
+              }
               onClick={() => book(false)}
             >
               {t("portal.calendar.book")}
@@ -436,6 +626,13 @@ export function MoveForm({
           </select>
         </Label>
       ) : null}
+      {appointment.payment && appointment.payment.paidMinor > 0 ? (
+        <p className="bv-type-body text-fg-muted">
+          {t("portal.calendar.cancelRefund", {
+            amount: price(appointment.payment.paidMinor, appointment.payment.currency, language),
+          })}
+        </p>
+      ) : null}
       <label className="flex min-h-10 items-center gap-2">
         <input
           type="checkbox"
@@ -529,5 +726,190 @@ export function BlockPanel({
         {t("portal.calendar.remove")}
       </button>
     </aside>
+  );
+}
+
+/** Cancels a visit (the business cancels: no fee): this one, this and the following of a series, or the group. */
+export function CancelForm({
+  language,
+  orgId,
+  appointment,
+}: {
+  language: Language;
+  orgId: string;
+  appointment: Schemas["CalendarAppointment"];
+}) {
+  const t = createTranslator(language);
+  const router = useRouter();
+  const scopes: ("ONE" | "FOLLOWING" | "GROUP")[] = [
+    "ONE",
+    ...(appointment.series && appointment.series.index < appointment.series.count
+      ? (["FOLLOWING"] as const)
+      : []),
+    ...(appointment.groupId ? (["GROUP"] as const) : []),
+  ];
+  const [open, setOpen] = useState(false);
+  const [scope, setScope] = useState<"ONE" | "FOLLOWING" | "GROUP">("ONE");
+  const [reason, setReason] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, run] = useTransition();
+  if (!open) {
+    return (
+      <button type="button" className={secondary} onClick={() => setOpen(true)}>
+        {t("portal.calendar.cancelVisit")}
+      </button>
+    );
+  }
+  return (
+    <div className="flex w-full flex-col gap-3 border-t border-border pt-3">
+      {scopes.length > 1 ? (
+        <fieldset className="flex flex-col gap-1">
+          <legend className="bv-type-label mb-1 text-fg">{t("portal.calendar.cancel")}</legend>
+          {scopes.map((s) => (
+            <label key={s} className="flex min-h-10 items-center gap-2">
+              <input
+                type="radio"
+                name="cancel-scope"
+                checked={scope === s}
+                onChange={() => setScope(s)}
+                className="size-4 accent-[var(--bv-color-primary)]"
+              />
+              <span className="bv-type-body text-fg">{t(`portal.calendar.cancel.${s}`)}</span>
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
+      <Label text={t("portal.calendar.cancelReason")}>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} className={field} />
+      </Label>
+      <label className="flex min-h-10 items-center gap-2">
+        <input
+          type="checkbox"
+          checked={notify}
+          onChange={(e) => setNotify(e.target.checked)}
+          className="size-4 accent-[var(--bv-color-primary)]"
+        />
+        <span className="bv-type-body text-fg">{t("portal.calendar.notify")}</span>
+      </label>
+      {error ? (
+        <p role="alert" className="bv-type-body rounded-lg bg-danger-subtle px-3 py-2 text-fg">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          className="bv-type-label inline-flex min-h-10 items-center justify-center rounded-lg bg-danger px-4 text-on-danger hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          onClick={() =>
+            run(async () => {
+              const r = await cancelAtDesk(language, orgId, appointment.id, {
+                scope,
+                reason: reason.trim() || undefined,
+                notifyCustomer: notify,
+              });
+              if (r.ok) router.refresh();
+              else setError(r.message || t("booking.error"));
+            })
+          }
+        >
+          {t("portal.calendar.cancelConfirm")}
+        </button>
+        <button type="button" className={secondary} onClick={() => setOpen(false)}>
+          {t("portal.calendar.keep")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Asks the customer to pay by a link sent to them (plan 3.7): a phone booking's deposit, a fresh link for a deposit not
+ * yet paid, or the balance of a confirmed booking. The address is shown too, to share by hand.
+ */
+export function PaymentLinkForm({
+  language,
+  orgId,
+  appointment,
+  zone,
+}: {
+  language: Language;
+  orgId: string;
+  appointment: Schemas["CalendarAppointment"];
+  zone: string;
+}) {
+  const t = createTranslator(language);
+  const router = useRouter();
+  const [sent, setSent] = useState<{
+    url: string;
+    expiresAt: string;
+    sentTo: "SMS" | "EMAIL";
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, run] = useTransition();
+  const payment = appointment.payment;
+  const status = appointment.status;
+  const label =
+    status === "PENDING_PAYMENT"
+      ? t("portal.calendar.link.again")
+      : payment && payment.state === "PAID"
+        ? payment.atVenueMinor > 0
+          ? t("portal.calendar.link.balance")
+          : null
+        : !payment
+          ? t("portal.calendar.link.ask")
+          : null;
+  if (!label) return null;
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        className={secondary}
+        onClick={() =>
+          run(async () => {
+            setError(null);
+            const r = await sendPaymentLink(language, orgId, appointment.id);
+            if (r.ok) {
+              setSent(r);
+              router.refresh();
+            } else setError(r.message);
+          })
+        }
+      >
+        {label}
+      </button>
+      {sent ? (
+        <>
+          <p role="status" className="bv-type-body text-fg">
+            {t(
+              sent.sentTo === "SMS"
+                ? "portal.calendar.link.sentSms"
+                : "portal.calendar.link.sentEmail",
+              {
+                time: formatDualTime(
+                  sent.expiresAt,
+                  defaultDisplayPreferences(calendarLanguage(language), zone),
+                ).primary,
+              },
+            )}
+          </p>
+          <Label text={t("portal.calendar.link.share")}>
+            <input
+              readOnly
+              value={sent.url}
+              onFocus={(e) => e.currentTarget.select()}
+              className={field}
+            />
+          </Label>
+        </>
+      ) : null}
+      {error ? (
+        <p role="alert" className="bv-type-body rounded-lg bg-danger-subtle px-3 py-2 text-fg">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

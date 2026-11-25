@@ -114,6 +114,12 @@ jobs:
               context: tools/chapa-stub,
               app: "",
             }
+          - {
+              name: arifpay-stub,
+              file: tools/arifpay-stub/Dockerfile,
+              context: tools/arifpay-stub,
+              app: "",
+            }
           - { name: web, file: docker/next-app.Dockerfile, context: ., app: web }
     steps:
       - uses: actions/checkout@v7

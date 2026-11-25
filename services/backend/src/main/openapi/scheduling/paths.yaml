@@ -294,6 +294,12 @@ myAppointmentCancel:
               reason:
                 type: string
                 maxLength: 500
+              refundTo:
+                type: string
+                enum: [ORIGINAL, BALANCE]
+                description: |
+                  Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                  with the business at once (`BALANCE`).
     responses:
       '200':
         description: Cancelled.
@@ -307,6 +313,108 @@ myAppointmentCancel:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+myAppointmentPayment:
+  post:
+    tags: [Booking]
+    operationId: startMyAppointmentPayment
+    summary: Start (or resume) paying the deposit of an unpaid booking
+    description: |
+      Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+      `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+      already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+      out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              language:
+                type: string
+                maxLength: 5
+                description: The language of the pages the provider sends the person back to.
+    responses:
+      '200':
+        description: Where to pay.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentStart
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
+myAppointmentPaymentTender:
+  post:
+    tags: [Booking]
+    operationId: tenderMyAppointmentPayment
+    summary: Pay part or all of the deposit with a gift card or the balance with the business
+    description: |
+      `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+      covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+      is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [kind]
+            properties:
+              kind:
+                type: string
+                enum: [GIFT_CARD, BALANCE]
+              code:
+                type: string
+                maxLength: 40
+    responses:
+      '200':
+        description: The booking, with where its payment stands.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+myAppointmentPaymentCheck:
+  post:
+    tags: [Booking]
+    operationId: checkMyAppointmentPayment
+    summary: Ask the provider where the payment stands, then return the booking
+    description: |
+      For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+      key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+      `AWAITING_PAYMENT`.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The booking, with its payment state.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
 myAppointmentReschedule:
   post:
     tags: [Booking]
@@ -528,6 +636,88 @@ deskAppointments:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+deskPaymentLink:
+  post:
+    tags: [Calendar]
+    operationId: sendPaymentLink
+    summary: Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+    description: |
+      A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+      link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+      fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+      The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+      shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+      deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The link.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLinkSent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
+deskCancel:
+  post:
+    tags: [Calendar]
+    operationId: cancelAtTheDesk
+    summary: Cancel a visit, the rest of its series, or its whole group (no fee; the business cancels)
+    description: |
+      `scope` ONE (default), FOLLOWING (this and the later visits of the series; the customer gets one message) or GROUP.
+      Booked visits that have not started can be cancelled. The times are freed at once.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              scope:
+                type: string
+                enum: [ONE, FOLLOWING, GROUP]
+              reason:
+                type: string
+                maxLength: 500
+              notifyCustomer:
+                type: boolean
+                default: true
+    responses:
+      '200':
+        description: Cancelled.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cancelled]
+              properties:
+                cancelled:
+                  type: array
+                  items:
+                    $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
 deskMove:
   post:
     tags: [Calendar]
@@ -665,3 +855,164 @@ calendarStream:
         $ref: ../common/responses.yaml#/Forbidden
       '404':
         $ref: ../common/responses.yaml#/NotFound
+myWaitlist:
+  get:
+    tags: [Booking]
+    operationId: listMyWaitlist
+    summary: The person's waitlists (waiting or with an offer), across businesses
+    responses:
+      '200':
+        description: Entries.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+  post:
+    tags: [Booking]
+    operationId: joinWaitlist
+    summary: Join a location's waitlist for a service on some days and parts of the day (S-15)
+    description: |
+      When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+      person gets a text message with a link. At most 5 active entries per business.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/WaitlistJoin
+    responses:
+      '201':
+        description: Joined.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  $ref: ../common/schemas.yaml#/Uuid
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myWaitlistEntry:
+  parameters:
+    - name: entryId
+      in: path
+      required: true
+      schema:
+        $ref: ../common/schemas.yaml#/Uuid
+  get:
+    tags: [Booking]
+    operationId: getMyWaitlistEntry
+    summary: One of the person's waitlist entries, with its open offer
+    responses:
+      '200':
+        description: The entry.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistEntry
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Booking]
+    operationId: leaveWaitlist
+    summary: Leave the waitlist (an open offer is let go)
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+myWaitlistAccept:
+  post:
+    tags: [Booking]
+    operationId: acceptWaitlistOffer
+    summary: Book the offered time
+    description: '`HOLD_EXPIRED` when the offer ran out (the time went to the next person).'
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '201':
+        description: Booked.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appointmentId, reference, status]
+              properties:
+                appointmentId:
+                  $ref: ../common/schemas.yaml#/Uuid
+                reference:
+                  type: string
+                status:
+                  type: string
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myWaitlistDecline:
+  post:
+    tags: [Booking]
+    operationId: declineWaitlistOffer
+    summary: Not this time — the time goes to the next person; the entry keeps waiting
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+deskWaitlist:
+  get:
+    tags: [Calendar]
+    operationId: listWaitlist
+    summary: Who is waiting at a location, oldest first (calendar.view_all)
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Entries.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/WaitlistList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden

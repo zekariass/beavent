@@ -48,13 +48,534 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: GiftCards
+    description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
     description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
+  - name: Payments
+    description: Payment provider notifications (ArifPay by default, or Chapa), banks, and how a business gets paid
 paths:
+  /v1/hooks/{provider}:
+    post:
+      tags:
+        - Payments
+      operationId: receiveProviderNotification
+      summary: A payment provider's notification (ArifPay or Chapa)
+      description: |
+        Called by the payment provider, not by apps. The raw body is stored and deduplicated before anything acts on it
+        (docs/04 §7). Chapa notifications must carry a valid `x-chapa-signature` (HMAC-SHA256 of the raw body) or
+        `chapa-signature`; ArifPay notifications are not signed, so they only prompt a lookup of the session with
+        Beavent's key. A replayed delivery is acknowledged and stored once.
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - arifpay
+              - chapa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Received (stored, or a replay of a delivery already stored).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '400':
+          description: The body is not a JSON object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '401':
+          description: The signature is missing or wrong (signed providers only).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HookReceipt'
+        '404':
+          description: That provider is not configured on this deployment.
+  /v1/ref/banks:
+    get:
+      tags:
+        - Payments
+      operationId: listBanks
+      summary: Banks and wallets a business can be paid into
+      security: []
+      parameters:
+        - name: countryCode
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+      responses:
+        '200':
+          description: Banks and wallets, in the order screens list them.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/orgs/{orgId}/payments/setup:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentsSetup
+      summary: Whether the business may take online payments, and its payout account
+      description: Needs `payouts.view`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The setup.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentsSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/payout-accounts:
+    post:
+      tags:
+        - Payments
+      operationId: addPayoutAccount
+      summary: Add a payout account for review
+      description: |
+        Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+        registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+        payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutAccountInput'
+      responses:
+        '201':
+          description: Added, waiting for review.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/payout-accounts/{accountId}:
+    delete:
+      tags:
+        - Payments
+      operationId: withdrawPayoutAccount
+      summary: Withdraw the account that is waiting for review
+      description: Needs `payouts.manage` and a fresh code.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Withdrawn.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/public/payment-links/{token}:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentLink
+      summary: What a payment link is for, and whether it can still be paid
+      description: |
+        No sign-in: the token in the address is the credential, and it pays only the one payment it was made for.
+        `404` for a token that is not a link.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/public/payment-links/{token}/start:
+    post:
+      tags:
+        - Payments
+      operationId: startPaymentLink
+      summary: Start (or resume) the payment a link is for
+      description: |
+        Answers the provider's page to send the payer to; they come back to the link's own page. `HOLD_EXPIRED` when the link is no longer open, `CONFLICT` when it was paid already, `PAYMENT_UNAVAILABLE` when the
+        provider cannot be reached.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentLinkStartInput'
+      responses:
+        '200':
+          description: The provider's page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStart'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/public/payment-links/{token}/check:
+    post:
+      tags:
+        - Payments
+      operationId: checkPaymentLink
+      summary: After the payer came back, ask the provider and say where the payment stands
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/gift-cards/program:
+    get:
+      tags:
+        - GiftCards
+      operationId: getGiftCardProgram
+      summary: The gift cards the business sells (none yet when `program` is null)
+      description: Needs `catalog.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The programme.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags:
+        - GiftCards
+      operationId: saveGiftCardProgram
+      summary: Set up what gift cards the business sells
+      description: Needs `catalog.manage`. Creates the programme the first time, then updates it.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftCardProgramInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardProgram'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/gift-cards:
+    get:
+      tags:
+        - GiftCards
+      operationId: listGiftCards
+      summary: Paid gift cards, newest first
+      description: Needs `catalog.manage`. The code is never shown after it was delivered (only its last four characters).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of cards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/gift-cards/{cardId}/void:
+    post:
+      tags:
+        - GiftCards
+      operationId: voidGiftCard
+      summary: Void a card (what is left on it is written off; audited)
+      description: Needs `refunds.create`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/locations/{locationId}/gift-cards:
+    get:
+      tags:
+        - GiftCards
+      operationId: getGiftCardOffer
+      summary: What gift cards can be bought at a place (nothing when the business does not sell them online)
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardOffer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/me/gift-cards/purchases:
+    post:
+      tags:
+        - GiftCards
+      operationId: buyGiftCard
+      summary: Start buying a gift card; pay through the returned link
+      description: |
+        The card is created waiting for payment and delivered to the recipient (at once, or on `deliverAt`) after the payment
+        is confirmed; a recipient without a phone number or email means the buyer. `payUrl` is a payment link, valid 30
+        minutes. `CONFLICT` when the business does not sell cards online.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftCardPurchaseInput'
+      responses:
+        '201':
+          description: Waiting for payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftCardPurchase'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/payment-links/{token}/tender:
+    post:
+      tags:
+        - Payments
+      operationId: tenderPaymentLink
+      summary: Pay part or all of the payment with a gift card
+      description: |
+        No sign-in. What the card cannot cover is still paid through the provider. `NOT_FOUND` for a code that cannot be
+        used (unknown, spent, expired, or another business's); `CONFLICT` when a payment is in progress or the link was paid.
+      parameters:
+        - $ref: '#/components/parameters/LinkTokenParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  maxLength: 40
+      responses:
+        '200':
+          description: Where the payment stands now.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/payment/tender:
+    post:
+      tags:
+        - Booking
+      operationId: tenderMyAppointmentPayment
+      summary: Pay part or all of the deposit with a gift card or the balance with the business
+      description: |
+        `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+        covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+        is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kind
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - GIFT_CARD
+                    - BALANCE
+                code:
+                  type: string
+                  maxLength: 40
+      responses:
+        '200':
+          description: The booking, with where its payment stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/earnings:
+    get:
+      tags:
+        - Payments
+      operationId: getEarnings
+      summary: What the business is owed, what is on its way, and its latest payouts
+      description: Needs `payouts.view`. Amounts are what Beavent holds for the business (ArifPay mode).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The overview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Earnings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/statement:
+    get:
+      tags:
+        - Payments
+      operationId: getStatement
+      summary: Sales, fees, refunds and payouts, newest first
+      description: |
+        Needs `payouts.view`. Each line is the net effect of one ledger transaction on what Beavent owes the business
+        (positive: more). Movements between the business's own balances (a release for payout) are left out.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of the statement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/auth/otp/request:
     post:
       tags:
@@ -2906,6 +3427,94 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/cancel:
+    post:
+      tags:
+        - Calendar
+      operationId: cancelAtTheDesk
+      summary: Cancel a visit, the rest of its series, or its whole group (no fee; the business cancels)
+      description: |
+        `scope` ONE (default), FOLLOWING (this and the later visits of the series; the customer gets one message) or GROUP.
+        Booked visits that have not started can be cancelled. The times are freed at once.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scope:
+                  type: string
+                  enum:
+                    - ONE
+                    - FOLLOWING
+                    - GROUP
+                reason:
+                  type: string
+                  maxLength: 500
+                notifyCustomer:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Cancelled.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - cancelled
+                properties:
+                  cancelled:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/payment-link:
+    post:
+      tags:
+        - Calendar
+      operationId: sendPaymentLink
+      summary: Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+      description: |
+        A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+        link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+        fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+        The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+        shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+        deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkSent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     post:
       tags:
@@ -4083,6 +4692,14 @@ paths:
                 reason:
                   type: string
                   maxLength: 500
+                refundTo:
+                  type: string
+                  enum:
+                    - ORIGINAL
+                    - BALANCE
+                  description: |
+                    Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                    with the business at once (`BALANCE`).
       responses:
         '200':
           description: Cancelled.
@@ -4096,6 +4713,68 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/payment:
+    post:
+      tags:
+        - Booking
+      operationId: startMyAppointmentPayment
+      summary: Start (or resume) paying the deposit of an unpaid booking
+      description: |
+        Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+        `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+        already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+        out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                  maxLength: 5
+                  description: The language of the pages the provider sends the person back to.
+      responses:
+        '200':
+          description: Where to pay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/me/appointments/{appointmentId}/payment/check:
+    post:
+      tags:
+        - Booking
+      operationId: checkMyAppointmentPayment
+      summary: Ask the provider where the payment stands, then return the booking
+      description: |
+        For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+        key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+        `AWAITING_PAYMENT`.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentIdParam'
+      responses:
+        '200':
+          description: The booking, with its payment state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/me/appointments/{appointmentId}/reschedule:
     post:
       tags:
@@ -4135,6 +4814,178 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist:
+    get:
+      tags:
+        - Booking
+      operationId: listMyWaitlist
+      summary: The person's waitlists (waiting or with an offer), across businesses
+      responses:
+        '200':
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Booking
+      operationId: joinWaitlist
+      summary: Join a location's waitlist for a service on some days and parts of the day (S-15)
+      description: |
+        When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+        person gets a text message with a link. At most 5 active entries per business.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoin'
+      responses:
+        '201':
+          description: Joined.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist/{entryId}:
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      tags:
+        - Booking
+      operationId: getMyWaitlistEntry
+      summary: One of the person's waitlist entries, with its open offer
+      responses:
+        '200':
+          description: The entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Booking
+      operationId: leaveWaitlist
+      summary: Leave the waitlist (an open offer is let go)
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/me/waitlist/{entryId}/accept:
+    post:
+      tags:
+        - Booking
+      operationId: acceptWaitlistOffer
+      summary: Book the offered time
+      description: '`HOLD_EXPIRED` when the offer ran out (the time went to the next person).'
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '201':
+          description: Booked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - appointmentId
+                  - reference
+                  - status
+                properties:
+                  appointmentId:
+                    $ref: '#/components/schemas/Uuid'
+                  reference:
+                    type: string
+                  status:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/waitlist/{entryId}/decline:
+    post:
+      tags:
+        - Booking
+      operationId: declineWaitlistOffer
+      summary: Not this time — the time goes to the next person; the entry keeps waiting
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/waitlist:
+    get:
+      tags:
+        - Calendar
+      operationId: listWaitlist
+      summary: Who is waiting at a location, oldest first (calendar.view_all)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/public/venues/{businessSlug}/locations:
     get:
       tags:
@@ -4612,6 +5463,355 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/payout-accounts:
+    get:
+      tags:
+        - Admin
+      operationId: listPayoutAccountsForReview
+      summary: Payout accounts waiting for review, oldest first (default `PENDING`)
+      description: Needs `admin.payments.view`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - VERIFIED
+              - FAILED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payout-accounts/{accountId}/reveal:
+    post:
+      tags:
+        - Admin
+      operationId: revealPayoutAccountNumber
+      summary: The full account number, to check it against the bank's letter (step-up, audited)
+      description: Needs `admin.payouts.approve` and a fresh code.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutReveal'
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountNumber'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/payout-accounts/{accountId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decidePayoutAccount
+      summary: Verify or reject a payout account (reason required, step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+        `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutAccountSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/payouts:
+    get:
+      tags:
+        - Admin
+      operationId: listPayoutsForFinance
+      summary: Seller payouts by queue, oldest first (default `APPROVAL`)
+      description: Needs `admin.payments.view`.
+      parameters:
+        - name: queue
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - APPROVAL
+              - READY
+              - PROCESSING
+              - PAID
+              - FAILED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payouts/export:
+    post:
+      tags:
+        - Admin
+      operationId: exportPayoutBatch
+      summary: The bank batch (CSV with full account numbers) of the payouts ready to pay (step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code. The exported payouts become `PROCESSING`. Payouts of organizations
+        the staff member belongs to are left out.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutExport'
+      responses:
+        '200':
+          description: The CSV.
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payouts/{payoutId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decidePayout
+      summary: Approve or reject a payout that waits for approval (reason required, step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code; staff cannot handle payouts of organizations they belong to.
+        Rejecting gives the money back to the business's available balance.
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/payouts/{payoutId}/settlement:
+    post:
+      tags:
+        - Admin
+      operationId: settlePayout
+      summary: Record what happened to a payout in the bank (step-up, audited)
+      description: |
+        Needs `admin.payouts.approve` and a fresh code. `PAID` needs the bank's reference; `FAILED` and `RETURNED` need a
+        reason and give the money back to the business. A payout is paid from `SCHEDULED`, `APPROVED` or `PROCESSING`.
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutSettlement'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/refunds:
+    get:
+      tags:
+        - Admin
+      operationId: listRefundsForFinance
+      summary: Refunds by queue, oldest first (default `PAY`)
+      description: |
+        Needs `admin.payments.view`. `APPROVAL`: duplicate payments waiting for a decision; `PAY`: approved refunds finance
+        pays by hand, and ones the provider could not pay; `PROCESSING`: being paid through the provider; `PAID`.
+      parameters:
+        - name: queue
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - APPROVAL
+              - PAY
+              - PROCESSING
+              - PAID
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/refunds/{refundId}/approval:
+    post:
+      tags:
+        - Admin
+      operationId: approveRefund
+      summary: Approve a refund that waits for a decision (step-up, audited)
+      description: Needs `admin.payments.refund` and a fresh code.
+      parameters:
+        - name: refundId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundApproval'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/refunds/{refundId}/payment:
+    post:
+      tags:
+        - Admin
+      operationId: payRefund
+      summary: Record that a refund was paid to the customer by hand (step-up, audited)
+      description: |
+        Needs `admin.payments.refund` and a fresh code. The customer is told. A refund the provider is paying is refused
+        (`CONFLICT`) unless the provider failed it.
+      parameters:
+        - name: refundId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundPayment'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/admin/audit-log:
     get:
       tags:
@@ -4847,11 +6047,998 @@ components:
       bearerFormat: JWT
       description: Short-lived access token from /v1/auth/* (ES256, 10 minutes).
   schemas:
+    HookReceipt:
+      type: object
+      required:
+        - received
+      properties:
+        received:
+          type: boolean
+    Bank:
+      type: object
+      required:
+        - code
+        - kind
+        - names
+      properties:
+        code:
+          type: string
+          description: What a payout account stores as its institution.
+        kind:
+          type: string
+          enum:
+            - BANK
+            - MOBILE_MONEY
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: The name per language (`en`, `am`).
+    BankList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bank'
+    Problem:
+      type: object
+      description: RFC 9457 problem details with Beavent's stable `code`.
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri
+          examples:
+            - urn:beavent:problem:slot-taken
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+          description: The request path that produced this problem.
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - STEP_UP_REQUIRED
+            - NOT_FOUND
+            - CONFLICT
+            - SLOT_TAKEN
+            - HOLD_EXPIRED
+            - SOLD_OUT
+            - IMMUTABLE
+            - CONCURRENT_UPDATE
+            - IDEMPOTENCY_IN_PROGRESS
+            - PRECONDITION_FAILED
+            - IDEMPOTENCY_KEY_REUSED
+            - REFERENCE_NOT_FOUND
+            - CONSTRAINT_VIOLATION
+            - PATCH_TEST_REQUIRED
+            - PRECONDITION_REQUIRED
+            - RATE_LIMITED
+            - PAYMENT_UNAVAILABLE
+            - INTERNAL
+        requestId:
+          type: string
+        errors:
+          type: array
+          description: Field-level validation errors.
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    Uuid:
+      type: string
+      format: uuid
+    Instant:
+      type: string
+      format: date-time
+      description: RFC 3339, UTC.
+    PayoutAccount:
+      type: object
+      description: A payout account as screens show it. The number is only ever masked.
+      required:
+        - id
+        - kind
+        - institutionCode
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - isDefault
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum:
+            - BANK_ACCOUNT
+            - MOBILE_MONEY
+        institutionCode:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+          description: '`••••6789`.'
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+          description: '`PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`).'
+        isDefault:
+          type: boolean
+        payoutsAllowedAfter:
+          description: Payouts to a new account wait for a 72-hour cooling-off after it was added.
+          $ref: '#/components/schemas/Instant'
+        reviewedAt:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PaymentsSetup:
+      type: object
+      required:
+        - provider
+        - collectionMode
+        - ready
+        - enforced
+        - blockers
+        - organizationStatus
+      properties:
+        provider:
+          type: string
+          enum:
+            - ARIFPAY
+            - CHAPA
+        collectionMode:
+          type: string
+          enum:
+            - PLATFORM_COLLECTS
+            - PROVIDER_SPLIT
+        ready:
+          type: boolean
+          description: The business is verified and has a verified payout account (and, in Chapa mode, a subaccount).
+        enforced:
+          type: boolean
+          description: When false (local development only) deposits are asked for even if the business is not ready.
+        blockers:
+          type: array
+          items:
+            type: string
+            enum:
+              - ORGANIZATION_NOT_VERIFIED
+              - NO_PAYOUT_ACCOUNT
+              - PAYOUT_ACCOUNT_IN_REVIEW
+              - PAYOUT_ACCOUNT_REJECTED
+              - SUBACCOUNT_MISSING
+        organizationStatus:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - REJECTED
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        legalEntityName:
+          type: string
+          description: The account holder's name must match it.
+        active:
+          $ref: '#/components/schemas/PayoutAccount'
+        pending:
+          $ref: '#/components/schemas/PayoutAccount'
+        rejected:
+          $ref: '#/components/schemas/PayoutAccount'
+    PayoutAccountInput:
+      type: object
+      required:
+        - institutionCode
+        - accountName
+        - accountNumber
+      properties:
+        legalEntityId:
+          $ref: '#/components/schemas/Uuid'
+        institutionCode:
+          type: string
+          maxLength: 40
+        accountName:
+          type: string
+          maxLength: 200
+        accountNumber:
+          type: string
+          maxLength: 40
+          description: Digits for a bank account (6 to 20); the wallet's mobile number for a wallet.
+    PaymentLink:
+      type: object
+      required:
+        - state
+        - purpose
+        - subject
+        - amountMinor
+        - currency
+        - expiresAt
+        - business
+        - items
+      properties:
+        state:
+          type: string
+          enum:
+            - OPEN
+            - PAID
+            - EXPIRED
+          description: '`EXPIRED` also for a booking that was cancelled or released meanwhile.'
+        purpose:
+          type: string
+          enum:
+            - DEPOSIT
+            - FULL
+            - BALANCE
+        subject:
+          type: string
+          enum:
+            - BOOKING
+            - GIFT_CARD
+          description: What is being paid for; `items` are the services of a booking, or the recipient of a gift card.
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        business:
+          type: string
+        location:
+          type:
+            - string
+            - 'null'
+        reference:
+          type:
+            - string
+            - 'null'
+        startsAt:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type:
+            - string
+            - 'null'
+        items:
+          type: array
+          items:
+            type: string
+    PaymentLinkStartInput:
+      type: object
+      properties:
+        language:
+          type: string
+          enum:
+            - am
+            - en
+            - om
+          description: The language of the pages the provider sends the payer back to.
+    PaymentStart:
+      type: object
+      required:
+        - attemptId
+        - expiresAt
+        - amountMinor
+        - currency
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page to send the person to; they come back to the booking's payment page.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+    GiftCardProgram:
+      type: object
+      required:
+        - id
+        - name
+        - currency
+        - presetsMinor
+        - minMinor
+        - maxMinor
+        - sellOnline
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        currency:
+          type: string
+        presetsMinor:
+          type: array
+          items:
+            type: integer
+            format: int64
+        minMinor:
+          type: integer
+          format: int64
+        maxMinor:
+          type: integer
+          format: int64
+        validityMonths:
+          type:
+            - integer
+            - 'null'
+        sellOnline:
+          type: boolean
+    GiftCardSetup:
+      type: object
+      properties:
+        program:
+          oneOf:
+            - $ref: '#/components/schemas/GiftCardProgram'
+            - type: 'null'
+    GiftCardProgramInput:
+      type: object
+      required:
+        - name
+        - minMinor
+        - maxMinor
+        - sellOnline
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        presetsMinor:
+          type: array
+          maxItems: 8
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Amounts offered as buttons, each between the limits.
+        minMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        maxMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        validityMonths:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 60
+          description: How long a card is valid after it is delivered; null for no end.
+        sellOnline:
+          type: boolean
+    GiftCardRow:
+      type: object
+      required:
+        - id
+        - codeLast4
+        - initialMinor
+        - balanceMinor
+        - currency
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        codeLast4:
+          type: string
+          description: '`----` until the card is delivered.'
+        initialMinor:
+          type: integer
+          format: int64
+        balanceMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_DELIVERY
+            - ACTIVE
+            - DEPLETED
+            - EXPIRED
+            - VOID
+        recipientName:
+          type:
+            - string
+            - 'null'
+        purchaserName:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        deliverAt:
+          $ref: '#/components/schemas/Instant'
+        deliveredAt:
+          $ref: '#/components/schemas/Instant'
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+    PageInfo:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Pass as `cursor` to get the next page; null on the last page.
+    GiftCardPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GiftCardRow'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    GiftCardOffer:
+      type: object
+      required:
+        - available
+        - presetsMinor
+      properties:
+        available:
+          type: boolean
+        name:
+          type:
+            - string
+            - 'null'
+        currency:
+          type:
+            - string
+            - 'null'
+        presetsMinor:
+          type: array
+          items:
+            type: integer
+            format: int64
+        minMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        maxMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        validityMonths:
+          type:
+            - integer
+            - 'null'
     PhoneE164:
       type: string
       pattern: ^\+[1-9][0-9]{6,14}$
       examples:
         - '+251911234567'
+    GiftCardPurchaseInput:
+      type: object
+      required:
+        - locationId
+        - amountMinor
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        recipientName:
+          type: string
+          maxLength: 120
+        recipientPhone:
+          $ref: '#/components/schemas/PhoneE164'
+        recipientEmail:
+          type: string
+          format: email
+          maxLength: 200
+        message:
+          type: string
+          maxLength: 500
+        deliverAt:
+          $ref: '#/components/schemas/Instant'
+    GiftCardPurchase:
+      type: object
+      required:
+        - cardId
+        - orderId
+        - payUrl
+        - expiresAt
+      properties:
+        cardId:
+          $ref: '#/components/schemas/Uuid'
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        payUrl:
+          type: string
+          format: uri
+          description: The payment link to open to pay.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+    MyAppointmentPlace:
+      type: object
+      required:
+        - locationId
+        - businessName
+        - businessSlug
+        - locationName
+        - locationSlug
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        businessName:
+          type: string
+        businessSlug:
+          type: string
+        locationName:
+          type: string
+        locationSlug:
+          type: string
+        landmark:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+    CurrencyCode:
+      type: string
+      pattern: ^[A-Z]{3}$
+      examples:
+        - ETB
+    BookingAddon:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - priceMinor
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+    BookingItem:
+      type: object
+      required:
+        - variantId
+        - serviceName
+        - staffId
+        - staffName
+        - staffRequested
+        - start
+        - end
+        - priceMinor
+        - currency
+        - addons
+      properties:
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: string
+        variantName:
+          type:
+            - string
+            - 'null'
+        staffId:
+          $ref: '#/components/schemas/Uuid'
+        staffName:
+          type: string
+        staffRequested:
+          type: boolean
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        priceMinor:
+          type: integer
+          format: int64
+          description: The service's price for this person here; add-ons are listed separately.
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingAddon'
+    BookingTerms:
+      type: object
+      required:
+        - requiresApproval
+        - allowPayAtVenue
+        - depositMode
+        - cancellationWindowMinutes
+        - freeCancellationUntil
+      description: The terms frozen in the appointment; several services apply the strictest rule of any.
+      properties:
+        requiresApproval:
+          type: boolean
+        allowPayAtVenue:
+          type: boolean
+        depositMode:
+          type: string
+          enum:
+            - NONE
+            - PERCENT
+            - FIXED
+            - FULL
+        cancellationWindowMinutes:
+          type: integer
+        freeCancellationUntil:
+          $ref: '#/components/schemas/Instant'
+        lateCancelFeePercent:
+          type: number
+        noShowFeePercent:
+          type: number
+    BookingSummary:
+      type: object
+      required:
+        - locationId
+        - timezone
+        - deliveryMode
+        - start
+        - end
+        - items
+        - totalMinor
+        - currency
+        - policy
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
+        deliveryMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - AT_CUSTOMER
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingItem'
+        totalMinor:
+          type: integer
+          format: int64
+          description: All-in total (services and add-ons).
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        policy:
+          $ref: '#/components/schemas/BookingTerms'
+    CancellationPreview:
+      type: object
+      required:
+        - allowed
+        - free
+        - freeUntil
+        - feeMinor
+        - refundMinor
+        - keptMinor
+      properties:
+        allowed:
+          type: boolean
+          description: False once the visit has started or the appointment is no longer active.
+        free:
+          type: boolean
+        freeUntil:
+          $ref: '#/components/schemas/Instant'
+        feeMinor:
+          type: integer
+          format: int64
+          description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
+        currency:
+          type:
+            - string
+            - 'null'
+        refundMinor:
+          type: integer
+          format: int64
+          description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+        keptMinor:
+          type: integer
+          format: int64
+          description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
+    PaymentStatus:
+      type: object
+      description: Where the online payment of a booking stands.
+      required:
+        - state
+        - dueNowMinor
+        - paidMinor
+        - atVenueMinor
+        - currency
+      properties:
+        state:
+          type: string
+          enum:
+            - NOT_REQUIRED
+            - AWAITING_PAYMENT
+            - PAID
+            - FAILED
+            - EXPIRED
+          description: |
+            `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+            may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+        dueNowMinor:
+          type: integer
+          format: int64
+        paidMinor:
+          type: integer
+          format: int64
+        atVenueMinor:
+          type: integer
+          format: int64
+          description: Left to pay at the venue.
+        currency:
+          type: string
+        expiresAt:
+          description: Until when the time is held for payment.
+          $ref: '#/components/schemas/Instant'
+        redirectUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: The provider's page of the attempt in progress, to reopen it.
+        balanceMinor:
+          type: integer
+          format: int64
+          description: What the signed-in person could pay now from their balance with the business (0 for none).
+    AppointmentRefund:
+      type: object
+      required:
+        - amountMinor
+        - currency
+        - state
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        state:
+          type: string
+          enum:
+            - ON_THE_WAY
+            - SENT
+            - CREDITED
+            - NONE
+          description: '`CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.'
+    AppointmentDetail:
+      type: object
+      required:
+        - id
+        - reference
+        - status
+        - start
+        - end
+        - timezone
+        - booking
+        - cancellation
+        - canReschedule
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reference:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_PAYMENT
+            - REQUESTED
+            - CONFIRMED
+            - ARRIVED
+            - IN_PROGRESS
+            - COMPLETED
+            - CANCELLED
+            - NO_SHOW
+            - EXPIRED
+            - DECLINED
+        start:
+          $ref: '#/components/schemas/Instant'
+        end:
+          $ref: '#/components/schemas/Instant'
+        timezone:
+          type: string
+        note:
+          type:
+            - string
+            - 'null'
+        place:
+          $ref: '#/components/schemas/MyAppointmentPlace'
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+        cancellation:
+          $ref: '#/components/schemas/CancellationPreview'
+        canReschedule:
+          type: boolean
+        payment:
+          description: Present when the booking has an order to pay online.
+          $ref: '#/components/schemas/PaymentStatus'
+        refund:
+          description: |
+            Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+            happens) or a refund exists: what goes back to the customer.
+          $ref: '#/components/schemas/AppointmentRefund'
+    PayoutRow:
+      type: object
+      required:
+        - id
+        - status
+        - amountMinor
+        - currency
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - PENDING_APPROVAL
+            - APPROVED
+            - PROCESSING
+            - PAID
+            - FAILED
+            - CANCELLED
+            - RETURNED
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        institutionName:
+          type:
+            - string
+            - 'null'
+        accountMasked:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        paidAt:
+          $ref: '#/components/schemas/Instant'
+        failureMessage:
+          type:
+            - string
+            - 'null'
+    Earnings:
+      type: object
+      required:
+        - currency
+        - pendingMinor
+        - availableMinor
+        - onTheWayMinor
+        - paidOutMinor
+        - schedule
+        - minPayoutMinor
+        - payouts
+      properties:
+        currency:
+          type: string
+        pendingMinor:
+          type: integer
+          format: int64
+          description: Sold, not yet released (the service has not been delivered, or the payout delay has not passed).
+        availableMinor:
+          type: integer
+          format: int64
+          description: Ready for the next payout.
+        onTheWayMinor:
+          type: integer
+          format: int64
+          description: In payouts that are created but not paid yet.
+        paidOutMinor:
+          type: integer
+          format: int64
+        schedule:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - MANUAL
+        weekday:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 7
+          description: 1 (Monday) to 7 for a weekly schedule.
+        minPayoutMinor:
+          type: integer
+          format: int64
+        payouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutRow'
+    StatementLine:
+      type: object
+      required:
+        - transactionId
+        - occurredAt
+        - kind
+        - amountMinor
+      properties:
+        transactionId:
+          $ref: '#/components/schemas/Uuid'
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        kind:
+          type: string
+          description: The ledger transaction kind, for example `PAYMENT_CAPTURED`, `FEES_ASSESSED`, `PAYOUT_INITIATED`.
+        description:
+          type:
+            - string
+            - 'null'
+        amountMinor:
+          type: integer
+          format: int64
+          description: Positive when the business is owed more, negative when less.
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+    Statement:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementLine'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     OtpPurpose:
       type: string
       enum:
@@ -4910,13 +7097,6 @@ components:
           $ref: '#/components/schemas/ClientApp'
         language:
           $ref: '#/components/schemas/LanguageCode'
-    Uuid:
-      type: string
-      format: uuid
-    Instant:
-      type: string
-      format: date-time
-      description: RFC 3339, UTC.
     OtpChallenge:
       type: object
       required:
@@ -4937,68 +7117,6 @@ components:
           type: integer
           examples:
             - 6
-    Problem:
-      type: object
-      description: RFC 9457 problem details with Beavent's stable `code`.
-      required:
-        - type
-        - title
-        - status
-        - code
-      properties:
-        type:
-          type: string
-          format: uri
-          examples:
-            - urn:beavent:problem:slot-taken
-        title:
-          type: string
-        status:
-          type: integer
-        detail:
-          type: string
-        instance:
-          type: string
-          format: uri-reference
-          description: The request path that produced this problem.
-        code:
-          type: string
-          enum:
-            - VALIDATION_FAILED
-            - UNAUTHENTICATED
-            - FORBIDDEN
-            - STEP_UP_REQUIRED
-            - NOT_FOUND
-            - CONFLICT
-            - SLOT_TAKEN
-            - HOLD_EXPIRED
-            - SOLD_OUT
-            - IMMUTABLE
-            - CONCURRENT_UPDATE
-            - IDEMPOTENCY_IN_PROGRESS
-            - PRECONDITION_FAILED
-            - IDEMPOTENCY_KEY_REUSED
-            - REFERENCE_NOT_FOUND
-            - CONSTRAINT_VIOLATION
-            - PATCH_TEST_REQUIRED
-            - PRECONDITION_REQUIRED
-            - RATE_LIMITED
-            - INTERNAL
-        requestId:
-          type: string
-        errors:
-          type: array
-          description: Field-level validation errors.
-          items:
-            type: object
-            required:
-              - field
-              - message
-            properties:
-              field:
-                type: string
-              message:
-                type: string
     DeviceInfo:
       type: object
       required:
@@ -5533,11 +7651,6 @@ components:
           maxLength: 20
         geo:
           $ref: '#/components/schemas/GeoPoint'
-    CurrencyCode:
-      type: string
-      pattern: ^[A-Z]{3}$
-      examples:
-        - ETB
     LegalEntity:
       type: object
       required:
@@ -5739,16 +7852,6 @@ components:
         version:
           type: integer
           description: Same value as the ETag.
-    PageInfo:
-      type: object
-      required:
-        - nextCursor
-      properties:
-        nextCursor:
-          type:
-            - string
-            - 'null'
-          description: Pass as `cursor` to get the next page; null on the last page.
     LocationList:
       type: object
       required:
@@ -7467,6 +9570,36 @@ components:
           maximum: 100
         policyText:
           $ref: '#/components/schemas/LocalizedText'
+    customer:
+      type: object
+      description: An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused).
+      properties:
+        customerId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          $ref: '#/components/schemas/PhoneE164'
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      items:
+        type: object
+        required:
+          - variantId
+          - staffId
+        properties:
+          variantId:
+            $ref: '#/components/schemas/Uuid'
+          staffId:
+            $ref: '#/components/schemas/Uuid'
+          addonIds:
+            type: array
+            maxItems: 10
+            items:
+              $ref: '#/components/schemas/Uuid'
     DeskBookingInput:
       type: object
       required:
@@ -7525,6 +9658,42 @@ components:
         notifyCustomer:
           type: boolean
           default: true
+        guests:
+          type: array
+          maxItems: 9
+          description: |
+            A group: more people at the same time, one appointment each, booked all together or not at all (the first
+            customer leads the group). Not with `repeat`.
+          items:
+            type: object
+            required:
+              - customer
+              - items
+            properties:
+              customer:
+                $ref: '#/components/schemas/customer'
+              items:
+                $ref: '#/components/schemas/items'
+        repeat:
+          type: object
+          description: |
+            A series: the same visit every `everyWeeks` weeks, `count` times in all, at the same local time. Only the first
+            visit sends a confirmation; reminders follow each. Not with `guests`.
+          required:
+            - everyWeeks
+            - count
+          properties:
+            everyWeeks:
+              type: integer
+              minimum: 1
+              maximum: 4
+            count:
+              type: integer
+              minimum: 2
+              maximum: 12
+        skipTaken:
+          type: boolean
+          description: In a series, leave out the dates that are not free instead of failing (false when absent).
     DeskBooking:
       type: object
       required:
@@ -7541,6 +9710,70 @@ components:
           $ref: '#/components/schemas/Instant'
         end:
           $ref: '#/components/schemas/Instant'
+        groupId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        seriesId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        appointments:
+          type: array
+          description: Every appointment made (one for a single booking).
+          items:
+            type: object
+            required:
+              - id
+              - reference
+              - start
+              - end
+            properties:
+              id:
+                $ref: '#/components/schemas/Uuid'
+              reference:
+                type: string
+              start:
+                $ref: '#/components/schemas/Instant'
+              end:
+                $ref: '#/components/schemas/Instant'
+        skipped:
+          type: array
+          description: Series dates left out because they were not free.
+          items:
+            $ref: '#/components/schemas/Instant'
+    PaymentLinkSent:
+      type: object
+      required:
+        - url
+        - expiresAt
+        - amountMinor
+        - currency
+        - kind
+        - sentTo
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The address the customer opens; sent to them, and shown so it can also be shared by hand.
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        kind:
+          type: string
+          enum:
+            - DEPOSIT
+            - FULL
+            - BALANCE
+        sentTo:
+          type: string
+          enum:
+            - SMS
+            - EMAIL
     CalendarSpan:
       type: object
       required:
@@ -7715,6 +9948,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CalendarItem'
+        groupId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: Booked together with the other appointments of this group (same time).
+        series:
+          oneOf:
+            - type: object
+              required:
+                - id
+                - everyWeeks
+                - index
+                - count
+              properties:
+                id:
+                  $ref: '#/components/schemas/Uuid'
+                everyWeeks:
+                  type: integer
+                index:
+                  type: integer
+                  description: This visit's number among the series' active visits.
+                count:
+                  type: integer
+            - type: 'null'
+        payment:
+          description: Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired).
+          $ref: '#/components/schemas/PaymentStatus'
         forms:
           type: array
           description: Forms the client fills in before this visit (attached to its services), and whether they have.
@@ -8636,132 +10896,30 @@ components:
           $ref: '#/components/schemas/Instant'
         serviceAreaId:
           $ref: '#/components/schemas/Uuid'
-    BookingAddon:
+    PaymentTerms:
       type: object
+      description: |
+        What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+        signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
       required:
-        - id
-        - name
-        - durationMinutes
-        - priceMinor
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        name:
-          type: string
-        durationMinutes:
-          type: integer
-        priceMinor:
-          type: integer
-          format: int64
-    BookingItem:
-      type: object
-      required:
-        - variantId
-        - serviceName
-        - staffId
-        - staffName
-        - staffRequested
-        - start
-        - end
-        - priceMinor
-        - currency
-        - addons
-      properties:
-        variantId:
-          $ref: '#/components/schemas/Uuid'
-        serviceName:
-          type: string
-        variantName:
-          type:
-            - string
-            - 'null'
-        staffId:
-          $ref: '#/components/schemas/Uuid'
-        staffName:
-          type: string
-        staffRequested:
-          type: boolean
-        start:
-          $ref: '#/components/schemas/Instant'
-        end:
-          $ref: '#/components/schemas/Instant'
-        priceMinor:
-          type: integer
-          format: int64
-          description: The service's price for this person here; add-ons are listed separately.
-        currency:
-          $ref: '#/components/schemas/CurrencyCode'
-        addons:
-          type: array
-          items:
-            $ref: '#/components/schemas/BookingAddon'
-    BookingTerms:
-      type: object
-      required:
-        - requiresApproval
-        - allowPayAtVenue
-        - depositMode
-        - cancellationWindowMinutes
-        - freeCancellationUntil
-      description: The terms frozen in the appointment; several services apply the strictest rule of any.
-      properties:
-        requiresApproval:
-          type: boolean
-        allowPayAtVenue:
-          type: boolean
-        depositMode:
-          type: string
-          enum:
-            - NONE
-            - PERCENT
-            - FIXED
-            - FULL
-        cancellationWindowMinutes:
-          type: integer
-        freeCancellationUntil:
-          $ref: '#/components/schemas/Instant'
-        lateCancelFeePercent:
-          type: number
-        noShowFeePercent:
-          type: number
-    BookingSummary:
-      type: object
-      required:
-        - locationId
-        - timezone
-        - deliveryMode
-        - start
-        - end
-        - items
+        - depositMinor
+        - atVenueMinor
         - totalMinor
         - currency
-        - policy
       properties:
-        locationId:
-          $ref: '#/components/schemas/Uuid'
-        timezone:
-          type: string
-        deliveryMode:
-          type: string
-          enum:
-            - ON_PREMISES
-            - AT_CUSTOMER
-        start:
-          $ref: '#/components/schemas/Instant'
-        end:
-          $ref: '#/components/schemas/Instant'
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/BookingItem'
+        depositMinor:
+          type: integer
+          format: int64
+          description: Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+        atVenueMinor:
+          type: integer
+          format: int64
         totalMinor:
           type: integer
           format: int64
-          description: All-in total (services and add-ons).
+          description: The all-in price.
         currency:
-          $ref: '#/components/schemas/CurrencyCode'
-        policy:
-          $ref: '#/components/schemas/BookingTerms'
+          type: string
     Hold:
       type: object
       required:
@@ -8779,33 +10937,9 @@ components:
           $ref: '#/components/schemas/Instant'
         booking:
           $ref: '#/components/schemas/BookingSummary'
-    MyAppointmentPlace:
-      type: object
-      required:
-        - locationId
-        - businessName
-        - businessSlug
-        - locationName
-        - locationSlug
-      properties:
-        locationId:
-          $ref: '#/components/schemas/Uuid'
-        businessName:
-          type: string
-        businessSlug:
-          type: string
-        locationName:
-          type: string
-        locationSlug:
-          type: string
-        landmark:
-          type:
-            - string
-            - 'null'
-        phone:
-          type:
-            - string
-            - 'null'
+        payment:
+          description: What would be paid now to book; absent when nothing is due online.
+          $ref: '#/components/schemas/PaymentTerms'
     MyAppointmentItem:
       type: object
       required:
@@ -8919,81 +11053,154 @@ components:
         status:
           type: string
           enum:
-            - REQUESTED
-            - CONFIRMED
-        booking:
-          $ref: '#/components/schemas/BookingSummary'
-    CancellationPreview:
-      type: object
-      required:
-        - allowed
-        - free
-        - freeUntil
-        - feeMinor
-      properties:
-        allowed:
-          type: boolean
-          description: False once the visit has started or the appointment is no longer active.
-        free:
-          type: boolean
-        freeUntil:
-          $ref: '#/components/schemas/Instant'
-        feeMinor:
-          type: integer
-          format: int64
-          description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
-        currency:
-          type:
-            - string
-            - 'null'
-    AppointmentDetail:
-      type: object
-      required:
-        - id
-        - reference
-        - status
-        - start
-        - end
-        - timezone
-        - booking
-        - cancellation
-        - canReschedule
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        reference:
-          type: string
-        status:
-          type: string
-          enum:
             - PENDING_PAYMENT
             - REQUESTED
             - CONFIRMED
-            - ARRIVED
-            - IN_PROGRESS
-            - COMPLETED
-            - CANCELLED
-            - NO_SHOW
-            - EXPIRED
-            - DECLINED
+          description: |
+            `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+            confirmed when the payment arrives (start it with `POST …/payment`).
+        booking:
+          $ref: '#/components/schemas/BookingSummary'
+        payment:
+          description: Present for `PENDING_PAYMENT`.
+          $ref: '#/components/schemas/PaymentStatus'
+    WaitlistOffer:
+      type: object
+      required:
+        - id
+        - start
+        - end
+        - expiresAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
         start:
           $ref: '#/components/schemas/Instant'
         end:
           $ref: '#/components/schemas/Instant'
-        timezone:
-          type: string
-        note:
+        expiresAt:
+          $ref: '#/components/schemas/Instant'
+          description: The time is held until then.
+        staffName:
           type:
             - string
             - 'null'
+    WaitlistEntry:
+      type: object
+      required:
+        - id
+        - status
+        - locationId
+        - timezone
+        - variantId
+        - serviceName
+        - days
+        - parts
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum:
+            - WAITING
+            - OFFERED
+            - CONVERTED
+            - EXPIRED
+            - CANCELLED
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        timezone:
+          type: string
         place:
           $ref: '#/components/schemas/MyAppointmentPlace'
-        booking:
-          $ref: '#/components/schemas/BookingSummary'
-        cancellation:
-          $ref: '#/components/schemas/CancellationPreview'
-        canReschedule:
-          type: boolean
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        serviceName:
+          type: object
+          additionalProperties:
+            type: string
+        variantName:
+          type: object
+          additionalProperties:
+            type: string
+        staffId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        staffName:
+          type:
+            - string
+            - 'null'
+        customerName:
+          type:
+            - string
+            - 'null'
+          description: For the front desk.
+        days:
+          type: array
+          items:
+            type: string
+            format: date
+        parts:
+          type: array
+          items:
+            type: string
+            enum:
+              - MORNING
+              - AFTERNOON
+              - EVENING
+        offer:
+          oneOf:
+            - $ref: '#/components/schemas/WaitlistOffer'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    WaitlistList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WaitlistEntry'
+    WaitlistJoin:
+      type: object
+      required:
+        - locationId
+        - variantId
+        - days
+        - parts
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        variantId:
+          $ref: '#/components/schemas/Uuid'
+        staffId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: A particular person, or anyone who does the service.
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          description: The location's local dates, from today up to 60 days ahead.
+          items:
+            type: string
+            format: date
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 3
+          description: MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time).
+          items:
+            type: string
+            enum:
+              - MORNING
+              - AFTERNOON
+              - EVENING
     VenueImage:
       type: object
       required:
@@ -9805,6 +12012,307 @@ components:
           minLength: 5
           maxLength: 500
           description: Recorded in the audit log and shown to the organization for rejections and requests.
+    PayoutAccountSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - organizationStatus
+        - legalEntityName
+        - legalEntityStatus
+        - kind
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - status
+        - createdAt
+        - payoutsAllowedAfter
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        organizationStatus:
+          type: string
+        legalEntityName:
+          type: string
+        legalEntityStatus:
+          type: string
+        kind:
+          type: string
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+        status:
+          type: string
+          enum:
+            - UNVERIFIED
+            - PENDING
+            - VERIFIED
+            - FAILED
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        payoutsAllowedAfter:
+          $ref: '#/components/schemas/Instant'
+        decisionNote:
+          type:
+            - string
+            - 'null'
+    PayoutAccountSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutAccountSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    PayoutReveal:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Why the full number is needed; recorded in the audit log.
+    AccountNumber:
+      type: object
+      required:
+        - accountNumber
+      properties:
+        accountNumber:
+          type: string
+    PayoutSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - amountMinor
+        - currency
+        - status
+        - approvalReasons
+        - institutionName
+        - accountName
+        - accountNumberMasked
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - PENDING_APPROVAL
+            - APPROVED
+            - PROCESSING
+            - PAID
+            - FAILED
+            - CANCELLED
+            - RETURNED
+        approvalReasons:
+          type: array
+          items:
+            type: string
+            enum:
+              - FIRST_PAYOUT
+              - LARGE_AMOUNT
+              - NEW_ACCOUNT
+              - RISK_REVIEW
+        institutionName:
+          type: string
+        accountName:
+          type: string
+        accountNumberMasked:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        exportedAt:
+          $ref: '#/components/schemas/Instant'
+        paidAt:
+          $ref: '#/components/schemas/Instant'
+        reference:
+          type:
+            - string
+            - 'null'
+        note:
+          type:
+            - string
+            - 'null'
+    PayoutSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    PayoutExport:
+      type: object
+      properties:
+        payoutIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          description: Only these, among those that are ready; all ready payouts when left out.
+    PayoutSettlement:
+      type: object
+      required:
+        - outcome
+      properties:
+        outcome:
+          type: string
+          enum:
+            - PAID
+            - FAILED
+            - RETURNED
+        reference:
+          type: string
+          maxLength: 120
+        reason:
+          type: string
+          maxLength: 500
+    RefundSummary:
+      type: object
+      required:
+        - id
+        - orgId
+        - organization
+        - marketCode
+        - amountMinor
+        - currency
+        - status
+        - method
+        - reason
+        - requestedBy
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        organization:
+          type: string
+        marketCode:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - REQUESTED
+            - APPROVED
+            - PROCESSING
+            - SUCCEEDED
+            - FAILED
+            - REJECTED
+            - CANCELLED
+        method:
+          type: string
+          enum:
+            - ORIGINAL_METHOD
+            - PAYOUT
+            - STORE_CREDIT
+            - GIFT_CARD
+            - CASH
+            - MANUAL_BANK_TRANSFER
+        reason:
+          type: string
+        requestedBy:
+          type: string
+        customerName:
+          type:
+            - string
+            - 'null'
+        customerPhone:
+          type:
+            - string
+            - 'null'
+          description: Where to pay it.
+        paidWith:
+          type:
+            - string
+            - 'null'
+          description: How the customer paid (the payment method code).
+        bookingReference:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        paidAt:
+          $ref: '#/components/schemas/Instant'
+        reference:
+          type:
+            - string
+            - 'null'
+        note:
+          type:
+            - string
+            - 'null'
+    RefundSummaryPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    RefundApproval:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+    RefundPayment:
+      type: object
+      required:
+        - reference
+      properties:
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 120
+        note:
+          type: string
+          maxLength: 500
     AuditEntryPage:
       type: object
       required:
@@ -10139,16 +12647,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    TooManyRequests:
-      description: Rate limited; retry after the `Retry-After` header.
-      headers:
-        Retry-After:
-          schema:
-            type: integer
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: Missing or invalid access token.
       content:
@@ -10161,8 +12659,12 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NoContent:
-      description: Done.
+    NotFound:
+      description: Not found (also returned when the resource belongs to another organization).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Conflict:
       description: Conflicts with existing data.
       content:
@@ -10175,8 +12677,20 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    NotFound:
-      description: Not found (also returned when the resource belongs to another organization).
+    ServiceUnavailable:
+      description: A service the request depends on (online payment) is unavailable; try again shortly.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NoContent:
+      description: Done.
+    TooManyRequests:
+      description: Rate limited; retry after the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
       content:
         application/problem+json:
           schema:
@@ -10194,13 +12708,14 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
-    IfMatch:
-      name: If-Match
-      in: header
+    LinkTokenParam:
+      name: token
+      in: path
       required: true
-      description: ETag of the version being updated.
       schema:
         type: string
+        minLength: 20
+        maxLength: 100
     Cursor:
       name: cursor
       in: query
@@ -10223,3 +12738,10 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag of the version being updated.
+      schema:
+        type: string

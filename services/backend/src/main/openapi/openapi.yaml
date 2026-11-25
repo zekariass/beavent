@@ -48,13 +48,52 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: GiftCards
+    description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
     description: Admin console (platform staff only; admin-console token from a multi-factor sign-in)
   - name: Reference
     description: Markets, languages, categories, administrative areas
+  - name: Payments
+    description: Payment provider notifications (ArifPay by default, or Chapa), banks, and how a business gets paid
 paths:
+  # --- payments ---------------------------------------------------------------------------------------------
+  /v1/hooks/{provider}:
+    $ref: ./payments/paths.yaml#/providerHook
+  /v1/ref/banks:
+    $ref: ./payments/paths.yaml#/banks
+  /v1/orgs/{orgId}/payments/setup:
+    $ref: ./payments/paths.yaml#/paymentsSetup
+  /v1/orgs/{orgId}/payout-accounts:
+    $ref: ./payments/paths.yaml#/payoutAccounts
+  /v1/orgs/{orgId}/payout-accounts/{accountId}:
+    $ref: ./payments/paths.yaml#/payoutAccount
+  /v1/public/payment-links/{token}:
+    $ref: ./payments/paths.yaml#/paymentLink
+  /v1/public/payment-links/{token}/start:
+    $ref: ./payments/paths.yaml#/paymentLinkStart
+  /v1/public/payment-links/{token}/check:
+    $ref: ./payments/paths.yaml#/paymentLinkCheck
+  /v1/orgs/{orgId}/gift-cards/program:
+    $ref: ./retention/paths.yaml#/giftCardProgram
+  /v1/orgs/{orgId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCards
+  /v1/orgs/{orgId}/gift-cards/{cardId}/void:
+    $ref: ./retention/paths.yaml#/giftCardVoid
+  /v1/public/locations/{locationId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCardOffer
+  /v1/me/gift-cards/purchases:
+    $ref: ./retention/paths.yaml#/giftCardPurchase
+  /v1/public/payment-links/{token}/tender:
+    $ref: ./payments/paths.yaml#/paymentLinkTender
+  /v1/me/appointments/{appointmentId}/payment/tender:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPaymentTender
+  /v1/orgs/{orgId}/earnings:
+    $ref: ./payments/paths.yaml#/earnings
+  /v1/orgs/{orgId}/statement:
+    $ref: ./payments/paths.yaml#/statement
   # --- identity ---------------------------------------------------------------------------------------------
   /v1/auth/otp/request:
     $ref: ./identity/paths.yaml#/otpRequest
@@ -184,6 +223,10 @@ paths:
     $ref: ./scheduling/paths.yaml#/bookingPolicy
   /v1/orgs/{orgId}/appointments:
     $ref: ./scheduling/paths.yaml#/deskAppointments
+  /v1/orgs/{orgId}/appointments/{appointmentId}/cancel:
+    $ref: ./scheduling/paths.yaml#/deskCancel
+  /v1/orgs/{orgId}/appointments/{appointmentId}/payment-link:
+    $ref: ./scheduling/paths.yaml#/deskPaymentLink
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     $ref: ./scheduling/paths.yaml#/deskMove
   /v1/orgs/{orgId}/blocks:
@@ -244,8 +287,22 @@ paths:
     $ref: ./scheduling/paths.yaml#/myAppointment
   /v1/me/appointments/{appointmentId}/cancel:
     $ref: ./scheduling/paths.yaml#/myAppointmentCancel
+  /v1/me/appointments/{appointmentId}/payment:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPayment
+  /v1/me/appointments/{appointmentId}/payment/check:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPaymentCheck
   /v1/me/appointments/{appointmentId}/reschedule:
     $ref: ./scheduling/paths.yaml#/myAppointmentReschedule
+  /v1/me/waitlist:
+    $ref: ./scheduling/paths.yaml#/myWaitlist
+  /v1/me/waitlist/{entryId}:
+    $ref: ./scheduling/paths.yaml#/myWaitlistEntry
+  /v1/me/waitlist/{entryId}/accept:
+    $ref: ./scheduling/paths.yaml#/myWaitlistAccept
+  /v1/me/waitlist/{entryId}/decline:
+    $ref: ./scheduling/paths.yaml#/myWaitlistDecline
+  /v1/orgs/{orgId}/waitlist:
+    $ref: ./scheduling/paths.yaml#/deskWaitlist
   /v1/public/venues/{businessSlug}/locations:
     $ref: ./marketplace/paths.yaml#/businessLocations
   /v1/public/venues/{businessSlug}/{locationSlug}:
@@ -282,6 +339,26 @@ paths:
     $ref: ./admin/paths.yaml#/adminCaseDocumentUrl
   /v1/admin/verification-cases/{caseId}/decision:
     $ref: ./admin/paths.yaml#/adminCaseDecision
+  /v1/admin/payout-accounts:
+    $ref: ./admin/paths.yaml#/adminPayoutAccounts
+  /v1/admin/payout-accounts/{accountId}/reveal:
+    $ref: ./admin/paths.yaml#/adminPayoutAccountReveal
+  /v1/admin/payout-accounts/{accountId}/decision:
+    $ref: ./admin/paths.yaml#/adminPayoutAccountDecision
+  /v1/admin/payouts:
+    $ref: ./admin/paths.yaml#/adminPayouts
+  /v1/admin/payouts/export:
+    $ref: ./admin/paths.yaml#/adminPayoutExport
+  /v1/admin/payouts/{payoutId}/decision:
+    $ref: ./admin/paths.yaml#/adminPayoutDecision
+  /v1/admin/payouts/{payoutId}/settlement:
+    $ref: ./admin/paths.yaml#/adminPayoutSettlement
+  /v1/admin/refunds:
+    $ref: ./admin/paths.yaml#/adminRefunds
+  /v1/admin/refunds/{refundId}/approval:
+    $ref: ./admin/paths.yaml#/adminRefundApproval
+  /v1/admin/refunds/{refundId}/payment:
+    $ref: ./admin/paths.yaml#/adminRefundPayment
   /v1/admin/audit-log:
     $ref: ./admin/paths.yaml#/adminAuditLog
   /v1/admin/feature-flags:

@@ -3,7 +3,7 @@
 **Status:** v1, 19 Nov 2026. **Benchmark:** Fresha (see [DESIGN_REFERENCE_CATALOG.md §1](DESIGN_REFERENCE_CATALOG.md#1-fresha--services-marketplace)).
 **Builds on:** [MARKETPLACE_NAVIGATION.md](MARKETPLACE_NAVIGATION.md) (shared screens C-1…C-8), [COMPONENT_GUIDELINES.md](COMPONENT_GUIDELINES.md), [DESIGN_TOKENS.md](DESIGN_TOKENS.md).
 **Data sources:** catalog API on this branch (`services/backend/src/main/openapi/catalog`), tenancy (`Location`, `OpeningHours`), `db/migration/V1_09__scheduling.sql` (appointments, booking policies, holds), `V1_19__discovery_and_trust.sql` (listings, reviews, saved items), doc 03 §3.1 (booking workflow).
-**Current implementation (24 Nov 2026):** S-04 venue profile exists on web (`/{lang}/b/{business}/{location}`) and in the consumer app (`/b/{business}/{location}`, deep link `beavent://b/…`), with services (disclosure rows instead of the S-05 sheet), team (no S-17 sheet yet), about, hours, policies and a Call action; formatting rules shared in `packages/venue`. The booking flow (S-06 → S-10b), Bookings (C-4), appointment detail (S-11), reschedule (S-12) and cancel (S-13) exist on web and in the consumer app (24 Nov 2026); S-05 and S-17 sheets, S-14 with preselection, S-15 waitlist and S-16 reviews are not built. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), venue page 2.2, consumer booking 2.4, calendar 2.5, clients and waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
+**Current implementation (24 Nov 2026):** S-04 venue profile exists on web (`/{lang}/b/{business}/{location}`) and in the consumer app (`/b/{business}/{location}`, deep link `beavent://b/…`), with services (disclosure rows instead of the S-05 sheet), team (no S-17 sheet yet), about, hours, policies and a Call action; formatting rules shared in `packages/venue`. The booking flow (S-06 → S-10b), Bookings (C-4), appointment detail (S-11), reschedule (S-12) and cancel (S-13) exist on web and in the consumer app (24 Nov 2026); S-15 waitlist exists (24 Nov 2026); S-05 and S-17 sheets, S-14 with preselection and S-16 reviews are not built. Plan steps: catalogue and team 1.1–1.4 (this branch, partner portal), venue page 2.2, consumer booking 2.4, calendar 2.5, clients and waitlist 2.6, payments 3.4–3.6, discovery and reviews 8.1–8.3.
 
 ---
 
@@ -313,6 +313,16 @@ If no single professional can do everything: notice `info` Banner "No one person
 - Network error on submit: `danger` Banner "Couldn't confirm. Nothing was charged." + Try again (idempotency key reused, so retries are safe).
 **Interaction.** "Change" links jump back to the step and return here on Continue. The total never changes on this screen without a visible line explaining why.
 
+**Implementation note (plan 3.3, 25 Nov 2026):** deposits are built on web and in the consumer app. The review step shows **Pay now to book Br 360** and **Pay at the venue Br 1,440** with one sentence ("A deposit confirms your booking and counts towards the price. We hold this time while you pay."), and the button reads **Pay deposit and book** (**Pay and book** when the whole price is due; **Confirm and pay deposit** after the inline code). There is no method list: the person chooses telebirr, CBE Birr, M-PESA, card or bank app on the payment provider's own page, and comes back to a **payment page** (below), so the sticky bar and C-7 waiting screen are not separate screens. The estimate for a person who is not signed in yet assumes a new customer; confirming decides for real, so a returning customer who is not asked for a deposit is simply booked. Not built: the promo code row, "For someone else", and a business that cannot take online payments yet. That gate is built (3.4): such a business shows no deposit on its venue page and its review step, and the booking is made without paying.
+
+**The payment page** (`/{lang}/account/bookings/{id}/payment`; the provider sends the person back here; unpaid bookings are paid from here): the title is the state, and every state is Beavent's answer, never the provider's redirect.
+- *Checking your payment…*: asked every 3 seconds for up to two minutes; the time held until `HH:mm` and the amounts; no buttons while asking.
+- *You're booked* (paid): where, what, when, **Deposit Br 360 · Paid**, **At the venue Br 1,440**, **See my bookings**.
+- *The payment didn't go through* / *Payment cancelled*: "Nothing was charged." the held-until time, primary **Try again with Br 360** or **Pay Br 360**, quiet **Cancel booking**.
+- *We haven't received your payment yet* (nothing confirmed after two minutes): "If you've paid, we'll text you as soon as it's confirmed", **Pay Br 360**, **I've paid, check again**.
+- *The time was released* (not paid in time): **Choose another time**. A booking the person cancelled says "This booking is cancelled."
+In the consumer app the provider's page opens outside the app; the booking screen (S-11) waits, asking every 4 seconds while it is unpaid, with **Pay Br 360** and **I've paid, check again** right under the banner.
+
 ### S-10b Booking confirmation
 
 SuccessState (COMPONENT 8.5).
@@ -380,11 +390,15 @@ Bottom sheet:
 - `destructive` **Cancel booking**; `secondary` **Keep booking**.
 After: the detail screen updates to `CANCELLED` with the refund row; a toast is not used.
 
+**Implementation note (plan 3.6, 25 Nov 2026):** the question is built inline on the detail page (web and app), not as a sheet, and states the money first: "Your deposit of Br 360 will be refunded.", "Cancelling now keeps Br 180 of your deposit and refunds Br 180." or "Cancelling now keeps your deposit of Br 360." (the wording lives in `packages/venue`, shared by web and app). There is no refund method line or reason chips yet: the refund goes to the phone number the booking was made with, and finance sends it by hand (ArifPay). After cancelling, the detail page says where the refund stands: "We're arranging your refund.", "Your refund of Br 360 is on its way. We send it to the phone number you booked with.", "Br 360 was refunded to you." or, when the business kept all of it, "Your deposit of Br 360 was kept under the cancellation terms." A text message follows when it is paid. Gap G4 is closed: the cancellation preview carries `refundMinor` and `keptMinor`.
+
 ### S-14 Book again
 
 From a past appointment, Book again opens the booking flow at **S-08 Time** with the same services (current versions; removed services are dropped with an `info` Banner "Box braids — long is no longer offered") and the same professional preselected if still bookable (else Any professional with a Banner). The user can step back to change services.
 
 ### S-15 Waitlist
+
+**Implementation note (plan 2.6, 24 Nov 2026):** built on web (`/{lang}/b/{business}/{location}/waitlist`, `/{lang}/account/waitlist/{id}`) and in the consumer app (`/b/{business}/{location}/waitlist`, `/waitlist/{id}`); an entry is for one service; the offer arrives by text message with a link (push later); the join form is its own page instead of a sheet. The business sees the list from the calendar ("Waitlist").
 
 **Join** (sheet from S-08): "Get notified when a time opens up". Days: a 2-week DateStrip in multi-select mode (up to 7 days); Times: choice chips Morning · Afternoon · Evening (multi); Professional: Any / the selected one. `primary` "Join waitlist". Confirmation toast "We'll message you if a time opens up"; the entry appears at the bottom of Bookings → Upcoming under "Waitlists" (row: venue, services, chosen windows, "Leave waitlist").
 **Offer** (from a push/SMS deep link, `commerce.waitlist_offers` with a held slot): full-screen "A time opened up" + slot (DateTimeText long dual) + services + professional + HoldTimer (offer expiry) + `primary` "Book this time" (→ S-10) + `tertiary` "Not this time". Expired: "This time was offered to the next person" + "Stay on the waitlist" / "Leave".

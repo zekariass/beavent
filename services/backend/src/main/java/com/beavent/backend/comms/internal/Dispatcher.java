@@ -3,6 +3,7 @@ package com.beavent.backend.comms.internal;
 import static com.beavent.db.comms.Tables.DELIVERIES;
 import static com.beavent.db.comms.Tables.NOTIFICATIONS;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
+import static com.beavent.db.iam.Tables.USERS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 
@@ -89,7 +90,11 @@ class Dispatcher {
         var due = system.selectFrom(NOTIFICATIONS)
                 .where(
                         NOTIFICATIONS.SEND_AFTER.le(now.atOffset(ZoneOffset.UTC)),
-                        NOTIFICATIONS.TEMPLATE_CODE.like("APPOINTMENT_%"),
+                        NOTIFICATIONS
+                                .TEMPLATE_CODE
+                                .like("APPOINTMENT_%")
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -101,10 +106,18 @@ class Dispatcher {
         for (var n : due) {
             Map<String, Object> data = json.readValue(n.getData().data(), DATA);
             String stale = stale(n.getTemplateCode(), data);
-            var customer = system.select(CUSTOMERS.PHONE_E164, CUSTOMERS.EMAIL)
-                    .from(CUSTOMERS)
-                    .where(CUSTOMERS.ID.eq(n.getRecipientCustomerId()))
-                    .fetchOne();
+            // A customer's contact details, or (for messages to a person's own account) their verified ones.
+            var customer = n.getRecipientCustomerId() != null
+                    ? system.select(CUSTOMERS.PHONE_E164, CUSTOMERS.EMAIL)
+                            .from(CUSTOMERS)
+                            .where(CUSTOMERS.ID.eq(n.getRecipientCustomerId()))
+                            .fetchOne()
+                    : system.select(
+                                    DSL.when(USERS.PHONE_VERIFIED_AT.isNotNull(), USERS.PHONE_E164),
+                                    DSL.when(USERS.EMAIL_VERIFIED_AT.isNotNull(), USERS.EMAIL.cast(String.class)))
+                            .from(USERS)
+                            .where(USERS.ID.eq(n.getRecipientUserId()))
+                            .fetchOne();
             List<String[]> channels = new ArrayList<>();
             if (stale == null && customer != null) {
                 if (customer.value1() != null) channels.add(new String[] {"SMS", mask(customer.value1())});
@@ -136,6 +149,18 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
+        if (code.startsWith("PAYOUT_") || code.startsWith("GIFT_CARD_")) {
+            return null;
+        }
+        if (code.equals(Notifier.WAITLIST_OFFER)) {
+            String status = system.fetchValue(
+                                    "select status from commerce.waitlist_offers where id = ?::uuid",
+                                    data.get("offerId"))
+                            instanceof String s
+                    ? s
+                    : null;
+            return "OPEN".equals(status) ? null : "offer closed";
+        }
         var a = system.select(APPOINTMENTS.STATUS, APPOINTMENTS.STARTS_AT)
                 .from(APPOINTMENTS)
                 .where(APPOINTMENTS.ID.eq(UUID.fromString(String.valueOf(data.get("appointmentId")))))
@@ -146,6 +171,8 @@ class Dispatcher {
             case Notifier.CONFIRMED, Notifier.RESCHEDULED, Notifier.REMINDER_24H, Notifier.REMINDER_2H ->
                 "CONFIRMED".equals(a.value1()) && sameTime ? null : "appointment changed";
             case Notifier.REQUESTED -> "REQUESTED".equals(a.value1()) ? null : "request already answered";
+            case Notifier.PAYMENT_LINK ->
+                List.of("CANCELLED", "EXPIRED", "DECLINED", "NO_SHOW").contains(a.value1()) ? "booking closed" : null;
             default -> null;
         };
     }
@@ -181,14 +208,19 @@ class Dispatcher {
                             DELIVERIES.ATTEMPTS,
                             NOTIFICATIONS.TEMPLATE_CODE,
                             NOTIFICATIONS.DATA,
-                            CUSTOMERS.PHONE_E164,
-                            CUSTOMERS.EMAIL,
-                            DSL.coalesce(CUSTOMERS.PREFERRED_LANGUAGE, ORGANIZATIONS.DEFAULT_LANGUAGE))
+                            DSL.coalesce(CUSTOMERS.PHONE_E164, USERS.PHONE_E164),
+                            DSL.coalesce(CUSTOMERS.EMAIL.cast(String.class), USERS.EMAIL.cast(String.class)),
+                            DSL.coalesce(
+                                    CUSTOMERS.PREFERRED_LANGUAGE,
+                                    USERS.PREFERRED_LANGUAGE,
+                                    ORGANIZATIONS.DEFAULT_LANGUAGE))
                     .from(DELIVERIES)
                     .join(NOTIFICATIONS)
                     .on(NOTIFICATIONS.ID.eq(DELIVERIES.NOTIFICATION_ID))
-                    .join(CUSTOMERS)
+                    .leftJoin(CUSTOMERS)
                     .on(CUSTOMERS.ID.eq(NOTIFICATIONS.RECIPIENT_CUSTOMER_ID))
+                    .leftJoin(USERS)
+                    .on(USERS.ID.eq(NOTIFICATIONS.RECIPIENT_USER_ID))
                     .join(ORGANIZATIONS)
                     .on(ORGANIZATIONS.ID.eq(NOTIFICATIONS.ORG_ID))
                     .where(

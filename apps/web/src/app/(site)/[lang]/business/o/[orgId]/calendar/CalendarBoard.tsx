@@ -3,11 +3,18 @@
 import type { Schemas } from "@beavent/api-client";
 import { formatEthiopianTime, formatStandardTime, toEthiopianTime, zoned } from "@beavent/calendar";
 import { createTranslator, type Language } from "@beavent/i18n";
-import { localDateOf, localToInstant } from "@beavent/venue";
+import { localDateOf, localToInstant, price } from "@beavent/venue";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
-import { BlockPanel, MoveForm, NewPanel, type ServiceOption } from "./DeskPanels";
+import {
+  BlockPanel,
+  CancelForm,
+  MoveForm,
+  NewPanel,
+  PaymentLinkForm,
+  type ServiceOption,
+} from "./DeskPanels";
 
 type Calendar = Schemas["Calendar"];
 type Appointment = Schemas["CalendarAppointment"];
@@ -216,6 +223,7 @@ export function CalendarBoard({
                   ))}
                   {items.map(({ appointment, item }) => {
                     const requested = appointment.status === "REQUESTED";
+                    const unpaid = appointment.status === "PENDING_PAYMENT";
                     const done =
                       appointment.status === "COMPLETED" || appointment.status === "NO_SHOW";
                     return (
@@ -227,9 +235,11 @@ export function CalendarBoard({
                         className={`absolute inset-x-1 flex flex-col justify-start overflow-hidden rounded-md border-s-[3px] px-2 py-1 text-start focus-visible:outline-2 focus-visible:outline-focus ${
                           requested
                             ? "border-warning bg-warning-subtle"
-                            : done
+                            : unpaid
                               ? "border-border-strong bg-surface"
-                              : "border-primary bg-primary-subtle"
+                              : done
+                                ? "border-border-strong bg-surface"
+                                : "border-primary bg-primary-subtle"
                         }`}
                         style={{ top: top(item.start), height: span(item.start, item.end) }}
                       >
@@ -305,6 +315,7 @@ export function CalendarBoard({
           start={slot.start}
           zone={zone}
           services={services}
+          team={calendar.staff.map((s) => ({ id: s.staffId, name: s.name }))}
           onClose={() => setSlot(null)}
         />
       ) : null}
@@ -334,6 +345,13 @@ export function CalendarBoard({
           zone={zone}
           staff={calendar.staff.map((s) => ({ id: s.staffId, name: s.name }))}
           started={minute != null && minute * 60_000 >= new Date(open.start).getTime()}
+          groupNames={
+            open.groupId
+              ? calendar.appointments
+                  .filter((a) => a.groupId === open.groupId)
+                  .map((a) => a.customer.name)
+              : []
+          }
         />
       ) : null}
     </div>
@@ -351,6 +369,7 @@ function AppointmentPanel({
   started,
   zone,
   staff,
+  groupNames,
 }: {
   language: Language;
   orgId: string;
@@ -362,11 +381,16 @@ function AppointmentPanel({
   started: boolean;
   zone: string;
   staff: { id: string; name: string }[];
+  groupNames: string[];
 }) {
   const t = createTranslator(language);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const clock = (instant: string) => {
+    const z = zoned(instant, zone);
+    return formatStandardTime(z.hour, z.minute);
+  };
   const run = (action: () => Promise<{ ok: boolean; message?: string }>) =>
     start(async () => {
       const r = await action();
@@ -460,6 +484,49 @@ function AppointmentPanel({
           </li>
         ))}
       </ul>
+      {appointment.series || groupNames.length > 1 ? (
+        <div className="flex flex-col gap-1">
+          {appointment.series ? (
+            <p className="bv-type-body text-fg">
+              {t("portal.calendar.series", {
+                every: appointment.series.everyWeeks,
+                index: appointment.series.index,
+                count: appointment.series.count,
+              })}
+            </p>
+          ) : null}
+          {groupNames.length > 1 ? (
+            <p className="bv-type-body text-fg">
+              {t("portal.calendar.group", {
+                names: groupNames.join(language === "am" ? "፣ " : ", "),
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {appointment.payment ? (
+        <p className="bv-type-body text-fg">
+          {appointment.payment.state === "PAID"
+            ? t("portal.calendar.depositPaid", {
+                paid: price(appointment.payment.paidMinor, appointment.payment.currency, language),
+                venue: price(
+                  appointment.payment.atVenueMinor,
+                  appointment.payment.currency,
+                  language,
+                ),
+              })
+            : appointment.payment.state === "AWAITING_PAYMENT"
+              ? t("portal.calendar.depositAwaiting", {
+                  amount: price(
+                    appointment.payment.dueNowMinor,
+                    appointment.payment.currency,
+                    language,
+                  ),
+                  time: appointment.payment.expiresAt ? clock(appointment.payment.expiresAt) : "",
+                })
+              : t("portal.calendar.depositExpired")}
+        </p>
+      ) : null}
       {appointment.forms.length > 0 ? (
         <ul className="flex flex-col gap-1">
           {appointment.forms.map((f) => (
@@ -526,6 +593,17 @@ function AppointmentPanel({
             zone={zone}
             staff={staff}
           />
+        ) : null}
+        {s === "CONFIRMED" || s === "PENDING_PAYMENT" ? (
+          <PaymentLinkForm
+            language={language}
+            orgId={orgId}
+            appointment={appointment}
+            zone={zone}
+          />
+        ) : null}
+        {s === "CONFIRMED" || s === "REQUESTED" ? (
+          <CancelForm language={language} orgId={orgId} appointment={appointment} />
         ) : null}
       </div>
     </aside>

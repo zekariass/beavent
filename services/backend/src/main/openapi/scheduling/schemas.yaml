@@ -279,6 +279,77 @@ BookingSummary:
       $ref: ../common/schemas.yaml#/CurrencyCode
     policy:
       $ref: '#/BookingTerms'
+PaymentTerms:
+  type: object
+  description: |
+    What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+    signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+  required: [depositMinor, atVenueMinor, totalMinor, currency]
+  properties:
+    depositMinor:
+      type: integer
+      format: int64
+      description: Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
+    atVenueMinor:
+      type: integer
+      format: int64
+    totalMinor:
+      type: integer
+      format: int64
+      description: The all-in price.
+    currency:
+      type: string
+PaymentStatus:
+  type: object
+  description: Where the online payment of a booking stands.
+  required: [state, dueNowMinor, paidMinor, atVenueMinor, currency]
+  properties:
+    state:
+      type: string
+      enum: [NOT_REQUIRED, AWAITING_PAYMENT, PAID, FAILED, EXPIRED]
+      description: |
+        `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+        may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+    dueNowMinor:
+      type: integer
+      format: int64
+    paidMinor:
+      type: integer
+      format: int64
+    atVenueMinor:
+      type: integer
+      format: int64
+      description: Left to pay at the venue.
+    currency:
+      type: string
+    expiresAt:
+      description: Until when the time is held for payment.
+      $ref: ../common/schemas.yaml#/Instant
+    redirectUrl:
+      type: [string, 'null']
+      format: uri
+      description: The provider's page of the attempt in progress, to reopen it.
+    balanceMinor:
+      type: integer
+      format: int64
+      description: What the signed-in person could pay now from their balance with the business (0 for none).
+PaymentStart:
+  type: object
+  required: [attemptId, expiresAt, amountMinor, currency]
+  properties:
+    attemptId:
+      $ref: ../common/schemas.yaml#/Uuid
+    redirectUrl:
+      type: [string, 'null']
+      format: uri
+      description: The provider's page to send the person to; they come back to the booking's payment page.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
 Hold:
   type: object
   required: [holdId, holderKey, expiresAt, booking]
@@ -292,6 +363,9 @@ Hold:
       $ref: ../common/schemas.yaml#/Instant
     booking:
       $ref: '#/BookingSummary'
+    payment:
+      description: What would be paid now to book; absent when nothing is due online.
+      $ref: '#/PaymentTerms'
 BookInput:
   type: object
   required: [locationId, holdId, holderKey]
@@ -317,9 +391,15 @@ Appointment:
       description: Six characters people can read out over the phone.
     status:
       type: string
-      enum: [REQUESTED, CONFIRMED]
+      enum: [PENDING_PAYMENT, REQUESTED, CONFIRMED]
+      description: |
+        `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+        confirmed when the payment arrives (start it with `POST …/payment`).
     booking:
       $ref: '#/BookingSummary'
+    payment:
+      description: Present for `PENDING_PAYMENT`.
+      $ref: '#/PaymentStatus'
 MyAppointmentPlace:
   type: object
   required: [locationId, businessName, businessSlug, locationName, locationSlug]
@@ -392,7 +472,7 @@ MyAppointmentList:
         $ref: '#/MyAppointment'
 CancellationPreview:
   type: object
-  required: [allowed, free, freeUntil, feeMinor]
+  required: [allowed, free, freeUntil, feeMinor, refundMinor, keptMinor]
   properties:
     allowed:
       type: boolean
@@ -404,9 +484,17 @@ CancellationPreview:
     feeMinor:
       type: integer
       format: int64
-      description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+      description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
     currency:
       type: [string, 'null']
+    refundMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+    keptMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
 AppointmentDetail:
   type: object
   required: [id, reference, status, start, end, timezone, booking, cancellation, canReschedule]
@@ -434,6 +522,27 @@ AppointmentDetail:
       $ref: '#/CancellationPreview'
     canReschedule:
       type: boolean
+    payment:
+      description: Present when the booking has an order to pay online.
+      $ref: '#/PaymentStatus'
+    refund:
+      description: |
+        Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+        happens) or a refund exists: what goes back to the customer.
+      $ref: '#/AppointmentRefund'
+AppointmentRefund:
+  type: object
+  required: [amountMinor, currency, state]
+  properties:
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    state:
+      type: string
+      enum: [ON_THE_WAY, SENT, CREDITED, NONE]
+      description: '`CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.'
 AppointmentStatus:
   type: object
   required: [status]
@@ -557,6 +666,29 @@ CalendarAppointment:
       type: array
       items:
         $ref: '#/CalendarItem'
+    groupId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+      description: Booked together with the other appointments of this group (same time).
+    series:
+      oneOf:
+        - type: object
+          required: [id, everyWeeks, index, count]
+          properties:
+            id:
+              $ref: ../common/schemas.yaml#/Uuid
+            everyWeeks:
+              type: integer
+            index:
+              type: integer
+              description: This visit's number among the series' active visits.
+            count:
+              type: integer
+        - type: 'null'
+    payment:
+      description: Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired).
+      $ref: '#/PaymentStatus'
     forms:
       type: array
       description: Forms the client fills in before this visit (attached to its services), and whether they have.
@@ -671,6 +803,38 @@ DeskBookingInput:
     notifyCustomer:
       type: boolean
       default: true
+    guests:
+      type: array
+      maxItems: 9
+      description: |
+        A group: more people at the same time, one appointment each, booked all together or not at all (the first
+        customer leads the group). Not with `repeat`.
+      items:
+        type: object
+        required: [customer, items]
+        properties:
+          customer:
+            $ref: '#/DeskBookingInput/properties/customer'
+          items:
+            $ref: '#/DeskBookingInput/properties/items'
+    repeat:
+      type: object
+      description: |
+        A series: the same visit every `everyWeeks` weeks, `count` times in all, at the same local time. Only the first
+        visit sends a confirmation; reminders follow each. Not with `guests`.
+      required: [everyWeeks, count]
+      properties:
+        everyWeeks:
+          type: integer
+          minimum: 1
+          maximum: 4
+        count:
+          type: integer
+          minimum: 2
+          maximum: 12
+    skipTaken:
+      type: boolean
+      description: In a series, leave out the dates that are not free instead of failing (false when absent).
 DeskBooking:
   type: object
   required: [id, reference, start, end]
@@ -683,3 +847,155 @@ DeskBooking:
       $ref: ../common/schemas.yaml#/Instant
     end:
       $ref: ../common/schemas.yaml#/Instant
+    groupId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    seriesId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    appointments:
+      type: array
+      description: Every appointment made (one for a single booking).
+      items:
+        type: object
+        required: [id, reference, start, end]
+        properties:
+          id:
+            $ref: ../common/schemas.yaml#/Uuid
+          reference:
+            type: string
+          start:
+            $ref: ../common/schemas.yaml#/Instant
+          end:
+            $ref: ../common/schemas.yaml#/Instant
+    skipped:
+      type: array
+      description: Series dates left out because they were not free.
+      items:
+        $ref: ../common/schemas.yaml#/Instant
+WaitlistJoin:
+  type: object
+  required: [locationId, variantId, days, parts]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    staffId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+      description: A particular person, or anyone who does the service.
+    days:
+      type: array
+      minItems: 1
+      maxItems: 7
+      description: The location's local dates, from today up to 60 days ahead.
+      items:
+        type: string
+        format: date
+    parts:
+      type: array
+      minItems: 1
+      maxItems: 3
+      description: MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time).
+      items:
+        type: string
+        enum: [MORNING, AFTERNOON, EVENING]
+WaitlistOffer:
+  type: object
+  required: [id, start, end, expiresAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    start:
+      $ref: ../common/schemas.yaml#/Instant
+    end:
+      $ref: ../common/schemas.yaml#/Instant
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+      description: The time is held until then.
+    staffName:
+      type: [string, 'null']
+WaitlistEntry:
+  type: object
+  required: [id, status, locationId, timezone, variantId, serviceName, days, parts, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    status:
+      type: string
+      enum: [WAITING, OFFERED, CONVERTED, EXPIRED, CANCELLED]
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    timezone:
+      type: string
+    place:
+      $ref: '#/MyAppointmentPlace'
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    serviceName:
+      type: object
+      additionalProperties:
+        type: string
+    variantName:
+      type: object
+      additionalProperties:
+        type: string
+    staffId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    staffName:
+      type: [string, 'null']
+    customerName:
+      type: [string, 'null']
+      description: For the front desk.
+    days:
+      type: array
+      items:
+        type: string
+        format: date
+    parts:
+      type: array
+      items:
+        type: string
+        enum: [MORNING, AFTERNOON, EVENING]
+    offer:
+      oneOf:
+        - $ref: '#/WaitlistOffer'
+        - type: 'null'
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+WaitlistList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/WaitlistEntry'
+PaymentLinkSent:
+  type: object
+  required: [url, expiresAt, amountMinor, currency, kind, sentTo]
+  properties:
+    url:
+      type: string
+      format: uri
+      description: The address the customer opens; sent to them, and shown so it can also be shared by hand.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    kind:
+      type: string
+      enum: [DEPOSIT, FULL, BALANCE]
+    sentTo:
+      type: string
+      enum: [SMS, EMAIL]
+

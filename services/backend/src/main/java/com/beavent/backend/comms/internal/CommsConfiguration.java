@@ -13,6 +13,45 @@ import org.springframework.context.annotation.Configuration;
 class CommsConfiguration {
 
     static final String APPOINTMENTS_QUEUE = "beavent.comms.appointments";
+    static final String WAITLIST_QUEUE = "beavent.comms.waitlist";
+    static final String PAYOUTS_QUEUE = "beavent.comms.payouts";
+
+    /** A payout account was added or changed: the people who manage payouts are told (plan 3.4). */
+    @Bean
+    Queue commsPayoutsQueue() {
+        return QueueBuilder.durable(PAYOUTS_QUEUE)
+                .deadLetterExchange(Outbox.DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    Binding commsPayoutsBinding(Queue commsPayoutsQueue) {
+        return BindingBuilder.bind(commsPayoutsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payout_account.*");
+    }
+
+    /** A payout was paid, failed or rejected (plan 3.5). */
+    @Bean
+    Binding commsPayoutOutcomeBinding(Queue commsPayoutsQueue) {
+        return BindingBuilder.bind(commsPayoutsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payout.*");
+    }
+
+    @Bean
+    Queue commsWaitlistQueue() {
+        return QueueBuilder.durable(WAITLIST_QUEUE)
+                .deadLetterExchange(Outbox.DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    Binding commsWaitlistBinding(Queue commsWaitlistQueue) {
+        return BindingBuilder.bind(commsWaitlistQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("waitlist.*");
+    }
 
     @Bean
     Queue commsAppointmentsQueue() {
@@ -26,5 +65,36 @@ class CommsConfiguration {
         return BindingBuilder.bind(commsAppointmentsQueue)
                 .to(new TopicExchange(Outbox.EXCHANGE))
                 .with("appointment.*");
+    }
+
+    /** A payment link was made for a booking: the customer gets it (plan 3.7). */
+    @Bean
+    Binding commsPaymentLinksBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("payment_link.created");
+    }
+
+    /** A gift card was delivered (plan 3.8) and a refund went to a balance or card: the customer is told. */
+    @Bean
+    Binding commsGiftCardsBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("gift_card.delivered");
+    }
+
+    @Bean
+    Binding commsRefundCreditedBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("refund.credited");
+    }
+
+    /** A refund was paid: the customer is told (plan 3.6). */
+    @Bean
+    Binding commsRefundsBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("refund.succeeded");
     }
 }

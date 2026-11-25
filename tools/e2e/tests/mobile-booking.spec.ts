@@ -36,10 +36,19 @@ test("the consumer app books, shows, moves and cancels an appointment", async ({
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel(/Code sent to/).fill(await codeFor(phone, seen));
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("What should we call you?")).toBeVisible();
+  await page.getByLabel("Given name").fill("Meron");
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Book", exact: true }).click();
 
   await expect(page.getByText("You're booked")).toBeVisible();
-  await page.getByRole("button", { name: "See my bookings" }).click();
+  // The confirmation closes onto the venue screen (which also names the service) before Bookings opens: wait for the
+  // Bookings list itself before tapping the row.
+  await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith("/v1/me/appointments") && r.ok()),
+    page.getByRole("button", { name: "See my bookings" }).click(),
+  ]);
+  await expect(page).toHaveURL(/\/bookings$/);
   // Screens under the tab stay mounted (hidden); act on what is visible.
   const row = page.getByText("Box braids").filter({ visible: true }).first();
   await expect(row).toBeVisible();

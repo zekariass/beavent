@@ -1,17 +1,17 @@
 "use server";
 
-import { createApiClient, type Schemas } from "@beavent/api-client";
+import type { Schemas } from "@beavent/api-client";
 import {
+  apiWithToken,
   customerApi,
+  needsName,
   normalizePhone,
   problemCode,
   problemText,
   publicApi,
+  saveName,
   storeCustomerTokens,
 } from "@/lib/customer/session";
-
-const API_URL =
-  process.env.BEAVENT_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export interface ItemChoice {
   variantId: string;
@@ -87,7 +87,8 @@ export async function sendCode(
 
 /**
  * Books the held time. Without a session, `challengeId` + `code` sign the person in first (the session is kept in
- * httpOnly cookies for their next visit).
+ * httpOnly cookies for their next visit). Someone without a name on file gets `NAME_NEEDED` (signed in by then) and
+ * books again with `givenName` (C-6 step 3), so the business sees a name, not a phone number.
  */
 export async function book(
   language: string,
@@ -98,6 +99,8 @@ export async function book(
     note?: string;
     challengeId?: string;
     code?: string;
+    givenName?: string;
+    fatherName?: string;
   },
 ): Promise<{ ok: true; appointment: Schemas["Appointment"] } | Failure> {
   let api = await customerApi(language);
@@ -107,13 +110,16 @@ export async function book(
     });
     if (!data) return { ok: false, code: problemCode(error), message: problemText(error, "") };
     await storeCustomerTokens(data.accessToken, data.refreshToken);
-    api = createApiClient({
-      baseUrl: API_URL,
-      getAccessToken: () => data.accessToken,
-      getLanguage: () => language,
-    });
+    api = apiWithToken(data.accessToken, language);
   }
   if (!api) return { ok: false, code: "UNAUTHENTICATED", message: "" };
+  if (input.givenName?.trim()) {
+    const problem = await saveName(api, input.givenName, input.fatherName ?? "");
+    if (problem)
+      return { ok: false, code: problemCode(problem), message: problemText(problem, "") };
+  } else if (await needsName(api)) {
+    return { ok: false, code: "NAME_NEEDED", message: "" };
+  }
   const { data, error } = await api.POST("/v1/me/appointments", {
     body: {
       locationId: input.locationId,

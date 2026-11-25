@@ -11,6 +11,7 @@ One platform for booking services (salons, spas, barbers, freelancers; Fresha-li
 | `apps/business-mobile/` | Business app for owners, staff and organizers (Schedule and More tabs; Business mode lives here)                                                       | Expo SDK 58, React Native, Expo Router |
 | `apps/web/`             | The one web platform (port 3000): public site `/[lang]`, business and organizer console `/[lang]/business`, admin console at the secret `/$ADMIN_PATH` | Next.js 16                             |
 | `packages/`             | Shared TypeScript: `api-client`, `ui`, `i18n`, `calendar` (Ethiopian calendar), `money`, `config`                                                      | TypeScript                             |
+| `tools/arifpay-stub/`   | Local stand-in for the ArifPay checkout API (port 8091) — development and CI only; see its README                                                      | Node 26 (TypeScript)                   |
 | `tools/chapa-stub/`     | Local stand-in for the Chapa API (port 8090) — development and CI only; see its README                                                                 | Node 26 (TypeScript)                   |
 | `docker/`               | Container image definition shared by the Next.js apps                                                                                                  | Docker                                 |
 | `db/`                   | Database baseline (Flyway migrations), invariant tests, validation scripts — the single source of the schema                                           | PostgreSQL 17 + PostGIS                |
@@ -65,6 +66,7 @@ Locally, one-time codes appear in the API log (`SMS_PROVIDER=log`).
 (cd backend && ./gradlew bootJar) && docker build -f services/backend/Dockerfile -t beavent-api .
 docker build -f docker/next-app.Dockerfile -t beavent-web .   # the web platform; set ADMIN_PATH when running it
 docker build -t beavent-chapa-stub tools/chapa-stub
+docker build -t beavent-arifpay-stub tools/arifpay-stub
 ```
 
 ## Continuous integration

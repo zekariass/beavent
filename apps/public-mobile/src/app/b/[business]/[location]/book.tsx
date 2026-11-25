@@ -29,7 +29,7 @@ import {
 } from "@beavent/venue";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Linking, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DayStrip, TimeGrid } from "@/components/time-picker";
@@ -210,6 +210,22 @@ function Flow({ venue }: { venue: Venue }) {
         ...(note.trim() ? { note: note.trim() } : {}),
       },
     });
+    if (data && data.status === "PENDING_PAYMENT") {
+      // A deposit is due: the time is held while the person pays on the provider's page, opened outside the app.
+      const started = await api
+        .POST("/v1/me/appointments/{appointmentId}/payment", {
+          params: { path: { appointmentId: data.id } },
+          body: { language },
+        })
+        .catch(() => ({ data: undefined }));
+      setBusy(false);
+      if (started.data?.redirectUrl)
+        await Linking.openURL(started.data.redirectUrl).catch(() => undefined);
+      // The booking exists either way: its screen waits for the payment, and pays again if the page did not open.
+      router.dismissAll();
+      router.push(`/appointment/${data.id}`);
+      return;
+    }
     setBusy(false);
     if (data) {
       setDone(data);
@@ -227,6 +243,14 @@ function Flow({ venue }: { venue: Venue }) {
   const timeText = (iso: string) => formatDualTime(iso, prefs);
   const dateText = (iso: string) => formatDualDate(iso, prefs, { weekday: true });
   const requiresApproval = hold?.booking.policy.requiresApproval ?? venue.policy.requiresApproval;
+  // A deposit (or full payment) is paid on the provider's page right after booking; the label says so.
+  const bookLabel = hold?.payment
+    ? hold.payment.atVenueMinor > 0
+      ? t("booking.review.payAndBook")
+      : t("booking.review.payFullAndBook")
+    : requiresApproval
+      ? t("booking.review.requestBook")
+      : t("booking.review.book");
   const itemName = (variantId: string, fallback: string) => {
     const service = services.find((s) => s.variants.some((v) => v.id === variantId));
     const variant = service?.variants.find((v) => v.id === variantId);
@@ -436,9 +460,24 @@ function Flow({ venue }: { venue: Venue }) {
             {slots == null ? (
               <SkeletonRows count={3} />
             ) : daySlots.length === 0 ? (
-              <Text role="body" tone="muted">
-                {withTimes.size === 0 ? t("booking.time.noneThisWeek") : t("booking.time.none")}
-              </Text>
+              <View style={{ gap: space[3], alignItems: "flex-start" }}>
+                <Text role="body" tone="muted">
+                  {withTimes.size === 0 ? t("booking.time.noneThisWeek") : t("booking.time.none")}
+                </Text>
+                {picked[0] ? (
+                  <Button
+                    variant="secondary"
+                    label={t("waitlist.join")}
+                    onPress={() =>
+                      router.push(
+                        `/b/${venue.businessSlug}/${venue.locationSlug}/waitlist?variant=${picked[0]!.variantId}&day=${day}${
+                          choices[0]?.staffId ? `&staff=${choices[0].staffId}` : ""
+                        }`,
+                      )
+                    }
+                  />
+                ) : null}
+              </View>
             ) : (
               <TimeGrid
                 slots={daySlots}
@@ -507,7 +546,39 @@ function Flow({ venue }: { venue: Venue }) {
               </View>
             </View>
             <View style={{ gap: space[2] }}>
-              {hold.booking.policy.allowPayAtVenue ? (
+              {hold.payment ? (
+                <View style={{ gap: space[2], paddingVertical: space[3] }}>
+                  <View
+                    style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}
+                  >
+                    <Text role="bodyStrong">{t("booking.review.payNow")}</Text>
+                    <Text role="bodyStrong" numeric>
+                      {price(hold.payment.depositMinor, hold.payment.currency, language)}
+                    </Text>
+                  </View>
+                  {hold.payment.atVenueMinor > 0 ? (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        gap: space[4],
+                      }}
+                    >
+                      <Text role="body" tone="muted">
+                        {t("booking.review.atVenueAmount")}
+                      </Text>
+                      <Text role="body" tone="muted" numeric>
+                        {price(hold.payment.atVenueMinor, hold.payment.currency, language)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <Text role="caption" tone="muted">
+                    {hold.payment.atVenueMinor > 0
+                      ? t("booking.review.depositNote")
+                      : t("booking.review.fullNote")}
+                  </Text>
+                </View>
+              ) : hold.booking.policy.allowPayAtVenue ? (
                 <Text role="body">{t("booking.review.payAtVenue")}</Text>
               ) : null}
               {hold.booking.policy.cancellationWindowMinutes > 0 ? (
@@ -539,20 +610,13 @@ function Flow({ venue }: { venue: Venue }) {
               multiline
             />
             {signedIn ? (
-              <Button
-                block
-                loading={busy}
-                label={
-                  requiresApproval ? t("booking.review.requestBook") : t("booking.review.book")
-                }
-                onPress={confirm}
-              />
+              <Button block loading={busy} label={bookLabel} onPress={confirm} />
             ) : (
               <View style={{ gap: space[3] }}>
                 <Text role="body" tone="muted">
                   {t("booking.signIn.intro")}
                 </Text>
-                <SignInPanel />
+                <SignInPanel askName />
               </View>
             )}
           </View>

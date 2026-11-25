@@ -4,6 +4,354 @@
  */
 
 export interface paths {
+    "/v1/hooks/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A payment provider's notification (ArifPay or Chapa)
+         * @description Called by the payment provider, not by apps. The raw body is stored and deduplicated before anything acts on it
+         *     (docs/04 §7). Chapa notifications must carry a valid `x-chapa-signature` (HMAC-SHA256 of the raw body) or
+         *     `chapa-signature`; ArifPay notifications are not signed, so they only prompt a lookup of the session with
+         *     Beavent's key. A replayed delivery is acknowledged and stored once.
+         */
+        post: operations["receiveProviderNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ref/banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Banks and wallets a business can be paid into */
+        get: operations["listBanks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payments/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the business may take online payments, and its payout account
+         * @description Needs `payouts.view`.
+         */
+        get: operations["getPaymentsSetup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payout-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a payout account for review
+         * @description Needs `payouts.manage` and a fresh code (`STEP_UP_REQUIRED` otherwise). The holder's name must match the business's
+         *     registered name (`CONSTRAINT_VIOLATION`); one account waits for review at a time (`CONFLICT`). The people who manage
+         *     payouts are told. Payouts to the account start 72 hours after it was added, once platform staff verified it.
+         */
+        post: operations["addPayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/payout-accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw the account that is waiting for review
+         * @description Needs `payouts.manage` and a fresh code.
+         */
+        delete: operations["withdrawPayoutAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a payment link is for, and whether it can still be paid
+         * @description No sign-in: the token in the address is the credential, and it pays only the one payment it was made for.
+         *     `404` for a token that is not a link.
+         */
+        get: operations["getPaymentLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start (or resume) the payment a link is for
+         * @description Answers the provider's page to send the payer to; they come back to the link's own page. `HOLD_EXPIRED` when the link is no longer open, `CONFLICT` when it was paid already, `PAYMENT_UNAVAILABLE` when the
+         *     provider cannot be reached.
+         */
+        post: operations["startPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** After the payer came back, ask the provider and say where the payment stands */
+        post: operations["checkPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gift-cards/program": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The gift cards the business sells (none yet when `program` is null)
+         * @description Needs `catalog.manage`.
+         */
+        get: operations["getGiftCardProgram"];
+        /**
+         * Set up what gift cards the business sells
+         * @description Needs `catalog.manage`. Creates the programme the first time, then updates it.
+         */
+        put: operations["saveGiftCardProgram"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paid gift cards, newest first
+         * @description Needs `catalog.manage`. The code is never shown after it was delivered (only its last four characters).
+         */
+        get: operations["listGiftCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/gift-cards/{cardId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a card (what is left on it is written off; audited)
+         * @description Needs `refunds.create`.
+         */
+        post: operations["voidGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/locations/{locationId}/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What gift cards can be bought at a place (nothing when the business does not sell them online) */
+        get: operations["getGiftCardOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/gift-cards/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start buying a gift card; pay through the returned link
+         * @description The card is created waiting for payment and delivered to the recipient (at once, or on `deliverAt`) after the payment
+         *     is confirmed; a recipient without a phone number or email means the buyer. `payUrl` is a payment link, valid 30
+         *     minutes. `CONFLICT` when the business does not sell cards online.
+         */
+        post: operations["buyGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/payment-links/{token}/tender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay part or all of the payment with a gift card
+         * @description No sign-in. What the card cannot cover is still paid through the provider. `NOT_FOUND` for a code that cannot be
+         *     used (unknown, spent, expired, or another business's); `CONFLICT` when a payment is in progress or the link was paid.
+         */
+        post: operations["tenderPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/payment/tender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay part or all of the deposit with a gift card or the balance with the business
+         * @description `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+         *     covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+         *     is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+         */
+        post: operations["tenderMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the business is owed, what is on its way, and its latest payouts
+         * @description Needs `payouts.view`. Amounts are what Beavent holds for the business (ArifPay mode).
+         */
+        get: operations["getEarnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales, fees, refunds and payouts, newest first
+         * @description Needs `payouts.view`. Each line is the net effect of one ledger transaction on what Beavent owes the business
+         *     (positive: more). Movements between the business's own balances (a release for payout) are left out.
+         */
+        get: operations["getStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/otp/request": {
         parameters: {
             query?: never;
@@ -1106,6 +1454,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a visit, the rest of its series, or its whole group (no fee; the business cancels)
+         * @description `scope` ONE (default), FOLLOWING (this and the later visits of the series; the customer gets one message) or GROUP.
+         *     Booked visits that have not started can be cancelled. The times are freed at once.
+         */
+        post: operations["cancelAtTheDesk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/payment-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+         * @description A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+         *     link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+         *     fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+         *     The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+         *     shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+         *     deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+         */
+        post: operations["sendPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/appointments/{appointmentId}/move": {
         parameters: {
             query?: never;
@@ -1662,6 +2056,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/appointments/{appointmentId}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start (or resume) paying the deposit of an unpaid booking
+         * @description Returns the payment provider's page to send the person to (ArifPay by default). They come back to
+         *     `…/account/bookings/{id}/payment`, which asks `POST …/payment/check`; a redirect is never proof of payment. An attempt
+         *     already open is returned as it is; after a declined one a new attempt starts. `HOLD_EXPIRED` means the time ran
+         *     out; `PAYMENT_UNAVAILABLE`, the provider cannot be reached right now.
+         */
+        post: operations["startMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/payment/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the provider where the payment stands, then return the booking
+         * @description For the page the person lands on after paying (and its "I've paid" button). The provider is asked with Beavent's
+         *     key; the answer decides, never the browser's redirect. Poll every few seconds while `payment.state` is
+         *     `AWAITING_PAYMENT`.
+         */
+        post: operations["checkMyAppointmentPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/appointments/{appointmentId}/reschedule": {
         parameters: {
             query?: never;
@@ -1677,6 +2116,102 @@ export interface paths {
          *     else. Prices stay as booked. `SLOT_TAKEN` leaves the appointment unchanged.
          */
         post: operations["rescheduleMyAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The person's waitlists (waiting or with an offer), across businesses */
+        get: operations["listMyWaitlist"];
+        put?: never;
+        /**
+         * Join a location's waitlist for a service on some days and parts of the day (S-15)
+         * @description When a matching time becomes free, the oldest entry gets an offer: the time is held for 15 minutes and the
+         *     person gets a text message with a link. At most 5 active entries per business.
+         */
+        post: operations["joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /** One of the person's waitlist entries, with its open offer */
+        get: operations["getMyWaitlistEntry"];
+        put?: never;
+        post?: never;
+        /** Leave the waitlist (an open offer is let go) */
+        delete: operations["leaveWaitlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book the offered time
+         * @description `HOLD_EXPIRED` when the offer ran out (the time went to the next person).
+         */
+        post: operations["acceptWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/waitlist/{entryId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Not this time — the time goes to the next person; the entry keeps waiting */
+        post: operations["declineWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who is waiting at a location, oldest first (calendar.view_all) */
+        get: operations["listWaitlist"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1976,6 +2511,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payout-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payout accounts waiting for review, oldest first (default `PENDING`)
+         * @description Needs `admin.payments.view`.
+         */
+        get: operations["listPayoutAccountsForReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payout-accounts/{accountId}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The full account number, to check it against the bank's letter (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code.
+         */
+        post: operations["revealPayoutAccountNumber"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payout-accounts/{accountId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify or reject a payout account (reason required, step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code; staff cannot decide accounts of organizations they belong to.
+         *     `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
+         */
+        post: operations["decidePayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Seller payouts by queue, oldest first (default `APPROVAL`)
+         * @description Needs `admin.payments.view`.
+         */
+        get: operations["listPayoutsForFinance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The bank batch (CSV with full account numbers) of the payouts ready to pay (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code. The exported payouts become `PROCESSING`. Payouts of organizations
+         *     the staff member belongs to are left out.
+         */
+        post: operations["exportPayoutBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payoutId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a payout that waits for approval (reason required, step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code; staff cannot handle payouts of organizations they belong to.
+         *     Rejecting gives the money back to the business's available balance.
+         */
+        post: operations["decidePayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payoutId}/settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record what happened to a payout in the bank (step-up, audited)
+         * @description Needs `admin.payouts.approve` and a fresh code. `PAID` needs the bank's reference; `FAILED` and `RETURNED` need a
+         *     reason and give the money back to the business. A payout is paid from `SCHEDULED`, `APPROVED` or `PROCESSING`.
+         */
+        post: operations["settlePayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Refunds by queue, oldest first (default `PAY`)
+         * @description Needs `admin.payments.view`. `APPROVAL`: duplicate payments waiting for a decision; `PAY`: approved refunds finance
+         *     pays by hand, and ones the provider could not pay; `PROCESSING`: being paid through the provider; `PAID`.
+         */
+        get: operations["listRefundsForFinance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refunds/{refundId}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a refund that waits for a decision (step-up, audited)
+         * @description Needs `admin.payments.refund` and a fresh code.
+         */
+        post: operations["approveRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/refunds/{refundId}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that a refund was paid to the customer by hand (step-up, audited)
+         * @description Needs `admin.payments.refund` and a fresh code. The customer is told. A refund the provider is paying is refused
+         *     (`CONFLICT`) unless the provider failed it.
+         */
+        post: operations["payRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -2133,8 +2874,433 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HookReceipt: {
+            received: boolean;
+        };
+        Bank: {
+            /** @description What a payout account stores as its institution. */
+            code: string;
+            /** @enum {string} */
+            kind: "BANK" | "MOBILE_MONEY";
+            /** @description The name per language (`en`, `am`). */
+            names: {
+                [key: string]: string;
+            };
+        };
+        BankList: {
+            items: components["schemas"]["Bank"][];
+        };
+        /** @description RFC 9457 problem details with Beavent's stable `code`. */
+        Problem: {
+            /**
+             * Format: uri
+             * @example urn:beavent:problem:slot-taken
+             */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            /**
+             * Format: uri-reference
+             * @description The request path that produced this problem.
+             */
+            instance?: string;
+            /** @enum {string} */
+            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "PAYMENT_UNAVAILABLE" | "INTERNAL";
+            requestId?: string;
+            /** @description Field-level validation errors. */
+            errors?: {
+                field: string;
+                message: string;
+            }[];
+        };
+        /** Format: uuid */
+        Uuid: string;
+        /**
+         * Format: date-time
+         * @description RFC 3339, UTC.
+         */
+        Instant: string;
+        /** @description A payout account as screens show it. The number is only ever masked. */
+        PayoutAccount: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            kind: "BANK_ACCOUNT" | "MOBILE_MONEY";
+            institutionCode: string;
+            institutionName: string;
+            accountName: string;
+            /** @description `••••6789`. */
+            accountNumberMasked: string;
+            /**
+             * @description `PENDING` waits for platform review; `FAILED` was rejected (see `decisionNote`).
+             * @enum {string}
+             */
+            status: "UNVERIFIED" | "PENDING" | "VERIFIED" | "FAILED";
+            isDefault: boolean;
+            /** @description Payouts to a new account wait for a 72-hour cooling-off after it was added. */
+            payoutsAllowedAfter?: components["schemas"]["Instant"];
+            reviewedAt?: components["schemas"]["Instant"];
+            decisionNote?: string | null;
+        };
+        PaymentsSetup: {
+            /** @enum {string} */
+            provider: "ARIFPAY" | "CHAPA";
+            /** @enum {string} */
+            collectionMode: "PLATFORM_COLLECTS" | "PROVIDER_SPLIT";
+            /** @description The business is verified and has a verified payout account (and, in Chapa mode, a subaccount). */
+            ready: boolean;
+            /** @description When false (local development only) deposits are asked for even if the business is not ready. */
+            enforced: boolean;
+            blockers: ("ORGANIZATION_NOT_VERIFIED" | "NO_PAYOUT_ACCOUNT" | "PAYOUT_ACCOUNT_IN_REVIEW" | "PAYOUT_ACCOUNT_REJECTED" | "SUBACCOUNT_MISSING")[];
+            /** @enum {string} */
+            organizationStatus: "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
+            legalEntityId?: components["schemas"]["Uuid"];
+            /** @description The account holder's name must match it. */
+            legalEntityName?: string;
+            active?: components["schemas"]["PayoutAccount"];
+            pending?: components["schemas"]["PayoutAccount"];
+            rejected?: components["schemas"]["PayoutAccount"];
+        };
+        PayoutAccountInput: {
+            legalEntityId?: components["schemas"]["Uuid"];
+            institutionCode: string;
+            accountName: string;
+            /** @description Digits for a bank account (6 to 20); the wallet's mobile number for a wallet. */
+            accountNumber: string;
+        };
+        PaymentLink: {
+            /**
+             * @description `EXPIRED` also for a booking that was cancelled or released meanwhile.
+             * @enum {string}
+             */
+            state: "OPEN" | "PAID" | "EXPIRED";
+            /** @enum {string} */
+            purpose: "DEPOSIT" | "FULL" | "BALANCE";
+            /**
+             * @description What is being paid for; `items` are the services of a booking, or the recipient of a gift card.
+             * @enum {string}
+             */
+            subject: "BOOKING" | "GIFT_CARD";
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            expiresAt: components["schemas"]["Instant"];
+            business: string;
+            location?: string | null;
+            reference?: string | null;
+            startsAt?: components["schemas"]["Instant"];
+            timezone?: string | null;
+            items: string[];
+        };
+        PaymentLinkStartInput: {
+            /**
+             * @description The language of the pages the provider sends the payer back to.
+             * @enum {string}
+             */
+            language?: "am" | "en" | "om";
+        };
+        PaymentStart: {
+            attemptId: components["schemas"]["Uuid"];
+            /**
+             * Format: uri
+             * @description The provider's page to send the person to; they come back to the booking's payment page.
+             */
+            redirectUrl?: string | null;
+            expiresAt: components["schemas"]["Instant"];
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+        };
+        GiftCardProgram: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            currency: string;
+            presetsMinor: number[];
+            /** Format: int64 */
+            minMinor: number;
+            /** Format: int64 */
+            maxMinor: number;
+            validityMonths?: number | null;
+            sellOnline: boolean;
+        };
+        GiftCardSetup: {
+            program?: components["schemas"]["GiftCardProgram"] | null;
+        };
+        GiftCardProgramInput: {
+            name: string;
+            /** @description Amounts offered as buttons, each between the limits. */
+            presetsMinor?: number[];
+            /** Format: int64 */
+            minMinor: number;
+            /** Format: int64 */
+            maxMinor: number;
+            /** @description How long a card is valid after it is delivered; null for no end. */
+            validityMonths?: number | null;
+            sellOnline: boolean;
+        };
+        GiftCardRow: {
+            id: components["schemas"]["Uuid"];
+            /** @description `----` until the card is delivered. */
+            codeLast4: string;
+            /** Format: int64 */
+            initialMinor: number;
+            /** Format: int64 */
+            balanceMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "PENDING_DELIVERY" | "ACTIVE" | "DEPLETED" | "EXPIRED" | "VOID";
+            recipientName?: string | null;
+            purchaserName?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            deliverAt?: components["schemas"]["Instant"];
+            deliveredAt?: components["schemas"]["Instant"];
+            expiresAt?: components["schemas"]["Instant"];
+        };
+        PageInfo: {
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
+        GiftCardPage: {
+            items: components["schemas"]["GiftCardRow"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        GiftCardOffer: {
+            available: boolean;
+            name?: string | null;
+            currency?: string | null;
+            presetsMinor: number[];
+            /** Format: int64 */
+            minMinor?: number | null;
+            /** Format: int64 */
+            maxMinor?: number | null;
+            validityMonths?: number | null;
+        };
         /** @example +251911234567 */
         PhoneE164: string;
+        GiftCardPurchaseInput: {
+            locationId: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            amountMinor: number;
+            recipientName?: string;
+            recipientPhone?: components["schemas"]["PhoneE164"];
+            /** Format: email */
+            recipientEmail?: string;
+            message?: string;
+            deliverAt?: components["schemas"]["Instant"];
+        };
+        GiftCardPurchase: {
+            cardId: components["schemas"]["Uuid"];
+            orderId: components["schemas"]["Uuid"];
+            /**
+             * Format: uri
+             * @description The payment link to open to pay.
+             */
+            payUrl: string;
+            expiresAt: components["schemas"]["Instant"];
+        };
+        MyAppointmentPlace: {
+            locationId: components["schemas"]["Uuid"];
+            businessName: string;
+            businessSlug: string;
+            locationName: string;
+            locationSlug: string;
+            landmark?: string | null;
+            phone?: string | null;
+        };
+        /** @example ETB */
+        CurrencyCode: string;
+        BookingAddon: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            durationMinutes: number;
+            /** Format: int64 */
+            priceMinor: number;
+        };
+        BookingItem: {
+            variantId: components["schemas"]["Uuid"];
+            serviceName: string;
+            variantName?: string | null;
+            staffId: components["schemas"]["Uuid"];
+            staffName: string;
+            staffRequested: boolean;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description The service's price for this person here; add-ons are listed separately.
+             */
+            priceMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            addons: components["schemas"]["BookingAddon"][];
+        };
+        /** @description The terms frozen in the appointment; several services apply the strictest rule of any. */
+        BookingTerms: {
+            requiresApproval: boolean;
+            allowPayAtVenue: boolean;
+            /** @enum {string} */
+            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
+            cancellationWindowMinutes: number;
+            freeCancellationUntil: components["schemas"]["Instant"];
+            lateCancelFeePercent?: number;
+            noShowFeePercent?: number;
+        };
+        BookingSummary: {
+            locationId: components["schemas"]["Uuid"];
+            timezone: string;
+            /** @enum {string} */
+            deliveryMode: "ON_PREMISES" | "AT_CUSTOMER";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            items: components["schemas"]["BookingItem"][];
+            /**
+             * Format: int64
+             * @description All-in total (services and add-ons).
+             */
+            totalMinor: number;
+            currency: components["schemas"]["CurrencyCode"];
+            policy: components["schemas"]["BookingTerms"];
+        };
+        CancellationPreview: {
+            /** @description False once the visit has started or the appointment is no longer active. */
+            allowed: boolean;
+            free: boolean;
+            freeUntil: components["schemas"]["Instant"];
+            /**
+             * Format: int64
+             * @description Late-cancellation fee if cancelled now (0 when free), on the whole price.
+             */
+            feeMinor: number;
+            currency?: string | null;
+            /**
+             * Format: int64
+             * @description What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+             */
+            refundMinor: number;
+            /**
+             * Format: int64
+             * @description What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
+             */
+            keptMinor: number;
+        };
+        /** @description Where the online payment of a booking stands. */
+        PaymentStatus: {
+            /**
+             * @description `AWAITING_PAYMENT`: nothing started yet, or the person is paying. `FAILED`: the last attempt was declined; they
+             *     may try again while the time is held. `EXPIRED`: the time was not paid for in time.
+             * @enum {string}
+             */
+            state: "NOT_REQUIRED" | "AWAITING_PAYMENT" | "PAID" | "FAILED" | "EXPIRED";
+            /** Format: int64 */
+            dueNowMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Left to pay at the venue.
+             */
+            atVenueMinor: number;
+            currency: string;
+            /** @description Until when the time is held for payment. */
+            expiresAt?: components["schemas"]["Instant"];
+            /**
+             * Format: uri
+             * @description The provider's page of the attempt in progress, to reopen it.
+             */
+            redirectUrl?: string | null;
+            /**
+             * Format: int64
+             * @description What the signed-in person could pay now from their balance with the business (0 for none).
+             */
+            balanceMinor?: number;
+        };
+        AppointmentRefund: {
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /**
+             * @description `CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.
+             * @enum {string}
+             */
+            state: "ON_THE_WAY" | "SENT" | "CREDITED" | "NONE";
+        };
+        AppointmentDetail: {
+            id: components["schemas"]["Uuid"];
+            reference: string;
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+            timezone: string;
+            note?: string | null;
+            place?: components["schemas"]["MyAppointmentPlace"];
+            booking: components["schemas"]["BookingSummary"];
+            cancellation: components["schemas"]["CancellationPreview"];
+            canReschedule: boolean;
+            /** @description Present when the booking has an order to pay online. */
+            payment?: components["schemas"]["PaymentStatus"];
+            /**
+             * @description Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+             *     happens) or a refund exists: what goes back to the customer.
+             */
+            refund?: components["schemas"]["AppointmentRefund"];
+        };
+        PayoutRow: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            status: "SCHEDULED" | "PENDING_APPROVAL" | "APPROVED" | "PROCESSING" | "PAID" | "FAILED" | "CANCELLED" | "RETURNED";
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            institutionName?: string | null;
+            accountMasked?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            failureMessage?: string | null;
+        };
+        Earnings: {
+            currency: string;
+            /**
+             * Format: int64
+             * @description Sold, not yet released (the service has not been delivered, or the payout delay has not passed).
+             */
+            pendingMinor: number;
+            /**
+             * Format: int64
+             * @description Ready for the next payout.
+             */
+            availableMinor: number;
+            /**
+             * Format: int64
+             * @description In payouts that are created but not paid yet.
+             */
+            onTheWayMinor: number;
+            /** Format: int64 */
+            paidOutMinor: number;
+            /** @enum {string} */
+            schedule: "DAILY" | "WEEKLY" | "MONTHLY" | "MANUAL";
+            /** @description 1 (Monday) to 7 for a weekly schedule. */
+            weekday?: number | null;
+            /** Format: int64 */
+            minPayoutMinor: number;
+            payouts: components["schemas"]["PayoutRow"][];
+        };
+        StatementLine: {
+            transactionId: components["schemas"]["Uuid"];
+            occurredAt: components["schemas"]["Instant"];
+            /** @description The ledger transaction kind, for example `PAYMENT_CAPTURED`, `FEES_ASSESSED`, `PAYOUT_INITIATED`. */
+            kind: string;
+            description?: string | null;
+            /**
+             * Format: int64
+             * @description Positive when the business is owed more, negative when less.
+             */
+            amountMinor: number;
+            orderId?: components["schemas"]["Uuid"];
+        };
+        Statement: {
+            items: components["schemas"]["StatementLine"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /**
          * @description SIGN_IN creates the account on first use (phone-first sign-up).
          * @enum {string}
@@ -2160,13 +3326,6 @@ export interface components {
             clientApp: components["schemas"]["ClientApp"];
             language?: components["schemas"]["LanguageCode"];
         } & (unknown | unknown);
-        /** Format: uuid */
-        Uuid: string;
-        /**
-         * Format: date-time
-         * @description RFC 3339, UTC.
-         */
-        Instant: string;
         OtpChallenge: {
             challengeId: components["schemas"]["Uuid"];
             expiresAt: components["schemas"]["Instant"];
@@ -2174,30 +3333,6 @@ export interface components {
             channel: components["schemas"]["OtpChannel"];
             /** @example 6 */
             codeLength?: number;
-        };
-        /** @description RFC 9457 problem details with Beavent's stable `code`. */
-        Problem: {
-            /**
-             * Format: uri
-             * @example urn:beavent:problem:slot-taken
-             */
-            type: string;
-            title: string;
-            status: number;
-            detail?: string;
-            /**
-             * Format: uri-reference
-             * @description The request path that produced this problem.
-             */
-            instance?: string;
-            /** @enum {string} */
-            code: "VALIDATION_FAILED" | "UNAUTHENTICATED" | "FORBIDDEN" | "STEP_UP_REQUIRED" | "NOT_FOUND" | "CONFLICT" | "SLOT_TAKEN" | "HOLD_EXPIRED" | "SOLD_OUT" | "IMMUTABLE" | "CONCURRENT_UPDATE" | "IDEMPOTENCY_IN_PROGRESS" | "PRECONDITION_FAILED" | "IDEMPOTENCY_KEY_REUSED" | "REFERENCE_NOT_FOUND" | "CONSTRAINT_VIOLATION" | "PATCH_TEST_REQUIRED" | "PRECONDITION_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
-            requestId?: string;
-            /** @description Field-level validation errors. */
-            errors?: {
-                field: string;
-                message: string;
-            }[];
         };
         DeviceInfo: {
             installationId: string;
@@ -2412,8 +3547,6 @@ export interface components {
             postalCode?: string;
             geo?: components["schemas"]["GeoPoint"];
         };
-        /** @example ETB */
-        CurrencyCode: string;
         LegalEntity: {
             id: components["schemas"]["Uuid"];
             countryCode: components["schemas"]["CountryCode"];
@@ -2484,10 +3617,6 @@ export interface components {
             marketplaceListed: boolean;
             /** @description Same value as the ETag. */
             version: number;
-        };
-        PageInfo: {
-            /** @description Pass as `cursor` to get the next page; null on the last page. */
-            nextCursor: string | null;
         };
         LocationList: {
             items: components["schemas"]["Location"][];
@@ -3145,6 +4274,17 @@ export interface components {
             noShowFeePercent?: number;
             policyText?: components["schemas"]["LocalizedText"];
         };
+        /** @description An existing customer (`customerId`) or a new one (`name`, optional `phone`; a known phone is reused). */
+        customer: {
+            customerId?: components["schemas"]["Uuid"];
+            name?: string;
+            phone?: components["schemas"]["PhoneE164"];
+        };
+        items: {
+            variantId: components["schemas"]["Uuid"];
+            staffId: components["schemas"]["Uuid"];
+            addonIds?: components["schemas"]["Uuid"][];
+        }[];
         DeskBookingInput: {
             locationId: components["schemas"]["Uuid"];
             start: components["schemas"]["Instant"];
@@ -3170,12 +4310,56 @@ export interface components {
             bookAnyway: boolean;
             /** @default true */
             notifyCustomer: boolean;
+            /**
+             * @description A group: more people at the same time, one appointment each, booked all together or not at all (the first
+             *     customer leads the group). Not with `repeat`.
+             */
+            guests?: {
+                customer: components["schemas"]["customer"];
+                items: components["schemas"]["items"];
+            }[];
+            /**
+             * @description A series: the same visit every `everyWeeks` weeks, `count` times in all, at the same local time. Only the first
+             *     visit sends a confirmation; reminders follow each. Not with `guests`.
+             */
+            repeat?: {
+                everyWeeks: number;
+                count: number;
+            };
+            /** @description In a series, leave out the dates that are not free instead of failing (false when absent). */
+            skipTaken?: boolean;
         };
         DeskBooking: {
             id: components["schemas"]["Uuid"];
             reference: string;
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
+            groupId?: components["schemas"]["Uuid"] | null;
+            seriesId?: components["schemas"]["Uuid"] | null;
+            /** @description Every appointment made (one for a single booking). */
+            appointments?: {
+                id: components["schemas"]["Uuid"];
+                reference: string;
+                start: components["schemas"]["Instant"];
+                end: components["schemas"]["Instant"];
+            }[];
+            /** @description Series dates left out because they were not free. */
+            skipped?: components["schemas"]["Instant"][];
+        };
+        PaymentLinkSent: {
+            /**
+             * Format: uri
+             * @description The address the customer opens; sent to them, and shown so it can also be shared by hand.
+             */
+            url: string;
+            expiresAt: components["schemas"]["Instant"];
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            kind: "DEPOSIT" | "FULL" | "BALANCE";
+            /** @enum {string} */
+            sentTo: "SMS" | "EMAIL";
         };
         CalendarSpan: {
             start: components["schemas"]["Instant"];
@@ -3233,6 +4417,17 @@ export interface components {
             note?: string | null;
             customer: components["schemas"]["CalendarCustomer"];
             items: components["schemas"]["CalendarItem"][];
+            /** @description Booked together with the other appointments of this group (same time). */
+            groupId?: components["schemas"]["Uuid"] | null;
+            series?: {
+                id: components["schemas"]["Uuid"];
+                everyWeeks: number;
+                /** @description This visit's number among the series' active visits. */
+                index: number;
+                count: number;
+            } | null;
+            /** @description Present when the booking has a deposit to pay online (paid, awaited until `expiresAt`, or expired). */
+            payment?: components["schemas"]["PaymentStatus"];
             /** @description Forms the client fills in before this visit (attached to its services), and whether they have. */
             forms: {
                 formId: components["schemas"]["Uuid"];
@@ -3583,56 +4778,24 @@ export interface components {
             start: components["schemas"]["Instant"];
             serviceAreaId?: components["schemas"]["Uuid"];
         };
-        BookingAddon: {
-            id: components["schemas"]["Uuid"];
-            name: string;
-            durationMinutes: number;
-            /** Format: int64 */
-            priceMinor: number;
-        };
-        BookingItem: {
-            variantId: components["schemas"]["Uuid"];
-            serviceName: string;
-            variantName?: string | null;
-            staffId: components["schemas"]["Uuid"];
-            staffName: string;
-            staffRequested: boolean;
-            start: components["schemas"]["Instant"];
-            end: components["schemas"]["Instant"];
+        /**
+         * @description What the customer pays now to book, and what is left for the venue. Shown on the review step; a person who is not
+         *     signed in yet counts as a new customer (a deposit for new customers is shown), and confirming decides for real.
+         */
+        PaymentTerms: {
             /**
              * Format: int64
-             * @description The service's price for this person here; add-ons are listed separately.
+             * @description Paid online now to confirm the booking (the deposit, or the whole price), with the platform's fees.
              */
-            priceMinor: number;
-            currency: components["schemas"]["CurrencyCode"];
-            addons: components["schemas"]["BookingAddon"][];
-        };
-        /** @description The terms frozen in the appointment; several services apply the strictest rule of any. */
-        BookingTerms: {
-            requiresApproval: boolean;
-            allowPayAtVenue: boolean;
-            /** @enum {string} */
-            depositMode: "NONE" | "PERCENT" | "FIXED" | "FULL";
-            cancellationWindowMinutes: number;
-            freeCancellationUntil: components["schemas"]["Instant"];
-            lateCancelFeePercent?: number;
-            noShowFeePercent?: number;
-        };
-        BookingSummary: {
-            locationId: components["schemas"]["Uuid"];
-            timezone: string;
-            /** @enum {string} */
-            deliveryMode: "ON_PREMISES" | "AT_CUSTOMER";
-            start: components["schemas"]["Instant"];
-            end: components["schemas"]["Instant"];
-            items: components["schemas"]["BookingItem"][];
+            depositMinor: number;
+            /** Format: int64 */
+            atVenueMinor: number;
             /**
              * Format: int64
-             * @description All-in total (services and add-ons).
+             * @description The all-in price.
              */
             totalMinor: number;
-            currency: components["schemas"]["CurrencyCode"];
-            policy: components["schemas"]["BookingTerms"];
+            currency: string;
         };
         Hold: {
             holdId: components["schemas"]["Uuid"];
@@ -3640,15 +4803,8 @@ export interface components {
             holderKey: string;
             expiresAt: components["schemas"]["Instant"];
             booking: components["schemas"]["BookingSummary"];
-        };
-        MyAppointmentPlace: {
-            locationId: components["schemas"]["Uuid"];
-            businessName: string;
-            businessSlug: string;
-            locationName: string;
-            locationSlug: string;
-            landmark?: string | null;
-            phone?: string | null;
+            /** @description What would be paid now to book; absent when nothing is due online. */
+            payment?: components["schemas"]["PaymentTerms"];
         };
         MyAppointmentItem: {
             variantId: components["schemas"]["Uuid"];
@@ -3686,35 +4842,59 @@ export interface components {
             id: components["schemas"]["Uuid"];
             /** @description Six characters people can read out over the phone. */
             reference: string;
-            /** @enum {string} */
-            status: "REQUESTED" | "CONFIRMED";
-            booking: components["schemas"]["BookingSummary"];
-        };
-        CancellationPreview: {
-            /** @description False once the visit has started or the appointment is no longer active. */
-            allowed: boolean;
-            free: boolean;
-            freeUntil: components["schemas"]["Instant"];
             /**
-             * Format: int64
-             * @description Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+             * @description `PENDING_PAYMENT`: the policy asks this customer for a deposit; the time is held until `payment.expiresAt` and
+             *     confirmed when the payment arrives (start it with `POST …/payment`).
+             * @enum {string}
              */
-            feeMinor: number;
-            currency?: string | null;
+            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED";
+            booking: components["schemas"]["BookingSummary"];
+            /** @description Present for `PENDING_PAYMENT`. */
+            payment?: components["schemas"]["PaymentStatus"];
         };
-        AppointmentDetail: {
+        WaitlistOffer: {
             id: components["schemas"]["Uuid"];
-            reference: string;
-            /** @enum {string} */
-            status: "PENDING_PAYMENT" | "REQUESTED" | "CONFIRMED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "EXPIRED" | "DECLINED";
             start: components["schemas"]["Instant"];
             end: components["schemas"]["Instant"];
+            /** @description The time is held until then. */
+            expiresAt: components["schemas"]["Instant"];
+            staffName?: string | null;
+        };
+        WaitlistEntry: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            status: "WAITING" | "OFFERED" | "CONVERTED" | "EXPIRED" | "CANCELLED";
+            locationId: components["schemas"]["Uuid"];
             timezone: string;
-            note?: string | null;
             place?: components["schemas"]["MyAppointmentPlace"];
-            booking: components["schemas"]["BookingSummary"];
-            cancellation: components["schemas"]["CancellationPreview"];
-            canReschedule: boolean;
+            variantId: components["schemas"]["Uuid"];
+            serviceName: {
+                [key: string]: string;
+            };
+            variantName?: {
+                [key: string]: string;
+            };
+            staffId?: components["schemas"]["Uuid"] | null;
+            staffName?: string | null;
+            /** @description For the front desk. */
+            customerName?: string | null;
+            days: string[];
+            parts: ("MORNING" | "AFTERNOON" | "EVENING")[];
+            offer?: components["schemas"]["WaitlistOffer"] | null;
+            createdAt: components["schemas"]["Instant"];
+        };
+        WaitlistList: {
+            items: components["schemas"]["WaitlistEntry"][];
+        };
+        WaitlistJoin: {
+            locationId: components["schemas"]["Uuid"];
+            variantId: components["schemas"]["Uuid"];
+            /** @description A particular person, or anyone who does the service. */
+            staffId?: components["schemas"]["Uuid"] | null;
+            /** @description The location's local dates, from today up to 60 days ahead. */
+            days: string[];
+            /** @description MORNING before 12:00, AFTERNOON 12:00–17:00, EVENING from 17:00 (local time). */
+            parts: ("MORNING" | "AFTERNOON" | "EVENING")[];
         };
         VenueImage: {
             url: string;
@@ -4017,6 +5197,105 @@ export interface components {
             /** @description Recorded in the audit log and shown to the organization for rejections and requests. */
             reason: string;
         };
+        PayoutAccountSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            organizationStatus: string;
+            legalEntityName: string;
+            legalEntityStatus: string;
+            kind: string;
+            institutionName: string;
+            accountName: string;
+            accountNumberMasked: string;
+            /** @enum {string} */
+            status: "UNVERIFIED" | "PENDING" | "VERIFIED" | "FAILED";
+            createdAt: components["schemas"]["Instant"];
+            payoutsAllowedAfter: components["schemas"]["Instant"];
+            decisionNote?: string | null;
+        };
+        PayoutAccountSummaryPage: {
+            items: components["schemas"]["PayoutAccountSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        PayoutReveal: {
+            /** @description Why the full number is needed; recorded in the audit log. */
+            reason: string;
+        };
+        AccountNumber: {
+            accountNumber: string;
+        };
+        PayoutSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "SCHEDULED" | "PENDING_APPROVAL" | "APPROVED" | "PROCESSING" | "PAID" | "FAILED" | "CANCELLED" | "RETURNED";
+            approvalReasons: ("FIRST_PAYOUT" | "LARGE_AMOUNT" | "NEW_ACCOUNT" | "RISK_REVIEW")[];
+            institutionName: string;
+            accountName: string;
+            accountNumberMasked: string;
+            createdAt: components["schemas"]["Instant"];
+            exportedAt?: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            reference?: string | null;
+            note?: string | null;
+        };
+        PayoutSummaryPage: {
+            items: components["schemas"]["PayoutSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        PayoutExport: {
+            /** @description Only these, among those that are ready; all ready payouts when left out. */
+            payoutIds?: components["schemas"]["Uuid"][];
+        };
+        PayoutSettlement: {
+            /** @enum {string} */
+            outcome: "PAID" | "FAILED" | "RETURNED";
+            reference?: string;
+            reason?: string;
+        };
+        RefundSummary: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            organization: string;
+            marketCode: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** @enum {string} */
+            status: "REQUESTED" | "APPROVED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "REJECTED" | "CANCELLED";
+            /** @enum {string} */
+            method: "ORIGINAL_METHOD" | "PAYOUT" | "STORE_CREDIT" | "GIFT_CARD" | "CASH" | "MANUAL_BANK_TRANSFER";
+            reason: string;
+            requestedBy: string;
+            customerName?: string | null;
+            /** @description Where to pay it. */
+            customerPhone?: string | null;
+            /** @description How the customer paid (the payment method code). */
+            paidWith?: string | null;
+            bookingReference?: string | null;
+            createdAt: components["schemas"]["Instant"];
+            paidAt?: components["schemas"]["Instant"];
+            reference?: string | null;
+            note?: string | null;
+        };
+        RefundSummaryPage: {
+            items: components["schemas"]["RefundSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RefundApproval: {
+            note?: string;
+        };
+        RefundPayment: {
+            reference: string;
+            note?: string;
+        };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
             page: components["schemas"]["PageInfo"];
@@ -4147,16 +5426,6 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Rate limited; retry after the `Retry-After` header. */
-        TooManyRequests: {
-            headers: {
-                "Retry-After"?: number;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
         /** @description Missing or invalid access token. */
         Unauthorized: {
             headers: {
@@ -4175,12 +5444,14 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Done. */
-        NoContent: {
+        /** @description Not found (also returned when the resource belongs to another organization). */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
-            content?: never;
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
         };
         /** @description Conflicts with existing data. */
         Conflict: {
@@ -4200,9 +5471,26 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Not found (also returned when the resource belongs to another organization). */
-        NotFound: {
+        /** @description A service the request depends on (online payment) is unavailable; try again shortly. */
+        ServiceUnavailable: {
             headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Done. */
+        NoContent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
+        /** @description Rate limited; retry after the `Retry-After` header. */
+        TooManyRequests: {
+            headers: {
+                "Retry-After"?: number;
                 [name: string]: unknown;
             };
             content: {
@@ -4221,11 +5509,12 @@ export interface components {
     };
     parameters: {
         OrgId: components["schemas"]["Uuid"];
-        /** @description ETag of the version being updated. */
-        IfMatch: string;
+        LinkTokenParam: string;
         Cursor: string;
         Limit: number;
         AppointmentIdParam: components["schemas"]["Uuid"];
+        /** @description ETag of the version being updated. */
+        IfMatch: string;
     };
     requestBodies: never;
     headers: never;
@@ -4233,6 +5522,516 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receiveProviderNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "arifpay" | "chapa";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Received (stored, or a replay of a delivery already stored). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description The body is not a JSON object. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description The signature is missing or wrong (signed providers only). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HookReceipt"];
+                };
+            };
+            /** @description That provider is not configured on this deployment. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listBanks: {
+        parameters: {
+            query: {
+                countryCode: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Banks and wallets, in the order screens list them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getPaymentsSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentsSetup"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addPayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutAccountInput"];
+            };
+        };
+        responses: {
+            /** @description Added, waiting for review. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    withdrawPayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PaymentLinkStartInput"];
+            };
+        };
+        responses: {
+            /** @description The provider's page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStart"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getGiftCardProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The programme. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardSetup"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    saveGiftCardProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardProgramInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardProgram"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listGiftCards: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    voidGiftCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                cardId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getGiftCardOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardOffer"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    buyGiftCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardPurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Waiting for payment. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPurchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    tenderPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["LinkTokenParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Where the payment stands now. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    tenderMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "GIFT_CARD" | "BALANCE";
+                    code?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The booking, with where its payment stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getEarnings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The overview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Earnings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getStatement: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the statement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Statement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     requestOtp: {
         parameters: {
             query?: never;
@@ -6885,6 +8684,74 @@ export interface operations {
             422: components["responses"]["Unprocessable"];
         };
     };
+    cancelAtTheDesk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope?: "ONE" | "FOLLOWING" | "GROUP";
+                    reason?: string;
+                    /** @default true */
+                    notifyCustomer?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        cancelled: components["schemas"]["Uuid"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    sendPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLinkSent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     moveAppointment: {
         parameters: {
             query?: never;
@@ -7903,6 +9770,12 @@ export interface operations {
             content: {
                 "application/json": {
                     reason?: string;
+                    /**
+                     * @description Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                     *     with the business at once (`BALANCE`).
+                     * @enum {string}
+                     */
+                    refundTo?: "ORIGINAL" | "BALANCE";
                 };
             };
         };
@@ -7919,6 +9792,63 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    startMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The language of the pages the provider sends the person back to. */
+                    language?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Where to pay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStart"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkMyAppointmentPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["parameters"]["AppointmentIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking, with its payment state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     rescheduleMyAppointment: {
@@ -7952,6 +9882,172 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    listMyWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistJoin"];
+            };
+        };
+        responses: {
+            /** @description Joined. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: components["schemas"]["Uuid"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getMyWaitlistEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistEntry"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    leaveWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    acceptWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Booked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        appointmentId: components["schemas"]["Uuid"];
+                        reference: string;
+                        status: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    declineWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWaitlist: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listBusinessLocations: {
@@ -8399,6 +10495,298 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPayoutAccountsForReview: {
+        parameters: {
+            query?: {
+                status?: "PENDING" | "VERIFIED" | "FAILED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccountSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    revealPayoutAccountNumber: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutReveal"];
+            };
+        };
+        responses: {
+            /** @description The number. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNumber"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    decidePayoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutAccountSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPayoutsForFinance: {
+        parameters: {
+            query?: {
+                queue?: "APPROVAL" | "READY" | "PROCESSING" | "PAID" | "FAILED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    exportPayoutBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PayoutExport"];
+            };
+        };
+        responses: {
+            /** @description The CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    decidePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    settlePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutSettlement"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listRefundsForFinance: {
+        parameters: {
+            query?: {
+                queue?: "APPROVAL" | "PAY" | "PROCESSING" | "PAID";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummaryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    approveRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefundApproval"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    payRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundPayment"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundSummary"];
                 };
             };
             400: components["responses"]["BadRequest"];

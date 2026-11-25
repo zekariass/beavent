@@ -88,6 +88,12 @@ export default async function CalendarPage({
           >
             ›
           </Link>
+          <Link
+            href={`/${language}/business/o/${orgId}/calendar/waitlist?location=${location.id}`}
+            className={step}
+          >
+            {t("portal.calendar.waitlist")}
+          </Link>
           {locations.length > 1
             ? locations.map((l) => (
                 <Link

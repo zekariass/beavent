@@ -141,8 +141,9 @@ DO $$ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- Chapa split ("Chapa holds the money"): seller subaccount, platform-funded
+-- Chapa mode (split at source; docs/07 §3.2): seller subaccount, platform-funded
 -- refund creates a seller receivable, recovery via split top-up clears it.
+-- (ArifPay mode, the default, has Beavent collect: PLATFORM_COLLECTION is BETA pending legal sign-off, D3.)
 -- Br 1,500.00 sale; platform share Br 172.50 (fee 150 + VAT 22.50); seller share Br 1,327.50.
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
@@ -152,8 +153,14 @@ DO $$ BEGIN
   PERFORM test.assert((SELECT f.status = 'ENABLED' FROM ref.market_features f JOIN ref.markets m ON m.id = f.market_id
                         WHERE m.code = 'ET' AND f.feature_code = 'PROVIDER_SPLIT'), 'ET uses provider split');
   PERFORM test.assert((SELECT bool_and(f.status = 'DISABLED') FROM ref.market_features f JOIN ref.markets m ON m.id = f.market_id
-                        WHERE m.code = 'ET' AND f.feature_code IN ('SELLER_DIRECT','PLATFORM_COLLECTION','MANUAL_BANK_TRANSFER')),
-                      'ET: seller-direct, platform collection and manual transfer are off');
+                        WHERE m.code = 'ET' AND f.feature_code IN ('SELLER_DIRECT','MANUAL_BANK_TRANSFER')),
+                      'ET: seller-direct and manual transfer are off');
+  PERFORM test.assert((SELECT f.status = 'BETA' FROM ref.market_features f JOIN ref.markets m ON m.id = f.market_id
+                        WHERE m.code = 'ET' AND f.feature_code = 'PLATFORM_COLLECTION'),
+                      'ET: platform collection (ArifPay mode) is in beta until legal sign-off');
+  PERFORM test.assert((SELECT bool_and(NOT can_refund_api) AND count(*) >= 5 FROM payments.provider_capabilities
+                        WHERE provider_code = 'ARIFPAY' AND country_code = 'ET' AND status = 'SANDBOX'),
+                      'ArifPay collects wallets, cards and bank apps in the sandbox, without a refund API');
 END $$;
 
 INSERT INTO payments.provider_accounts (id, provider_code, owner, org_id, market_id, environment, display_name,

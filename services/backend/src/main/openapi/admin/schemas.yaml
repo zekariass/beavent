@@ -294,3 +294,208 @@ FlagUpdate:
       type: string
       minLength: 5
       maxLength: 500
+PayoutAccountSummary:
+  type: object
+  required: [id, orgId, organization, marketCode, organizationStatus, legalEntityName, legalEntityStatus, kind, institutionName, accountName, accountNumberMasked, status, createdAt, payoutsAllowedAfter]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    organization:
+      type: string
+    marketCode:
+      type: string
+    organizationStatus:
+      type: string
+    legalEntityName:
+      type: string
+    legalEntityStatus:
+      type: string
+    kind:
+      type: string
+    institutionName:
+      type: string
+    accountName:
+      type: string
+    accountNumberMasked:
+      type: string
+    status:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, FAILED]
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    payoutsAllowedAfter:
+      $ref: ../common/schemas.yaml#/Instant
+    decisionNote:
+      type: [string, 'null']
+PayoutAccountSummaryPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/PayoutAccountSummary'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+PayoutReveal:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500
+      description: Why the full number is needed; recorded in the audit log.
+AccountNumber:
+  type: object
+  required: [accountNumber]
+  properties:
+    accountNumber:
+      type: string
+PayoutSummary:
+  type: object
+  required: [id, orgId, organization, marketCode, amountMinor, currency, status, approvalReasons, institutionName, accountName, accountNumberMasked, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    organization:
+      type: string
+    marketCode:
+      type: string
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    status:
+      type: string
+      enum: [SCHEDULED, PENDING_APPROVAL, APPROVED, PROCESSING, PAID, FAILED, CANCELLED, RETURNED]
+    approvalReasons:
+      type: array
+      items:
+        type: string
+        enum: [FIRST_PAYOUT, LARGE_AMOUNT, NEW_ACCOUNT, RISK_REVIEW]
+    institutionName:
+      type: string
+    accountName:
+      type: string
+    accountNumberMasked:
+      type: string
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    exportedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    paidAt:
+      $ref: ../common/schemas.yaml#/Instant
+    reference:
+      type: [string, 'null']
+    note:
+      type: [string, 'null']
+PayoutSummaryPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/PayoutSummary'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+PayoutSettlement:
+  type: object
+  required: [outcome]
+  properties:
+    outcome:
+      type: string
+      enum: [PAID, FAILED, RETURNED]
+    reference:
+      type: string
+      maxLength: 120
+    reason:
+      type: string
+      maxLength: 500
+PayoutExport:
+  type: object
+  properties:
+    payoutIds:
+      type: array
+      items:
+        $ref: ../common/schemas.yaml#/Uuid
+      description: Only these, among those that are ready; all ready payouts when left out.
+RefundSummary:
+  type: object
+  required: [id, orgId, organization, marketCode, amountMinor, currency, status, method, reason, requestedBy, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    organization:
+      type: string
+    marketCode:
+      type: string
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    status:
+      type: string
+      enum: [REQUESTED, APPROVED, PROCESSING, SUCCEEDED, FAILED, REJECTED, CANCELLED]
+    method:
+      type: string
+      enum: [ORIGINAL_METHOD, PAYOUT, STORE_CREDIT, GIFT_CARD, CASH, MANUAL_BANK_TRANSFER]
+    reason:
+      type: string
+    requestedBy:
+      type: string
+    customerName:
+      type: [string, 'null']
+    customerPhone:
+      type: [string, 'null']
+      description: Where to pay it.
+    paidWith:
+      type: [string, 'null']
+      description: How the customer paid (the payment method code).
+    bookingReference:
+      type: [string, 'null']
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    paidAt:
+      $ref: ../common/schemas.yaml#/Instant
+    reference:
+      type: [string, 'null']
+    note:
+      type: [string, 'null']
+RefundSummaryPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/RefundSummary'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+RefundPayment:
+  type: object
+  required: [reference]
+  properties:
+    reference:
+      type: string
+      minLength: 1
+      maxLength: 120
+    note:
+      type: string
+      maxLength: 500
+RefundApproval:
+  type: object
+  properties:
+    note:
+      type: string
+      maxLength: 500
+

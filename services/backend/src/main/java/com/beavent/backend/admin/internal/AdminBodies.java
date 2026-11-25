@@ -107,6 +107,81 @@ public final class AdminBodies {
 
             @NotBlank @Size(min = 5, max = 500) String reason) {}
 
+    /** A payout account waiting for (or past) review; the number is masked, see {@code reveal}. */
+    public record PayoutAccountSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            String organizationStatus,
+            String legalEntityName,
+            String legalEntityStatus,
+            String kind,
+            String institutionName,
+            String accountName,
+            String accountNumberMasked,
+            String status,
+            Instant createdAt,
+            Instant payoutsAllowedAfter,
+            String decisionNote) {}
+
+    public record AccountNumber(String accountNumber) {}
+
+    /** A seller payout in the finance queue; the account is masked (the bank batch carries the full number). */
+    public record PayoutSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            long amountMinor,
+            String currency,
+            String status,
+            List<String> approvalReasons,
+            String institutionName,
+            String accountName,
+            String accountNumberMasked,
+            Instant createdAt,
+            Instant exportedAt,
+            Instant paidAt,
+            String reference,
+            String note) {}
+
+    public record PayoutSettlement(
+            @NotNull @Pattern(regexp = "PAID|FAILED|RETURNED")
+            String outcome,
+
+            @Size(max = 120) String reference,
+            @Size(max = 500) String reason) {}
+
+    public record PayoutExport(List<UUID> payoutIds) {}
+
+    /** A refund in the finance queue, with who to pay and how. */
+    public record RefundSummary(
+            UUID id,
+            UUID orgId,
+            String organization,
+            String marketCode,
+            long amountMinor,
+            String currency,
+            String status,
+            String method,
+            String reason,
+            String requestedBy,
+            String customerName,
+            String customerPhone,
+            String paidWith,
+            String bookingReference,
+            Instant createdAt,
+            Instant paidAt,
+            String reference,
+            String note) {}
+
+    public record RefundPayment(
+            @NotBlank @Size(max = 120) String reference,
+            @Size(max = 500) String note) {}
+
+    public record RefundApproval(@Size(max = 500) String note) {}
+
     public record Reason(@NotBlank @Size(min = 5, max = 500) String reason) {}
 
     public record AccessUrl(String url, Instant expiresAt) {}

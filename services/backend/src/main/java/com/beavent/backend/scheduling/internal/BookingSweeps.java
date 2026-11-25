@@ -1,10 +1,12 @@
 package com.beavent.backend.scheduling.internal;
 
+import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 import static com.beavent.db.scheduling.Tables.HOLDS;
 import static com.beavent.db.scheduling.Tables.SCHEDULE_RESERVATIONS;
 
+import com.beavent.backend.payments.Payments;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Outbox;
 import com.beavent.backend.platform.SystemDb;
@@ -28,6 +30,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       and the database in agreement for other writers).
  *   <li>Booking requests the business did not answer expire: after {@link #REQUEST_ANSWER_TIME}, or when the visit is
  *       less than {@link #REQUEST_LAST_CALL} away. The time is freed and the customer told.
+ *   <li>The waitlist: offers that ran out move on, and waiting entries are offered times that became free
+ *       ({@link Waitlist#sweep}).
  * </ul>
  */
 @Component
@@ -41,11 +45,20 @@ class BookingSweeps {
     private final DSLContext system;
     private final TransactionTemplate transactions;
     private final Outbox outbox;
+    private final Waitlist waitlist;
+    private final Payments payments;
 
-    BookingSweeps(@SystemDb DSLContext system, @SystemDb TransactionTemplate transactions, Outbox outbox) {
+    BookingSweeps(
+            @SystemDb DSLContext system,
+            @SystemDb TransactionTemplate transactions,
+            Outbox outbox,
+            Waitlist waitlist,
+            Payments payments) {
         this.system = system;
         this.transactions = transactions;
         this.outbox = outbox;
+        this.waitlist = waitlist;
+        this.payments = payments;
     }
 
     @Scheduled(fixedDelayString = "${beavent.scheduling.sweep-interval-ms:30000}")
@@ -54,6 +67,8 @@ class BookingSweeps {
         try {
             expireHolds(now);
             expireRequests(now);
+            expireUnpaid(now);
+            waitlist.sweep(now);
         } catch (RuntimeException e) {
             log.warn("Booking sweep failed; it runs again shortly", e);
         }
@@ -113,6 +128,52 @@ class BookingSweeps {
                         "scheduling.appointment",
                         a.value1(),
                         "appointment.expired",
+                        1,
+                        a.value2(),
+                        Map.of("appointmentId", a.value1())));
+            }
+            return due.size();
+        });
+    }
+
+    /**
+     * Bookings waiting for a deposit that was not paid in time: the time goes back to the calendar, the order closes and
+     * the payment stops. A payment that still arrives is handled as a late payment (confirmed again if the time is free,
+     * refunded if not). Nothing is sent to the customer: they never got a confirmation.
+     */
+    int expireUnpaid(Instant now) {
+        return transactions.execute(status -> {
+            var due = system.select(APPOINTMENTS.ID, APPOINTMENTS.ORG_ID, APPOINTMENTS.ORDER_ID)
+                    .from(APPOINTMENTS)
+                    .join(ORDERS)
+                    .on(ORDERS.ID.eq(APPOINTMENTS.ORDER_ID))
+                    .where(
+                            APPOINTMENTS.STATUS.eq("PENDING_PAYMENT"),
+                            ORDERS.EXPIRES_AT.le(now.atOffset(ZoneOffset.UTC)))
+                    .limit(BATCH)
+                    .forUpdate()
+                    .of(APPOINTMENTS)
+                    .skipLocked()
+                    .fetch();
+            for (var a : due) {
+                Bookings.releaseReservations(system, a.value1());
+                system.update(APPOINTMENT_ITEMS)
+                        .set(APPOINTMENT_ITEMS.STATUS, "CANCELLED")
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(a.value1()))
+                        .execute();
+                system.update(APPOINTMENTS)
+                        .set(APPOINTMENTS.STATUS, "EXPIRED")
+                        .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                        .where(APPOINTMENTS.ID.eq(a.value1()))
+                        .execute();
+                Bookings.history(
+                        system, a.value2(), a.value1(), "PENDING_PAYMENT", "EXPIRED", null, "Deposit not paid in time");
+                Bookings.closeOrder(system, a.value2(), a.value3(), "EXPIRED", null, now);
+                payments.cancel(a.value2(), a.value3(), "EXPIRED");
+                outbox.publish(new DomainEvent(
+                        "scheduling.appointment",
+                        a.value1(),
+                        "appointment.payment_expired",
                         1,
                         a.value2(),
                         Map.of("appointmentId", a.value1())));

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { api, deskBook, firstFreeStart, seedSalon, type SeededSalon } from "./seed.ts";
+import { api, deskBook, firstFreeStart, laterToday, seedSalon, type SeededSalon } from "./seed.ts";
 import { codeCount, codeFor } from "./support.ts";
 
 const BUSINESS_APP = process.env.BUSINESS_MOBILE_URL ?? "http://localhost:19007";
@@ -94,7 +94,7 @@ test("the business keeps client records: alerts reach the calendar, duplicates m
 /** Plan step 2.6 in the business app: the client from a visit, with the alert, and a note added there. */
 test("the business app opens the client from a visit and adds a note", async ({ browser }) => {
   const salon = await seedSalon("Abeba Beauty");
-  const start = new Date(Math.ceil((Date.now() + 30 * 60_000) / 300_000) * 300_000).toISOString();
+  const start = laterToday();
   await deskBook(salon, start, "Hiwot Bekele");
   const found = await api(
     "GET",
