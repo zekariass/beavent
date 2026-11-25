@@ -83,4 +83,18 @@ public interface Payments {
      * payment ({@link PaymentFulfilment}).
      */
     void cancel(UUID orgId, UUID orderId, String reason);
+
+    /**
+     * Pays part or all of what is due online with a gift card (found by its code) or the customer's balance with the
+     * business, then answers where the order's payment stands. What a card or balance cannot cover is still paid
+     * through the provider; the order is honoured when all of it is paid.
+     *
+     * @param payerUserId the signed-in payer for a balance; null for a gift card paid through a link
+     * @throws com.beavent.backend.platform.ApiException {@code NOT_FOUND} for a gift card that cannot be used,
+     *     {@code CONFLICT} when something is already being paid or the order cannot take it, {@code HOLD_EXPIRED}
+     */
+    Status tender(UUID orgId, UUID orderId, StoredValue.Kind kind, String code, UUID payerUserId, Instant now);
+
+    /** What the person has in their balance with the business that could be spent on this order (0 for none). */
+    long balanceFor(UUID orgId, UUID orderId, UUID userId);
 }

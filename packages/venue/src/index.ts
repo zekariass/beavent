@@ -414,3 +414,48 @@ export function lastVisitText(visit: PastVisit, t: Translate): string {
     ? t("bookAgain.lastWith", { service: visit.lastService, person: visit.lastPerson })
     : t("bookAgain.last", { service: visit.lastService });
 }
+
+/** The parts of a customer's appointment that say what happens to the money. */
+export type AppointmentMoney = Pick<Schemas["AppointmentDetail"], "status" | "refund"> & {
+  payment?: { paidMinor: number; currency: string } | null;
+  cancellation: Pick<
+    Schemas["AppointmentDetail"]["cancellation"],
+    "free" | "feeMinor" | "currency" | "refundMinor" | "keptMinor"
+  >;
+};
+
+/** What cancelling now means for the money, in words, before the person confirms (S-13). */
+export function cancelNotice(a: AppointmentMoney, language: Language, t: Translate): string {
+  const c = a.cancellation;
+  const currency = c.currency ?? a.payment?.currency ?? "ETB";
+  if ((a.payment?.paidMinor ?? 0) > 0) {
+    if (c.keptMinor === 0) {
+      return t("appointment.cancelRefundAll", { amount: price(c.refundMinor, currency, language) });
+    }
+    return c.refundMinor === 0
+      ? t("appointment.cancelKeepAll", { kept: price(c.keptMinor, currency, language) })
+      : t("appointment.cancelRefundSome", {
+          kept: price(c.keptMinor, currency, language),
+          refund: price(c.refundMinor, currency, language),
+        });
+  }
+  return c.free
+    ? t("appointment.cancelFree")
+    : t("appointment.cancelFee", { amount: price(c.feeMinor, currency, language) });
+}
+
+/** What became of the deposit of a booking that was cancelled, declined or missed; null when nothing was paid. */
+export function refundNotice(a: AppointmentMoney, language: Language, t: Translate): string | null {
+  if (!["CANCELLED", "DECLINED", "NO_SHOW"].includes(a.status)) return null;
+  const paid = a.payment?.paidMinor ?? 0;
+  if (paid <= 0) return null;
+  const r = a.refund;
+  if (!r) return t("appointment.refund.arranging");
+  const amount = price(r.amountMinor, r.currency, language);
+  if (r.state === "SENT") return t("appointment.refund.sent", { amount });
+  if (r.state === "CREDITED") return t("appointment.refund.credited", { amount });
+  if (r.state === "NONE") {
+    return t("appointment.refund.none", { amount: price(paid, r.currency, language) });
+  }
+  return t("appointment.refund.onTheWay", { amount });
+}

@@ -1,6 +1,8 @@
 package com.beavent.backend.payments.web;
 
 import com.beavent.backend.identity.Assurance;
+import com.beavent.backend.ledger.Ledger;
+import com.beavent.backend.payments.Payouts;
 import com.beavent.backend.payments.SellerPayments;
 import com.beavent.backend.tenancy.OrgAccess;
 import jakarta.validation.Valid;
@@ -26,10 +28,29 @@ import org.springframework.web.bind.annotation.RestController;
 class SellerPaymentsController {
 
     private final SellerPayments sellers;
+    private final Payouts payouts;
 
-    SellerPaymentsController(SellerPayments sellers) {
+    SellerPaymentsController(SellerPayments sellers, Payouts payouts) {
         this.sellers = sellers;
+        this.payouts = payouts;
     }
+
+    record Earnings(
+            String currency,
+            long pendingMinor,
+            long availableMinor,
+            long onTheWayMinor,
+            long paidOutMinor,
+            String schedule,
+            Integer weekday,
+            long minPayoutMinor,
+            List<Payouts.PayoutRow> payouts) {}
+
+    record PageInfo(
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+            String nextCursor) {}
+
+    record Statement(List<Ledger.StatementLine> items, PageInfo page) {}
 
     record BankList(List<SellerPayments.Bank> items) {}
 
@@ -67,5 +88,43 @@ class SellerPaymentsController {
         Assurance.requireStepUp();
         sellers.cancelPending(access.orgId(), access.userId(), accountId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/v1/orgs/{orgId}/earnings")
+    Earnings earnings(@PathVariable UUID orgId) {
+        UUID org = OrgAccess.current().require("payouts.view").orgId();
+        Payouts.Overview o = payouts.overview(org);
+        return new Earnings(
+                o.currency(),
+                o.pendingMinor(),
+                o.availableMinor(),
+                o.onTheWayMinor(),
+                o.paidOutMinor(),
+                o.schedule(),
+                o.weekday(),
+                o.minPayoutMinor(),
+                payouts.payouts(org, 10));
+    }
+
+    @GetMapping("/v1/orgs/{orgId}/statement")
+    Statement statement(
+            @PathVariable UUID orgId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false, defaultValue = "25") int limit) {
+        UUID org = OrgAccess.current().require("payouts.view").orgId();
+        int size = Math.max(1, Math.min(limit, 100));
+        UUID before;
+        try {
+            before = cursor == null ? null : UUID.fromString(cursor);
+        } catch (IllegalArgumentException e) {
+            throw new com.beavent.backend.platform.ApiException(
+                    com.beavent.backend.platform.ProblemCode.VALIDATION_FAILED, "The cursor is not valid.");
+        }
+        List<Ledger.StatementLine> lines = payouts.statement(org, before, size + 1);
+        boolean more = lines.size() > size;
+        List<Ledger.StatementLine> items = more ? lines.subList(0, size) : lines;
+        return new Statement(
+                items,
+                new PageInfo(more ? items.get(items.size() - 1).transactionId().toString() : null));
     }
 }

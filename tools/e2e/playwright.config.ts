@@ -5,6 +5,7 @@ import { defineConfig } from "@playwright/test";
  *   API_LOG=/path/to/api.log WEB_URL=http://localhost:3000 BUSINESS_MOBILE_URL=http://localhost:19007 npm run e2e
  * (web: `npm run dev -w @beavent/web`; the admin console is at WEB_URL/$ADMIN_PATH, default /ops)
  * (business app: `npx expo start --web --port 19007` in apps/business-mobile/; that origin is allowed by the local CORS settings).
+ * The payouts journey needs the API started with BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000 (the worker then runs every 2 s).
  * One-time codes are read from the API log, so this is for local and CI stacks only.
  */
 export default defineConfig({

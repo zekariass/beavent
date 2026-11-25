@@ -24,7 +24,9 @@ import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 import com.beavent.backend.catalog.ServicePricing;
 import com.beavent.backend.commerce.Orders;
 import com.beavent.backend.identity.People;
+import com.beavent.backend.payments.PaymentLinks;
 import com.beavent.backend.payments.Payments;
+import com.beavent.backend.payments.Refunds;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.DomainEvent;
 import com.beavent.backend.platform.Ids;
@@ -156,9 +158,12 @@ class Bookings {
     private final JsonMapper json;
     private final Orders orders;
     private final Payments payments;
+    private final PaymentLinks paymentLinks;
+    private final Refunds refunds;
     private final com.beavent.backend.payments.SellerPayments sellers;
     private final String webUrl;
     private final Duration paymentWindow;
+    private final Duration linkWindow;
 
     Bookings(
             DSLContext dsl,
@@ -171,9 +176,12 @@ class Bookings {
             JsonMapper json,
             Orders orders,
             Payments payments,
+            PaymentLinks paymentLinks,
+            Refunds refunds,
             com.beavent.backend.payments.SellerPayments sellers,
             @Value("${beavent.web.public-url}") String webUrl,
-            @Value("${beavent.booking.payment-window:15m}") Duration paymentWindow) {
+            @Value("${beavent.booking.payment-window:15m}") Duration paymentWindow,
+            @Value("${beavent.booking.link-window:24h}") Duration linkWindow) {
         this.dsl = dsl;
         this.transactions = transactions;
         this.availabilities = availabilities;
@@ -184,9 +192,12 @@ class Bookings {
         this.json = json;
         this.orders = orders;
         this.payments = payments;
+        this.paymentLinks = paymentLinks;
+        this.refunds = refunds;
         this.sellers = sellers;
         this.webUrl = webUrl;
         this.paymentWindow = paymentWindow;
+        this.linkWindow = linkWindow;
     }
 
     private static OffsetDateTime utc(Instant instant) {
@@ -764,7 +775,14 @@ class Bookings {
      * not accepted a request), otherwise the late-cancellation fee on the all-in total. No money moves before Stage 3:
      * the fee is recorded with the cancellation.
      */
-    record Cancellation(boolean allowed, boolean free, Instant freeUntil, long feeMinor, String currency) {}
+    record Cancellation(
+            boolean allowed,
+            boolean free,
+            Instant freeUntil,
+            long feeMinor,
+            String currency,
+            long refundMinor,
+            long keptMinor) {}
 
     record Detail(
             UUID id,
@@ -778,7 +796,9 @@ class Bookings {
             Plan plan,
             Cancellation cancellation,
             boolean canReschedule,
-            Payments.Status payment) {}
+            Payments.Status payment,
+            Refunds.Summary refund,
+            long balanceMinor) {}
 
     /** The business behind one of the person's appointments (row-level security hides everyone else's). */
     java.util.Optional<UUID> orgOf(UUID appointmentId) {
@@ -807,6 +827,61 @@ class Bookings {
             throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
         }
         Policy policy = json.readValue(a.getPolicySnapshot().data(), Policy.class);
+        Items loaded = loadItems(appointmentId);
+        List<PlanItem> items = loaded.items();
+        long total = loaded.total();
+        String currency = loaded.currency();
+        Instant start = a.getStartsAt().toInstant();
+        boolean upcoming = start.isAfter(now);
+        boolean unpaid = a.getStatus().equals("PENDING_PAYMENT");
+        boolean open = a.getStatus().equals("CONFIRMED") || a.getStatus().equals("REQUESTED") || unpaid;
+        boolean free = unpaid || a.getStatus().equals("REQUESTED") || now.isBefore(policy.freeCancellationUntil());
+        long fee = free
+                ? 0
+                : new BigDecimal(total)
+                        .multiply(
+                                policy.lateCancelFeePercent() == null ? BigDecimal.ZERO : policy.lateCancelFeePercent())
+                        .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
+                        .longValueExact();
+        Plan plan = new Plan(
+                a.getLocationId(),
+                a.getTimezone(),
+                a.getDeliveryMode(),
+                start,
+                a.getEndsAt().toInstant(),
+                items,
+                List.of(),
+                policy,
+                total,
+                currency);
+        Payments.Status payment = a.getOrderId() == null ? null : payments.status(a.getOrgId(), a.getOrderId(), now);
+        // What cancelling now gives back: the deposit, less the late-cancellation fee once the free period is over.
+        long paid = payment == null ? 0 : payment.paidMinor();
+        long kept = Math.min(paid, fee);
+        return new Detail(
+                a.getId(),
+                a.getLocationId(),
+                a.getReference(),
+                a.getStatus(),
+                start,
+                a.getEndsAt().toInstant(),
+                a.getTimezone(),
+                a.getCustomerNote(),
+                plan,
+                new Cancellation(
+                        open && upcoming, free, policy.freeCancellationUntil(), fee, currency, paid - kept, kept),
+                open && !unpaid && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()),
+                payment,
+                a.getOrderId() == null ? null : refunds.summary(a.getOrgId(), a.getOrderId()),
+                payment != null && payment.state().equals("AWAITING_PAYMENT") && a.getOrderId() != null
+                        ? payments.balanceFor(a.getOrgId(), a.getOrderId(), userId)
+                        : 0);
+    }
+
+    /** What an appointment's rows say it contains and costs. */
+    private record Items(List<PlanItem> items, long total, String currency) {}
+
+    private Items loadItems(UUID appointmentId) {
         List<PlanItem> items = new ArrayList<>();
         long total = 0;
         String currency = null;
@@ -838,42 +913,7 @@ class Bookings {
                     List.of(),
                     List.of()));
         }
-        Instant start = a.getStartsAt().toInstant();
-        boolean upcoming = start.isAfter(now);
-        boolean unpaid = a.getStatus().equals("PENDING_PAYMENT");
-        boolean open = a.getStatus().equals("CONFIRMED") || a.getStatus().equals("REQUESTED") || unpaid;
-        boolean free = unpaid || a.getStatus().equals("REQUESTED") || now.isBefore(policy.freeCancellationUntil());
-        long fee = free
-                ? 0
-                : new BigDecimal(total)
-                        .multiply(
-                                policy.lateCancelFeePercent() == null ? BigDecimal.ZERO : policy.lateCancelFeePercent())
-                        .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
-                        .longValueExact();
-        Plan plan = new Plan(
-                a.getLocationId(),
-                a.getTimezone(),
-                a.getDeliveryMode(),
-                start,
-                a.getEndsAt().toInstant(),
-                items,
-                List.of(),
-                policy,
-                total,
-                currency);
-        return new Detail(
-                a.getId(),
-                a.getLocationId(),
-                a.getReference(),
-                a.getStatus(),
-                start,
-                a.getEndsAt().toInstant(),
-                a.getTimezone(),
-                a.getCustomerNote(),
-                plan,
-                new Cancellation(open && upcoming, free, policy.freeCancellationUntil(), fee, currency),
-                open && !unpaid && upcoming && free && "ON_PREMISES".equals(a.getDeliveryMode()),
-                a.getOrderId() == null ? null : payments.status(a.getOrgId(), a.getOrderId(), now));
+        return new Items(items, total, currency);
     }
 
     /** An unpaid booking is closed: its order goes with it (the payment is stopped by the caller after commit). */
@@ -941,6 +981,122 @@ class Bookings {
                 now);
     }
 
+    /**
+     * A payment link and where it went: by text message when the customer has a phone number, else by email.
+     *
+     * @param sentTo {@code SMS}, {@code EMAIL}
+     */
+    record PaymentRequest(PaymentLinks.Created link, String sentTo) {}
+
+    /**
+     * The front desk asks the customer to pay by link (plan 3.7). A booking made by phone without an order is asked
+     * for the deposit its policy sets (it stays held until the link runs out, 24 hours or just before the visit); a
+     * booking waiting for its deposit gets a fresh link; a confirmed booking with a balance gets a link for the
+     * balance. Call with the business's context bound; the caller checked the permission.
+     */
+    PaymentRequest requestPayment(UUID orgId, UUID actorUserId, UUID appointmentId, Instant now) {
+        record Prepared(UUID orderId, String sentTo) {}
+        Prepared prepared = transactions.execute(status -> {
+            var a = dsl.selectFrom(APPOINTMENTS)
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .forUpdate()
+                    .fetchOne();
+            if (a == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+            var contact = dsl.select(CUSTOMERS.PHONE_E164, CUSTOMERS.EMAIL)
+                    .from(CUSTOMERS)
+                    .where(CUSTOMERS.ID.eq(a.getCustomerId()))
+                    .fetchOne();
+            String sentTo = contact == null
+                    ? null
+                    : contact.value1() != null ? "SMS" : contact.value2() != null ? "EMAIL" : null;
+            if (sentTo == null) {
+                throw new ApiException(
+                        ProblemCode.CONFLICT, "This client has no phone number or email to send a link to.");
+            }
+            if (a.getOrderId() != null) return new Prepared(a.getOrderId(), sentTo);
+            if (!a.getStatus().equals("CONFIRMED")
+                    || !a.getStartsAt().toInstant().isAfter(now)) {
+                throw new ApiException(
+                        ProblemCode.CONFLICT,
+                        "Only a confirmed booking that has not started can be asked for a deposit.");
+            }
+            if (!sellers.available(orgId)) {
+                throw new ApiException(
+                        ProblemCode.PAYMENT_UNAVAILABLE, "This business cannot take online payments yet.");
+            }
+            Policy policy = json.readValue(a.getPolicySnapshot().data(), Policy.class);
+            Items loaded = loadItems(appointmentId);
+            Plan plan = new Plan(
+                    a.getLocationId(),
+                    a.getTimezone(),
+                    a.getDeliveryMode(),
+                    a.getStartsAt().toInstant(),
+                    a.getEndsAt().toInstant(),
+                    loaded.items(),
+                    List.of(),
+                    policy,
+                    loaded.total(),
+                    loaded.currency());
+            Orders.Basket basket = basket(plan, a.getCustomerId(), null, now);
+            Orders.Quote quote = orders.quote(orgId, basket);
+            // The desk asked, so the policy's deposit applies whoever the customer is.
+            DepositRules.Terms terms = DepositRules.terms(
+                    policy, quote.totalMinor(), quote.buyerFeesMinor(), new DepositRules.Customer(true, true, true));
+            if (!terms.required()) {
+                throw new ApiException(
+                        ProblemCode.CONFLICT, "This business asks for no deposit. Set one in Booking rules.");
+            }
+            // The time stays held while the link is open, but not past a quarter of an hour before the visit.
+            Instant expires = now.plus(linkWindow);
+            Instant latest = a.getStartsAt().toInstant().minus(Duration.ofMinutes(15));
+            if (latest.isBefore(expires)) expires = latest;
+            if (!expires.isAfter(now.plus(Duration.ofMinutes(5)))) {
+                throw new ApiException(ProblemCode.CONFLICT, "This visit is too close to ask for a deposit.");
+            }
+            UUID orderId = orders.place(orgId, basket, "PENDING_PAYMENT", expires, actorUserId)
+                    .orderId();
+            payments.plan(
+                    orgId,
+                    orderId,
+                    plan.currency(),
+                    terms.atVenueMinor() == 0
+                            ? List.of(new Payments.Installment("FULL", terms.depositMinor(), "ONLINE"))
+                            : List.of(
+                                    new Payments.Installment("DEPOSIT", terms.depositMinor(), "ONLINE"),
+                                    new Payments.Installment("BALANCE", terms.atVenueMinor(), "AT_VENUE")));
+            dsl.update(APPOINTMENTS)
+                    .set(APPOINTMENTS.ORDER_ID, orderId)
+                    .set(APPOINTMENTS.STATUS, "PENDING_PAYMENT")
+                    .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                    .where(APPOINTMENTS.ID.eq(appointmentId))
+                    .execute();
+            history(orgId, appointmentId, "CONFIRMED", "PENDING_PAYMENT", actorUserId, "Deposit asked for by link");
+            return new Prepared(orderId, sentTo);
+        });
+        // The link is made in its own transaction, after the order is committed.
+        return new PaymentRequest(paymentLinks.create(orgId, prepared.orderId(), actorUserId, now), prepared.sentTo());
+    }
+
+    /**
+     * Pays part or all of what is due with a gift card or the customer's balance; answers where the booking stands.
+     * Call with the business's context bound for {@code userId}.
+     */
+    Detail tender(
+            UUID orgId,
+            UUID userId,
+            UUID appointmentId,
+            com.beavent.backend.payments.StoredValue.Kind kind,
+            String code,
+            Instant now) {
+        Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+        UUID orderId = orderOf(appointmentId);
+        if (!d.status().equals("PENDING_PAYMENT") || orderId == null) {
+            throw new ApiException(ProblemCode.CONFLICT, "This booking is not waiting for payment.");
+        }
+        payments.tender(orgId, orderId, kind, code, userId, now);
+        return transactions.execute(status -> detailIn(userId, appointmentId, now, false));
+    }
+
     /** The person came back from paying: ask the provider now, then show where the booking stands. */
     Detail checkPayment(UUID orgId, UUID userId, UUID appointmentId, Instant now) {
         Detail d = transactions.execute(status -> detailIn(userId, appointmentId, now, false));
@@ -996,8 +1152,8 @@ class Bookings {
     }
 
     /** The person cancels: the time is free at once, a late fee is recorded when the free period has passed. */
-    Detail cancel(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
-        Detail cancelled = cancelIn(orgId, userId, appointmentId, reason, now);
+    Detail cancel(UUID orgId, UUID userId, UUID appointmentId, String reason, String refundTo, Instant now) {
+        Detail cancelled = cancelIn(orgId, userId, appointmentId, reason, refundTo, now);
         UUID orderId = orderOf(appointmentId);
         if (orderId != null
                 && cancelled.payment() != null
@@ -1008,7 +1164,7 @@ class Bookings {
         return cancelled;
     }
 
-    private Detail cancelIn(UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now) {
+    private Detail cancelIn(UUID orgId, UUID userId, UUID appointmentId, String reason, String refundTo, Instant now) {
         return transactions.execute(status -> {
             Detail before = detailIn(userId, appointmentId, now, true);
             if (!before.cancellation().allowed()) {
@@ -1019,6 +1175,7 @@ class Bookings {
                     .set(APPOINTMENTS.STATUS, "CANCELLED")
                     .set(APPOINTMENTS.CANCELLED_AT, utc(now))
                     .set(APPOINTMENTS.CANCELLED_BY, "CUSTOMER")
+                    .set(APPOINTMENTS.REFUND_TO, "BALANCE".equals(refundTo) ? "BALANCE" : "ORIGINAL")
                     .set(APPOINTMENTS.CANCEL_REASON, reason == null || reason.isBlank() ? null : reason.strip())
                     .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
                     .where(APPOINTMENTS.ID.eq(appointmentId))

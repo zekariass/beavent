@@ -71,6 +71,7 @@ public class ClientMerge {
             new Reference("commerce.redemptions", "customer_id"),
             new Reference("commerce.invoices", "customer_id"),
             new Reference("retention.gift_cards", "purchaser_customer_id"),
+            new Reference("retention.gift_cards", "recipient_customer_id"),
             new Reference("retention.customer_balances", "customer_id"),
             new Reference("retention.customer_memberships", "customer_id"),
             new Reference("retention.entitlements", "customer_id"),

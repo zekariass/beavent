@@ -11,16 +11,20 @@ export function CancelBooking({
   appointmentId,
   request,
   feeText,
+  creditWith,
 }: {
   language: Language;
   appointmentId: string;
   request: boolean;
   feeText: string;
+  /** The business's name when something was paid, so the refund can be kept as credit with it; else null. */
+  creditWith: string | null;
 }) {
   const t = createTranslator(language);
   const router = useRouter();
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refundTo, setRefundTo] = useState<"ORIGINAL" | "BALANCE">("ORIGINAL");
   const [pending, start] = useTransition();
   if (!asking) {
     return (
@@ -43,6 +47,27 @@ export function CancelBooking({
         {t("appointment.cancelTitle")}
       </h2>
       <p className="bv-type-body text-fg">{feeText}</p>
+      {creditWith ? (
+        <fieldset className="flex flex-col gap-1">
+          {(["ORIGINAL", "BALANCE"] as const).map((value) => (
+            <label key={value} className="flex min-h-12 items-center gap-3">
+              <input
+                type="radio"
+                name="refundTo"
+                value={value}
+                checked={refundTo === value}
+                onChange={() => setRefundTo(value)}
+                className="size-5 accent-primary"
+              />
+              <span className="bv-type-body text-fg">
+                {value === "ORIGINAL"
+                  ? t("appointment.refundTo.original")
+                  : t("appointment.refundTo.balance", { business: creditWith })}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       {error ? (
         <p role="alert" className="bv-type-body text-fg">
           {error}
@@ -54,7 +79,11 @@ export function CancelBooking({
           disabled={pending}
           onClick={() =>
             start(async () => {
-              const r = await cancelAppointment(language, appointmentId);
+              const r = await cancelAppointment(
+                language,
+                appointmentId,
+                creditWith ? refundTo : undefined,
+              );
               if (r.ok) {
                 setAsking(false);
                 router.refresh();

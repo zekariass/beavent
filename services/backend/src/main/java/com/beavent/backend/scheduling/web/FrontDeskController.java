@@ -182,6 +182,17 @@ class FrontDeskController {
                 !Boolean.FALSE.equals(body.notifyCustomer())));
     }
 
+    /**
+     * Asks the customer to pay by a link sent to them (plan 3.7): a phone booking's deposit, a fresh link for a deposit
+     * not yet paid, or the balance of a confirmed booking.
+     */
+    @PostMapping("/appointments/{appointmentId}/payment-link")
+    BookingApi.PaymentLinkBody paymentLink(@PathVariable UUID orgId, @PathVariable UUID appointmentId) {
+        OrgAccess access = OrgAccess.current();
+        calendar.requireDesk(access, calendar.staffOf(appointmentId));
+        return bookings.requestPayment(orgId, access.userId(), appointmentId, java.time.Instant.now());
+    }
+
     @PostMapping("/appointments/{appointmentId}/move")
     ResponseEntity<Void> move(
             @PathVariable UUID orgId, @PathVariable UUID appointmentId, @Valid @RequestBody MoveInput body) {

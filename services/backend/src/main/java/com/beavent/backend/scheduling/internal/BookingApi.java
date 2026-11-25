@@ -64,7 +64,8 @@ public class BookingApi {
             long atVenueMinor,
             String currency,
             Instant expiresAt,
-            String redirectUrl) {}
+            String redirectUrl,
+            long balanceMinor) {}
 
     /** The provider's page to send the person to, and when it stops accepting payment. */
     public record PaymentStartBody(
@@ -112,7 +113,17 @@ public class BookingApi {
 
     public record MineList(List<MineBody> items) {}
 
-    public record CancellationBody(boolean allowed, boolean free, Instant freeUntil, long feeMinor, String currency) {}
+    public record CancellationBody(
+            boolean allowed,
+            boolean free,
+            Instant freeUntil,
+            long feeMinor,
+            String currency,
+            long refundMinor,
+            long keptMinor) {}
+
+    /** What is refunded for a cancelled booking: {@code ON_THE_WAY}, {@code SENT}, {@code CREDITED} (back on a gift card or in the balance) or {@code NONE} (all of it kept). */
+    public record RefundBody(long amountMinor, String currency, String state) {}
 
     public record DetailBody(
             UUID id,
@@ -126,7 +137,8 @@ public class BookingApi {
             SummaryBody booking,
             CancellationBody cancellation,
             boolean canReschedule,
-            PaymentBody payment) {}
+            PaymentBody payment,
+            RefundBody refund) {}
 
     private final Bookings bookings;
 
@@ -168,11 +180,11 @@ public class BookingApi {
                 booked.reference(),
                 booked.status(),
                 summary(booked.plan()),
-                paymentBody(booked.payment()),
+                paymentBody(booked.payment(), 0),
                 booked.replayed());
     }
 
-    private static PaymentBody paymentBody(com.beavent.backend.payments.Payments.Status p) {
+    private static PaymentBody paymentBody(com.beavent.backend.payments.Payments.Status p, long balanceMinor) {
         return p == null
                 ? null
                 : new PaymentBody(
@@ -182,7 +194,8 @@ public class BookingApi {
                         p.atVenueMinor(),
                         p.currency(),
                         p.expiresAt(),
-                        p.redirectUrl() == null ? null : p.redirectUrl().toString());
+                        p.redirectUrl() == null ? null : p.redirectUrl().toString(),
+                        balanceMinor);
     }
 
     /** Starts (or resumes) the online payment of the person's unpaid booking. */
@@ -314,6 +327,22 @@ public class BookingApi {
     }
 
     /** The front desk cancels one visit, the rest of a series, or a whole group; returns the cancelled ids. */
+    /** A link sent to the customer to pay (plan 3.7), and where it went ({@code SMS} or {@code EMAIL}). */
+    public record PaymentLinkBody(
+            String url, Instant expiresAt, long amountMinor, String currency, String kind, String sentTo) {}
+
+    /** The front desk asks the customer to pay by a link; call with the business's context bound. */
+    public PaymentLinkBody requestPayment(UUID orgId, UUID actorUserId, UUID appointmentId, Instant now) {
+        Bookings.PaymentRequest r = bookings.requestPayment(orgId, actorUserId, appointmentId, now);
+        return new PaymentLinkBody(
+                r.link().url(),
+                r.link().expiresAt(),
+                r.link().amountMinor(),
+                r.link().currency(),
+                r.link().kind(),
+                r.sentTo());
+    }
+
     public List<UUID> deskCancel(
             UUID orgId, UUID actorUserId, UUID appointmentId, String scope, String reason, boolean notify) {
         return bookings.deskCancel(
@@ -405,8 +434,26 @@ public class BookingApi {
     }
 
     public DetailBody cancel(
-            UUID orgId, UUID userId, UUID appointmentId, String reason, Instant now, PublicLocations locations) {
-        return detailBody(bookings.cancel(orgId, userId, appointmentId, reason, now), locations);
+            UUID orgId,
+            UUID userId,
+            UUID appointmentId,
+            String reason,
+            String refundTo,
+            Instant now,
+            PublicLocations locations) {
+        return detailBody(bookings.cancel(orgId, userId, appointmentId, reason, refundTo, now), locations);
+    }
+
+    /** Pays part or all of what is due with a gift card or the person's balance; call with the business's context. */
+    public DetailBody tender(
+            UUID orgId,
+            UUID userId,
+            UUID appointmentId,
+            com.beavent.backend.payments.StoredValue.Kind kind,
+            String code,
+            Instant now,
+            PublicLocations locations) {
+        return detailBody(bookings.tender(orgId, userId, appointmentId, kind, code, now), locations);
     }
 
     public DetailBody reschedule(
@@ -436,9 +483,22 @@ public class BookingApi {
                                 n.landmark(),
                                 n.phone()),
                 summary(d.plan()),
-                new CancellationBody(c.allowed(), c.free(), c.freeUntil(), c.feeMinor(), c.currency()),
+                new CancellationBody(
+                        c.allowed(),
+                        c.free(),
+                        c.freeUntil(),
+                        c.feeMinor(),
+                        c.currency(),
+                        c.refundMinor(),
+                        c.keptMinor()),
                 d.canReschedule(),
-                paymentBody(d.payment()));
+                paymentBody(d.payment(), d.balanceMinor()),
+                d.refund() == null
+                        ? null
+                        : new RefundBody(
+                                d.refund().amountMinor(),
+                                d.refund().currency(),
+                                d.refund().state()));
     }
 
     private static SummaryBody summary(Bookings.Plan plan) {

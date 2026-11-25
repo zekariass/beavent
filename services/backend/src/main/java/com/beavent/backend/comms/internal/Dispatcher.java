@@ -93,7 +93,8 @@ class Dispatcher {
                         NOTIFICATIONS
                                 .TEMPLATE_CODE
                                 .like("APPOINTMENT_%")
-                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%")),
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -148,7 +149,7 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
-        if (code.equals(Notifier.PAYOUT_CHANGED)) {
+        if (code.startsWith("PAYOUT_") || code.startsWith("GIFT_CARD_")) {
             return null;
         }
         if (code.equals(Notifier.WAITLIST_OFFER)) {
@@ -170,6 +171,8 @@ class Dispatcher {
             case Notifier.CONFIRMED, Notifier.RESCHEDULED, Notifier.REMINDER_24H, Notifier.REMINDER_2H ->
                 "CONFIRMED".equals(a.value1()) && sameTime ? null : "appointment changed";
             case Notifier.REQUESTED -> "REQUESTED".equals(a.value1()) ? null : "request already answered";
+            case Notifier.PAYMENT_LINK ->
+                List.of("CANCELLED", "EXPIRED", "DECLINED", "NO_SHOW").contains(a.value1()) ? "booking closed" : null;
             default -> null;
         };
     }

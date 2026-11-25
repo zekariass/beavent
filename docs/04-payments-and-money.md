@@ -176,6 +176,8 @@ Card-on-file no-show protection (Fresha's model) does not work where most custom
 
 ### 6.4 Payment links and renewals
 
+*Built in slice 3.7 (26 Nov 2026), appointments only:* `payments/PaymentLinks`. A link points at the intent of one payment-schedule row; a deposit link and a balance link are the two kinds. Renewals and other purposes are not built.
+
 `payments.payment_links` point at an intent and can be sent by SMS, WhatsApp, Telegram or email, for balances, invoices, phone bookings and AI-concierge bookings. Membership renewals use a saved instrument where the provider supports tokens (`payments.instruments`); otherwise the renewal job sends a push prompt or payment link (`retention.customer_memberships.renewal_method`).
 
 ## 7. Webhooks, polling and idempotency
@@ -186,6 +188,8 @@ Card-on-file no-show protection (Fresha's model) does not work where most custom
 4. Polling covers missing webhooks (`payment_attempts.next_poll_at`, `poll_count`). Polling and webhooks run through the same transition function.
 
 ## 8. Refunds
+
+*Built in slice 3.6 (25 Nov 2026), deposits only:* `payments/Refunds`, `internal/RefundService`. Cancellations, declines and no-shows are settled by the booking's terms; ArifPay refunds are paid by hand from the admin console's Refunds queue, Chapa's through its API. *Slice 3.8 (26 Nov 2026):* a refund can go to **store credit** instead (`refundTo: BALANCE` on cancel; a `STORE_CREDIT` refund, `SUCCEEDED` at once, the fees on it returned, the customer's balance with that business credited), and what a **gift card or balance** paid goes back to it when the booking expires or is cancelled before it is confirmed (a `GIFT_CARD`/`STORE_CREDIT` refund of the tender). Gift cards are sold as orders and are the business's money from the sale; a tender moves no money and only charges the business the fees on the part it paid (`FEES_ASSESSED`). Requests by customers or staff, fiscal credit notes and disputes are not built yet.
 
 | Step | Rule |
 |---|---|
@@ -209,6 +213,8 @@ Applies to `PLATFORM_COLLECTS` sellers, refund disbursements and (optionally) st
 * **Execution:** via the provider payout API where available, otherwise a bank batch file generated for finance and confirmed manually or by statement match. Failures and returns (`FAILED`/`RETURNED`) reverse the in-transit posting and notify the seller.
 
 ## 10. Ledger postings
+
+*Built in slice 3.5 (25 Nov 2026):* `ledger/` (`Ledger`, `Postings`). Capture, fees, release, payout (initiated, settled, failed, returned) and money received for refund are posted; refunds and disputes (3.6, 3.9), reserves, promotions funded by the platform and the platform's provider fee are not yet.
 
 Sign convention: debit positive, credit negative. Every transaction balances per currency (deferred trigger); entries are immutable; balances are maintained in `ledger.balances`.
 

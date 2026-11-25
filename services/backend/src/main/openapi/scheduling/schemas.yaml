@@ -329,6 +329,10 @@ PaymentStatus:
       type: [string, 'null']
       format: uri
       description: The provider's page of the attempt in progress, to reopen it.
+    balanceMinor:
+      type: integer
+      format: int64
+      description: What the signed-in person could pay now from their balance with the business (0 for none).
 PaymentStart:
   type: object
   required: [attemptId, expiresAt, amountMinor, currency]
@@ -468,7 +472,7 @@ MyAppointmentList:
         $ref: '#/MyAppointment'
 CancellationPreview:
   type: object
-  required: [allowed, free, freeUntil, feeMinor]
+  required: [allowed, free, freeUntil, feeMinor, refundMinor, keptMinor]
   properties:
     allowed:
       type: boolean
@@ -480,9 +484,17 @@ CancellationPreview:
     feeMinor:
       type: integer
       format: int64
-      description: Late-cancellation fee if cancelled now (0 when free). Recorded only; payments arrive in Stage 3.
+      description: Late-cancellation fee if cancelled now (0 when free), on the whole price.
     currency:
       type: [string, 'null']
+    refundMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid comes back if cancelled now (0 when nothing was paid online).
+    keptMinor:
+      type: integer
+      format: int64
+      description: What of the deposit paid the business keeps if cancelled now (the late-cancellation fee, at most what was paid).
 AppointmentDetail:
   type: object
   required: [id, reference, status, start, end, timezone, booking, cancellation, canReschedule]
@@ -513,6 +525,24 @@ AppointmentDetail:
     payment:
       description: Present when the booking has an order to pay online.
       $ref: '#/PaymentStatus'
+    refund:
+      description: |
+        Present once a cancelled, declined or missed booking with a deposit has been settled (a moment after it
+        happens) or a refund exists: what goes back to the customer.
+      $ref: '#/AppointmentRefund'
+AppointmentRefund:
+  type: object
+  required: [amountMinor, currency, state]
+  properties:
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    state:
+      type: string
+      enum: [ON_THE_WAY, SENT, CREDITED, NONE]
+      description: '`CREDITED`: back on a gift card or in the balance with the business. `NONE`: the business kept all of it.'
 AppointmentStatus:
   type: object
   required: [status]
@@ -947,3 +977,25 @@ WaitlistList:
       type: array
       items:
         $ref: '#/WaitlistEntry'
+PaymentLinkSent:
+  type: object
+  required: [url, expiresAt, amountMinor, currency, kind, sentTo]
+  properties:
+    url:
+      type: string
+      format: uri
+      description: The address the customer opens; sent to them, and shown so it can also be shared by hand.
+    expiresAt:
+      $ref: ../common/schemas.yaml#/Instant
+    amountMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    kind:
+      type: string
+      enum: [DEPOSIT, FULL, BALANCE]
+    sentTo:
+      type: string
+      enum: [SMS, EMAIL]
+

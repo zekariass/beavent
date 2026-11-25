@@ -1,7 +1,15 @@
 import { execSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
-import { codeCount, codeFor, newPhone } from "../tests/support.ts";
-import { bookAsCustomer, deskBook, firstFreeStart, seedSalon } from "../tests/seed.ts";
+import { codeCount, codeFor, giftCardCodeFor, newPhone } from "../tests/support.ts";
+import {
+  bookAsCustomer,
+  deskBook,
+  firstFreeStart,
+  seedFinanceStaff,
+  seedPaidBooking,
+  seedPaidSale,
+  seedSalon,
+} from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const ADMIN = `${WEB}/${process.env.ADMIN_PATH ?? "ops"}`;
@@ -1682,4 +1690,739 @@ test("get paid · console page and the platform's review queue", async ({ browse
   // 4. The business sees why, and can try again.
   await everyLook("rejected");
   await context.close();
+});
+
+// --- Stage 3.5: earnings and the finance desk ----------------------------------------------------------------------------
+// Needs the API started with BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000.
+
+test("earnings · the business's page and the finance desk", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const salon = await seedPaidSale("Abeba Beauty");
+  const reviewer = await seedFinanceStaff();
+
+  const context = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const desk = await context.newPage();
+  await desk.waitForTimeout(31_000); // a new code can be sent 30 seconds after the last one
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const earnings = `${WEB}/LANG/business/o/${salon.orgId}/earnings`;
+  const everyLook = async (name: string) => {
+    for (const scheme of SCHEMES) {
+      await desk.emulateMedia({ colorScheme: scheme });
+      for (const language of LANGUAGES) {
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await desk.setViewportSize(size);
+          await desk.goto(earnings.replace("LANG", language));
+          await shot(desk, `earnings-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+    await desk.emulateMedia({ colorScheme: "light" });
+    await desk.setViewportSize(DESKTOP);
+  };
+  await everyLook("checking");
+
+  const staff = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    acceptDownloads: true,
+  });
+  const admin = await staff.newPage();
+  await webSignIn(admin, `${ADMIN}/sign-in`, reviewer, reviewer);
+  await admin.goto(`${ADMIN}/payouts`);
+  const row = admin.getByRole("listitem").filter({ hasText: "Abeba Beauty" }).last();
+  await row.waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `earnings-admin-approval-${scheme}`);
+  }
+  await admin.emulateMedia({ colorScheme: "light" });
+  await admin.waitForTimeout(31_000);
+  const codes = codeCount(reviewer);
+  await admin.getByRole("button", { name: "Send code" }).click();
+  await admin.getByLabel(/Code sent to|Code/).fill(await codeFor(reviewer, codes));
+  await admin.getByRole("button", { name: "Confirm" }).click();
+  await row.getByText("Review").click();
+  await row.getByRole("radio", { name: "Approve" }).check();
+  await row.getByLabel(/Reason/).fill("Account checked against the bank letter");
+  await shot(admin, "earnings-admin-review-light");
+  await row.getByRole("button", { name: "Save decision" }).click();
+  await admin.getByRole("link", { name: "To pay" }).click();
+  await admin.getByRole("button", { name: "Download the bank batch" }).waitFor();
+  await shot(admin, "earnings-admin-ready-light");
+  await admin.getByRole("button", { name: "Download the bank batch" }).click();
+  await admin.getByRole("link", { name: "In a bank batch" }).click();
+  const processing = admin.getByRole("listitem").filter({ hasText: "Abeba Beauty" }).last();
+  await processing.getByText("Record what happened").click();
+  await processing.getByRole("radio", { name: "Paid" }).check();
+  const reference = `CBE-${Date.now()}`;
+  await processing.getByLabel("Bank reference (when paid)").fill(reference);
+  await shot(admin, "earnings-admin-settle-light");
+  await processing.getByRole("button", { name: "Save" }).click();
+  await admin.getByRole("link", { name: "Paid", exact: true }).click();
+  await admin.getByText(reference).first().waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `earnings-admin-paid-${scheme}`);
+  }
+  await staff.close();
+
+  await everyLook("paid");
+  await context.close();
+});
+
+// --- Stage 3.6: refunds for deposits ------------------------------------------------------------------------------------
+// Needs the API started with BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000 (settling a cancelled order is event-driven).
+
+test("refunds · cancelling with a deposit, the refund's progress, the desk and the finance queue", async ({
+  browser,
+}) => {
+  test.setTimeout(3_000_000);
+  const free = await seedPaidBooking("Abeba Beauty");
+  // A second booking under stricter terms: free only until 30 days before, a 10 % late fee.
+  await api(
+    "PUT",
+    `/v1/orgs/${free.salon.orgId}/booking-policies`,
+    {
+      deposit: { mode: "PERCENT", percent: 20, appliesTo: "EVERYONE" },
+      cancellationWindowMinutes: 43_200,
+      lateCancelFeePercent: 10,
+    },
+    free.salon.token,
+  );
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const lateBooking = await bookAsCustomer(
+    free.salon,
+    await firstFreeStart(free.salon, day(8), day(8)),
+    "Selam Bekele",
+  );
+  const stub = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+  const started = await api(
+    "POST",
+    `/v1/me/appointments/${lateBooking.id}/payment`,
+    { language: "en" },
+    lateBooking.token,
+  );
+  await fetch(`${stub}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "SUCCESS" }),
+  });
+  for (let i = 0; i < 40; i += 1) {
+    const d = await api(
+      "GET",
+      `/v1/me/appointments/${lateBooking.id}`,
+      undefined,
+      lateBooking.token,
+    );
+    if (d.status === "CONFIRMED") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const reviewer = await seedFinanceStaff();
+
+  // Each customer signs in once per language and keeps the page: a phone may ask for only five codes an hour.
+  const signedIn = async (who: { phone: string }, language: string) => {
+    const context = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: DESKTOP,
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(60_000);
+    await page.goto(`${WEB}/${language}/account/bookings`);
+    await page.waitForLoadState("networkidle"); // the dev server hydrates late; a fill before it is wiped
+    await page.getByLabel(/Phone number|ስልክ/).fill(who.phone);
+    const seen = codeCount(who.phone);
+    await page.getByRole("button", { name: /Send code|ኮድ/ }).click();
+    await page.getByLabel(/Code sent to|ኮድ/).fill(await codeFor(who.phone, seen));
+    await page.getByRole("button", { name: /Sign in|ይግቡ/ }).click();
+    // A customer without a given name is asked for one before the page opens (C-6).
+    const given = page.getByLabel(/Given name|^ስም/);
+    const out = page.getByRole("button", { name: /Sign out|ውጣ/ });
+    await given.or(out).first().waitFor();
+    if (await given.isVisible()) {
+      await given.fill("Meron");
+      await page.getByRole("button", { name: /Continue|ቀጥል/ }).click();
+      await out.waitFor();
+    }
+    return page;
+  };
+  await new Promise((r) => setTimeout(r, 31_000)); // a new sign-in code can be sent 30 seconds after the last one
+  const pages: Record<string, Awaited<ReturnType<typeof signedIn>>> = {};
+  for (const language of LANGUAGES) {
+    pages[`free-${language}`] = await signedIn(free.booked, language);
+    pages[`late-${language}`] = await signedIn(lateBooking, language);
+    if (language === LANGUAGES[0]) await new Promise((r) => setTimeout(r, 31_000));
+  }
+  const look = async (
+    name: string,
+    who: "free" | "late",
+    id: string,
+    schemes: readonly ("light" | "dark")[],
+    options: { openCancel?: boolean } = {},
+  ) => {
+    for (const language of LANGUAGES) {
+      const page = pages[`${who}-${language}`]!;
+      for (const scheme of schemes) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(`${WEB}/${language}/account/bookings/${id}`);
+          if (options.openCancel) {
+            await page
+              .getByRole("button", { name: /Cancel booking|ሰርዝ/ })
+              .first()
+              .dispatchEvent("click"); // the dev server's overlay can sit on the link at phone width
+          }
+          await shot(page, `refund-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+  };
+
+  // 1. Before cancelling: what happens to the deposit, for the free and the late booking.
+  await look("cancel-free", "free", free.booked.id, ["light"], { openCancel: true });
+  await look("cancel-late", "late", lateBooking.id, ["light"], { openCancel: true });
+
+  // 2. Both customers cancel (through the API, as the page does); the refunds are made a moment later.
+  await api("POST", `/v1/me/appointments/${free.booked.id}/cancel`, {}, free.booked.token);
+  await api("POST", `/v1/me/appointments/${lateBooking.id}/cancel`, {}, lateBooking.token);
+  for (let i = 0; i < 60; i += 1) {
+    const a = await api(
+      "GET",
+      `/v1/me/appointments/${free.booked.id}`,
+      undefined,
+      free.booked.token,
+    );
+    const b = await api(
+      "GET",
+      `/v1/me/appointments/${lateBooking.id}`,
+      undefined,
+      lateBooking.token,
+    );
+    if (a.refund && b.refund) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  await look("onTheWay", "free", free.booked.id, SCHEMES);
+  await look("kept", "late", lateBooking.id, ["light"]);
+
+  // 3. Finance: the queue with the customer's number, then paying one.
+  const staff = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const admin = await staff.newPage();
+  await webSignIn(admin, `${ADMIN}/sign-in`, reviewer, reviewer);
+  await admin.goto(`${ADMIN}/refunds`);
+  const row = admin.getByRole("listitem").filter({ hasText: free.booked.phone }).first();
+  await row.waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `refund-admin-queue-${scheme}`);
+  }
+  await admin.emulateMedia({ colorScheme: "light" });
+  await admin.waitForTimeout(31_000);
+  const codes = codeCount(reviewer);
+  await admin.getByRole("button", { name: "Send code" }).click();
+  await admin.getByLabel(/Code sent to|Code/).fill(await codeFor(reviewer, codes));
+  await admin.getByRole("button", { name: "Confirm" }).click();
+  await row.getByText("Record the payment").click();
+  await row.getByLabel("Reference of the transfer").fill(`TELEBIRR-${Date.now()}`);
+  await shot(admin, "refund-admin-pay-light");
+  await row.getByRole("button", { name: "Mark as paid" }).click();
+  await admin.getByRole("link", { name: "Paid", exact: true }).click();
+  await admin
+    .getByText(/TELEBIRR-/)
+    .first()
+    .waitFor();
+  for (const scheme of SCHEMES) {
+    await admin.emulateMedia({ colorScheme: scheme });
+    await shot(admin, `refund-admin-paid-${scheme}`);
+  }
+  await staff.close();
+
+  // 4. The customer sees it refunded.
+  for (const language of LANGUAGES) {
+    const page = pages[`free-${language}`]!;
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize(PHONE);
+    await page.goto(`${WEB}/${language}/account/bookings/${free.booked.id}`);
+    await shot(page, `refund-sent-${language}-light-phone`);
+  }
+  for (const page of Object.values(pages)) await page.context().close();
+});
+
+// --- Stage 3.7: payment links -------------------------------------------------------------------------------------------
+
+test("payment links · the customer's page and the desk's control", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  const stub = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const phoneBook = async (n: number, name: string) => {
+    // The next day with a free time (the salon is closed some days).
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1) {
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    }
+    const made = await api(
+      "POST",
+      `/v1/orgs/${salon.orgId}/appointments`,
+      {
+        locationId: salon.locationId,
+        start,
+        items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+        customer: { name, phone: newPhone() },
+        source: "PHONE",
+        notifyCustomer: false,
+      },
+      salon.token,
+    );
+    return { id: made.id as string, start };
+  };
+  const link = async (appointmentId: string) =>
+    String(
+      (
+        await api(
+          "POST",
+          `/v1/orgs/${salon.orgId}/appointments/${appointmentId}/payment-link`,
+          undefined,
+          salon.token,
+        )
+      ).url,
+    );
+  const tokenOf = (url: string) => url.slice(url.lastIndexOf("/") + 1);
+
+  // A phone booking asked twice (the first link is then closed), a balance link, and one paid through its link.
+  const first = await phoneBook(8, "Selam Bekele");
+  const closedUrl = await link(first.id);
+  const openUrl = await link(first.id);
+  const balanceUrl = await link(booked.id);
+  const second = await phoneBook(9, "Hiwot Alemu");
+  const paidUrl = await link(second.id);
+  const started = await api("POST", `/v1/public/payment-links/${tokenOf(paidUrl)}/start`, {
+    language: "en",
+  });
+  await fetch(`${stub}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "SUCCESS" }),
+  });
+  for (let i = 0; i < 30; i += 1) {
+    const state = await api("POST", `/v1/public/payment-links/${tokenOf(paidUrl)}/check`);
+    if (state.state === "PAID") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // 1. The customer's page in every state, both languages, both themes, phone and desktop (no sign-in).
+  for (const [name, url] of [
+    ["deposit", openUrl],
+    ["balance", balanceUrl],
+    ["paid", paidUrl],
+    ["closed", closedUrl],
+  ] as const) {
+    for (const scheme of SCHEMES) {
+      for (const language of LANGUAGES) {
+        const context = await browser.newContext({
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          colorScheme: scheme,
+          viewport: DESKTOP,
+        });
+        const page = await context.newPage();
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(url.replace("/pay/", `/${language}/pay/`));
+          await page.getByRole("status").waitFor();
+          await shot(page, `paylink-${name}-${language}-${scheme}-${viewport}`);
+        }
+        await context.close();
+      }
+    }
+  }
+
+  // 2. The desk: ask for a deposit, the link that was sent, and the balance button of a paid booking.
+  const deskVisits = {
+    en: await phoneBook(10, "Meron Tesfaye"),
+    am: await phoneBook(11, "Meron Tesfaye"),
+  };
+  const owner = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const desk = await owner.newPage();
+  desk.setDefaultTimeout(60_000);
+  await desk.waitForTimeout(31_000);
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const localDay = (start: string) =>
+    new Date(start).toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" });
+  for (const language of LANGUAGES) {
+    await desk.goto(
+      `${WEB}/${language}/business/o/${salon.orgId}/calendar?date=${localDay(deskVisits[language].start)}`,
+    );
+    await desk.getByRole("button", { name: /Meron Tesfaye/ }).click();
+    await shot(desk, `paylink-desk-ask-${language}-light-desktop`);
+    await desk
+      .getByRole("button", {
+        name: language === "am" ? /ቅድመ ክፍያውን በጽሑፍ/ : "Ask for the deposit by text",
+      })
+      .click();
+    await desk.getByRole("status").filter({ hasText: /\S/ }).last().waitFor();
+    await shot(desk, `paylink-desk-sent-${language}-light-desktop`);
+  }
+  // The balance of a booking whose deposit was paid online.
+  const mine = await api("GET", `/v1/me/appointments/${booked.id}`, undefined, booked.token);
+  await desk.goto(`${WEB}/en/business/o/${salon.orgId}/calendar?date=${localDay(mine.start)}`);
+  await desk.getByRole("button", { name: /Meron Tesfaye/ }).click();
+  await shot(desk, "paylink-desk-balance-en-light-desktop");
+  await owner.close();
+});
+
+// --- Stage 3.8: gift cards and the customer's credit --------------------------------------------------------------------
+// Needs the API started with BEAVENT_RETENTION_WORKER_INTERVAL_MS=2000 (cards are delivered by a worker).
+
+test("gift cards · buying, the business's list, paying a deposit with a card and with credit", async ({
+  browser,
+}) => {
+  test.setTimeout(3_000_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  const plain = await seedSalon("Lemlem Hair");
+  const stub = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+  await api(
+    "PUT",
+    `/v1/orgs/${salon.orgId}/gift-cards/program`,
+    {
+      name: "Gift card",
+      presetsMinor: [20000, 50000, 100000],
+      minMinor: 10000,
+      maxMinor: 500000,
+      validityMonths: 12,
+      sellOnline: true,
+    },
+    salon.token,
+  );
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const freeStart = async (from: number) => {
+    for (let d = from; d < from + 7; d += 1) {
+      const start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+      if (start) return start;
+    }
+    throw new Error("no free time");
+  };
+  const tokenOf = (url: string) => url.slice(url.lastIndexOf("/") + 1);
+
+  // The business's page before it has sold anything.
+  const owner = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const desk = await owner.newPage();
+  desk.setDefaultTimeout(60_000);
+  await desk.waitForTimeout(31_000); // a new sign-in code can be sent 30 seconds after the last one
+  await webSignIn(desk, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  await desk.goto(`${WEB}/en/business/o/${salon.orgId}/gift-cards`);
+  await desk.getByRole("heading", { name: "Cards sold" }).waitFor();
+  await shot(desk, "giftcard-console-empty-en-light-desktop");
+
+  // Customers buy cards through the API, as the page does; each is paid on the stub and delivered.
+  const buyer = await (async () => {
+    const phone = newPhone();
+    const challenge = await api("POST", "/v1/auth/otp/request", {
+      phone,
+      purpose: "SIGN_IN",
+      clientApp: "MOBILE_APP",
+      channel: "SMS",
+    });
+    const signedIn = await api("POST", "/v1/auth/otp/verify", {
+      challengeId: challenge.challengeId,
+      code: await codeFor(phone),
+    });
+    await api("PATCH", "/v1/me", { displayName: "Hana Bekele" }, signedIn.accessToken).catch(
+      () => undefined,
+    );
+    return { phone, token: signedIn.accessToken as string };
+  })();
+  const buy = async (amountMinor: number, extra: Record<string, unknown> = {}) =>
+    api(
+      "POST",
+      "/v1/me/gift-cards/purchases",
+      { locationId: salon.locationId, amountMinor, ...extra },
+      buyer.token,
+    ) as Promise<{ payUrl: string; cardId: string }>;
+  const pay = async (purchase: { payUrl: string }) => {
+    const started = await api(
+      "POST",
+      `/v1/public/payment-links/${tokenOf(purchase.payUrl)}/start`,
+      {
+        language: "en",
+      },
+    );
+    await fetch(
+      `${stub}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "SUCCESS" }),
+      },
+    );
+    for (let i = 0; i < 40; i += 1) {
+      const state = await api("POST", `/v1/public/payment-links/${tokenOf(purchase.payUrl)}/check`);
+      if (state.state === "PAID") return;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  };
+  const friends = [newPhone(), newPhone(), newPhone()];
+  const sold = await buy(50000, {
+    recipientName: "Selam",
+    recipientPhone: friends[0],
+    message: "Happy birthday",
+  });
+  await pay(sold);
+  const partialEn = await buy(20000, { recipientName: "Hiwot", recipientPhone: friends[1] });
+  await pay(partialEn);
+  const partialAm = await buy(20000, { recipientName: "Meron", recipientPhone: friends[2] });
+  await pay(partialAm);
+  const later = await buy(30000, {
+    recipientName: "Tigist",
+    recipientPhone: newPhone(),
+    deliverAt: new Date(Date.now() + 20 * 24 * 3600_000).toISOString(),
+  });
+  await pay(later);
+  const unpaid = await buy(100000, { recipientName: "Abel", recipientPhone: newPhone() });
+  const codes = await Promise.all(friends.map((p) => giftCardCodeFor(p)));
+
+  // 1. The buying page, signed out: both languages, both themes, phone and desktop; and a business that sells none.
+  for (const scheme of SCHEMES) {
+    for (const language of LANGUAGES) {
+      const context = await browser.newContext({
+        locale: language === "am" ? "am-ET" : "en-US",
+        timezoneId: "Africa/Addis_Ababa",
+        colorScheme: scheme,
+        viewport: DESKTOP,
+      });
+      const page = await context.newPage();
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}/gift-cards`);
+        await page.getByRole("heading", { level: 1 }).waitFor();
+        await page.waitForLoadState("networkidle");
+        await shot(page, `giftcard-buy-${language}-${scheme}-${viewport}`);
+        if (scheme === "light") {
+          await page.locator('input[type="tel"]').first().fill("0911223344");
+          await page.locator("textarea").fill(language === "am" ? "መልካም ልደት" : "Happy birthday");
+          await shot(page, `giftcard-buy-filled-${language}-${scheme}-${viewport}`);
+        }
+        await page.goto(`${WEB}/${language}/b/${salon.orgSlug}/${salon.locationSlug}`);
+        await page.getByRole("heading", { level: 1 }).waitFor();
+        if (viewport === "desktop" && scheme === "light") {
+          await shot(page, `giftcard-venue-${language}-${scheme}-${viewport}`);
+        }
+      }
+      if (language === "en" && scheme === "light") {
+        await page.setViewportSize(DESKTOP);
+        await page.goto(`${WEB}/en/b/${plain.orgSlug}/${plain.locationSlug}/gift-cards`);
+        await page.getByRole("status").waitFor();
+        await shot(page, "giftcard-buy-unavailable-en-light-desktop");
+      }
+      await context.close();
+    }
+  }
+
+  // 2. The payment link of a card: unpaid and paid.
+  for (const [name, purchase] of [
+    ["open", unpaid],
+    ["paid", sold],
+  ] as const) {
+    for (const scheme of SCHEMES) {
+      for (const language of LANGUAGES) {
+        const context = await browser.newContext({
+          locale: language === "am" ? "am-ET" : "en-US",
+          timezoneId: "Africa/Addis_Ababa",
+          colorScheme: scheme,
+          viewport: DESKTOP,
+        });
+        const page = await context.newPage();
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(purchase.payUrl.replace("/pay/", `/${language}/pay/`));
+          await page.getByRole("status").waitFor();
+          await shot(page, `giftcard-paylink-${name}-${language}-${scheme}-${viewport}`);
+        }
+        await context.close();
+      }
+    }
+  }
+
+  // 3. The business's list, with the sold, the scheduled and the part-used cards.
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await desk.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await desk.setViewportSize(size);
+        await desk.goto(`${WEB}/${language}/business/o/${salon.orgId}/gift-cards`);
+        await desk.getByRole("list").last().waitFor();
+        await shot(desk, `giftcard-console-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+
+  // 4. A customer pays a deposit with a card: the page before, with the code field, a code that fails, and the part paid.
+  const customers = {
+    en: await bookAsCustomer(salon, await freeStart(8), "Hiwot Alemu"),
+    am: await bookAsCustomer(salon, await freeStart(9), "Meron Tesfaye"),
+  };
+  const signedIn = async (who: { phone: string }, language: string) => {
+    const context = await browser.newContext({
+      locale: language === "am" ? "am-ET" : "en-US",
+      timezoneId: "Africa/Addis_Ababa",
+      viewport: DESKTOP,
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(60_000);
+    await page.goto(`${WEB}/${language}/account/bookings`);
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel(/Phone number|ስልክ/).fill(who.phone);
+    const seen = codeCount(who.phone);
+    await page.getByRole("button", { name: /Send code|ኮድ/ }).click();
+    await page.getByLabel(/Code sent to|ኮድ/).fill(await codeFor(who.phone, seen));
+    await page.getByRole("button", { name: /Sign in|ይግቡ/ }).click();
+    await page.getByRole("button", { name: /Sign out|ውጣ/ }).waitFor();
+    return page;
+  };
+  await new Promise((r) => setTimeout(r, 31_000)); // a new sign-in code can be sent 30 seconds after the last one
+  const pages = {
+    en: await signedIn(customers.en, "en"),
+    am: await signedIn(customers.am, "am"),
+    creditEn: await signedIn(booked, "en"),
+  };
+  await new Promise((r) => setTimeout(r, 31_000));
+  const creditAm = await signedIn(booked, "am");
+  const labels = {
+    en: { open: "Use a gift card", code: "Gift card code", apply: "Use the card" },
+    am: { open: "የስጦታ ካርድ ይጠቀሙ", code: "የስጦታ ካርድ ኮድ", apply: "ካርዱን ተጠቀም" },
+  } as const;
+  for (const language of LANGUAGES) {
+    const page = pages[language];
+    const l = labels[language];
+    const id = customers[language].id;
+    const code = codes[language === "en" ? 1 : 2]!;
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/account/bookings/${id}/payment`);
+        await page.getByRole("button", { name: l.open }).waitFor();
+        await shot(page, `giftcard-pay-${language}-${scheme}-${viewport}`);
+      }
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize(DESKTOP);
+    await page.goto(`${WEB}/${language}/account/bookings/${id}/payment`);
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: l.open }).click();
+    await page.getByLabel(l.code).fill("0000-0000-0000-0000");
+    await page.getByRole("button", { name: l.apply }).click();
+    await page.locator("#gift-card-error").waitFor();
+    await shot(page, `giftcard-pay-wrong-${language}-light-desktop`);
+    await page.getByLabel(l.code).fill(code);
+    await page.getByRole("button", { name: l.apply }).click();
+    await page.getByRole("button", { name: l.open }).waitFor(); // the field closes when the card was taken
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await shot(page, `giftcard-pay-part-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+
+  // 5. Cancelling a paid booking with the choice to keep the refund as credit; then the credit pays the next booking.
+  for (const [language, page] of [
+    ["en", pages.creditEn],
+    ["am", creditAm],
+  ] as const) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/account/bookings/${booked.id}`);
+        await page
+          .getByRole("button", { name: /Cancel booking|ሰርዝ/ })
+          .first()
+          .dispatchEvent("click");
+        await page.getByRole("radio").first().waitFor();
+        await shot(page, `giftcard-cancel-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await api(
+    "POST",
+    `/v1/me/appointments/${booked.id}/cancel`,
+    { refundTo: "BALANCE" },
+    booked.token,
+  );
+  for (let i = 0; i < 60; i += 1) {
+    const a = await api("GET", `/v1/me/appointments/${booked.id}`, undefined, booked.token);
+    if (a.refund?.state === "CREDITED") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const hold = await api("POST", `/v1/public/locations/${salon.locationId}/holds`, {
+    items: [{ variantId: salon.variantId, staffId: salon.staffId }],
+    start: await freeStart(10),
+  });
+  const next = await api(
+    "POST",
+    "/v1/me/appointments",
+    { locationId: salon.locationId, holdId: hold.holdId, holderKey: hold.holderKey },
+    booked.token,
+  );
+  for (const [language, page] of [
+    ["en", pages.creditEn],
+    ["am", creditAm],
+  ] as const) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/account/bookings/${booked.id}`);
+        await shot(page, `giftcard-credited-${language}-${scheme}-${viewport}`);
+        await page.goto(`${WEB}/${language}/account/bookings/${next.id}/payment`);
+        await page.getByRole("status").waitFor();
+        await shot(page, `giftcard-credit-pay-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await owner.close();
+  for (const page of [...Object.values(pages), creditAm]) await page.context().close();
 });

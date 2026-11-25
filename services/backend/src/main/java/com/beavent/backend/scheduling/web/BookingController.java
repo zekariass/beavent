@@ -112,7 +112,18 @@ class BookingController {
                 .body(booked);
     }
 
-    record CancelBody(@Size(max = 500) String reason) {}
+    record CancelBody(
+            @Size(max = 500) String reason,
+
+            @jakarta.validation.constraints.Pattern(regexp = "ORIGINAL|BALANCE")
+            String refundTo) {}
+
+    record TenderBody(
+            @jakarta.validation.constraints.NotNull
+            @jakarta.validation.constraints.Pattern(regexp = "GIFT_CARD|BALANCE")
+            String kind,
+
+            @Size(max = 40) String code) {}
 
     record RescheduleBody(@NotNull Instant start) {}
 
@@ -139,8 +150,20 @@ class BookingController {
         UUID userId = UUID.fromString(jwt.getSubject());
         UUID orgId = orgOf(userId, appointmentId);
         String reason = body == null ? null : body.reason();
+        String refundTo = body == null ? null : body.refundTo();
         return RequestContext.forOrganization(userId, orgId)
-                .call(() -> bookings.cancel(orgId, userId, appointmentId, reason, Instant.now(), locations));
+                .call(() -> bookings.cancel(orgId, userId, appointmentId, reason, refundTo, Instant.now(), locations));
+    }
+
+    /** Pays part or all of what is due with a gift card (by its code) or the person's balance with the business. */
+    @PostMapping("/v1/me/appointments/{appointmentId}/payment/tender")
+    BookingApi.DetailBody tender(
+            @PathVariable UUID appointmentId, @Valid @RequestBody TenderBody body, @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        UUID orgId = orgOf(userId, appointmentId);
+        var kind = com.beavent.backend.payments.StoredValue.Kind.valueOf(body.kind());
+        return RequestContext.forOrganization(userId, orgId)
+                .call(() -> bookings.tender(orgId, userId, appointmentId, kind, body.code(), Instant.now(), locations));
     }
 
     record StartPaymentBody(@Size(max = 5) String language) {}

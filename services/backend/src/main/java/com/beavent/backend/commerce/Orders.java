@@ -25,7 +25,22 @@ public interface Orders {
             Integer parentIndex,
             String description,
             int quantity,
-            long unitPriceMinor) {}
+            long unitPriceMinor,
+            UUID giftCardProgramId) {
+
+        /** A line that is not a gift card. */
+        public LineInput(
+                String type,
+                UUID serviceVariantId,
+                UUID addonId,
+                UUID staffId,
+                Integer parentIndex,
+                String description,
+                int quantity,
+                long unitPriceMinor) {
+            this(type, serviceVariantId, addonId, staffId, parentIndex, description, quantity, unitPriceMinor, null);
+        }
+    }
 
     /**
      * What is being bought.

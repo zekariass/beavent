@@ -29,6 +29,12 @@ final class Texts {
         if (code.equals(Notifier.PAYOUT_CHANGED)) {
             return payoutChanged(lang, data);
         }
+        if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
+            return giftCardReceived(lang, data);
+        }
+        if (code.equals(Notifier.PAYOUT_PAID) || code.equals(Notifier.PAYOUT_FAILED)) {
+            return payoutOutcome(code.equals(Notifier.PAYOUT_PAID), lang, data);
+        }
         String business = String.valueOf(data.get("business"));
         String ref = String.valueOf(data.get("reference"));
         ZonedDateTime start = Instant.parse(String.valueOf(data.get("startsAt")))
@@ -74,6 +80,39 @@ final class Texts {
                 am
                         ? business + " ላይ የነበረዎት ቀጠሮ " + ref + " (" + date + "፣ " + when + ") ተሰርዟል።"
                         : "Your booking " + ref + " at " + business + " on " + date + ", " + when + " is cancelled.";
+            case Notifier.PAYMENT_LINK -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("paymentMinor"))), am);
+                String url = String.valueOf(data.get("url"));
+                boolean balance = "BALANCE".equals(data.get("kind"));
+                ZonedDateTime until = Instant.parse(String.valueOf(data.get("linkExpires")))
+                        .atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+                String by = date(until, lang) + ", " + time(until.toLocalTime(), lang);
+                yield am
+                        ? business + "፦ "
+                                + (balance
+                                        ? "የቀጠሮ " + ref + " ቀሪ ሂሳብ "
+                                        : "ቀጠሮዎን " + ref + " (" + date + "፣ " + when + ") ለማረጋገጥ ")
+                                + amount + " ይክፈሉ፦ " + url + " (እስከ " + by + " ድረስ ክፍት ነው)።"
+                        : business + ": pay " + amount
+                                + (balance
+                                        ? " to settle the balance of booking " + ref
+                                        : " to confirm your booking " + ref + " on " + date + ", " + when)
+                                + ": " + url + " (open until " + by + ")";
+            }
+            case Notifier.REFUND_CREDITED -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
+                yield am
+                        ? business + "፦ " + amount + " ለቀጠሮ " + ref
+                                + " በስጦታ ካርድዎ ላይ ወይም በሒሳብዎ ውስጥ ተመልሷል። ቀጣይ ቀጠሮ ሲይዙ መጠቀም ይችላሉ።"
+                        : business + ": " + amount + " is back with you for booking " + ref
+                                + ", on your gift card or in your balance. You can use it when you pay for your next booking.";
+            }
+            case Notifier.REFUND_SENT -> {
+                String amount = birr(Long.parseLong(String.valueOf(data.get("refundMinor"))), am);
+                yield am
+                        ? business + "፦ " + amount + " ተመላሽ ተልኳል። ቀጠሮ " + ref + "።"
+                        : business + ": " + amount + " was refunded to you for booking " + ref + ".";
+            }
             case Notifier.RESCHEDULED ->
                 am
                         ? business + "፦ ቀጠሮዎ " + ref + " ወደ " + date + "፣ " + when + " ተዛውሯል።"
@@ -111,6 +150,72 @@ final class Texts {
                         business + ": the payout account was changed to " + account + ". Payouts to it start after "
                                 + date(from, lang) + ", " + time(from.toLocalTime(), lang)
                                 + ". If this wasn't you, tell us right away.");
+    }
+
+    /** A gift card for the recipient: who sent it, how much, the code, until when, and where to use it (plan 3.8). */
+    private static Message giftCardReceived(String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String sender = String.valueOf(data.get("sender"));
+        String amount = birr(Long.parseLong(String.valueOf(data.get("amountMinor"))), am);
+        String note = String.valueOf(data.get("message"));
+        String until = String.valueOf(data.get("expiresAt"));
+        String valid = "";
+        if (!until.isBlank()) {
+            ZonedDateTime z = Instant.parse(until).atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+            valid = am ? " እስከ " + date(z, lang) + " ድረስ ያገለግላል።" : " Valid until " + date(z, lang) + ".";
+        }
+        String quote = note.isBlank() ? "" : " «" + note + "»";
+        String url = String.valueOf(data.get("venueUrl"));
+        String code = String.valueOf(data.get("code"));
+        return am
+                ? new Message(
+                        business + " · የስጦታ ካርድ",
+                        (sender.isBlank()
+                                        ? "የ" + business + " የስጦታ ካርድ ተሰጥቶዎታል፦ "
+                                        : sender + " የ" + business + " የስጦታ ካርድ ልኮልዎታል፦ ")
+                                + amount + "። ኮድ፦ " + code + "።" + quote + valid
+                                + " ቀጠሮ ሲይዙ በክፍያ ላይ ይጠቀሙት፦ " + url)
+                : new Message(
+                        business + " · gift card",
+                        (sender.isBlank()
+                                        ? "You have been given a gift card for " + business + ": "
+                                        : sender + " sent you a gift card for " + business + ": ")
+                                + amount + ". Code: " + code + "." + quote + valid
+                                + " Use it when you pay for a booking: " + url);
+    }
+
+    /** A payout was paid, or did not go through (plan 3.5). */
+    private static Message payoutOutcome(boolean paid, String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String account = data.get("institution") + " " + data.get("last4");
+        String amount = birr(Long.parseLong(String.valueOf(data.get("amountMinor"))), am);
+        String note = String.valueOf(data.get("note"));
+        if (paid) {
+            return am
+                    ? new Message(business + " · ክፍያ ተልኳል", business + "፦ " + amount + " ወደ " + account + " ተልኳል።")
+                    : new Message(
+                            business + " · payout sent", business + ": " + amount + " was sent to " + account + ".");
+        }
+        String why = note.isBlank() ? "" : (am ? " ምክንያት፦ " : " Reason: ") + note + (am ? "።" : ".");
+        return am
+                ? new Message(
+                        business + " · ክፍያ አልተላከም",
+                        business + "፦ ወደ " + account + " የተዘጋጀው የ" + amount
+                                + " ክፍያ አልተላከም። ገንዘቡ በሒሳብዎ ውስጥ ነው፤ እንደገና ይሞከራል።" + why)
+                : new Message(
+                        business + " · payout not sent",
+                        business + ": the " + amount + " payout to " + account
+                                + " did not go through. The money is still yours and will be tried again." + why);
+    }
+
+    /** "Br 1,250" or "Br 88.50": whole birr without decimals (docs/design: never .00). */
+    static String birr(long minor, boolean am) {
+        String number = minor % 100 == 0
+                ? String.format(Locale.ENGLISH, "%,d", minor / 100)
+                : String.format(Locale.ENGLISH, "%,d.%02d", minor / 100, minor % 100);
+        return (am ? "ብር " : "Br ") + number;
     }
 
     private static String suffix(String place, boolean am) {

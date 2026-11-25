@@ -50,6 +50,8 @@ tags:
     description: What the public sees of a business (venue pages)
   - name: Discovery
     description: Search over places to book and things to do (public)
+  - name: GiftCards
+    description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -70,6 +72,30 @@ paths:
     $ref: ./payments/paths.yaml#/payoutAccounts
   /v1/orgs/{orgId}/payout-accounts/{accountId}:
     $ref: ./payments/paths.yaml#/payoutAccount
+  /v1/public/payment-links/{token}:
+    $ref: ./payments/paths.yaml#/paymentLink
+  /v1/public/payment-links/{token}/start:
+    $ref: ./payments/paths.yaml#/paymentLinkStart
+  /v1/public/payment-links/{token}/check:
+    $ref: ./payments/paths.yaml#/paymentLinkCheck
+  /v1/orgs/{orgId}/gift-cards/program:
+    $ref: ./retention/paths.yaml#/giftCardProgram
+  /v1/orgs/{orgId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCards
+  /v1/orgs/{orgId}/gift-cards/{cardId}/void:
+    $ref: ./retention/paths.yaml#/giftCardVoid
+  /v1/public/locations/{locationId}/gift-cards:
+    $ref: ./retention/paths.yaml#/giftCardOffer
+  /v1/me/gift-cards/purchases:
+    $ref: ./retention/paths.yaml#/giftCardPurchase
+  /v1/public/payment-links/{token}/tender:
+    $ref: ./payments/paths.yaml#/paymentLinkTender
+  /v1/me/appointments/{appointmentId}/payment/tender:
+    $ref: ./scheduling/paths.yaml#/myAppointmentPaymentTender
+  /v1/orgs/{orgId}/earnings:
+    $ref: ./payments/paths.yaml#/earnings
+  /v1/orgs/{orgId}/statement:
+    $ref: ./payments/paths.yaml#/statement
   # --- identity ---------------------------------------------------------------------------------------------
   /v1/auth/otp/request:
     $ref: ./identity/paths.yaml#/otpRequest
@@ -201,6 +227,8 @@ paths:
     $ref: ./scheduling/paths.yaml#/deskAppointments
   /v1/orgs/{orgId}/appointments/{appointmentId}/cancel:
     $ref: ./scheduling/paths.yaml#/deskCancel
+  /v1/orgs/{orgId}/appointments/{appointmentId}/payment-link:
+    $ref: ./scheduling/paths.yaml#/deskPaymentLink
   /v1/orgs/{orgId}/appointments/{appointmentId}/move:
     $ref: ./scheduling/paths.yaml#/deskMove
   /v1/orgs/{orgId}/blocks:
@@ -342,6 +370,20 @@ paths:
     $ref: ./admin/paths.yaml#/adminMarketplaceListings
   /v1/admin/orgs/{orgId}/marketplace-decision:
     $ref: ./admin/paths.yaml#/adminMarketplaceDecision
+  /v1/admin/payouts:
+    $ref: ./admin/paths.yaml#/adminPayouts
+  /v1/admin/payouts/export:
+    $ref: ./admin/paths.yaml#/adminPayoutExport
+  /v1/admin/payouts/{payoutId}/decision:
+    $ref: ./admin/paths.yaml#/adminPayoutDecision
+  /v1/admin/payouts/{payoutId}/settlement:
+    $ref: ./admin/paths.yaml#/adminPayoutSettlement
+  /v1/admin/refunds:
+    $ref: ./admin/paths.yaml#/adminRefunds
+  /v1/admin/refunds/{refundId}/approval:
+    $ref: ./admin/paths.yaml#/adminRefundApproval
+  /v1/admin/refunds/{refundId}/payment:
+    $ref: ./admin/paths.yaml#/adminRefundPayment
   /v1/admin/audit-log:
     $ref: ./admin/paths.yaml#/adminAuditLog
   /v1/admin/feature-flags:

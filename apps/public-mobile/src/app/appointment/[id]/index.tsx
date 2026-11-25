@@ -13,7 +13,7 @@ import {
   useApp,
 } from "@beavent/native";
 import { radius, space } from "@beavent/ui";
-import { calendarLanguage, price } from "@beavent/venue";
+import { calendarLanguage, cancelNotice, price, refundNotice } from "@beavent/venue";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking, View } from "react-native";
@@ -102,6 +102,7 @@ export default function AppointmentScreen() {
             : a.status === "CANCELLED"
               ? { tone: "info" as const, text: t("appointment.cancelled") }
               : null;
+  const refundText = refundNotice(a, language, t);
   const free = a.booking.policy.freeCancellationUntil;
 
   async function pay() {
@@ -165,6 +166,7 @@ export default function AppointmentScreen() {
         </Text>
       </View>
       {banner ? <Banner tone={banner.tone}>{banner.text}</Banner> : null}
+      {refundText ? <Banner tone="info">{refundText}</Banner> : null}
       {error ? <Banner tone="danger">{error}</Banner> : null}
       {a.status === "PENDING_PAYMENT" && a.payment && a.payment.state !== "EXPIRED" ? (
         <View style={{ gap: space[3] }}>
@@ -342,17 +344,7 @@ export default function AppointmentScreen() {
             }}
           >
             <Text role="title2">{t("appointment.cancelTitle")}</Text>
-            <Text role="body">
-              {a.cancellation.free
-                ? t("appointment.cancelFree")
-                : t("appointment.cancelFee", {
-                    amount: price(
-                      a.cancellation.feeMinor,
-                      a.cancellation.currency ?? "ETB",
-                      language,
-                    ),
-                  })}
-            </Text>
+            <Text role="body">{cancelNotice(a, language, t)}</Text>
             <Button
               block
               variant="destructive"

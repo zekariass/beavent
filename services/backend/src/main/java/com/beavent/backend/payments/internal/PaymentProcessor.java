@@ -51,13 +51,16 @@ class PaymentProcessor {
     private final ActiveProvider providers;
     private final List<PaymentFulfilment> fulfilments;
     private final Outbox outbox;
+    private final Captures captures;
 
     PaymentProcessor(
             @SystemDb DSLContext system,
             @SystemDb TransactionTemplate transactions,
             ActiveProvider providers,
             List<PaymentFulfilment> fulfilments,
-            Outbox outbox) {
+            Outbox outbox,
+            Captures captures) {
+        this.captures = captures;
         this.system = system;
         this.transactions = transactions;
         this.providers = providers;
@@ -224,6 +227,7 @@ class PaymentProcessor {
                     "DUPLICATE_PAYMENT",
                     "REQUESTED",
                     "duplicate:" + a.getId());
+            captures.receivedForRefund(a, intent.getOrderId());
             publish(a.getOrgId(), intent.getOrderId(), "payment.duplicate_received", a, a.getAmountMinor());
             return;
         }
@@ -243,6 +247,11 @@ class PaymentProcessor {
                 .set(PAYMENT_INTENTS.UPDATED_AT, at)
                 .where(PAYMENT_INTENTS.ID.eq(intent.getId()))
                 .execute();
+        system.update(com.beavent.db.payments.Tables.PAYMENT_LINKS)
+                .set(com.beavent.db.payments.Tables.PAYMENT_LINKS.STATUS, "PAID")
+                .where(com.beavent.db.payments.Tables.PAYMENT_LINKS.INTENT_ID.eq(intent.getId()))
+                .and(com.beavent.db.payments.Tables.PAYMENT_LINKS.STATUS.eq("ACTIVE"))
+                .execute();
         if (intent.getPaymentScheduleId() != null) {
             system.update(PAYMENT_SCHEDULE)
                     .set(PAYMENT_SCHEDULE.STATUS, "PAID")
@@ -251,6 +260,20 @@ class PaymentProcessor {
                     .execute();
         }
         UUID orderId = intent.getOrderId();
+        // Part of the order was paid with a gift card or balance and part is still due: nothing is honoured until all
+        // of it is paid, but the part received is in the ledger.
+        if (orderId != null
+                && system.fetchExists(
+                        PAYMENT_SCHEDULE,
+                        PAYMENT_SCHEDULE
+                                .ORDER_ID
+                                .eq(orderId)
+                                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("ONLINE"))
+                                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE")))) {
+            captures.confirmed(a, orderId, now);
+            publish(a.getOrgId(), orderId, "payment.part_received", a, a.getAmountMinor());
+            return;
+        }
         String orderStatus = orderId == null
                 ? null
                 : system.select(ORDERS.STATUS)
@@ -269,7 +292,11 @@ class PaymentProcessor {
                 }
             }
         }
-        if (outcome == PaymentFulfilment.Outcome.CONFIRMED) {
+        if (outcome == PaymentFulfilment.Outcome.CONFIRMED && "CONFIRMED".equals(orderStatus)) {
+            // A payment on a booking that already stands (a balance paid through a link): nothing changes on the order.
+            captures.confirmed(a, orderId, now);
+            publish(a.getOrgId(), orderId, "payment.succeeded", a, a.getAmountMinor());
+        } else if (outcome == PaymentFulfilment.Outcome.CONFIRMED) {
             system.update(ORDERS)
                     .set(ORDERS.STATUS, "CONFIRMED")
                     .set(ORDERS.CONFIRMED_AT, at)
@@ -284,10 +311,12 @@ class PaymentProcessor {
                     .set(ORDER_STATUS_HISTORY.ACTOR_KIND, "SYSTEM")
                     .set(ORDER_STATUS_HISTORY.REASON, late ? "Paid late; the time was still free" : "Payment received")
                     .execute();
+            captures.confirmed(a, orderId, now);
             publish(a.getOrgId(), orderId, "payment.succeeded", a, a.getAmountMinor());
         } else {
             // Nothing to honour any more (the time went, it was cancelled): the whole payment goes back.
             refund(a, orderId, a.getAmountMinor(), "ORDER_ADJUSTMENT", "APPROVED", "unfulfilled:" + intent.getId());
+            captures.receivedForRefund(a, orderId);
             publish(a.getOrgId(), orderId, "payment.refund_owed", a, a.getAmountMinor());
         }
     }

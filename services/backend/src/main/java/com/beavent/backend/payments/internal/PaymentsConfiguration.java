@@ -17,7 +17,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(PaymentsProperties.class)
+@EnableConfigurationProperties({PaymentsProperties.class, PayoutsProperties.class})
 class PaymentsConfiguration {
 
     /**
@@ -66,7 +66,7 @@ class PaymentsConfiguration {
 
     @Bean
     PublicEndpoints paymentHooksPublicEndpoints() {
-        return () -> List.of("/v1/hooks/arifpay", "/v1/hooks/chapa", "/v1/ref/banks");
+        return () -> List.of("/v1/hooks/arifpay", "/v1/hooks/chapa", "/v1/ref/banks", "/v1/public/payment-links/**");
     }
 
     private static RestClient.Builder client(PaymentsProperties props) {

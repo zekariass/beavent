@@ -294,6 +294,12 @@ myAppointmentCancel:
               reason:
                 type: string
                 maxLength: 500
+              refundTo:
+                type: string
+                enum: [ORIGINAL, BALANCE]
+                description: |
+                  Where a refund of the deposit goes: back the way it was paid (`ORIGINAL`, the default), or kept as credit
+                  with the business at once (`BALANCE`).
     responses:
       '200':
         description: Cancelled.
@@ -345,6 +351,48 @@ myAppointmentPayment:
         $ref: ../common/responses.yaml#/Conflict
       '503':
         $ref: ../common/responses.yaml#/ServiceUnavailable
+myAppointmentPaymentTender:
+  post:
+    tags: [Booking]
+    operationId: tenderMyAppointmentPayment
+    summary: Pay part or all of the deposit with a gift card or the balance with the business
+    description: |
+      `GIFT_CARD` needs the card's `code`; `BALANCE` spends the signed-in person's credit with the business. What cannot be
+      covered is still paid through the provider; the booking is confirmed when all of it is paid. `CONFLICT` when a payment
+      is in progress or the booking is not waiting for payment; `NOT_FOUND` for a card that cannot be used.
+    parameters:
+      - $ref: '#/AppointmentIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [kind]
+            properties:
+              kind:
+                type: string
+                enum: [GIFT_CARD, BALANCE]
+              code:
+                type: string
+                maxLength: 40
+    responses:
+      '200':
+        description: The booking, with where its payment stands.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AppointmentDetail
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
 myAppointmentPaymentCheck:
   post:
     tags: [Booking]
@@ -588,6 +636,38 @@ deskAppointments:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+deskPaymentLink:
+  post:
+    tags: [Calendar]
+    operationId: sendPaymentLink
+    summary: Ask the customer to pay by a link sent to them (a phone booking's deposit, a fresh deposit link, or the balance)
+    description: |
+      A confirmed booking without an order (a phone booking) is asked for the deposit its policy sets and is held until the
+      link runs out (24 hours, or until a quarter of an hour before the visit). A booking waiting for its deposit gets a
+      fresh link (the earlier one stops working). A confirmed booking with a balance gets a link for the balance (7 days).
+      The customer gets the link by text message (by email without a phone number); the address is returned so it can also be
+      shared by hand. `CONFLICT` when nothing is due, the client has neither phone nor email, the business asks for no
+      deposit, or the visit is too close; `PAYMENT_UNAVAILABLE` when the business cannot take online payments yet.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - $ref: '#/AppointmentIdParam'
+    responses:
+      '200':
+        description: The link.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/PaymentLinkSent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '503':
+        $ref: ../common/responses.yaml#/ServiceUnavailable
 deskCancel:
   post:
     tags: [Calendar]

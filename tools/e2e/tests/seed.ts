@@ -1,3 +1,5 @@
+import { execSync } from "node:child_process";
+import { createCipheriv, randomBytes } from "node:crypto";
 import { codeFor, newPhone } from "./support.ts";
 
 const API = process.env.API_URL ?? "http://localhost:8080";
@@ -278,4 +280,133 @@ export function laterToday(): string {
   const addisHour = new Date(Date.now() + 3 * 3600_000).getUTCHours();
   const offset = addisHour >= 22 ? -60 : 30;
   return new Date(Math.ceil((Date.now() + offset * 60_000) / 300_000) * 300_000).toISOString();
+}
+
+// --- Stage 3.5: a paid sale and a finance reviewer ----------------------------------------------------------------------
+
+const POSTGRES = process.env.POSTGRES_CONTAINER ?? "beavent-postgres-1";
+const LOCAL_SECRETS_KEY = process.env.SECRETS_KEY ?? "YmVhdmVudC1sb2NhbC1zZWNyZXRzLWtleS1kZXYtMzI=";
+
+/** Runs SQL against the local database (a dev stack only). */
+export function sql(query: string): void {
+  execSync(
+    `docker exec ${POSTGRES} psql -U beavent -d beavent -v ON_ERROR_STOP=1 -c "${query.replace(/"/g, '\\"')}"`,
+    { stdio: "ignore" },
+  );
+}
+
+/** Seals a secret the way the API does (AES-256-GCM, `box:v1:` + base64(iv, ciphertext, tag)). */
+export function seal(plain: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from(LOCAL_SECRETS_KEY, "base64"), iv);
+  const body = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return `box:v1:${Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64")}`;
+}
+
+/** Makes a seeded business able to take online payments: verified, a 10 % + VAT fee, a verified payout account. */
+export function readyForPayments(salon: SeededSalon): void {
+  const org = salon.orgId;
+  sql(`update tenant.organizations set verification_status = 'VERIFIED' where id = '${org}'`);
+  sql(`update tenant.legal_entities set verification_status = 'VERIFIED' where org_id = '${org}'`);
+  sql(
+    `insert into billing.fee_rules (market_id, org_id, fee_code, payer, applies_to, percent_bps, currency_code, vat_applies, valid_during) ` +
+      `values ((select id from ref.markets where code = 'ET'), '${org}', 'BOOKING_FEE', 'SELLER', array['SERVICE'], 1000, 'ETB', true, tstzrange('2026-01-01', null))`,
+  );
+  sql(
+    `insert into payments.payout_accounts (org_id, legal_entity_id, kind, country_code, currency_code, institution_code, institution_name, ` +
+      `account_name, account_number_masked, details_secret_ref, verification_status, verified_via, is_default, reviewed_by, reviewed_at, payouts_allowed_after) ` +
+      `select e.org_id, e.id, 'BANK_ACCOUNT', e.country_code, e.functional_currency, 'CBETETAA', 'Commercial Bank of Ethiopia', e.registered_name, ` +
+      `'••••6789', '${seal("1000123456789")}', 'VERIFIED', 'MANUAL', true, (select id from iam.users limit 1), now() - interval '30 days', now() - interval '1 day' ` +
+      `from tenant.legal_entities e where e.org_id = '${org}' limit 1`,
+  );
+}
+
+/**
+ * A business able to take online payments whose customer booked and paid the 20 % deposit on the ArifPay stub (the
+ * booking is confirmed, a week ahead).
+ */
+export async function seedPaidBooking(name = "Abeba Beauty") {
+  const salon = await seedSalon(name, { deposit: true });
+  readyForPayments(salon);
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const booked = await bookAsCustomer(
+    salon,
+    await firstFreeStart(salon, day(7), day(7)),
+    "Meron Tesfaye",
+  );
+  const started = await api(
+    "POST",
+    `/v1/me/appointments/${booked.id}/payment`,
+    { language: "en" },
+    booked.token,
+  );
+  const stub = process.env.ARIFPAY_STUB_URL ?? "http://localhost:8091";
+  await fetch(`${stub}/__stub/sessions/${String(started.redirectUrl).split("/pay/")[1]}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "SUCCESS" }),
+  });
+  for (let i = 0; i < 40; i += 1) {
+    const d = await api("GET", `/v1/me/appointments/${booked.id}`, undefined, booked.token);
+    if (d.status === "CONFIRMED") break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return { salon, booked: booked as { id: string; phone: string; token: string } };
+}
+
+/**
+ * A paid deposit whose visit is marked done, its money due for release and the business's payouts daily. With the API
+ * started with `BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000` the worker then releases the money and makes the first payout,
+ * which waits for approval (first payout). Returns once the payout exists.
+ */
+export async function seedPaidSale(
+  name = "Abeba Beauty",
+): Promise<SeededSalon & { payoutId: string }> {
+  const { salon, booked } = await seedPaidBooking(name);
+  const org = salon.orgId;
+  sql(`update scheduling.appointments set status = 'COMPLETED' where id = '${booked.id}'`);
+  sql(
+    `update ledger.scheduled_releases set release_at = now() - interval '1 minute' where org_id = '${org}'`,
+  );
+  sql(
+    `insert into payments.org_settings (org_id, market_id, collection_mode, payout_schedule) ` +
+      `select '${org}', id, 'PLATFORM_COLLECTS', 'DAILY' from ref.markets where code = 'ET'`,
+  );
+  for (let i = 0; i < 60; i += 1) {
+    const e = await api("GET", `/v1/orgs/${org}/earnings`, undefined, salon.token);
+    if (e.payouts.length > 0) return { ...salon, payoutId: e.payouts[0].id as string };
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error(
+    "No payout was made: is the API running with BEAVENT_PAYOUTS_WORKER_INTERVAL_MS=2000?",
+  );
+}
+
+/** A person with the finance role in Ethiopia (admin console), who has signed in once. */
+export async function seedFinanceStaff(): Promise<string> {
+  const phone = newPhone();
+  const challenge = await api("POST", "/v1/auth/otp/request", {
+    phone,
+    purpose: "SIGN_IN",
+    clientApp: "MOBILE_APP",
+    channel: "SMS",
+  });
+  await api("POST", "/v1/auth/otp/verify", {
+    challengeId: challenge.challengeId,
+    code: await codeFor(phone),
+  });
+  execSync(`db/scripts/grant-staff-role.sh ${phone} FINANCE ET`, {
+    cwd: "../..",
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      PGHOST: "localhost",
+      PGPORT: "5433",
+      PGUSER: "beavent",
+      PGDATABASE: "beavent",
+      PGPASSWORD: "beavent",
+    },
+  });
+  return phone;
 }
