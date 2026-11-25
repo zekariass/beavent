@@ -61,6 +61,8 @@ public interface Search {
      * @param dayPart restricts {@code from…to} to part of the day, in the place's local time
      * @param freeOnly events that cost nothing
      * @param online events held online
+     * @param business the business's public slug: only its places and events
+     * @param locations only these places (ids of locations), e.g. the ones a person booked before
      * @param cursor from the previous page
      * @param limit 1–50
      */
@@ -84,6 +86,8 @@ public interface Search {
             DayPart dayPart,
             boolean freeOnly,
             boolean online,
+            String business,
+            Set<UUID> locations,
             String cursor,
             int limit) {}
 
@@ -102,6 +106,7 @@ public interface Search {
      */
     record Item(
             UUID id,
+            UUID locationId,
             Kind kind,
             String title,
             Map<String, String> summary,
@@ -155,6 +160,9 @@ public interface Search {
     record Suggestions(List<CategoryHit> categories, List<Item> places, List<Item> events) {}
 
     Page search(Request request, Instant now);
+
+    /** These listings as result rows, in the order given; ones that are no longer listed are left out. */
+    List<Item> items(List<UUID> listingIds, Instant now);
 
     /** Pins for the map, same filters as {@link #search}; needs {@code box} or {@code near}. */
     Pins pins(Request request, Instant now);

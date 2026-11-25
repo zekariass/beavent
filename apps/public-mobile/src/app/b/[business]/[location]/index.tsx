@@ -37,6 +37,10 @@ import {
 } from "@beavent/venue";
 import { formatDuration } from "@beavent/i18n";
 
+import { HeartButton } from "../../../../components/marketplace/heart-button";
+import { useFollowing } from "../../../../hooks/use-following";
+import { useSaved } from "../../../../hooks/use-saved";
+
 type Load =
   | { state: "loading" }
   | { state: "error" }
@@ -109,6 +113,8 @@ export default function VenueScreen() {
 function VenueContent({ venue }: { venue: Venue }) {
   const { t, language, colors } = useApp();
   const router = useRouter();
+  const saved = useSaved();
+  const following = useFollowing();
   const status = openStatus(venue, new Date());
   const until = status.until ? dualClock(status.until, language) : null;
   const photo = venue.gallery[0];
@@ -123,7 +129,20 @@ function VenueContent({ venue }: { venue: Venue }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Stack.Screen options={{ title: venue.businessName }} />
+      <Stack.Screen
+        options={{
+          title: venue.businessName,
+          headerRight: venue.listed
+            ? () => (
+                <HeartButton
+                  name={venue.businessName}
+                  saved={saved.isSaved(venue.locationId)}
+                  onPress={() => saved.toggle(venue.locationId)}
+                />
+              )
+            : undefined,
+        }}
+      />
       <Screen edges={[]}>
         {photo ? (
           <Image
@@ -179,16 +198,24 @@ function VenueContent({ venue }: { venue: Venue }) {
               {facts.join(" · ")}
             </Text>
           ) : null}
-          {directions ? (
-            <View style={{ alignSelf: "flex-start" }}>
+          <View style={{ flexDirection: "row", gap: space[2], alignSelf: "flex-start" }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              label={
+                following.isFollowing(venue.businessSlug) ? t("follow.following") : t("follow.add")
+              }
+              onPress={() => following.toggle(venue.businessSlug)}
+            />
+            {directions ? (
               <Button
                 variant="tertiary"
                 size="sm"
                 label={t("venue.directions")}
                 onPress={() => Linking.openURL(directions)}
               />
-            </View>
-          ) : null}
+            ) : null}
+          </View>
         </View>
 
         <Section title={t("venue.services")}>

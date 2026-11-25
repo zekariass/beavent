@@ -184,3 +184,17 @@ Online:
   schema:
     type: boolean
     default: false
+Business:
+  name: business
+  in: query
+  required: false
+  description: A business's public slug, to get only its places (a brand page lists its locations this way).
+  schema:
+    type: string
+Location:
+  name: location
+  in: query
+  required: false
+  description: Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before.
+  schema:
+    type: string

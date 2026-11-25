@@ -14,12 +14,20 @@ export function SiteHeader({ language, path }: { language: Language; path: strin
       <Link href={`/${language}`} className="bv-type-title2 text-fg">
         {t("app.name")}
       </Link>
-      <Link
-        href={`/${language}/account/bookings`}
-        className="bv-type-label ms-auto inline-flex min-h-12 items-center text-fg hover:text-primary"
-      >
-        {t("nav.bookings")}
-      </Link>
+      <nav className="ms-auto flex items-center gap-4">
+        <Link
+          href={`/${language}/account/saved`}
+          className="bv-type-label inline-flex min-h-12 items-center text-fg hover:text-primary"
+        >
+          {t("nav.saved")}
+        </Link>
+        <Link
+          href={`/${language}/account/bookings`}
+          className="bv-type-label inline-flex min-h-12 items-center text-fg hover:text-primary"
+        >
+          {t("nav.bookings")}
+        </Link>
+      </nav>
       <div className="flex w-full justify-end whitespace-nowrap sm:w-auto">
         <LanguageSwitch current={language} path={path} label={t("language.label")} />
       </div>

@@ -100,7 +100,17 @@ export const activeFilterCount = (filters: Filters): number =>
 /** The API's search query for these filters. */
 export function toApiQuery(
   filters: Filters,
-  extra: { market: string; limit: number; cursor?: string; category?: string; area?: string },
+  extra: {
+    market: string;
+    limit: number;
+    cursor?: string;
+    category?: string;
+    area?: string;
+    /** A business's public slug: only its places. */
+    business?: string;
+    /** Only these places (location ids), as a comma-separated list. */
+    location?: string;
+  },
 ) {
   return {
     q: filters.q,
@@ -118,6 +128,8 @@ export function toApiQuery(
     ...box(filters.bbox),
     date: filters.date,
     part: filters.part,
+    business: extra.business,
+    location: extra.location,
     limit: extra.limit,
     cursor: extra.cursor,
   };

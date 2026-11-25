@@ -15,6 +15,7 @@ import {
   loadCity,
   loadPlaces,
 } from "@/lib/discovery";
+import { savedLocationIds } from "@/lib/customer/saved";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { parseFilters, toParams } from "@/lib/search-filters";
 
@@ -64,9 +65,10 @@ export default async function LandingPage({ params, searchParams }: Props) {
   if (!found) notFound();
   const { city, areas, category } = found;
   const filters = parseFilters(await searchParams);
-  const [page, categories] = await Promise.all([
+  const [page, categories, saved] = await Promise.all([
     loadPlaces(filters, { category: category.code }),
     loadCategories(),
+    savedLocationIds(language),
   ]);
   const names = {
     category: pick(category.name, language),
@@ -118,6 +120,7 @@ export default async function LandingPage({ params, searchParams }: Props) {
               language={language}
               query={query}
               scope={{ category: category.code }}
+              saved={saved}
             />
           </ResultsWithMap>
         )}

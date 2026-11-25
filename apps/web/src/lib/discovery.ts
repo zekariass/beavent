@@ -1,6 +1,6 @@
 import { createApiClient, type Schemas } from "@beavent/api-client";
 import type { Language } from "@beavent/i18n";
-import { CITY_WINDOW, slugOf, type SearchPage, type SearchPins } from "@beavent/venue";
+import { CITY_WINDOW, slugOf, type Brand, type SearchPage, type SearchPins } from "@beavent/venue";
 import { toApiQuery, toPinsQuery, type Filters } from "@/lib/search-filters";
 
 /** Server-side client: the API's internal address when set (containers), otherwise the public one. */
@@ -20,7 +20,14 @@ export type AdminArea = Schemas["AdminArea"];
 /** One page of places. Throws on any failure; the page's error boundary offers a retry. */
 export async function loadPlaces(
   filters: Filters,
-  options: { limit?: number; cursor?: string; category?: string; area?: string } = {},
+  options: {
+    limit?: number;
+    cursor?: string;
+    category?: string;
+    area?: string;
+    business?: string;
+    location?: string;
+  } = {},
 ): Promise<SearchPage> {
   const { data, response } = await server.GET("/v1/public/search", {
     params: {
@@ -30,6 +37,8 @@ export async function loadPlaces(
         cursor: options.cursor,
         category: options.category,
         area: options.area,
+        business: options.business,
+        location: options.location,
       }),
     },
     cache: "no-store",
@@ -94,5 +103,16 @@ export async function loadPins(
     cache: "no-store",
   });
   if (!data) throw new Error(`pins: ${response.status}`);
+  return data;
+}
+
+/** A business as a whole, or `null` when it is not on Beavent. */
+export async function loadBrand(businessSlug: string): Promise<Brand | null> {
+  const { data, response } = await server.GET("/v1/public/businesses/{businessSlug}", {
+    params: { path: { businessSlug } },
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!data) throw new Error(`brand: ${response.status}`);
   return data;
 }

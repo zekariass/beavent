@@ -1,9 +1,12 @@
 import type { ApiClient, Schemas } from "@beavent/api-client";
 import {
   CITY_WINDOW,
+  pastVisits,
   toApiQuery,
   toPinsQuery,
   type Filters,
+  type PastVisit,
+  type SearchItem,
   type SearchPage,
   type SearchPins,
 } from "@beavent/venue";
@@ -26,7 +29,14 @@ export type AdminArea = Schemas["AdminArea"];
 export async function fetchPlaces(
   api: ApiClient,
   filters: Filters,
-  options: { limit?: number; cursor?: string; category?: string; area?: string } = {},
+  options: {
+    limit?: number;
+    cursor?: string;
+    category?: string;
+    area?: string;
+    business?: string;
+    location?: string;
+  } = {},
 ): Promise<SearchPage> {
   const { data, response } = await api.GET("/v1/public/search", {
     params: {
@@ -36,6 +46,8 @@ export async function fetchPlaces(
         cursor: options.cursor,
         category: options.category,
         area: options.area,
+        business: options.business,
+        location: options.location,
       }),
     },
   });
@@ -54,6 +66,29 @@ export async function fetchPins(
   });
   if (!data) throw new Error(`pins: ${response.status}`);
   return data;
+}
+
+/**
+ * The places of the person's completed visits that are still on the marketplace, most recent first, with what they had
+ * last (S-01 "Book again"). Empty without a completed visit.
+ */
+export async function fetchBookAgain(
+  api: ApiClient,
+  limit = 6,
+): Promise<{ visit: PastVisit; item: SearchItem }[]> {
+  const mine = await api.GET("/v1/me/appointments");
+  const visits = pastVisits(mine.data?.items ?? [], limit);
+  if (visits.length === 0) return [];
+  const places = await fetchPlaces(
+    api,
+    {},
+    { location: visits.map((v) => v.locationId).join(","), limit: 20 },
+  );
+  const byLocation = new Map(places.items.map((i) => [i.locationId, i]));
+  return visits.flatMap((visit) => {
+    const item = byLocation.get(visit.locationId);
+    return item ? [{ visit, item }] : [];
+  });
 }
 
 let categories: Promise<Category[]> | undefined;

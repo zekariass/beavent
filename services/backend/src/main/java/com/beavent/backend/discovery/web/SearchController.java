@@ -69,13 +69,16 @@ class SearchController {
             @RequestParam(required = false) String part,
             @RequestParam(required = false, defaultValue = "false") boolean free,
             @RequestParam(required = false, defaultValue = "false") boolean online,
+            @RequestParam(required = false) String business,
+            @RequestParam(required = false) String location,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false, defaultValue = "20") int limit,
             HttpServletRequest http) {
         hit(http, "search", SEARCHES_PER_MINUTE);
         Search.Request request = request(
                 q, kind, market, category, area, lat, lng, radius, west, south, east, north, sort, maxPrice, minRating,
-                openNow, atHome, audience, language, date, dateTo, part, free, online, cursor, limit);
+                openNow, atHome, audience, language, date, dateTo, part, free, online, business, location, cursor,
+                limit);
         Search.Page page = search.search(request, Instant.now());
         if (cursor == null && q != null && !q.isBlank()) {
             search.record(request, page.total() == null ? page.items().size() : page.total());
@@ -108,11 +111,13 @@ class SearchController {
             @RequestParam(required = false) String part,
             @RequestParam(required = false, defaultValue = "false") boolean free,
             @RequestParam(required = false, defaultValue = "false") boolean online,
+            @RequestParam(required = false) String business,
+            @RequestParam(required = false) String location,
             HttpServletRequest http) {
         hit(http, "pins", SEARCHES_PER_MINUTE);
         Search.Request request = request(
                 q, kind, market, category, area, lat, lng, radius, west, south, east, north, null, maxPrice, minRating,
-                openNow, atHome, audience, language, date, dateTo, part, free, online, null, 1);
+                openNow, atHome, audience, language, date, dateTo, part, free, online, business, location, null, 1);
         return ResponseEntity.ok().cacheControl(CACHE).body(search.pins(request, Instant.now()));
     }
 
@@ -156,6 +161,8 @@ class SearchController {
             String part,
             boolean free,
             boolean online,
+            String business,
+            String location,
             String cursor,
             int limit) {
         if (q != null && q.length() > MAX_TEXT) {
@@ -225,8 +232,29 @@ class SearchController {
                 part == null || part.isBlank() ? null : enumOf(Search.DayPart.class, part, "part"),
                 free,
                 online,
+                business == null || business.isBlank() ? null : business.trim(),
+                locations(location),
                 cursor,
                 Math.max(1, Math.min(limit, 50)));
+    }
+
+    /** Up to 20 location ids from a comma-separated list. */
+    private static Set<java.util.UUID> locations(String ids) {
+        if (ids == null || ids.isBlank()) {
+            return Set.of();
+        }
+        Set<java.util.UUID> out = new java.util.LinkedHashSet<>();
+        try {
+            for (String id : ids.split(",")) {
+                out.add(java.util.UUID.fromString(id.trim()));
+            }
+        } catch (IllegalArgumentException e) {
+            throw invalid("location is a list of ids.");
+        }
+        if (out.size() > 20) {
+            throw invalid("Ask for at most 20 locations.");
+        }
+        return out;
     }
 
     private static Set<Search.Kind> kinds(String kind) {

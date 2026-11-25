@@ -360,3 +360,57 @@ export function activeFilterChips(
     chips.push({ key: "bbox", label: t("filter.mapArea"), remove: { bbox: undefined } });
   return chips;
 }
+
+// --- saved places, following and book again (plan 8.2) -------------------------------------------------------------
+
+export type SavedEntry = Schemas["SavedEntry"];
+export type Followed = Schemas["Followed"];
+export type Brand = Schemas["Brand"];
+export type MyAppointment = Schemas["MyAppointment"];
+
+/** A place a person has been to and what they had there last, for the Book again shelf. */
+export interface PastVisit {
+  locationId: string;
+  businessSlug: string;
+  locationSlug: string;
+  /** The service of the last visit, as the business named it. */
+  lastService: string;
+  /** Its variant, to look the name up in the reader's language. */
+  lastVariantId: string | null;
+  /** Who did it, when the booking named a person. */
+  lastPerson: string | null;
+  /** When it was. */
+  at: string;
+}
+
+/**
+ * The places of a person's completed visits, most recent first and each once, with what they had last (S-01 "Book
+ * again"). Cancelled, missed and upcoming appointments do not count.
+ */
+export function pastVisits(appointments: MyAppointment[], limit = 8): PastVisit[] {
+  const seen = new Set<string>();
+  const out: PastVisit[] = [];
+  for (const a of [...appointments].sort((x, y) => y.start.localeCompare(x.start))) {
+    if (a.status !== "COMPLETED" || !a.place || seen.has(a.place.locationId)) continue;
+    seen.add(a.place.locationId);
+    const item = a.items[0];
+    out.push({
+      locationId: a.place.locationId,
+      businessSlug: a.place.businessSlug,
+      locationSlug: a.place.locationSlug,
+      lastService: item?.serviceName ?? "",
+      lastVariantId: item?.variantId ?? null,
+      lastPerson: item?.staffName ?? null,
+      at: a.start,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** "Last: Box braids · with Hana" (or without the person). */
+export function lastVisitText(visit: PastVisit, t: Translate): string {
+  return visit.lastPerson
+    ? t("bookAgain.lastWith", { service: visit.lastService, person: visit.lastPerson })
+    : t("bookAgain.last", { service: visit.lastService });
+}

@@ -12,10 +12,12 @@ import {
 } from "@beavent/native";
 import { layout, space } from "@beavent/ui";
 import {
+  lastVisitText,
   pick,
   todayIn,
   toRecord,
   type Filters,
+  type PastVisit,
   type SearchItem,
   type SearchPage,
 } from "@beavent/venue";
@@ -24,10 +26,13 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { LocationSheet } from "../../components/marketplace/location-sheet";
+import { useMenuNames } from "../../hooks/use-menu-names";
+import { useSaved } from "../../hooks/use-saved";
 import { CARD_WIDTH, VenueCard } from "../../components/marketplace/venue-card";
 import { VenueResultRow } from "../../components/marketplace/venue-result-row";
 import {
   fetchCategories,
+  fetchBookAgain,
   fetchCity,
   fetchPlaces,
   MARKET,
@@ -64,6 +69,9 @@ export default function ExploreScreen() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [picking, setPicking] = useState(false);
+  const saved = useSaved();
+  const [bookAgain, setBookAgain] = useState<{ visit: PastVisit; item: SearchItem }[]>([]);
+  const serviceNames = useMenuNames(bookAgain.map(({ visit }) => visit));
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +105,17 @@ export default function ExploreScreen() {
       cancelled = true;
     };
   }, [api, area, attempt]);
+
+  useEffect(() => {
+    if (!saved.signedIn) return;
+    let cancelled = false;
+    fetchBookAgain(api)
+      .then((list) => !cancelled && setBookAgain(list))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [api, saved.signedIn]);
 
   const retry = () => {
     setState({ status: "loading" });
@@ -194,6 +213,42 @@ export default function ExploreScreen() {
             </Section>
           ) : null}
 
+          {bookAgain.length > 0 ? (
+            <Section title={t("home.bookAgain")}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: layout.railGap }}
+              >
+                {bookAgain.map(({ visit, item }) => (
+                  <VenueCard
+                    key={visit.locationId}
+                    item={item}
+                    onPress={() => open(item)}
+                    heart={{
+                      saved: saved.isSaved(item.locationId),
+                      onToggle: () => saved.toggle(item.locationId),
+                    }}
+                    extra={lastVisitText(
+                      {
+                        ...visit,
+                        lastService:
+                          (visit.lastVariantId && serviceNames.get(visit.lastVariantId)?.service) ||
+                          visit.lastService,
+                      },
+                      t,
+                    )}
+                    action={{
+                      label: t("bookAgain.action"),
+                      onPress: () =>
+                        router.push(`/b/${item.businessSlug}/${item.locationSlug}/book`),
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </Section>
+          ) : null}
+
           {total === 0 ? (
             <EmptyState
               title={t("home.empty.title", { city: areaName })}
@@ -220,7 +275,15 @@ export default function ExploreScreen() {
                   contentContainerStyle={{ gap: layout.railGap }}
                 >
                   {g.page.items.map((item) => (
-                    <VenueCard key={item.id} item={item} onPress={() => open(item)} />
+                    <VenueCard
+                      key={item.id}
+                      item={item}
+                      onPress={() => open(item)}
+                      heart={{
+                        saved: saved.isSaved(item.locationId),
+                        onToggle: () => saved.toggle(item.locationId),
+                      }}
+                    />
                   ))}
                 </ScrollView>
               </Section>
@@ -232,6 +295,10 @@ export default function ExploreScreen() {
                   <VenueResultRow
                     key={item.id}
                     item={item}
+                    heart={{
+                      saved: saved.isSaved(item.locationId),
+                      onToggle: () => saved.toggle(item.locationId),
+                    }}
                     onOpen={() => open(item)}
                     onBook={(serviceId) =>
                       router.push(

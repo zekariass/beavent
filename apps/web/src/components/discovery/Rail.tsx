@@ -10,11 +10,13 @@ export function Rail({
   items,
   language,
   seeAllHref,
+  save,
 }: {
   title: string;
   items: SearchItem[];
   language: Language;
   seeAllHref: string;
+  save?: { signedIn: boolean; ids: Set<string> };
 }) {
   const t = translator(language);
   return (
@@ -30,7 +32,16 @@ export function Rail({
       </div>
       <ul className="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4">
         {items.slice(0, 4).map((item) => (
-          <VenueCard key={item.id} item={item} language={language} />
+          <VenueCard
+            key={item.id}
+            item={item}
+            language={language}
+            save={
+              save
+                ? { signedIn: save.signedIn, saved: save.ids.has(item.locationId ?? "") }
+                : undefined
+            }
+          />
         ))}
       </ul>
     </section>

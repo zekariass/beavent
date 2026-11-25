@@ -34,6 +34,8 @@ search:
       - $ref: ./parameters.yaml#/Part
       - $ref: ./parameters.yaml#/Free
       - $ref: ./parameters.yaml#/Online
+      - $ref: ./parameters.yaml#/Business
+      - $ref: ./parameters.yaml#/Location
       - $ref: ../common/parameters.yaml#/Cursor
       - name: limit
         in: query
@@ -85,6 +87,8 @@ pins:
       - $ref: ./parameters.yaml#/Part
       - $ref: ./parameters.yaml#/Free
       - $ref: ./parameters.yaml#/Online
+      - $ref: ./parameters.yaml#/Business
+      - $ref: ./parameters.yaml#/Location
     responses:
       '200':
         description: Pins.
@@ -192,3 +196,137 @@ marketplace:
         $ref: ../common/responses.yaml#/Conflict
       '422':
         $ref: ../common/responses.yaml#/Unprocessable
+mySaved:
+  get:
+    tags: [Discovery]
+    operationId: listSavedPlaces
+    summary: The signed-in person's saved places, newest first
+    description: Places taken off the marketplace since they were saved are left out until they are listed again.
+    responses:
+      '200':
+        description: Saved places.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SavedList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+mySavedLocation:
+  put:
+    tags: [Discovery]
+    operationId: savePlace
+    summary: Save a place (saving it again changes nothing)
+    description: The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Saved.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Discovery]
+    operationId: unsavePlace
+    summary: Take a place off the saved list
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Not saved (any more).
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myFollows:
+  get:
+    tags: [Discovery]
+    operationId: listFollowedBusinesses
+    summary: The businesses and organizers the signed-in person follows, newest first
+    responses:
+      '200':
+        description: Followed businesses.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FollowedList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myFollow:
+  put:
+    tags: [Discovery]
+    operationId: followBusiness
+    summary: Follow a business, or change whether to be told about its news
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              notifications:
+                type: boolean
+                description: Default true.
+    responses:
+      '200':
+        description: Followed.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Followed
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Discovery]
+    operationId: unfollowBusiness
+    summary: Stop following a business
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Not followed (any more).
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+brand:
+  get:
+    tags: [Discovery]
+    operationId: getBrand
+    summary: A business as a whole, for its brand page
+    description: Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: The brand.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Brand
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

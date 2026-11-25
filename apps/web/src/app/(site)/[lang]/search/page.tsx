@@ -7,6 +7,7 @@ import { ResultsWithMap } from "@/components/discovery/ResultsWithMap";
 import { SearchBar } from "@/components/discovery/SearchBar";
 import { SiteHeader } from "@/components/SiteHeader";
 import { loadCity, loadPlaces } from "@/lib/discovery";
+import { savedLocationIds } from "@/lib/customer/saved";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { parseFilters, toParams } from "@/lib/search-filters";
 import { pick } from "@beavent/venue";
@@ -29,7 +30,11 @@ export default async function SearchPage({ params, searchParams }: Props) {
   const language = routeLanguage((await params).lang);
   const t = translator(language);
   const filters = parseFilters(await searchParams);
-  const [{ city, areas }, page] = await Promise.all([loadCity(), loadPlaces(filters)]);
+  const [{ city, areas }, page, saved] = await Promise.all([
+    loadCity(),
+    loadPlaces(filters),
+    savedLocationIds(language),
+  ]);
   const query = toParams(filters).toString();
   const cityName = pick(city.nameI18n ?? {}, language) || city.name;
 
@@ -58,7 +63,14 @@ export default async function SearchPage({ params, searchParams }: Props) {
           <NoResults language={language} filters={filters} />
         ) : (
           <ResultsWithMap language={language} filters={filters} scope={{}}>
-            <ResultsList key={query} initial={page} language={language} query={query} scope={{}} />
+            <ResultsList
+              key={query}
+              initial={page}
+              language={language}
+              query={query}
+              scope={{}}
+              saved={saved}
+            />
           </ResultsWithMap>
         )}
       </main>

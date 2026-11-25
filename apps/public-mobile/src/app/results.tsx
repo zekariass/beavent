@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FilterSheet } from "../components/marketplace/filter-sheet";
 import { VenueResultRow } from "../components/marketplace/venue-result-row";
+import { useSaved } from "../hooks/use-saved";
 import { fetchCategories, fetchPlaces } from "../lib/places";
 
 type State =
@@ -39,6 +40,7 @@ export default function ResultsScreen() {
   const params = useLocalSearchParams();
   const { api, t, language, colors } = useApp();
   const router = useRouter();
+  const saved = useSaved();
   const filters = useMemo(
     () => parseFilters(params as Record<string, string | string[] | undefined>),
     [params],
@@ -230,6 +232,10 @@ export default function ResultsScreen() {
           renderItem={({ item }) => (
             <VenueResultRow
               item={item}
+              heart={{
+                saved: saved.isSaved(item.locationId),
+                onToggle: () => saved.toggle(item.locationId),
+              }}
               onOpen={() => open(item)}
               onBook={(serviceId) => book(item, serviceId)}
             />

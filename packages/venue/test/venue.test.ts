@@ -324,3 +324,66 @@ test("the map window rides along in the filters, the API query and the pins quer
     ["“braids”", "Map area"],
   );
 });
+
+// --- past visits --------------------------------------------------------------------------------------------------
+
+import { lastVisitText, pastVisits, type MyAppointment } from "../src/index.ts";
+
+const visit = (
+  over: Partial<MyAppointment> & { place?: MyAppointment["place"] },
+): MyAppointment => ({
+  id: "a",
+  reference: "ABC123",
+  status: "COMPLETED",
+  start: "2026-11-01T07:00:00Z",
+  end: "2026-11-01T08:00:00Z",
+  timezone: "Africa/Addis_Ababa",
+  items: [
+    {
+      variantId: "v",
+      serviceName: "Box braids",
+      staffName: "Hana",
+      start: "2026-11-01T07:00:00Z",
+      end: "2026-11-01T08:00:00Z",
+      priceMinor: 1,
+      currency: "ETB",
+    },
+  ],
+  place: {
+    locationId: "L1",
+    businessName: "Abeba",
+    businessSlug: "abeba",
+    locationName: "Bole",
+    locationSlug: "bole",
+  },
+  ...over,
+});
+
+test("book again lists each place of a completed visit once, newest first, with what they had last", () => {
+  const list = pastVisits([
+    visit({ id: "old", start: "2026-09-01T07:00:00Z" }),
+    visit({ id: "new", start: "2026-11-01T07:00:00Z" }),
+    visit({
+      id: "other",
+      start: "2026-10-01T07:00:00Z",
+      place: { ...visit({}).place!, locationId: "L2", locationSlug: "piassa" },
+    }),
+    visit({ id: "cancelled", status: "CANCELLED", start: "2026-11-20T07:00:00Z" }),
+    visit({ id: "upcoming", status: "CONFIRMED", start: "2026-12-01T07:00:00Z" }),
+    visit({ id: "nowhere", place: undefined, start: "2026-11-10T07:00:00Z" }),
+  ]);
+  assert.deepEqual(
+    list.map((v) => v.locationId),
+    ["L1", "L2"],
+  );
+  assert.equal(list[0]!.at, "2026-11-01T07:00:00Z");
+  assert.equal(list[0]!.lastService, "Box braids");
+  assert.equal(list[0]!.lastVariantId, "v");
+  assert.equal(
+    pastVisits([visit({}), visit({ place: { ...visit({}).place!, locationId: "L3" } })], 1).length,
+    1,
+  );
+  const en = createTranslator("en");
+  assert.equal(lastVisitText(list[0]!, en), "Last: Box braids · with Hana");
+  assert.equal(lastVisitText({ ...list[0]!, lastPerson: null }, en), "Last: Box braids");
+});

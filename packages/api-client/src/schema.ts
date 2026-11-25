@@ -2072,6 +2072,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in person's saved places, newest first
+         * @description Places taken off the marketplace since they were saved are left out until they are listed again.
+         */
+        get: operations["listSavedPlaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/saved/locations/{locationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save a place (saving it again changes nothing)
+         * @description The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+         */
+        put: operations["savePlace"];
+        post?: never;
+        /** Take a place off the saved list */
+        delete: operations["unsavePlace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The businesses and organizers the signed-in person follows, newest first */
+        get: operations["listFollowedBusinesses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/follows/{businessSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Follow a business, or change whether to be told about its news */
+        put: operations["followBusiness"];
+        post?: never;
+        /** Stop following a business */
+        delete: operations["unfollowBusiness"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/businesses/{businessSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A business as a whole, for its brand page
+         * @description Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+         */
+        get: operations["getBrand"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -4541,6 +4637,8 @@ export interface components {
          */
         SearchItem: {
             id: components["schemas"]["Uuid"];
+            /** @description Places only. The id the save endpoints take. */
+            locationId?: components["schemas"]["Uuid"];
             kind: components["schemas"]["SearchKind"];
             title: string;
             summary: components["schemas"]["LocalizedText"];
@@ -4636,6 +4734,41 @@ export interface components {
             requirements: components["schemas"]["MarketplaceRequirement"][];
             /** @description The business may ask now (hidden, ready, not taken off by staff). */
             canRequest: boolean;
+        };
+        SavedEntry: {
+            savedAt: components["schemas"]["Instant"];
+            place: components["schemas"]["SearchItem"];
+        };
+        SavedList: {
+            items: components["schemas"]["SavedEntry"][];
+        };
+        Followed: {
+            businessSlug: string;
+            name: string;
+            category: components["schemas"]["LocalizedText"];
+            logoUrl?: string;
+            since: components["schemas"]["Instant"];
+            /** @enum {string} */
+            source: "MANUAL" | "AFTER_PURCHASE" | "AFTER_VISIT";
+            /** @description The person wants to hear about this business's news and offers. */
+            notifications: boolean;
+        };
+        FollowedList: {
+            items: components["schemas"]["Followed"][];
+        };
+        Brand: {
+            slug: string;
+            name: string;
+            description: components["schemas"]["LocalizedText"];
+            category: components["schemas"]["LocalizedText"];
+            logoUrl?: string;
+            /** @description Smaller sizes by name (w320, w960). */
+            logoVariants: {
+                [key: string]: string;
+            };
+            /** @description How many of its places are listed on the marketplace. */
+            places: number;
+            followers: number;
         };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
@@ -5133,6 +5266,10 @@ export interface components {
         Free: boolean;
         /** @description Events held online. */
         Online: boolean;
+        /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+        Business: string;
+        /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+        Location: string;
     };
     requestBodies: never;
     headers: never;
@@ -9381,6 +9518,10 @@ export interface operations {
                 free?: components["parameters"]["Free"];
                 /** @description Events held online. */
                 online?: components["parameters"]["Online"];
+                /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+                business?: components["parameters"]["Business"];
+                /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+                location?: components["parameters"]["Location"];
                 cursor?: components["parameters"]["Cursor"];
                 limit?: number;
             };
@@ -9447,6 +9588,10 @@ export interface operations {
                 free?: components["parameters"]["Free"];
                 /** @description Events held online. */
                 online?: components["parameters"]["Online"];
+                /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+                business?: components["parameters"]["Business"];
+                /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+                location?: components["parameters"]["Location"];
             };
             header?: never;
             path?: never;
@@ -9552,6 +9697,167 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    listSavedPlaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved places. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    savePlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unsavePlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not saved (any more). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listFollowedBusinesses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Followed businesses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    followBusiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Default true. */
+                    notifications?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Followed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Followed"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unfollowBusiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not followed (any more). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getBrand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brand. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Brand"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createFileUpload: {

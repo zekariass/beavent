@@ -11,13 +11,23 @@ import {
 } from "@beavent/venue";
 import { formatDuration } from "@beavent/i18n";
 import { PlaceImage } from "@/components/discovery/PlaceImage";
+import { SaveButton } from "@/components/discovery/SaveButton";
 import { translator } from "@/lib/i18n";
 
 /**
  * One place in a result list (S-02 VenueResultRow): photo, name, area and distance, the next free time, and up to three
  * services that match what was searched, each leading straight into booking it. Rows with dividers, not cards (DD9).
  */
-export function VenueResultRow({ item, language }: { item: SearchItem; language: Language }) {
+export function VenueResultRow({
+  item,
+  language,
+  save,
+}: {
+  item: SearchItem;
+  language: Language;
+  /** Shows the heart: whether the person is signed in and has saved this place. */
+  save?: { signedIn: boolean; saved: boolean };
+}) {
   const t = translator(language);
   const href = `/${language}${resultHref(item)}`;
   const next = nextAvailableText(item, language, t);
@@ -35,12 +45,24 @@ export function VenueResultRow({ item, language }: { item: SearchItem; language:
         />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Link
-          href={href}
-          className={`bv-type-body line-clamp-2 min-h-6 font-semibold text-fg hover:text-primary ${focus}`}
-        >
-          {item.title}
-        </Link>
+        <div className="flex items-start justify-between gap-2">
+          <Link
+            href={href}
+            className={`bv-type-body line-clamp-2 min-h-6 font-semibold text-fg hover:text-primary ${focus}`}
+          >
+            {item.title}
+          </Link>
+          {save && item.locationId ? (
+            <SaveButton
+              language={language}
+              locationId={item.locationId}
+              name={item.title}
+              saved={save.saved}
+              signedIn={save.signedIn}
+              className="relative -mt-3 -me-3 shrink-0"
+            />
+          ) : null}
+        </div>
         <p className="bv-type-label text-fg-muted">{resultMeta(item, language, t)}</p>
         {item.landmark ? <p className="bv-type-caption text-fg-muted">{item.landmark}</p> : null}
         {next ? <p className="bv-type-label text-fg">{next}</p> : null}

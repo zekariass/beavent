@@ -11,6 +11,7 @@ import {
 } from "@beavent/venue";
 import { Pressable, View } from "react-native";
 
+import { HeartButton } from "./heart-button";
 import { PlaceImage } from "./place-image";
 
 const THUMB = 104;
@@ -23,10 +24,12 @@ export function VenueResultRow({
   item,
   onOpen,
   onBook,
+  heart,
 }: {
   item: SearchItem;
   onOpen: () => void;
   onBook: (serviceId: string) => void;
+  heart?: { saved: boolean; onToggle: () => void };
 }) {
   const { t, language } = useApp();
   const next = nextAvailableText(item, language, t);
@@ -49,9 +52,16 @@ export function VenueResultRow({
             height={THUMB}
           />
           <View style={{ flex: 1, gap: space[1] }}>
-            <Text role="bodyStrong" lines={2}>
-              {item.title}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space[2] }}>
+              <Text role="bodyStrong" lines={2} style={{ flex: 1 }}>
+                {item.title}
+              </Text>
+              {heart && item.locationId ? (
+                <View style={{ marginTop: -space[3], marginEnd: -space[3] }}>
+                  <HeartButton name={item.title} saved={heart.saved} onPress={heart.onToggle} />
+                </View>
+              ) : null}
+            </View>
             <Text role="label" tone="muted">
               {meta}
             </Text>

@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import Link from "next/link";
-import { pick, todayIn } from "@beavent/venue";
+import { lastVisitText, pick, todayIn } from "@beavent/venue";
+import { VenueCard } from "@/components/discovery/VenueCard";
 import { CategoryChips } from "@/components/discovery/CategoryChips";
 import { Rail } from "@/components/discovery/Rail";
 import { SearchBar } from "@/components/discovery/SearchBar";
 import { VenueResultRow } from "@/components/discovery/VenueResultRow";
 import { SiteHeader } from "@/components/SiteHeader";
+import { loadBookAgain, savedLocationIds } from "@/lib/customer/saved";
 import { loadCategories, loadCity, loadPlaces } from "@/lib/discovery";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { searchHref } from "@/lib/search-filters";
@@ -22,14 +24,18 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
   const language = routeLanguage((await params).lang);
   const t = translator(language);
   const today = todayIn(MARKET_TIME_ZONE);
-  const [{ city, areas }, categories, all, availableToday, atHome, newest] = await Promise.all([
-    loadCity(),
-    loadCategories(),
-    loadPlaces({}, { limit: 20 }),
-    loadPlaces({ date: today }, { limit: 4 }),
-    loadPlaces({ atHome: true }, { limit: 4 }),
-    loadPlaces({ sort: "NEWEST" }, { limit: 4 }),
-  ]);
+  const [{ city, areas }, categories, all, availableToday, atHome, newest, saved, bookAgain] =
+    await Promise.all([
+      loadCity(),
+      loadCategories(),
+      loadPlaces({}, { limit: 20 }),
+      loadPlaces({ date: today }, { limit: 4 }),
+      loadPlaces({ atHome: true }, { limit: 4 }),
+      loadPlaces({ sort: "NEWEST" }, { limit: 4 }),
+      savedLocationIds(language),
+      loadBookAgain(language),
+    ]);
+  const savedState = { signedIn: saved.signedIn, ids: new Set(saved.ids) };
   const cityName = pick(city.nameI18n ?? {}, language) || city.name;
   const total = all.total ?? all.items.length;
   const groups = total >= MIN_PLACES_FOR_GROUPS;
@@ -62,6 +68,30 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
           </section>
         ) : null}
 
+        {bookAgain.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="bv-type-title2 text-fg">{t("home.bookAgain")}</h2>
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4">
+              {bookAgain.map(({ visit, item }) => (
+                <VenueCard
+                  key={visit.locationId}
+                  item={item}
+                  language={language}
+                  save={{
+                    signedIn: savedState.signedIn,
+                    saved: savedState.ids.has(visit.locationId),
+                  }}
+                  extra={lastVisitText(visit, t)}
+                  action={{
+                    href: `/${language}/b/${visit.businessSlug}/${visit.locationSlug}/book`,
+                    label: t("bookAgain.action"),
+                  }}
+                />
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {total === 0 ? (
           <section className="flex flex-col items-start gap-2 py-6">
             <h2 className="bv-type-title2 text-fg">{t("home.empty.title", { city: cityName })}</h2>
@@ -70,6 +100,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         ) : groups && rails.length > 0 ? (
           rails.map((rail) => (
             <Rail
+              save={savedState}
               key={rail.title}
               title={rail.title}
               items={rail.page.items}
@@ -84,7 +115,15 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
             <h2 className="bv-type-title2 text-fg">{t("home.allPlaces", { city: cityName })}</h2>
             <ul className="grid gap-x-10 md:grid-cols-2">
               {all.items.map((item) => (
-                <VenueResultRow key={item.id} item={item} language={language} />
+                <VenueResultRow
+                  key={item.id}
+                  item={item}
+                  language={language}
+                  save={{
+                    signedIn: savedState.signedIn,
+                    saved: savedState.ids.has(item.locationId ?? ""),
+                  }}
+                />
               ))}
             </ul>
             {total > all.items.length ? (

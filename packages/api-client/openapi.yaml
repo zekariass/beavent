@@ -4683,6 +4683,8 @@ paths:
         - $ref: '#/components/parameters/Part'
         - $ref: '#/components/parameters/Free'
         - $ref: '#/components/parameters/Online'
+        - $ref: '#/components/parameters/Business'
+        - $ref: '#/components/parameters/Location'
         - $ref: '#/components/parameters/Cursor'
         - name: limit
           in: query
@@ -4735,6 +4737,8 @@ paths:
         - $ref: '#/components/parameters/Part'
         - $ref: '#/components/parameters/Free'
         - $ref: '#/components/parameters/Online'
+        - $ref: '#/components/parameters/Business'
+        - $ref: '#/components/parameters/Location'
       responses:
         '200':
           description: Pins.
@@ -4846,6 +4850,147 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /v1/me/saved:
+    get:
+      tags:
+        - Discovery
+      operationId: listSavedPlaces
+      summary: The signed-in person's saved places, newest first
+      description: Places taken off the marketplace since they were saved are left out until they are listed again.
+      responses:
+        '200':
+          description: Saved places.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/saved/locations/{locationId}:
+    put:
+      tags:
+        - Discovery
+      operationId: savePlace
+      summary: Save a place (saving it again changes nothing)
+      description: The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Saved.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Discovery
+      operationId: unsavePlace
+      summary: Take a place off the saved list
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Not saved (any more).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/follows:
+    get:
+      tags:
+        - Discovery
+      operationId: listFollowedBusinesses
+      summary: The businesses and organizers the signed-in person follows, newest first
+      responses:
+        '200':
+          description: Followed businesses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowedList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/follows/{businessSlug}:
+    put:
+      tags:
+        - Discovery
+      operationId: followBusiness
+      summary: Follow a business, or change whether to be told about its news
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifications:
+                  type: boolean
+                  description: Default true.
+      responses:
+        '200':
+          description: Followed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Followed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Discovery
+      operationId: unfollowBusiness
+      summary: Stop following a business
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Not followed (any more).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/public/businesses/{businessSlug}:
+    get:
+      tags:
+        - Discovery
+      operationId: getBrand
+      summary: A business as a whole, for its brand page
+      description: Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The brand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -10766,6 +10911,10 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
+        locationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Places only. The id the save endpoints take.
         kind:
           $ref: '#/components/schemas/SearchKind'
         title:
@@ -10979,6 +11128,94 @@ components:
         canRequest:
           type: boolean
           description: The business may ask now (hidden, ready, not taken off by staff).
+    SavedEntry:
+      type: object
+      required:
+        - savedAt
+        - place
+      properties:
+        savedAt:
+          $ref: '#/components/schemas/Instant'
+        place:
+          $ref: '#/components/schemas/SearchItem'
+    SavedList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedEntry'
+    Followed:
+      type: object
+      required:
+        - businessSlug
+        - name
+        - category
+        - since
+        - source
+        - notifications
+      properties:
+        businessSlug:
+          type: string
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logoUrl:
+          type: string
+        since:
+          $ref: '#/components/schemas/Instant'
+        source:
+          type: string
+          enum:
+            - MANUAL
+            - AFTER_PURCHASE
+            - AFTER_VISIT
+        notifications:
+          type: boolean
+          description: The person wants to hear about this business's news and offers.
+    FollowedList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Followed'
+    Brand:
+      type: object
+      required:
+        - slug
+        - name
+        - description
+        - category
+        - logoVariants
+        - places
+        - followers
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logoUrl:
+          type: string
+        logoVariants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        places:
+          type: integer
+          description: How many of its places are listed on the marketplace.
+        followers:
+          type: integer
     FilePurpose:
       type: string
       enum:
@@ -12197,3 +12434,17 @@ components:
       schema:
         type: boolean
         default: false
+    Business:
+      name: business
+      in: query
+      required: false
+      description: A business's public slug, to get only its places (a brand page lists its locations this way).
+      schema:
+        type: string
+    Location:
+      name: location
+      in: query
+      required: false
+      description: Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before.
+      schema:
+        type: string

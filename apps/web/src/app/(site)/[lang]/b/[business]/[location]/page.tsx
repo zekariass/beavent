@@ -6,6 +6,9 @@ import { About } from "@/components/venue/About";
 import { ServiceList } from "@/components/venue/ServiceList";
 import { TeamRail } from "@/components/venue/TeamRail";
 import { VenueGallery } from "@/components/venue/VenueGallery";
+import { FollowButton } from "@/components/discovery/FollowButton";
+import { SaveButton } from "@/components/discovery/SaveButton";
+import { loadFollowing, savedLocationIds } from "@/lib/customer/saved";
 import { SiteHeader } from "@/components/SiteHeader";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { loadVenue } from "@/lib/venue";
@@ -45,6 +48,10 @@ export default async function VenuePage({ params }: Props) {
   const t = translator(language);
   const venue = await loadVenue(business, location);
   if (!venue) notFound();
+  const [saved, following] = await Promise.all([
+    savedLocationIds(language),
+    loadFollowing(language),
+  ]);
   const now = new Date();
   const status = openStatus(venue, now);
   const area = pick(venue.area, language);
@@ -67,7 +74,19 @@ export default async function VenuePage({ params }: Props) {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <div className="flex min-w-0 flex-col gap-8">
             <section className="flex flex-col gap-2">
-              <h1 className="bv-type-display text-fg">{venue.businessName}</h1>
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="bv-type-display text-fg">{venue.businessName}</h1>
+                {venue.listed ? (
+                  <SaveButton
+                    language={language}
+                    locationId={venue.locationId}
+                    name={venue.businessName}
+                    saved={saved.ids.includes(venue.locationId)}
+                    signedIn={saved.signedIn}
+                    className="relative -me-3 shrink-0"
+                  />
+                ) : null}
+              </div>
               <p className="bv-type-body text-fg-muted">
                 {[
                   venue.locationName !== venue.businessName && venue.otherLocations.length > 0
@@ -95,6 +114,12 @@ export default async function VenuePage({ params }: Props) {
               {facts.length > 0 ? (
                 <p className="bv-type-caption text-fg-muted">{facts.join(" · ")}</p>
               ) : null}
+              <FollowButton
+                language={language}
+                businessSlug={venue.businessSlug}
+                following={following.items.some((f) => f.businessSlug === venue.businessSlug)}
+                signedIn={following.signedIn}
+              />
             </section>
 
             <nav

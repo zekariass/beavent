@@ -45,6 +45,10 @@ SearchItem:
   properties:
     id:
       $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+      description: Places only. The id the save endpoints take.
     kind:
       $ref: '#/SearchKind'
     title:
@@ -225,3 +229,71 @@ MarketplaceStatus:
     canRequest:
       type: boolean
       description: The business may ask now (hidden, ready, not taken off by staff).
+SavedEntry:
+  type: object
+  required: [savedAt, place]
+  properties:
+    savedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    place:
+      $ref: '#/SearchItem'
+SavedList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SavedEntry'
+Followed:
+  type: object
+  required: [businessSlug, name, category, since, source, notifications]
+  properties:
+    businessSlug:
+      type: string
+    name:
+      type: string
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoUrl:
+      type: string
+    since:
+      $ref: ../common/schemas.yaml#/Instant
+    source:
+      type: string
+      enum: [MANUAL, AFTER_PURCHASE, AFTER_VISIT]
+    notifications:
+      type: boolean
+      description: The person wants to hear about this business's news and offers.
+FollowedList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Followed'
+Brand:
+  type: object
+  required: [slug, name, description, category, logoVariants, places, followers]
+  properties:
+    slug:
+      type: string
+    name:
+      type: string
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoUrl:
+      type: string
+    logoVariants:
+      type: object
+      description: Smaller sizes by name (w320, w960).
+      additionalProperties:
+        type: string
+    places:
+      type: integer
+      description: How many of its places are listed on the marketplace.
+    followers:
+      type: integer

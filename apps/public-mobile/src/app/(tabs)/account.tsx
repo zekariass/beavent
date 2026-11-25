@@ -36,6 +36,18 @@ export default function AccountScreen() {
       )}
       <SignedInSummary />
 
+      {signedIn && (
+        <Section>
+          <Group>
+            <ListRow
+              title={t("following.title")}
+              chevron
+              onPress={() => router.push("/following")}
+            />
+          </Group>
+        </Section>
+      )}
+
       <PreferencesSections />
 
       <Section title={t("account.forBusiness")}>

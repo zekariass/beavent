@@ -16,12 +16,15 @@ export function ResultsList({
   language,
   query,
   scope,
+  saved,
 }: {
   initial: SearchPage;
   language: Language;
   /** The page's own query string, to repeat the same search for the next page. */
   query: string;
   scope: { category?: string; area?: string };
+  /** For the hearts: whether the person is signed in and which places they saved. */
+  saved?: { signedIn: boolean; ids: string[] };
 }) {
   const t = translator(language);
   const [items, setItems] = useState(initial.items);
@@ -47,7 +50,16 @@ export function ResultsList({
     <div className="flex flex-col">
       <ul className="grid">
         {items.map((item) => (
-          <VenueResultRow key={item.id} item={item} language={language} />
+          <VenueResultRow
+            key={item.id}
+            item={item}
+            language={language}
+            save={
+              saved
+                ? { signedIn: saved.signedIn, saved: saved.ids.includes(item.locationId ?? "") }
+                : undefined
+            }
+          />
         ))}
       </ul>
       {failed ? (

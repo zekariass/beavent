@@ -191,6 +191,12 @@ class ListingSearch implements Search {
         if (r.online()) {
             w.and("li.is_online");
         }
+        if (r.business() != null && !r.business().isBlank()) {
+            w.and("(li.attributes ->> 'businessSlug') = ?", r.business().trim().toLowerCase());
+        }
+        if (r.locations() != null && !r.locations().isEmpty()) {
+            w.and("li.location_id = ANY(?::uuid[])", (Object) r.locations().toArray(UUID[]::new));
+        }
 
         Sort sort = r.sort() == null ? Sort.RECOMMENDED : r.sort();
         if (sort == Sort.NEAREST && r.near() == null) {
@@ -225,6 +231,36 @@ class ListingSearch implements Search {
     }
 
     @Override
+    public List<Item> items(List<UUID> listingIds, Instant now) {
+        if (listingIds.isEmpty()) {
+            return List.of();
+        }
+        List<Record> rows = transactions.execute(status ->
+                dsl.resultQuery("""
+                        SELECT li.id, li.location_id, li.kind, li.title, li.title_i18n, li.summary_i18n, li.image_url, li.attributes,
+                               li.price_from_minor, li.currency_code, li.rating_avg, li.rating_count,
+                               li.next_available_at, li.next_starts_at, li.last_ends_at, li.is_online, li.listed_since,
+                               NULL::double precision AS distance
+                          FROM discovery.listings li
+                         WHERE li.id = ANY(?::uuid[]) AND li.is_listed
+                        """, (Object) listingIds.toArray(UUID[]::new)).fetch());
+        Built none = new Built(new Where(), true, "NULL::double precision", List.of(), Set.of(), Set.of());
+        Map<UUID, Item> byId = new LinkedHashMap<>();
+        for (Record row : rows) {
+            Item item = item(row, none, now);
+            byId.put(item.id(), item);
+        }
+        List<Item> ordered = new ArrayList<>();
+        for (UUID id : listingIds) {
+            Item item = byId.get(id);
+            if (item != null) {
+                ordered.add(item);
+            }
+        }
+        return ordered;
+    }
+
+    @Override
     public Page search(Request request, Instant now) {
         return transactions.execute(status -> page(request, now));
     }
@@ -238,7 +274,7 @@ class ListingSearch implements Search {
         // Inner query computes the sort key once; the outer one applies the cursor and the page size.
         StringBuilder sql = new StringBuilder("""
                 SELECT * FROM (
-                  SELECT li.id, li.kind, li.title, li.title_i18n, li.summary_i18n, li.image_url, li.attributes,
+                  SELECT li.id, li.location_id, li.kind, li.title, li.title_i18n, li.summary_i18n, li.image_url, li.attributes,
                          li.price_from_minor, li.currency_code, li.rating_avg, li.rating_count, li.next_available_at,
                          li.next_starts_at, li.last_ends_at, li.is_online, li.listed_since,
                 """);
@@ -332,6 +368,7 @@ class ListingSearch implements Search {
                 .forEach(e -> imageVariants.put(e.getKey(), e.getValue().asString()));
         return new Item(
                 row.get("id", UUID.class),
+                row.get("location_id", UUID.class),
                 kind,
                 row.get("title", String.class),
                 text(row.get("summary_i18n", JSONB.class)),
@@ -398,7 +435,7 @@ class ListingSearch implements Search {
         }
         Built b = build(r, now);
         String sql =
-                "SELECT li.id, li.kind, li.title, li.attributes, li.price_from_minor, li.currency_code, li.rating_avg"
+                "SELECT li.id, li.location_id, li.kind, li.title, li.attributes, li.price_from_minor, li.currency_code, li.rating_avg"
                         + " FROM discovery.listings li WHERE " + b.where().sql + " AND li.geo IS NOT NULL"
                         + " ORDER BY li.quality_score DESC, li.id LIMIT " + (MAX_PINS + 1);
         List<Record> rows = transactions.execute(
@@ -471,6 +508,8 @@ class ListingSearch implements Search {
                 false,
                 false,
                 null,
+                null,
+                null,
                 limit);
         List<Item> places = search(base, now).items();
         Request events = new Request(
@@ -493,6 +532,8 @@ class ListingSearch implements Search {
                 null,
                 false,
                 false,
+                null,
+                null,
                 null,
                 limit);
         return new Suggestions(categories, places, search(events, now).items());
