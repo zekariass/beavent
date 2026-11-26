@@ -2666,3 +2666,145 @@ test("counter · the cash drawer and checking a visit out", async ({ browser }) 
   await looks("cash-history", (l) => `${base(l)}/cash`, heading);
   await context.close();
 });
+
+// --- Stage 4.2: split tender and discounts at the counter -----------------------------------------------------------------
+
+test("counter · a discount, a gift card, credit and cash together", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
+  await api(
+    "PUT",
+    `/v1/orgs/${salon.orgId}/gift-cards/program`,
+    {
+      name: "Gift card",
+      presetsMinor: [20000],
+      minMinor: 10000,
+      maxMinor: 500000,
+      sellOnline: true,
+    },
+    salon.token,
+  );
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const makeCard = (minorAmount: number) => {
+    const plain = Array.from(
+      { length: 16 },
+      () => letters[Math.floor(Math.random() * letters.length)],
+    ).join("");
+    sql(
+      `insert into retention.gift_cards (org_id, program_id, code_hash, code_last4, currency_code, initial_minor, balance_minor, status, delivered_at) ` +
+        `select '${salon.orgId}', p.id, encode(sha256(convert_to('${plain}', 'UTF8')), 'hex'), '${plain.slice(12)}', 'ETB', ${minorAmount}, ${minorAmount}, 'ACTIVE', now() ` +
+        `from catalog.gift_card_programs p where p.org_id = '${salon.orgId}'`,
+    );
+    return plain.match(/.{4}/g)!.join("-");
+  };
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const walkIn = async (n: number, name: string) => {
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1)
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    return (await deskBook(salon, start, name)) as { id: string };
+  };
+  const visitA = await walkIn(8, "Selam Bekele");
+  const visitB = await walkIn(9, "Hiwot Alemu");
+  const customerOfA = query(
+    `select customer_id from scheduling.appointments where id = '${visitA.id}'`,
+  )[0]!;
+  sql(
+    `insert into retention.customer_balances (org_id, customer_id, currency_code, balance_minor) values ('${salon.orgId}', '${customerOfA}', 'ETB', 30000)`,
+  );
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 0 },
+    salon.token,
+  );
+  const cardA = makeCard(50000);
+  const cardB = makeCard(50000);
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const url = (language: string, id: string) =>
+    `${WEB}/${language}/business/o/${salon.orgId}/checkout/${id}`;
+
+  // The form filled in: a discount, a tip, a card and the customer's credit.
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(url(language, visitA.id));
+        await page.getByRole("heading", { level: 1 }).waitFor();
+        await page.waitForLoadState("networkidle");
+        await page.getByRole("button", { name: /^(Discount|ቅናሽ)$/ }).click();
+        await page.getByLabel(/How much|ምን ያህል/).fill("10");
+        await page
+          .getByLabel(/Why \(kept|ምክንያት/)
+          .fill(language === "am" ? "ታማኝ ደንበኛ" : "Loyal client");
+        await page.getByRole("button", { name: "10%" }).click();
+        await page.getByLabel(/Gift card code|የስጦታ ካርድ ኮድ/).fill(cardA);
+        await page.getByRole("button", { name: /Add the card|ካርዱን ጨምር/ }).click();
+        await page.getByRole("checkbox").check();
+        await shot(page, `counter-split-form-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+
+  // A sale that was started: a card that cannot be used fails after the tip is kept; the bill then shows what was paid.
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize(DESKTOP);
+  await page.goto(url("en", visitB.id));
+  await page.getByRole("button", { name: "5%", exact: true }).click();
+  await page.getByLabel("Gift card code").fill("AAAA-AAAA-AAAA-AAAA");
+  await page.getByRole("button", { name: "Add the card" }).click();
+  await page.getByRole("button", { name: "Complete the visit" }).click();
+  await page.getByRole("alert").waitFor();
+  await shot(page, "counter-split-failed-en-light-desktop");
+  await page.reload();
+  await page.getByLabel("Gift card code").fill(cardB);
+  await page.getByRole("button", { name: "Add the card" }).click();
+  await page.getByLabel("Cash received (birr)").fill("100");
+  await page.getByRole("button", { name: "Complete the visit" }).click();
+  await page.getByRole("alert").waitFor(); // the card paid; the cash was not enough
+  await page.reload();
+  await shot(page, "counter-split-started-en-light-desktop");
+
+  // Finished: the receipt lists how it was paid.
+  for (const [language, visit, scheme] of [
+    ["en", visitA, "light"],
+    ["am", visitB, "light"],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize(DESKTOP);
+    await page.goto(url(language, visit.id));
+    await page.getByRole("heading", { level: 1 }).waitFor();
+    if (visit === visitA) {
+      await page.getByRole("button", { name: /^(Discount|ቅናሽ)$/ }).click();
+      await page.getByLabel(/How much|ምን ያህል/).fill("10");
+      await page.getByLabel(/Why \(kept|ምክንያት/).fill("Loyal client");
+      await page.getByLabel(/Gift card code/).fill(cardA);
+      await page.getByRole("button", { name: /Add the card/ }).click();
+      await page.getByRole("checkbox").check();
+    }
+    await page.getByLabel(/Cash received|የተቀበሉት/).fill(visit === visitA ? "1000" : "1500");
+    await page
+      .getByRole("button", { name: /Complete the visit|ቀጠሮውን አጠናቅ|Take Br|ብር/ })
+      .last()
+      .click();
+    await page.getByRole("status").first().waitFor();
+    await shot(page, `counter-split-done-${language}-${scheme}-desktop`);
+    await page.setViewportSize(PHONE);
+    await shot(page, `counter-split-done-${language}-${scheme}-phone`);
+  }
+  await context.close();
+});

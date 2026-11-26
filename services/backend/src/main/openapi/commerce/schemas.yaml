@@ -118,7 +118,8 @@ CashDrawerClose:
 CheckoutBill:
   type: object
   required:
-    [appointmentId, locationId, reference, status, currency, lines, totalMinor, paidMinor, dueMinor, team, drawerOpen, canCheckout]
+    [appointmentId, locationId, reference, status, currency, lines, totalMinor, paidMinor, dueMinor, team, drawerOpen,
+     canCheckout, balanceMinor, canDiscount, tenders]
   properties:
     appointmentId:
       $ref: ../common/schemas.yaml#/Uuid
@@ -171,6 +172,28 @@ CheckoutBill:
       type: boolean
     receiptNumber:
       type: [string, 'null']
+    balanceMinor:
+      type: integer
+      format: int64
+      description: What the customer has in their balance with the business.
+    canDiscount:
+      type: boolean
+      description: A discount can be given (the visit has no order yet and the caller holds `pos.discount`).
+    tenders:
+      type: array
+      description: Paid at the counter so far (a sale that was started and not finished).
+      items:
+        $ref: '#/CheckoutTender'
+CheckoutTender:
+  type: object
+  required: [method, amountMinor]
+  properties:
+    method:
+      type: string
+      enum: [GIFT_CARD, STORE_CREDIT, CASH]
+    amountMinor:
+      type: integer
+      format: int64
 CheckoutInput:
   type: object
   properties:
@@ -186,15 +209,43 @@ CheckoutInput:
             type: integer
             format: int64
             minimum: 0
+    discount:
+      type: object
+      description: |
+        Needs `pos.discount`; only on a visit that has no order yet. Shared between the services in proportion to their price.
+      required: [kind, value, reason]
+      properties:
+        kind:
+          type: string
+          enum: [AMOUNT, PERCENT]
+        value:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Minor units for AMOUNT; 1 to 100 for PERCENT.
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 200
+    giftCards:
+      type: array
+      description: Codes, in the order to use them; each pays as much as is due.
+      items:
+        type: string
+        maxLength: 40
+    useBalance:
+      type: boolean
+      description: Use the customer's balance with the business (after any gift cards).
     cashTenderedMinor:
       type: integer
       format: int64
       minimum: 0
-      description: The cash handed over; at least what is due with the tips. Omit when nothing is due.
+      description: The cash handed over for what the cards and balance did not pay. Omit for exactly what is due.
 CheckoutDone:
   type: object
   required:
-    [orderId, orderNumber, receiptNumber, currency, totalMinor, paidOnlineMinor, tipMinor, cashMinor, tenderedMinor, changeMinor]
+    [orderId, orderNumber, receiptNumber, currency, totalMinor, paidOnlineMinor, tipMinor, cashMinor, tenderedMinor, changeMinor,
+     discountMinor, tenders]
   properties:
     orderId:
       $ref: ../common/schemas.yaml#/Uuid
@@ -223,3 +274,10 @@ CheckoutDone:
     changeMinor:
       type: integer
       format: int64
+    discountMinor:
+      type: integer
+      format: int64
+    tenders:
+      type: array
+      items:
+        $ref: '#/CheckoutTender'

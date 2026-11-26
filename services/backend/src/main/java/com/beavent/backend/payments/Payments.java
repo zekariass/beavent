@@ -109,4 +109,19 @@ public interface Payments {
      *     payment of it is in progress
      */
     UUID recordCash(UUID orgId, UUID orderId, UUID sessionId, long amountMinor, Instant now);
+
+    /** What the customer has in their balance with the business, in the order's currency (0 for none). */
+    long customerBalance(UUID orgId, UUID customerId, String currency);
+
+    /**
+     * Pays part or all of what an order has still to be paid at the venue with a gift card (its code) or the customer's
+     * balance (plan 4.2), in a transaction of its own that commits what it takes: the card or balance is spent as much as
+     * is due, a part payment splits what is due. Nothing goes to the provider or the ledger (the fees on what is paid at
+     * the venue are plan 4.4).
+     *
+     * @return what was taken
+     * @throws com.beavent.backend.platform.ApiException {@code NOT_FOUND} for a card that cannot be used, {@code CONFLICT}
+     *     when nothing is due at the venue or the customer has no balance
+     */
+    long tenderAtCounter(UUID orgId, UUID orderId, StoredValue.Kind kind, String code, UUID userId, Instant now);
 }

@@ -260,10 +260,13 @@ export interface paths {
         get: operations["getCheckoutBill"];
         put?: never;
         /**
-         * Check a visit out in cash
-         * @description Needs `pos.sell`. Adds the tips, takes the cash into the open drawer, completes the visit and issues the receipt, all
-         *     or nothing. `CONFLICT` when the drawer is closed, the visit is not in a state to be paid, or it was checked out
-         *     already; `VALIDATION_FAILED` when the cash is less than what is due.
+         * Check a visit out
+         * @description Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+         *     as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+         *     What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+         *     `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+         *     cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+         *     is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
          */
         post: operations["checkoutAppointment"];
         delete?: never;
@@ -3333,6 +3336,12 @@ export interface components {
             /** Format: int64 */
             countedMinor: number;
         };
+        CheckoutTender: {
+            /** @enum {string} */
+            method: "GIFT_CARD" | "STORE_CREDIT" | "CASH";
+            /** Format: int64 */
+            amountMinor: number;
+        };
         CheckoutBill: {
             appointmentId: components["schemas"]["Uuid"];
             locationId: components["schemas"]["Uuid"];
@@ -3365,6 +3374,15 @@ export interface components {
             drawerOpen: boolean;
             canCheckout: boolean;
             receiptNumber?: string | null;
+            /**
+             * Format: int64
+             * @description What the customer has in their balance with the business.
+             */
+            balanceMinor: number;
+            /** @description A discount can be given (the visit has no order yet and the caller holds `pos.discount`). */
+            canDiscount: boolean;
+            /** @description Paid at the counter so far (a sale that was started and not finished). */
+            tenders: components["schemas"]["CheckoutTender"][];
         };
         CheckoutInput: {
             tips?: {
@@ -3372,9 +3390,24 @@ export interface components {
                 /** Format: int64 */
                 amountMinor: number;
             }[];
+            /** @description Needs `pos.discount`; only on a visit that has no order yet. Shared between the services in proportion to their price. */
+            discount?: {
+                /** @enum {string} */
+                kind: "AMOUNT" | "PERCENT";
+                /**
+                 * Format: int64
+                 * @description Minor units for AMOUNT; 1 to 100 for PERCENT.
+                 */
+                value: number;
+                reason: string;
+            };
+            /** @description Codes, in the order to use them; each pays as much as is due. */
+            giftCards?: string[];
+            /** @description Use the customer's balance with the business (after any gift cards). */
+            useBalance?: boolean;
             /**
              * Format: int64
-             * @description The cash handed over; at least what is due with the tips. Omit when nothing is due.
+             * @description The cash handed over for what the cards and balance did not pay. Omit for exactly what is due.
              */
             cashTenderedMinor?: number;
         };
@@ -3398,6 +3431,9 @@ export interface components {
             tenderedMinor: number;
             /** Format: int64 */
             changeMinor: number;
+            /** Format: int64 */
+            discountMinor: number;
+            tenders: components["schemas"]["CheckoutTender"][];
         };
         GiftCardProgram: {
             id: components["schemas"]["Uuid"];

@@ -451,11 +451,14 @@ paths:
       tags:
         - Counter
       operationId: checkoutAppointment
-      summary: Check a visit out in cash
+      summary: Check a visit out
       description: |
-        Needs `pos.sell`. Adds the tips, takes the cash into the open drawer, completes the visit and issues the receipt, all
-        or nothing. `CONFLICT` when the drawer is closed, the visit is not in a state to be paid, or it was checked out
-        already; `VALIDATION_FAILED` when the cash is less than what is due.
+        Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+        as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+        What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+        `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+        cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+        is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
       parameters:
         - $ref: '#/components/parameters/OrgId'
         - name: appointmentId
@@ -6909,6 +6912,21 @@ components:
           type: integer
           format: int64
           minimum: 0
+    CheckoutTender:
+      type: object
+      required:
+        - method
+        - amountMinor
+      properties:
+        method:
+          type: string
+          enum:
+            - GIFT_CARD
+            - STORE_CREDIT
+            - CASH
+        amountMinor:
+          type: integer
+          format: int64
     CheckoutBill:
       type: object
       required:
@@ -6924,6 +6942,9 @@ components:
         - team
         - drawerOpen
         - canCheckout
+        - balanceMinor
+        - canDiscount
+        - tenders
       properties:
         appointmentId:
           $ref: '#/components/schemas/Uuid'
@@ -6984,6 +7005,18 @@ components:
           type:
             - string
             - 'null'
+        balanceMinor:
+          type: integer
+          format: int64
+          description: What the customer has in their balance with the business.
+        canDiscount:
+          type: boolean
+          description: A discount can be given (the visit has no order yet and the caller holds `pos.discount`).
+        tenders:
+          type: array
+          description: Paid at the counter so far (a sale that was started and not finished).
+          items:
+            $ref: '#/components/schemas/CheckoutTender'
     CheckoutInput:
       type: object
       properties:
@@ -7001,11 +7034,43 @@ components:
                 type: integer
                 format: int64
                 minimum: 0
+        discount:
+          type: object
+          description: |
+            Needs `pos.discount`; only on a visit that has no order yet. Shared between the services in proportion to their price.
+          required:
+            - kind
+            - value
+            - reason
+          properties:
+            kind:
+              type: string
+              enum:
+                - AMOUNT
+                - PERCENT
+            value:
+              type: integer
+              format: int64
+              minimum: 1
+              description: Minor units for AMOUNT; 1 to 100 for PERCENT.
+            reason:
+              type: string
+              minLength: 3
+              maxLength: 200
+        giftCards:
+          type: array
+          description: Codes, in the order to use them; each pays as much as is due.
+          items:
+            type: string
+            maxLength: 40
+        useBalance:
+          type: boolean
+          description: Use the customer's balance with the business (after any gift cards).
         cashTenderedMinor:
           type: integer
           format: int64
           minimum: 0
-          description: The cash handed over; at least what is due with the tips. Omit when nothing is due.
+          description: The cash handed over for what the cards and balance did not pay. Omit for exactly what is due.
     CheckoutDone:
       type: object
       required:
@@ -7019,6 +7084,8 @@ components:
         - cashMinor
         - tenderedMinor
         - changeMinor
+        - discountMinor
+        - tenders
       properties:
         orderId:
           $ref: '#/components/schemas/Uuid'
@@ -7047,6 +7114,13 @@ components:
         changeMinor:
           type: integer
           format: int64
+        discountMinor:
+          type: integer
+          format: int64
+        tenders:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckoutTender'
     GiftCardProgram:
       type: object
       required:

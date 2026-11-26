@@ -3,6 +3,7 @@ package com.beavent.backend.scheduling;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import com.beavent.backend.ledger.Ledger.Code;
 import java.util.HashMap;
@@ -365,5 +366,280 @@ class CounterApiTests extends PayoutTestSupport {
                                 other.salon().owner().token())
                         .status())
                 .isEqualTo(404);
+    }
+
+    // --- plan 4.2: gift cards, the customer's balance, split tender and discounts ------------------------------------
+
+    private void sellsGiftCards(Shop shop) throws Exception {
+        Call program = call(
+                put(shop.salon().path("/gift-cards/program")),
+                Map.of(
+                        "name",
+                        "Gift card",
+                        "presetsMinor",
+                        List.of(20_000),
+                        "minMinor",
+                        10_000,
+                        "maxMinor",
+                        500_000,
+                        "sellOnline",
+                        true),
+                shop.salon().owner().token());
+        assertThat(program.status()).isEqualTo(200);
+    }
+
+    private String card(Shop shop, long balanceMinor) {
+        String letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 16; i++) {
+            if (i > 0 && i % 4 == 0) sb.append('-');
+            sb.append(letters.charAt((int) (Math.random() * letters.length())));
+        }
+        String code = sb.toString();
+        String normal = code.replace("-", "");
+        system.execute(
+                "insert into retention.gift_cards (org_id, program_id, code_hash, code_last4, currency_code, initial_minor, "
+                        + "balance_minor, status, delivered_at) select ?::uuid, p.id, encode(sha256(convert_to(?, 'UTF8')), 'hex'), ?, "
+                        + "'ETB', ?, ?, 'ACTIVE', now() from catalog.gift_card_programs p where p.org_id = ?::uuid",
+                shop.salon().id(),
+                normal,
+                normal.substring(12),
+                balanceMinor,
+                balanceMinor,
+                shop.salon().id());
+        return code;
+    }
+
+    private long cardLeft(Shop shop, String code) {
+        return (Long) value(
+                "select balance_minor from retention.gift_cards where org_id = ?::uuid"
+                        + " and code_hash = encode(sha256(convert_to(?, 'UTF8')), 'hex')",
+                shop.salon().id(),
+                code.replace("-", ""));
+    }
+
+    @Test
+    void aGiftCardAndCashShareASaleAndACardThatCoversItNeedsNoDrawer() throws Exception {
+        Shop shop = shop(true);
+        sellsGiftCards(shop);
+        String token = shop.salon().owner().token();
+        long ledgerBefore = ledgerSum();
+
+        // A card of Br 120 and the rest in cash, with a tip.
+        String visit = deskVisit(shop, 3, "10:00", shop.abebe());
+        String card = card(shop, 12_000);
+        open(shop, 0);
+        Map<String, Object> body = Map.of(
+                "tips", List.of(Map.of("staffId", shop.abebe(), "amountMinor", 2_000)),
+                "giftCards", List.of(card.toLowerCase()),
+                "cashTenderedMinor", 45_000);
+        Call done = checkout(shop, visit, body, token);
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        JsonNode d = done.body();
+        assertThat(d.get("totalMinor").asLong()).isEqualTo(52_000);
+        assertThat(d.get("cashMinor").asLong()).isEqualTo(40_000);
+        assertThat(d.get("tenderedMinor").asLong()).isEqualTo(45_000);
+        assertThat(d.get("changeMinor").asLong()).isEqualTo(5_000);
+        assertThat(d.get("tenders").toString())
+                .contains("GIFT_CARD")
+                .contains("12000")
+                .contains("CASH")
+                .contains("40000");
+        assertThat(cardLeft(shop, card)).isZero();
+        UUID order = UUID.fromString(d.get("orderId").asString());
+        assertThat(system.fetchOne("select status, payment_status, paid_minor from commerce.orders where id = ?", order)
+                        .intoList())
+                .containsExactly("COMPLETED", "PAID", 52_000L);
+        assertThat(drawerState(shop, owner(shop))
+                        .get("session")
+                        .get("salesMinor")
+                        .asLong())
+                .as("only the cash is in the drawer")
+                .isEqualTo(40_000);
+        assertThat(ledgerSum()).isEqualTo(ledgerBefore);
+
+        // A card that covers all of it: no cash, so a closed drawer is no problem.
+        Shop other = shop(true);
+        sellsGiftCards(other);
+        String second = deskVisit(other, 3, "10:00", other.abebe());
+        String big = card(other, 60_000);
+        Call covered = checkout(
+                other,
+                second,
+                Map.of("giftCards", List.of(big)),
+                other.salon().owner().token());
+        assertThat(covered.status()).as(String.valueOf(covered.body())).isEqualTo(200);
+        assertThat(covered.body().get("cashMinor").asLong()).isZero();
+        assertThat(covered.body().get("tenders").size()).isEqualTo(1);
+        assertThat(cardLeft(other, big)).isEqualTo(10_000);
+        assertThat(value("select status from scheduling.appointments where id = ?::uuid", UUID.fromString(second)))
+                .isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void theCustomersBalanceIsSpentLikeACardAndAFailedCardLeavesTheSaleToFinish() throws Exception {
+        Shop shop = shop(true);
+        sellsGiftCards(shop);
+        String token = shop.salon().owner().token();
+        String visit = deskVisit(shop, 3, "10:00", shop.abebe());
+        UUID customer = (UUID)
+                value("select customer_id from scheduling.appointments where id = ?::uuid", UUID.fromString(visit));
+        system.execute(
+                "insert into retention.customer_balances (org_id, customer_id, currency_code, balance_minor)"
+                        + " values (?::uuid, ?::uuid, 'ETB', 20_000)",
+                shop.salon().id(),
+                customer);
+        open(shop, 0);
+
+        JsonNode bill = bill(shop, visit);
+        assertThat(bill.get("balanceMinor").asLong()).isEqualTo(20_000);
+
+        // A code that does not work: refused; the tip went on the order, and the bill shows what is due with it.
+        Map<String, Object> tipped = Map.of(
+                "tips", List.of(Map.of("staffId", shop.abebe(), "amountMinor", 1_000)),
+                "giftCards", List.of("AAAA-AAAA-AAAA-AAAA"),
+                "cashTenderedMinor", 51_000);
+        assertThat(checkout(shop, visit, tipped, token).status()).isEqualTo(404);
+        assertThat(value("select status from scheduling.appointments where id = ?::uuid", UUID.fromString(visit)))
+                .isEqualTo("CONFIRMED");
+        JsonNode started = bill(shop, visit);
+        assertThat(started.get("dueMinor").asLong()).isEqualTo(51_000);
+        assertThat(started.get("canDiscount").asBoolean())
+                .as("the order exists now")
+                .isFalse();
+
+        // Finished with the balance and cash; the tip is not added twice.
+        Call done = checkout(
+                shop,
+                visit,
+                Map.of(
+                        "tips",
+                        List.of(Map.of("staffId", shop.abebe(), "amountMinor", 1_000)),
+                        "useBalance",
+                        true,
+                        "cashTenderedMinor",
+                        31_000),
+                token);
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        assertThat(done.body().get("totalMinor").asLong()).isEqualTo(51_000);
+        assertThat(done.body().get("tipMinor").asLong()).isEqualTo(1_000);
+        assertThat(done.body().get("cashMinor").asLong()).isEqualTo(31_000);
+        assertThat(done.body().get("tenders").toString())
+                .contains("STORE_CREDIT")
+                .contains("20000");
+        assertThat(value("select balance_minor from retention.customer_balances where customer_id = ?::uuid", customer))
+                .isEqualTo(0L);
+        assertThat(value(
+                        "select count(*) from commerce.order_lines where order_id = ?::uuid and line_type = 'TIP'",
+                        UUID.fromString(done.body().get("orderId").asString())))
+                .isEqualTo(1L);
+
+        // Not enough cash after a card: what the card paid is kept, and the bill says so.
+        String visit2 = deskVisit(shop, 4, "10:00", shop.abebe());
+        String card = card(shop, 10_000);
+        Call short2 = checkout(shop, visit2, Map.of("giftCards", List.of(card), "cashTenderedMinor", 10_000), token);
+        assertThat(short2.status()).isEqualTo(400);
+        assertThat(cardLeft(shop, card)).as("spent, as it was taken").isZero();
+        JsonNode half = bill(shop, visit2);
+        assertThat(half.get("dueMinor").asLong()).isEqualTo(40_000);
+        assertThat(half.get("tenders").size()).isEqualTo(1);
+        assertThat(half.get("canCheckout").asBoolean()).isTrue();
+        Call finished = checkout(shop, visit2, Map.of("cashTenderedMinor", 40_000), token);
+        assertThat(finished.status()).as(String.valueOf(finished.body())).isEqualTo(200);
+        assertThat(finished.body().get("totalMinor").asLong()).isEqualTo(50_000);
+        assertThat(finished.body().get("tenders").size()).isEqualTo(2);
+    }
+
+    @Test
+    void aDiscountIsGivenByThoseWhoMayOnAVisitWithNoOrderYet() throws Exception {
+        Shop shop = shop(true);
+        String token = shop.salon().owner().token();
+        open(shop, 0);
+        Person cashier = newMember(shop.salon(), "CASHIER");
+        Person manager = newMember(shop.salon(), "MANAGER");
+
+        String visit = deskVisit(shop, 3, "10:00", shop.abebe());
+        assertThat(bill(shop, visit).get("canDiscount").asBoolean()).isTrue();
+        Map<String, Object> tenPercent = Map.of(
+                "discount",
+                Map.of("kind", "PERCENT", "value", 10, "reason", "Loyal client"),
+                "cashTenderedMinor",
+                45_000);
+        assertThat(checkout(shop, visit, tenPercent, cashier.token()).status())
+                .as("no pos.discount")
+                .isEqualTo(403);
+        assertThat(checkout(
+                                shop,
+                                visit,
+                                Map.of(
+                                        "discount",
+                                        Map.of("kind", "PERCENT", "value", 10, "reason", "x"),
+                                        "cashTenderedMinor",
+                                        45_000),
+                                manager.token())
+                        .status())
+                .isEqualTo(400);
+        assertThat(checkout(
+                                shop,
+                                visit,
+                                Map.of(
+                                        "discount",
+                                        Map.of("kind", "PERCENT", "value", 150, "reason", "Too much"),
+                                        "cashTenderedMinor",
+                                        45_000),
+                                manager.token())
+                        .status())
+                .isEqualTo(400);
+        assertThat(checkout(
+                                shop,
+                                visit,
+                                Map.of(
+                                        "discount",
+                                        Map.of("kind", "PERCENT", "value", 10, "reason", "Loyal client"),
+                                        "cashTenderedMinor",
+                                        40_000),
+                                manager.token())
+                        .status())
+                .as("the cash must cover the discounted total")
+                .isEqualTo(400);
+        Call done = checkout(shop, visit, tenPercent, manager.token());
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        assertThat(done.body().get("totalMinor").asLong()).isEqualTo(45_000);
+        assertThat(done.body().get("discountMinor").asLong()).isEqualTo(5_000);
+        UUID order = UUID.fromString(done.body().get("orderId").asString());
+        assertThat(value("select attribution::text from commerce.orders where id = ?", order)
+                        .toString())
+                .contains("Loyal client");
+
+        // An amount; never more than the visit costs.
+        String second = deskVisit(shop, 4, "10:00", shop.abebe());
+        Call amount = checkout(
+                shop,
+                second,
+                Map.of(
+                        "discount",
+                        Map.of("kind", "AMOUNT", "value", 9_999_999, "reason", "A gift from the owner"),
+                        "cashTenderedMinor",
+                        0),
+                token);
+        assertThat(amount.status()).as(String.valueOf(amount.body())).isEqualTo(200);
+        assertThat(amount.body().get("totalMinor").asLong()).isZero();
+        assertThat(amount.body().get("discountMinor").asLong()).isEqualTo(50_000);
+
+        // A visit with an online deposit keeps the prices it was sold at.
+        Paid paid = payDeposit(shop, 5);
+        assertThat(bill(shop, paid.appointmentId()).get("canDiscount").asBoolean())
+                .isFalse();
+        assertThat(checkout(
+                                shop,
+                                paid.appointmentId(),
+                                Map.of(
+                                        "discount",
+                                        Map.of("kind", "PERCENT", "value", 10, "reason", "Loyal client"),
+                                        "cashTenderedMinor",
+                                        40_000),
+                                token)
+                        .status())
+                .isEqualTo(409);
     }
 }

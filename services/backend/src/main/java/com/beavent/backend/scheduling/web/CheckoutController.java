@@ -5,6 +5,8 @@ import com.beavent.backend.tenancy.OrgAccess;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +24,17 @@ class CheckoutController {
 
     record TipInput(@NotNull UUID staffId, @Min(0) long amountMinor) {}
 
-    record CheckoutInput(List<@Valid TipInput> tips, @Min(0) Long cashTenderedMinor) {}
+    record DiscountInput(
+            @NotNull @Pattern(regexp = "AMOUNT|PERCENT") String kind,
+            @Min(1) long value,
+            @NotNull @Size(min = 3, max = 200) String reason) {}
+
+    record CheckoutInput(
+            List<@Valid TipInput> tips,
+            @Valid DiscountInput discount,
+            List<@NotNull @Size(min = 1, max = 40) String> giftCards,
+            Boolean useBalance,
+            @Min(0) Long cashTenderedMinor) {}
 
     private final Checkouts checkouts;
 
@@ -43,6 +55,21 @@ class CheckoutController {
                 : body.tips().stream()
                         .map(t -> new Checkouts.Tip(t.staffId(), t.amountMinor()))
                         .toList();
-        return checkouts.checkout(OrgAccess.current(), appointmentId, tips, body.cashTenderedMinor(), Instant.now());
+        Checkouts.Discount discount = body.discount() == null
+                ? null
+                : new Checkouts.Discount(
+                        body.discount().kind(),
+                        body.discount().value(),
+                        body.discount().reason());
+        return checkouts.checkout(
+                OrgAccess.current(),
+                appointmentId,
+                new Checkouts.Sale(
+                        tips,
+                        discount,
+                        body.giftCards() == null ? List.of() : body.giftCards(),
+                        Boolean.TRUE.equals(body.useBalance()),
+                        body.cashTenderedMinor()),
+                Instant.now());
     }
 }

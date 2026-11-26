@@ -222,7 +222,8 @@ class OrdersService implements Orders {
                 sellerRates(seller, basket.at()),
                 promotions.candidates(),
                 fees.orderRules(orgId, basket.currency(), basket.at()),
-                platformRate);
+                platformRate,
+                basket.manualDiscountMinor());
         OrderPricing.Result result = OrderPricing.price(items, facts);
         PromoResult promo = promotions.typed();
         if (promo != null && promo.status().equals("APPLIED")) {

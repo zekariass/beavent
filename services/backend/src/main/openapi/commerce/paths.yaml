@@ -160,11 +160,14 @@ appointmentCheckout:
   post:
     tags: [Counter]
     operationId: checkoutAppointment
-    summary: Check a visit out in cash
+    summary: Check a visit out
     description: |
-      Needs `pos.sell`. Adds the tips, takes the cash into the open drawer, completes the visit and issues the receipt, all
-      or nothing. `CONFLICT` when the drawer is closed, the visit is not in a state to be paid, or it was checked out
-      already; `VALIDATION_FAILED` when the cash is less than what is due.
+      Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+      as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+      What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+      `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+      cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+      is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
     parameters:
       - $ref: ../common/parameters.yaml#/OrgId
       - name: appointmentId
