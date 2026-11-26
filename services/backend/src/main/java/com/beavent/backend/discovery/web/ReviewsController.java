@@ -31,7 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class ReviewsController {
 
-    record Input(@Min(1) @Max(5) int rating, @Size(max = Reviews.MAX_BODY) String body) {}
+    record Input(
+            @Min(1) @Max(5) int rating,
+            @Size(max = Reviews.MAX_BODY) String body) {}
 
     private static final CacheControl CACHE =
             CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic();

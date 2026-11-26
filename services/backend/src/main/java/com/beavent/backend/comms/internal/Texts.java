@@ -176,8 +176,7 @@ final class Texts {
             case Notifier.REVIEW_RESTORED ->
                 am
                         ? new Message(
-                                business + " · ግምገማ ተመልሷል",
-                                "ለ" + business + " (" + place + ") የጻፉት ግምገማ እንደገና ታይቷል።")
+                                business + " · ግምገማ ተመልሷል", "ለ" + business + " (" + place + ") የጻፉት ግምገማ እንደገና ታይቷል።")
                         : new Message(
                                 business + " · review back",
                                 "Your review of " + business + " (" + place + ") is showing again.");
@@ -185,8 +184,7 @@ final class Texts {
                 "HIDE".equals(data.get("decision"))
                         ? (am
                                 ? new Message(
-                                        business + " · ግምገማ ወርዷል",
-                                        business + "፦ ያሳወቁት የ" + place + " ግምገማ በቢቨንት ወርዷል።")
+                                        business + " · ግምገማ ወርዷል", business + "፦ ያሳወቁት የ" + place + " ግምገማ በቢቨንት ወርዷል።")
                                 : new Message(
                                         business + " · review taken down",
                                         business + ": Beavent took down the review you reported for " + place + "."))
@@ -212,8 +210,7 @@ final class Texts {
                     case "DELISTED" ->
                         am
                                 ? new Message(
-                                        business + " · ከቢቨንት ወርዷል",
-                                        "ቢቨንት " + business + "ን ከገበያ ቦታው አውርዶታል።" + why)
+                                        business + " · ከቢቨንት ወርዷል", "ቢቨንት " + business + "ን ከገበያ ቦታው አውርዶታል።" + why)
                                 : new Message(
                                         business + " · taken off Beavent",
                                         "Beavent took " + business + " off the marketplace." + why);

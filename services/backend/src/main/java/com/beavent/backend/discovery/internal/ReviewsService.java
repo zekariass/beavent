@@ -168,15 +168,12 @@ class ReviewsService implements Reviews {
 
     @Override
     public Page forBusiness(String businessSlug, String locationSlug, String cursor, int limit) {
-        Record scope = system.resultQuery(
-                        """
+        Record scope = system.resultQuery("""
                         SELECT o.id AS org_id, (SELECT l.id FROM tenant.locations l
                                                  WHERE l.org_id = o.id AND l.slug = ?::citext) AS location_id
                           FROM tenant.organizations o
                          WHERE o.slug = ? AND o.status IN ('ACTIVE','ONBOARDING')
-                        """,
-                        locationSlug,
-                        businessSlug.toLowerCase())
+                        """, locationSlug, businessSlug.toLowerCase())
                 .fetchOne();
         if (scope == null || (locationSlug != null && scope.get("location_id") == null)) {
             return null;
@@ -209,7 +206,8 @@ class ReviewsService implements Reviews {
                  WHERE r.status = 'PUBLISHED' AND %s%s
                  ORDER BY r.created_at DESC, r.id DESC
                  LIMIT ?
-                """.formatted(AUTHOR_NAME, FIRST_ITEM, where, after), binds.toArray()).fetch();
+                """.formatted(AUTHOR_NAME, FIRST_ITEM, where, after), binds.toArray())
+                .fetch();
         List<Review> items = new ArrayList<>();
         for (Record r : rows.subList(0, Math.min(limit, rows.size()))) {
             items.add(new Review(
@@ -227,7 +225,8 @@ class ReviewsService implements Reviews {
         }
         String next = rows.size() > limit && !items.isEmpty()
                 ? Cursors.encode(
-                        items.getLast().createdAt().toString(), items.getLast().id().toString())
+                        items.getLast().createdAt().toString(),
+                        items.getLast().id().toString())
                 : null;
         return new Page(summary, items, next);
     }
@@ -237,7 +236,8 @@ class ReviewsService implements Reviews {
     @Override
     public MyReviews mine(UUID userId, Instant now) {
         List<Pending> pending = new ArrayList<>();
-        for (Record r : system.resultQuery("""
+        for (Record r : system.resultQuery(
+                        """
                         SELECT a.id, a.location_id, a.ends_at, o.slug::text AS business_slug, l.slug::text AS location_slug,
                                l.name AS place_name, it.service_name, it.service_i18n, it.staff_name
                           FROM scheduling.appointments a
@@ -265,7 +265,8 @@ class ReviewsService implements Reviews {
                     ended.plus(java.time.Duration.ofDays(WINDOW_DAYS))));
         }
         List<Mine> reviews = new ArrayList<>();
-        for (Record r : system.resultQuery(MINE_SELECT + " WHERE r.author_user_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 100",
+        for (Record r : system.resultQuery(
+                        MINE_SELECT + " WHERE r.author_user_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 100",
                         userId)
                 .fetch()) {
             reviews.add(mine(r));
@@ -298,7 +299,8 @@ class ReviewsService implements Reviews {
     }
 
     private Mine mineOne(UUID reviewId) {
-        return mine(system.resultQuery(MINE_SELECT + " WHERE r.id = ?", reviewId).fetchSingle());
+        return mine(
+                system.resultQuery(MINE_SELECT + " WHERE r.id = ?", reviewId).fetchSingle());
     }
 
     @Override
@@ -312,7 +314,8 @@ class ReviewsService implements Reviews {
                               JOIN crm.customers c ON c.id = a.customer_id AND c.org_id = a.org_id
                               %s
                              WHERE a.id = ? AND c.user_id = ?
-                            """.formatted(FIRST_ITEM), appointmentId, userId).fetchOne();
+                            """.formatted(FIRST_ITEM), appointmentId, userId)
+                    .fetchOne();
             if (a == null) {
                 throw new ApiException(ProblemCode.NOT_FOUND, "There is no such visit.");
             }
@@ -320,18 +323,25 @@ class ReviewsService implements Reviews {
                 throw new ApiException(
                         ProblemCode.CONSTRAINT_VIOLATION, "You can review a visit once it has been completed.");
             }
-            if (instant(a, "ends_at")
-                    .isBefore(now.minus(java.time.Duration.ofDays(WINDOW_DAYS)))) {
+            if (instant(a, "ends_at").isBefore(now.minus(java.time.Duration.ofDays(WINDOW_DAYS)))) {
                 throw new ApiException(
                         ProblemCode.CONSTRAINT_VIOLATION,
                         "Reviews can be written within " + WINDOW_DAYS + " days of the visit.");
             }
-            UUID id = system.resultQuery("""
+            UUID id = system.resultQuery(
+                            """
                             INSERT INTO discovery.reviews (org_id, location_id, staff_id, author_user_id, appointment_id,
                                                            rating, body)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                             ON CONFLICT DO NOTHING RETURNING id
-                            """, a.get("org_id"), a.get("location_id"), a.get("staff_id"), userId, appointmentId, rating, text)
+                            """,
+                            a.get("org_id"),
+                            a.get("location_id"),
+                            a.get("staff_id"),
+                            userId,
+                            appointmentId,
+                            rating,
+                            text)
                     .fetchOne(0, UUID.class);
             if (id == null) {
                 throw new ApiException(ProblemCode.CONFLICT, "You already reviewed this visit.");
@@ -408,7 +418,8 @@ class ReviewsService implements Reviews {
     }
 
     private Record ownPublished(UUID userId, UUID reviewId) {
-        Record r = system.resultQuery("SELECT * FROM discovery.reviews WHERE id = ? AND author_user_id = ?", reviewId, userId)
+        Record r = system.resultQuery(
+                        "SELECT * FROM discovery.reviews WHERE id = ? AND author_user_id = ?", reviewId, userId)
                 .fetchOne();
         if (r == null) {
             throw new ApiException(ProblemCode.NOT_FOUND, "There is no such review.");
@@ -472,7 +483,8 @@ class ReviewsService implements Reviews {
         }
         binds.add(limit + 1);
         List<Record> rows = system.resultQuery(
-                        FOR_BUSINESS + " WHERE r.org_id = ?" + filter + " ORDER BY r.created_at DESC, r.id DESC LIMIT ?",
+                        FOR_BUSINESS + " WHERE r.org_id = ?" + filter
+                                + " ORDER BY r.created_at DESC, r.id DESC LIMIT ?",
                         binds.toArray())
                 .fetch();
         List<ForBusiness> items = new ArrayList<>();
@@ -481,7 +493,8 @@ class ReviewsService implements Reviews {
         }
         String next = rows.size() > limit && !items.isEmpty()
                 ? Cursors.encode(
-                        items.getLast().createdAt().toString(), items.getLast().id().toString())
+                        items.getLast().createdAt().toString(),
+                        items.getLast().id().toString())
                 : null;
         return new BusinessPage(summary("r.org_id = ?", orgId), items, next);
     }
@@ -616,7 +629,8 @@ class ReviewsService implements Reviews {
                             instant(r, "created_at")));
         }
         Map<UUID, ForStaff> byId = new HashMap<>();
-        for (Record r : system.resultQuery("""
+        for (Record r :
+                system.resultQuery("""
                         SELECT r.id, r.org_id, o.display_name AS business_name, l.name AS place_name, r.rating, r.body,
                                r.status, r.created_at, r.response_body, r.responded_at, %s AS author_name
                           FROM discovery.reviews r
@@ -666,7 +680,9 @@ class ReviewsService implements Reviews {
                     if (!"PUBLISHED".equals(status)) {
                         throw new ApiException(ProblemCode.CONFLICT, "This review is not published.");
                     }
-                    system.execute("UPDATE discovery.reviews SET status = 'HIDDEN', updated_at = now() WHERE id = ?", reviewId);
+                    system.execute(
+                            "UPDATE discovery.reviews SET status = 'HIDDEN', updated_at = now() WHERE id = ?",
+                            reviewId);
                     closeReports(reviewId, "ACTIONED", staffUserId);
                     action(reviewId, orgId, "HIDE", reason, staffUserId);
                 }
@@ -674,7 +690,9 @@ class ReviewsService implements Reviews {
                     if (!"HIDDEN".equals(status)) {
                         throw new ApiException(ProblemCode.CONFLICT, "This review is not hidden.");
                     }
-                    system.execute("UPDATE discovery.reviews SET status = 'PUBLISHED', updated_at = now() WHERE id = ?", reviewId);
+                    system.execute(
+                            "UPDATE discovery.reviews SET status = 'PUBLISHED', updated_at = now() WHERE id = ?",
+                            reviewId);
                     closeReports(reviewId, "DISMISSED", staffUserId);
                     action(reviewId, orgId, "RESTORE", reason, staffUserId);
                 }

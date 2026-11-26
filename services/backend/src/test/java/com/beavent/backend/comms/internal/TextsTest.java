@@ -72,11 +72,28 @@ class TextsTest {
                         + " https://beavent.example/en/account/reviews");
 
         Map<String, Object> review = Map.of(
-                "business", "Abeba Beauty", "place", "Bole", "rating", 2, "web", "https://beavent.example",
-                "orgId", "org-1", "reason", "Insults the staff.", "decision", "HIDE", "status", "DELISTED");
+                "business",
+                "Abeba Beauty",
+                "place",
+                "Bole",
+                "rating",
+                2,
+                "web",
+                "https://beavent.example",
+                "orgId",
+                "org-1",
+                "reason",
+                "Insults the staff.",
+                "decision",
+                "HIDE",
+                "status",
+                "DELISTED");
         for (String code : new String[] {
-            Notifier.REVIEW_RECEIVED, Notifier.REVIEW_REMOVED, Notifier.REVIEW_RESTORED,
-            Notifier.REVIEW_REPORT_OUTCOME, Notifier.MARKETPLACE_CHANGED
+            Notifier.REVIEW_RECEIVED,
+            Notifier.REVIEW_REMOVED,
+            Notifier.REVIEW_RESTORED,
+            Notifier.REVIEW_REPORT_OUTCOME,
+            Notifier.MARKETPLACE_CHANGED
         }) {
             for (String language : new String[] {"am", "en"}) {
                 Texts.Message m = Texts.render(code, language, review);
