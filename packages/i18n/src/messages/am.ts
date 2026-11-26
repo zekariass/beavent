@@ -388,6 +388,10 @@ export const am: Catalogue = {
   "earnings.balance.availableHint": "በሚቀጥለው ክፍያ ይላካል።",
   "earnings.balance.onTheWay": "ወደ እርስዎ በመላክ ላይ",
   "earnings.balance.onTheWayHint": "ገና ባልተከፈሉ ክፍያዎች ውስጥ።",
+  "earnings.balance.feesOwed": "ከሚቀጥለው ክፍያ የሚቆረጥ የአገልግሎት ክፍያ",
+  "earnings.balance.feesOwedHint":
+    "በቦታው (በጥሬ ገንዘብ፣ በስጦታ ካርድ ወይም በቀሪ ሂሳብ) ለተደረጉ ሽያጮች የቤቬንት የአገልግሎት ክፍያ።",
+  "earnings.statement.FEE_COLLECTED": "ከክፍያው የተቆረጠ የአገልግሎት ክፍያ",
   "earnings.balance.paid": "እስካሁን የተከፈለ",
   "earnings.schedule.DAILY": "ክፍያ በየቀኑ ይላካል።",
   "earnings.schedule.WEEKLY": "ክፍያ በየ{day} ይላካል።",

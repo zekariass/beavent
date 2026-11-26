@@ -44,6 +44,7 @@ class SellerPaymentsController {
             String schedule,
             Integer weekday,
             long minPayoutMinor,
+            long feesOwedMinor,
             List<Payouts.PayoutRow> payouts) {}
 
     record PageInfo(
@@ -103,6 +104,7 @@ class SellerPaymentsController {
                 o.schedule(),
                 o.weekday(),
                 o.minPayoutMinor(),
+                o.feesOwedMinor(),
                 payouts.payouts(org, 10));
     }
 

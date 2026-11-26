@@ -8771,6 +8771,7 @@ components:
         - paidOutMinor
         - schedule
         - minPayoutMinor
+        - feesOwedMinor
         - payouts
       properties:
         currency:
@@ -8807,6 +8808,12 @@ components:
         minPayoutMinor:
           type: integer
           format: int64
+        feesOwedMinor:
+          type: integer
+          format: int64
+          description: |
+            The platform's fees on sales paid at the venue (cash, gift cards, credit) that have not been taken yet; they are
+            taken from the next payout.
         payouts:
           type: array
           items:

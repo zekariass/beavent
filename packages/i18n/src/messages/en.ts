@@ -398,6 +398,10 @@ export const en = {
   "earnings.balance.availableHint": "Goes in the next payout.",
   "earnings.balance.onTheWay": "On its way to you",
   "earnings.balance.onTheWayHint": "In payouts that are not paid yet.",
+  "earnings.balance.feesOwed": "Fees to be taken from your next payout",
+  "earnings.balance.feesOwedHint":
+    "Beavent's fees on sales paid at the venue (cash, gift cards, credit).",
+  "earnings.statement.FEE_COLLECTED": "Fees taken from the payout",
   "earnings.balance.paid": "Paid out so far",
   "earnings.schedule.DAILY": "Payouts are made every day.",
   "earnings.schedule.WEEKLY": "Payouts are made every {day}.",

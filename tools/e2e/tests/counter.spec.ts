@@ -89,9 +89,14 @@ test("a visit with a deposit paid online is checked out in cash with a tip, and 
   // The visit is completed, and the drawer closes with what should be in it: Br 500 + Br 1,620.
   await desk.goto(`/en/business/o/${salon.orgId}/cash`);
   await expect(desk.getByText("Br 2,120").first()).toBeVisible();
+
   await desk.getByLabel("Cash counted (birr)").fill("2120");
   await desk.getByRole("button", { name: "Close the drawer" }).click();
   await expect(desk.getByText("No difference.")).toBeVisible();
+
+  // The platform's fees on what was paid at the venue are owed by the business, and shown.
+  await desk.goto(`/en/business/o/${salon.orgId}/earnings`);
+  await expect(desk.getByText("Fees to be taken from your next payout")).toBeVisible();
   await context.close();
 });
 

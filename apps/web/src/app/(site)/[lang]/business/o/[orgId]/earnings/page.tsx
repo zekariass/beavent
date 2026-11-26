@@ -13,6 +13,7 @@ const KINDS = [
   "PAYOUT_INITIATED",
   "PAYOUT_FAILED",
   "REFUND_INITIATED",
+  "FEE_COLLECTED",
 ];
 
 /** What the business is owed, what is on its way, its payouts and its statement (plan 3.5). */
@@ -53,6 +54,11 @@ export default async function EarningsPage({
     [t("earnings.balance.available"), t("earnings.balance.availableHint"), e.availableMinor],
     [t("earnings.balance.onTheWay"), t("earnings.balance.onTheWayHint"), e.onTheWayMinor],
     [t("earnings.balance.paid"), undefined, e.paidOutMinor],
+    ...(e.feesOwedMinor > 0
+      ? ([
+          [t("earnings.balance.feesOwed"), t("earnings.balance.feesOwedHint"), e.feesOwedMinor],
+        ] as const)
+      : []),
   ] as const;
 
   return (

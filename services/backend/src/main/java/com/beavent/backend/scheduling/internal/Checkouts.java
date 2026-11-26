@@ -12,6 +12,7 @@ import com.beavent.backend.commerce.CashDrawers;
 import com.beavent.backend.commerce.Orders;
 import com.beavent.backend.commerce.Receipts;
 import com.beavent.backend.payments.Payments;
+import com.beavent.backend.payments.Payouts;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.tenancy.OrgAccess;
@@ -117,6 +118,8 @@ public class Checkouts {
     private final Payments payments;
     private final CashDrawers drawers;
     private final Receipts receipts;
+    private final Payouts payouts;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Checkouts.class);
 
     Checkouts(
             DSLContext dsl,
@@ -126,7 +129,8 @@ public class Checkouts {
             Orders orders,
             Payments payments,
             CashDrawers drawers,
-            Receipts receipts) {
+            Receipts receipts,
+            Payouts payouts) {
         this.dsl = dsl;
         this.transactions = transactions;
         this.bookings = bookings;
@@ -135,6 +139,7 @@ public class Checkouts {
         this.payments = payments;
         this.drawers = drawers;
         this.receipts = receipts;
+        this.payouts = payouts;
     }
 
     private static final java.util.Set<String> PAYABLE =
@@ -362,7 +367,7 @@ public class Checkouts {
         }
 
         // The cash for the rest, the visit completed and the receipt: together.
-        return transactions.execute(status -> {
+        Done result = transactions.execute(status -> {
             long due = dueAtVenue(orderId);
             long handed = 0;
             long change = 0;
@@ -417,6 +422,13 @@ public class Checkouts {
                     order.getDiscountMinor(),
                     tendersOf(orderId));
         });
+        // The platform's fees on what was paid at the venue; a failure here is caught up by the payout worker's sweep.
+        try {
+            payouts.chargeVenueFees(orgId, orderId, now);
+        } catch (RuntimeException e) {
+            log.warn("Charging the venue fees of order {} failed; the sweep will", orderId, e);
+        }
+        return result;
     }
 
     /** {@link #dueAtVenue} in a transaction of its own (the business's context must be bound for the rows to be seen). */

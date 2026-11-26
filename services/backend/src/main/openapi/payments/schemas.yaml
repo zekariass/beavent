@@ -141,7 +141,7 @@ PayoutRow:
       type: [string, 'null']
 Earnings:
   type: object
-  required: [currency, pendingMinor, availableMinor, onTheWayMinor, paidOutMinor, schedule, minPayoutMinor, payouts]
+  required: [currency, pendingMinor, availableMinor, onTheWayMinor, paidOutMinor, schedule, minPayoutMinor, feesOwedMinor, payouts]
   properties:
     currency:
       type: string
@@ -171,6 +171,12 @@ Earnings:
     minPayoutMinor:
       type: integer
       format: int64
+    feesOwedMinor:
+      type: integer
+      format: int64
+      description: |
+        The platform's fees on sales paid at the venue (cash, gift cards, credit) that have not been taken yet; they are
+        taken from the next payout.
     payouts:
       type: array
       items:
