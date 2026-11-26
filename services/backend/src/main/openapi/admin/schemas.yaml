@@ -691,3 +691,129 @@ ProviderSuspension:
       type: string
       minLength: 1
       maxLength: 500
+MarketplaceListing:
+  type: object
+  required: [orgId, slug, organization, marketCode, organizationStatus, status, locations, services]
+  properties:
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    slug:
+      type: string
+    organization:
+      type: string
+    marketCode:
+      type: string
+    organizationStatus:
+      type: string
+    status:
+      type: string
+      enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+    note:
+      type: string
+      description: The reason of the last send-back or take-down.
+    changedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    locations:
+      type: integer
+      description: Active locations.
+    services:
+      type: integer
+      description: Active services people can book online.
+
+MarketplaceListingPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MarketplaceListing'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+
+MarketplaceDecision:
+  type: object
+  required: [decision, reason]
+  properties:
+    decision:
+      type: string
+      enum: [LIST, REJECT, DELIST]
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500
+
+StaffReviewReport:
+  type: object
+  required: [id, reason, status, at]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reason:
+      type: string
+    details:
+      type: string
+    status:
+      type: string
+      enum: [OPEN, IN_REVIEW, ACTIONED, DISMISSED]
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+
+StaffReview:
+  type: object
+  required: [id, orgId, businessName, placeName, rating, status, createdAt, reports]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessName:
+      type: string
+    placeName:
+      type: string
+    rating:
+      type: integer
+    body:
+      type: string
+    authorName:
+      type: string
+    status:
+      type: string
+      enum: [PENDING_MODERATION, PUBLISHED, HIDDEN, REMOVED]
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      type: object
+      required: [body, at]
+      properties:
+        body:
+          type: string
+        at:
+          $ref: ../common/schemas.yaml#/Instant
+    reports:
+      type: array
+      items:
+        $ref: '#/StaffReviewReport'
+
+StaffReviewPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/StaffReview'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+
+ReviewDecision:
+  type: object
+  required: [decision, reason]
+  properties:
+    decision:
+      type: string
+      enum: [HIDE, RESTORE, DISMISS]
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500

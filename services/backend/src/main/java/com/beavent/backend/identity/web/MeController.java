@@ -93,6 +93,13 @@ class MeController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Signing out of a phone (or turning its notifications off): it no longer gets pushes for this person. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/v1/me/devices/{installationId}")
+    ResponseEntity<Void> unregisterDevice(@PathVariable String installationId, @AuthenticationPrincipal Jwt jwt) {
+        transactions.executeWithoutResult(s -> sessions.unregisterDevice(userId(jwt), installationId));
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/v1/me/consents")
     ResponseEntity<Void> acceptLegalDocuments(
             @Valid @RequestBody ConsentAcceptanceBody body,

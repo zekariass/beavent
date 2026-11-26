@@ -8,5 +8,7 @@ export { Banner, EmptyState, Skeleton, SkeletonRows } from "./feedback";
 export { Icon, type IconName } from "./icon";
 export { CheckRow, Divider, Group, ListRow, OptionRow, type ListRowProps } from "./list-row";
 export { Screen, ScreenTitle, Section } from "./screen";
+export { BottomSheet } from "./sheet";
+export { SearchField } from "./search-field";
 export { Text, type TextProps, type TextTone } from "./text";
 export { TextField, type TextFieldProps } from "./text-field";

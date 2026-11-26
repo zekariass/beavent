@@ -6,6 +6,12 @@ import { About } from "@/components/venue/About";
 import { ServiceList } from "@/components/venue/ServiceList";
 import { TeamRail } from "@/components/venue/TeamRail";
 import { VenueGallery } from "@/components/venue/VenueGallery";
+import { FollowButton } from "@/components/discovery/FollowButton";
+import { SaveButton } from "@/components/discovery/SaveButton";
+import { ReviewsSection } from "@/components/reviews/ReviewsSection";
+import { RatingInline } from "@/components/reviews/Stars";
+import { loadReviews } from "@/lib/reviews";
+import { loadFollowing, savedLocationIds } from "@/lib/customer/saved";
 import { SiteHeader } from "@/components/SiteHeader";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { publicApi } from "@/lib/customer/session";
@@ -46,6 +52,11 @@ export default async function VenuePage({ params }: Props) {
   const t = translator(language);
   const venue = await loadVenue(business, location);
   if (!venue) notFound();
+  const [saved, following, reviews] = await Promise.all([
+    savedLocationIds(language),
+    loadFollowing(language),
+    loadReviews(language, business, { location, limit: 5 }),
+  ]);
   const now = new Date();
   // A failure to ask must not break the page: no gift card link then.
   const giftCards = await publicApi(language)
@@ -75,7 +86,19 @@ export default async function VenuePage({ params }: Props) {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <div className="flex min-w-0 flex-col gap-8">
             <section className="flex flex-col gap-2">
-              <h1 className="bv-type-display text-fg">{venue.businessName}</h1>
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="bv-type-display text-fg">{venue.businessName}</h1>
+                {venue.listed ? (
+                  <SaveButton
+                    language={language}
+                    locationId={venue.locationId}
+                    name={venue.businessName}
+                    saved={saved.ids.includes(venue.locationId)}
+                    signedIn={saved.signedIn}
+                    className="relative -me-3 shrink-0"
+                  />
+                ) : null}
+              </div>
               <p className="bv-type-body text-fg-muted">
                 {[
                   venue.locationName !== venue.businessName && venue.otherLocations.length > 0
@@ -90,6 +113,15 @@ export default async function VenuePage({ params }: Props) {
               {venue.landmark ? (
                 <p className="bv-type-label text-fg-muted">{venue.landmark}</p>
               ) : null}
+              {reviews?.summary.average !== undefined ? (
+                <a href="#reviews" className="self-start hover:text-primary">
+                  <RatingInline
+                    average={reviews.summary.average}
+                    count={reviews.summary.count}
+                    language={language}
+                  />
+                </a>
+              ) : null}
               <p className="bv-type-label text-fg">
                 {status.open && until ? (
                   <>
@@ -103,6 +135,12 @@ export default async function VenuePage({ params }: Props) {
               {facts.length > 0 ? (
                 <p className="bv-type-caption text-fg-muted">{facts.join(" · ")}</p>
               ) : null}
+              <FollowButton
+                language={language}
+                businessSlug={venue.businessSlug}
+                following={following.items.some((f) => f.businessSlug === venue.businessSlug)}
+                signedIn={following.signedIn}
+              />
             </section>
 
             <nav
@@ -115,6 +153,11 @@ export default async function VenuePage({ params }: Props) {
               {venue.team.length > 0 ? (
                 <a href="#team" className={tab}>
                   {t("venue.team")}
+                </a>
+              ) : null}
+              {reviews ? (
+                <a href="#reviews" className={tab}>
+                  {t("reviews.title")}
                 </a>
               ) : null}
               <a href="#about" className={tab}>
@@ -141,6 +184,17 @@ export default async function VenuePage({ params }: Props) {
                 <h2 className="bv-type-title2 text-fg">{t("venue.team")}</h2>
                 <TeamRail venue={venue} />
               </section>
+            ) : null}
+
+            {reviews ? (
+              <ReviewsSection
+                id="reviews"
+                page={reviews}
+                language={language}
+                business={venue.businessSlug}
+                businessName={venue.businessName}
+                location={venue.locationSlug}
+              />
             ) : null}
 
             <section id="about" className="flex scroll-mt-16 flex-col gap-3">

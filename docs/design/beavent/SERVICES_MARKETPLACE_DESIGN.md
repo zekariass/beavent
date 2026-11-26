@@ -469,5 +469,5 @@ Requirements (full specs when Stage 2.5 starts). Navigation: [MARKETPLACE_NAVIGA
 | G5 | S-09 | Travel fee/time estimate for an address against `tenant.service_areas` | Backend (1.4/2.1, used by 2.4) |
 | G6 | S-10b | Add-to-calendar: either `expo-calendar` (new Expo module) or an `.ics` endpoint shared via the share sheet | Decision (recommend `.ics` endpoint: no dependency, works on web) |
 | G7 | All prices | Display money helper and dual-time helper in `@beavent/money` / `@beavent/calendar` (A12) | Frontend foundation |
-| G8 | S-03 | Map: **approved** — `expo-maps` on mobile, MapLibre GL JS on web; tile/maps provider and API keys still to choose | Ops + engineering |
+| G8 | S-03 | Map: **built** (plan 8.1, slice 4) — `expo-maps` on mobile, MapLibre GL JS on web; the web tile provider is configuration (`NEXT_PUBLIC_MAP_STYLE_URL`, OpenStreetMap's public tiles in development only) and the Android Google Maps key are still to choose and create for production | Ops + engineering |
 | G9 | S-16 | Category-specific sub-rating keys and labels (i18n) | Product |

@@ -1,0 +1,40 @@
+notificationSettings:
+  get:
+    tags: [Notifications]
+    operationId: getNotificationSettings
+    summary: The person's choices about reminders and quiet hours
+    description: A person who never chose gets the defaults (reminders by text message and email, no quiet hours).
+    responses:
+      '200':
+        description: The settings.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/NotificationSettings
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+  put:
+    tags: [Notifications]
+    operationId: saveNotificationSettings
+    summary: Change the choices about reminders and quiet hours
+    description: |
+      A reminder that would arrive in quiet hours waits until they end; one that cannot wait (the visit is less than
+      30 minutes after they end) is not sent. A review request waits the same way. `VALIDATION_FAILED` when the start
+      and end of quiet hours are the same.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/NotificationSettings
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/NotificationSettings
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized

@@ -4,7 +4,8 @@
  * Notifications are the durable queue ({@code comms.notifications.send_after} for reminders; deliveries with retries).
  * Runs with the system role (it serves every business).
  *
- * <p>No public API yet: other modules publish events through the outbox.
+ * <p>Other modules publish events through the outbox. The one public API is {@link NotificationSettings}: what a
+ * person chose about reminders and quiet hours (plan 8.4).
  */
 @org.springframework.modulith.ApplicationModule(displayName = "Communications")
 package com.beavent.backend.comms;

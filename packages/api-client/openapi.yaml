@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Notifications
+    description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
     description: Sign-in, tokens and sessions
   - name: Me
@@ -48,6 +50,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: Discovery
+    description: Search over places to book and things to do (public)
   - name: GiftCards
     description: Gift cards a business sells, delivers and honours as a payment method
   - name: Counter
@@ -1130,6 +1134,25 @@ paths:
           $ref: '#/components/responses/NoContent'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/devices/{installationId}:
+    delete:
+      tags:
+        - Me
+      operationId: unregisterDevice
+      summary: Stop push notifications to this phone for this person
+      description: Called when the person signs out or turns notifications off. Nothing happens for a phone that is not theirs or not known.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /v1/me/consents:
@@ -5338,6 +5361,667 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search:
+    get:
+      tags:
+        - Discovery
+      operationId: searchListings
+      summary: Search places to book and things to do, together
+      description: |
+        Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+        misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+        date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+        Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Kind'
+        - $ref: '#/components/parameters/Market'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Area'
+        - $ref: '#/components/parameters/Lat'
+        - $ref: '#/components/parameters/Lng'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/West'
+        - $ref: '#/components/parameters/South'
+        - $ref: '#/components/parameters/East'
+        - $ref: '#/components/parameters/North'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/MaxPrice'
+        - $ref: '#/components/parameters/MinRating'
+        - $ref: '#/components/parameters/OpenNow'
+        - $ref: '#/components/parameters/AtHome'
+        - $ref: '#/components/parameters/Audience'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Part'
+        - $ref: '#/components/parameters/Free'
+        - $ref: '#/components/parameters/Online'
+        - $ref: '#/components/parameters/Business'
+        - $ref: '#/components/parameters/Location'
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: A page of listings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search/pins:
+    get:
+      tags:
+        - Discovery
+      operationId: searchPins
+      summary: Pins for the map, with the same filters as the search
+      description: Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Kind'
+        - $ref: '#/components/parameters/Market'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Area'
+        - $ref: '#/components/parameters/Lat'
+        - $ref: '#/components/parameters/Lng'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/West'
+        - $ref: '#/components/parameters/South'
+        - $ref: '#/components/parameters/East'
+        - $ref: '#/components/parameters/North'
+        - $ref: '#/components/parameters/MaxPrice'
+        - $ref: '#/components/parameters/MinRating'
+        - $ref: '#/components/parameters/OpenNow'
+        - $ref: '#/components/parameters/AtHome'
+        - $ref: '#/components/parameters/Audience'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Part'
+        - $ref: '#/components/parameters/Free'
+        - $ref: '#/components/parameters/Online'
+        - $ref: '#/components/parameters/Business'
+        - $ref: '#/components/parameters/Location'
+      responses:
+        '200':
+          description: Pins.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPins'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/search/suggestions:
+    get:
+      tags:
+        - Discovery
+      operationId: searchSuggestions
+      summary: Categories, places and events matching what has been typed so far
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - $ref: '#/components/parameters/Market'
+        - name: limit
+          in: query
+          required: false
+          description: Per group.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 3
+      responses:
+        '200':
+          description: Up to `limit` of each.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchSuggestions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/marketplace:
+    get:
+      tags:
+        - Discovery
+      operationId: getMarketplaceStatus
+      summary: Where the business stands on the marketplace, and what it still needs
+      description: Needs `org.settings.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: The status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Discovery
+      operationId: setMarketplaceRequest
+      summary: Ask to be listed on the marketplace, or take the request (or the listing) back
+      description: |
+        Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+        and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+        while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+        listing back (the business becomes hidden and can ask again).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requested
+              properties:
+                requested:
+                  type: boolean
+      responses:
+        '200':
+          description: The new status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/me/saved:
+    get:
+      tags:
+        - Discovery
+      operationId: listSavedPlaces
+      summary: The signed-in person's saved places, newest first
+      description: Places taken off the marketplace since they were saved are left out until they are listed again.
+      responses:
+        '200':
+          description: Saved places.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/saved/locations/{locationId}:
+    put:
+      tags:
+        - Discovery
+      operationId: savePlace
+      summary: Save a place (saving it again changes nothing)
+      description: The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Saved.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Discovery
+      operationId: unsavePlace
+      summary: Take a place off the saved list
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Not saved (any more).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/follows:
+    get:
+      tags:
+        - Discovery
+      operationId: listFollowedBusinesses
+      summary: The businesses and organizers the signed-in person follows, newest first
+      responses:
+        '200':
+          description: Followed businesses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowedList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/follows/{businessSlug}:
+    put:
+      tags:
+        - Discovery
+      operationId: followBusiness
+      summary: Follow a business, or change whether to be told about its news
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifications:
+                  type: boolean
+                  description: Default true.
+      responses:
+        '200':
+          description: Followed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Followed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Discovery
+      operationId: unfollowBusiness
+      summary: Stop following a business
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Not followed (any more).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/public/businesses/{businessSlug}:
+    get:
+      tags:
+        - Discovery
+      operationId: getBrand
+      summary: A business as a whole, for its brand page
+      description: Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The brand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/businesses/{businessSlug}/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listBrandReviews
+      summary: Published reviews of a business or of one of its places, newest first
+      description: Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: location
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: The reviews.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me/notification-settings:
+    get:
+      tags:
+        - Notifications
+      operationId: getNotificationSettings
+      summary: The person's choices about reminders and quiet hours
+      description: A person who never chose gets the defaults (reminders by text message and email, no quiet hours).
+      responses:
+        '200':
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags:
+        - Notifications
+      operationId: saveNotificationSettings
+      summary: Change the choices about reminders and quiet hours
+      description: |
+        A reminder that would arrive in quiet hours waits until they end; one that cannot wait (the visit is less than
+        30 minutes after they end) is not sent. A review request waits the same way. `VALIDATION_FAILED` when the start
+        and end of quiet hours are the same.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationSettings'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listMyReviews
+      summary: Visits waiting for a review, and the reviews the person wrote
+      description: A visit can be reviewed once it is completed and for 90 days after it ended.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/reviews/{reviewId}:
+    put:
+      tags:
+        - Discovery
+      operationId: editReview
+      summary: Change the rating or text of the person's own review
+      description: The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+        - Discovery
+      operationId: deleteReview
+      summary: Delete the person's own review
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/review:
+    post:
+      tags:
+        - Discovery
+      operationId: writeReview
+      summary: Review a completed visit
+      description: |
+        One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+        `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+        changes at once.
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '201':
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listOrgReviews
+      summary: The reviews of the business's places, newest first
+      description: Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: unanswered
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReviewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/reviews/{reviewId}/response:
+    put:
+      tags:
+        - Discovery
+      operationId: answerReview
+      summary: Answer a published review, or replace the answer
+      description: Needs `reviews.respond`. The answer shows under the review for everyone.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewAnswerInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+        - Discovery
+      operationId: removeReviewAnswer
+      summary: Take the answer back
+      description: Needs `reviews.respond`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/reviews/{reviewId}/report:
+    post:
+      tags:
+        - Discovery
+      operationId: reportReview
+      summary: Ask platform staff to look at a review
+      description: Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewReportInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -5856,6 +6540,147 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/marketplace-listings:
+    get:
+      tags:
+        - Admin
+      operationId: listMarketplaceListings
+      summary: Businesses by their place on the marketplace, oldest first (default `PENDING_REVIEW`)
+      description: Needs `admin.marketplace.review`, in the business's market.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - HIDDEN
+              - PENDING_REVIEW
+              - LISTED
+              - DELISTED
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceListingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reviews:
+    get:
+      tags:
+        - Admin
+      operationId: listReviewsForModeration
+      summary: Reviews that businesses reported (default) or that staff took down, oldest first
+      description: Needs `admin.moderation`, in the business's market.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - REPORTED
+              - HIDDEN
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffReviewPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reviews/{reviewId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideReview
+      summary: Hide a review, put it back, or dismiss the reports on it (reason required, audited)
+      description: |
+        Needs `admin.moderation`; staff cannot decide about a business they belong to. `HIDE` takes a published review
+        down (it stops counting in the place's rating) and closes its reports as actioned; `RESTORE` puts a hidden review
+        back; `DISMISS` closes the open reports and leaves the review. Each decision is recorded with its reason.
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewDecision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/orgs/{orgId}/marketplace-decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideMarketplace
+      summary: List a business on the marketplace, send its request back, or take it off (reason required, audited)
+      description: |
+        Needs `admin.marketplace.review`; staff cannot decide about a business they belong to. `LIST` needs an active
+        location and a service people can book online (`CONSTRAINT_VIOLATION`) and a business that is not suspended,
+        restricted or closed; `REJECT` answers a waiting request; `DELIST` takes a listed business off. The reason is shown
+        to the business after `REJECT` and `DELIST`. The business is in or out of search right away.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketplaceDecision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceListing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /v1/admin/payouts:
     get:
       tags:
@@ -12554,6 +13379,661 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/VenueOther'
+    SearchKind:
+      type: string
+      enum:
+        - LOCATION
+        - EVENT
+    SearchMenuLine:
+      type: object
+      description: One service of a place that matches what was typed or the category, for the result row.
+      required:
+        - serviceId
+        - name
+        - durationMinutes
+        - priceMinor
+        - priceType
+        - matches
+      properties:
+        serviceId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        durationMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+          format: int64
+          description: The lowest price of the service, minor units of the listing's currency.
+        priceType:
+          type: string
+          enum:
+            - FIXED
+            - FROM
+            - ON_CONSULTATION
+        matches:
+          type: boolean
+    SearchItem:
+      type: object
+      description: |
+        A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+        (`path` is the part after the prefix).
+      required:
+        - id
+        - kind
+        - title
+        - summary
+        - imageVariants
+        - businessSlug
+        - path
+        - category
+        - area
+        - ratingCount
+        - online
+        - deliveryModes
+        - serviceCount
+        - menu
+        - newOnBeavent
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Places only. The id the save endpoints take.
+        kind:
+          $ref: '#/components/schemas/SearchKind'
+        title:
+          type: string
+        summary:
+          $ref: '#/components/schemas/LocalizedText'
+        imageUrl:
+          type: string
+        imageVariants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        eventSlug:
+          type: string
+        path:
+          type: string
+          description: '`/{businessSlug}/{locationSlug or eventSlug}`.'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        area:
+          $ref: '#/components/schemas/LocalizedText'
+        landmark:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        distanceMeters:
+          type: integer
+          description: From `lat`/`lng` when they were given.
+        priceFromMinor:
+          type: integer
+          format: int64
+          description: All-in "from" price in minor units; `0` is free.
+        currency:
+          type: string
+        ratingAvg:
+          type: number
+        ratingCount:
+          type: integer
+        nextAvailableAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+          description: Places only. The earliest bookable time found at the last refresh.
+        nextStartsAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+          description: Events only.
+        lastEndsAt:
+          allOf:
+            - $ref: '#/components/schemas/Instant'
+        online:
+          type: boolean
+        timezone:
+          type: string
+        serviceMode:
+          type: string
+          enum:
+            - ON_PREMISES
+            - MOBILE_ONLY
+            - BOTH
+        deliveryModes:
+          type: array
+          items:
+            type: string
+        serviceCount:
+          type: integer
+        menu:
+          type: array
+          description: Up to three services matching the words typed or the category; empty otherwise.
+          items:
+            $ref: '#/components/schemas/SearchMenuLine'
+        newOnBeavent:
+          type: boolean
+    SearchPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        nextCursor:
+          type: string
+          description: Absent on the last page.
+        total:
+          type: integer
+          description: How many listings match; given on the first page only.
+    SearchPin:
+      type: object
+      required:
+        - id
+        - kind
+        - title
+        - path
+        - latitude
+        - longitude
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          $ref: '#/components/schemas/SearchKind'
+        title:
+          type: string
+        path:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        priceFromMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        ratingAvg:
+          type: number
+    SearchPins:
+      type: object
+      required:
+        - pins
+        - truncated
+      properties:
+        pins:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchPin'
+        truncated:
+          type: boolean
+          description: More listings match than are returned (at most 200), so zoom in or narrow the filters.
+    SearchCategoryHit:
+      type: object
+      required:
+        - code
+        - kind
+        - name
+      properties:
+        code:
+          type: string
+        kind:
+          type: string
+          enum:
+            - BUSINESS
+            - SERVICE
+            - EVENT
+            - PRODUCT
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+    SearchSuggestions:
+      type: object
+      required:
+        - categories
+        - places
+        - events
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchCategoryHit'
+        places:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+    MarketplaceRequirement:
+      type: object
+      required:
+        - code
+        - met
+      properties:
+        code:
+          type: string
+          enum:
+            - LOCATION
+            - SERVICE
+          description: An active location, or an active service people can book online at one.
+        met:
+          type: boolean
+    MarketplaceStatus:
+      type: object
+      required:
+        - status
+        - requirements
+        - canRequest
+      properties:
+        status:
+          type: string
+          enum:
+            - HIDDEN
+            - PENDING_REVIEW
+            - LISTED
+            - DELISTED
+        note:
+          type: string
+          description: Why staff sent the request back or took the business off; present until it asks again.
+        changedAt:
+          $ref: '#/components/schemas/Instant'
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceRequirement'
+        canRequest:
+          type: boolean
+          description: The business may ask now (hidden, ready, not taken off by staff).
+    SavedEntry:
+      type: object
+      required:
+        - savedAt
+        - place
+      properties:
+        savedAt:
+          $ref: '#/components/schemas/Instant'
+        place:
+          $ref: '#/components/schemas/SearchItem'
+    SavedList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedEntry'
+    Followed:
+      type: object
+      required:
+        - businessSlug
+        - name
+        - category
+        - since
+        - source
+        - notifications
+      properties:
+        businessSlug:
+          type: string
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logoUrl:
+          type: string
+        since:
+          $ref: '#/components/schemas/Instant'
+        source:
+          type: string
+          enum:
+            - MANUAL
+            - AFTER_PURCHASE
+            - AFTER_VISIT
+        notifications:
+          type: boolean
+          description: The person wants to hear about this business's news and offers.
+    FollowedList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Followed'
+    Brand:
+      type: object
+      required:
+        - slug
+        - name
+        - description
+        - category
+        - logoVariants
+        - places
+        - followers
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        category:
+          $ref: '#/components/schemas/LocalizedText'
+        logoUrl:
+          type: string
+        logoVariants:
+          type: object
+          description: Smaller sizes by name (w320, w960).
+          additionalProperties:
+            type: string
+        places:
+          type: integer
+          description: How many of its places are listed on the marketplace.
+        followers:
+          type: integer
+    ReviewSummary:
+      type: object
+      required:
+        - count
+        - distribution
+      properties:
+        average:
+          type: number
+          description: Average of the published reviews, two decimals; absent when there are none.
+        count:
+          type: integer
+        distribution:
+          type: array
+          description: How many reviews gave 1, 2, 3, 4 and 5 stars, in that order.
+          items:
+            type: integer
+    ReviewResponse:
+      type: object
+      required:
+        - body
+        - at
+      properties:
+        body:
+          type: string
+        at:
+          $ref: '#/components/schemas/Instant'
+    Review:
+      type: object
+      description: A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name.
+      required:
+        - id
+        - rating
+        - locationSlug
+        - placeName
+        - visitedOn
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+        authorName:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedOn:
+          type: string
+          format: date
+          description: The day of the visit, in the place's time zone.
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+    ReviewPage:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        nextCursor:
+          type: string
+    NotificationSettings:
+      type: object
+      description: |
+        What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
+        not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
+      required:
+        - remindersPush
+        - remindersSms
+        - remindersEmail
+        - quietHours
+        - quietFrom
+        - quietTo
+      properties:
+        remindersPush:
+          type: boolean
+          description: Reminders and review requests as a push notification to the phone app (when a phone is set up).
+        remindersSms:
+          type: boolean
+          description: |
+            Reminders and review requests by text message. A person who gets them as a push notification on a set-up phone
+            is not also sent a text message.
+        remindersEmail:
+          type: boolean
+          description: Reminders and review requests by email.
+        quietHours:
+          type: boolean
+          description: Hold reminders and review requests during quiet hours.
+        quietFrom:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          description: Start of quiet hours, `HH:mm`.
+        quietTo:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          description: End of quiet hours, `HH:mm`; the next morning when earlier than `quietFrom`.
+    PendingReview:
+      type: object
+      description: A completed visit that has no review yet and can still get one.
+      required:
+        - appointmentId
+        - locationId
+        - businessSlug
+        - locationSlug
+        - placeName
+        - visitedAt
+        - canReviewUntil
+      properties:
+        appointmentId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedAt:
+          $ref: '#/components/schemas/Instant'
+        canReviewUntil:
+          $ref: '#/components/schemas/Instant'
+    MyReview:
+      type: object
+      required:
+        - id
+        - appointmentId
+        - businessSlug
+        - locationSlug
+        - placeName
+        - rating
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        appointmentId:
+          $ref: '#/components/schemas/Uuid'
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        rating:
+          type: integer
+        body:
+          type: string
+        status:
+          type: string
+          enum:
+            - PUBLISHED
+            - HIDDEN
+            - PENDING_MODERATION
+            - REMOVED
+          description: '`HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed.'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+    MyReviews:
+      type: object
+      required:
+        - pending
+        - reviews
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingReview'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyReview'
+    ReviewInput:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+          maxLength: 1000
+    BusinessReview:
+      type: object
+      required:
+        - id
+        - rating
+        - locationId
+        - placeName
+        - visitedOn
+        - createdAt
+        - status
+        - reported
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        rating:
+          type: integer
+        body:
+          type: string
+        authorName:
+          type: string
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedOn:
+          type: string
+          format: date
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        status:
+          type: string
+          enum:
+            - PUBLISHED
+            - HIDDEN
+            - PENDING_MODERATION
+            - REMOVED
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+        reported:
+          type: boolean
+          description: A report is waiting for staff.
+    BusinessReviewPage:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusinessReview'
+        nextCursor:
+          type: string
+    ReviewAnswerInput:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewReportInput:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          enum:
+            - INAPPROPRIATE
+            - HARASSMENT
+            - MISLEADING_PRICE
+            - UNSAFE
+            - OTHER
+        details:
+          type: string
+          maxLength: 500
     FilePurpose:
       type: string
       enum:
@@ -13080,6 +14560,174 @@ components:
       properties:
         accountNumber:
           type: string
+    MarketplaceListing:
+      type: object
+      required:
+        - orgId
+        - slug
+        - organization
+        - marketCode
+        - organizationStatus
+        - status
+        - locations
+        - services
+      properties:
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        organization:
+          type: string
+        marketCode:
+          type: string
+        organizationStatus:
+          type: string
+        status:
+          type: string
+          enum:
+            - HIDDEN
+            - PENDING_REVIEW
+            - LISTED
+            - DELISTED
+        note:
+          type: string
+          description: The reason of the last send-back or take-down.
+        changedAt:
+          $ref: '#/components/schemas/Instant'
+        locations:
+          type: integer
+          description: Active locations.
+        services:
+          type: integer
+          description: Active services people can book online.
+    MarketplaceListingPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceListing'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    StaffReviewReport:
+      type: object
+      required:
+        - id
+        - reason
+        - status
+        - at
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reason:
+          type: string
+        details:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - IN_REVIEW
+            - ACTIONED
+            - DISMISSED
+        at:
+          $ref: '#/components/schemas/Instant'
+    StaffReview:
+      type: object
+      required:
+        - id
+        - orgId
+        - businessName
+        - placeName
+        - rating
+        - status
+        - createdAt
+        - reports
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        businessName:
+          type: string
+        placeName:
+          type: string
+        rating:
+          type: integer
+        body:
+          type: string
+        authorName:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_MODERATION
+            - PUBLISHED
+            - HIDDEN
+            - REMOVED
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          type: object
+          required:
+            - body
+            - at
+          properties:
+            body:
+              type: string
+            at:
+              $ref: '#/components/schemas/Instant'
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffReviewReport'
+    StaffReviewPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffReview'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ReviewDecision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - HIDE
+            - RESTORE
+            - DISMISS
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+    MarketplaceDecision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - LIST
+            - REJECT
+            - DELIST
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
     PayoutSummary:
       type: object
       required:
@@ -13987,5 +15635,219 @@ components:
       in: header
       required: true
       description: ETag of the version being updated.
+      schema:
+        type: string
+    Q:
+      name: q
+      in: query
+      required: false
+      description: What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match.
+      schema:
+        type: string
+        maxLength: 100
+    Kind:
+      name: kind
+      in: query
+      required: false
+      description: Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together.
+      schema:
+        type: string
+        enum:
+          - LOCATION
+          - EVENT
+    Market:
+      name: market
+      in: query
+      required: false
+      description: Market code, e.g. `ET`.
+      schema:
+        type: string
+    Category:
+      name: category
+      in: query
+      required: false
+      description: Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it.
+      schema:
+        type: string
+    Area:
+      name: area
+      in: query
+      required: false
+      description: Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it.
+      schema:
+        type: string
+    Lat:
+      name: lat
+      in: query
+      required: false
+      description: With `lng`, only listings within `radius` metres.
+      schema:
+        type: number
+        minimum: -90
+        maximum: 90
+    Lng:
+      name: lng
+      in: query
+      required: false
+      schema:
+        type: number
+        minimum: -180
+        maximum: 180
+    Radius:
+      name: radius
+      in: query
+      required: false
+      description: Metres around `lat`/`lng`. Default 5000.
+      schema:
+        type: integer
+        minimum: 100
+        maximum: 50000
+    West:
+      name: west
+      in: query
+      required: false
+      description: A map window (all four needed, west < east, south < north).
+      schema:
+        type: number
+    South:
+      name: south
+      in: query
+      required: false
+      schema:
+        type: number
+    East:
+      name: east
+      in: query
+      required: false
+      schema:
+        type: number
+    North:
+      name: north
+      in: query
+      required: false
+      schema:
+        type: number
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: |
+        `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+        `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+      schema:
+        type: string
+        enum:
+          - RECOMMENDED
+          - NEAREST
+          - TOP_RATED
+          - LOWEST_PRICE
+          - SOONEST
+          - NEWEST
+    MaxPrice:
+      name: maxPrice
+      in: query
+      required: false
+      description: The "from" price is at most this many minor units of its currency.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    MinRating:
+      name: minRating
+      in: query
+      required: false
+      schema:
+        type: number
+        minimum: 0
+        maximum: 5
+    OpenNow:
+      name: openNow
+      in: query
+      required: false
+      description: Places open at this moment (opening hours only; announced closures are not applied).
+      schema:
+        type: boolean
+        default: false
+    AtHome:
+      name: atHome
+      in: query
+      required: false
+      description: Places whose professionals come to the customer.
+      schema:
+        type: boolean
+        default: false
+    Audience:
+      name: audience
+      in: query
+      required: false
+      description: Places with services for this group (or for everyone).
+      schema:
+        type: string
+        enum:
+          - WOMEN
+          - MEN
+          - CHILDREN
+    Language:
+      name: language
+      in: query
+      required: false
+      description: A language a professional speaks, e.g. `am`.
+      schema:
+        type: string
+    Date:
+      name: date
+      in: query
+      required: false
+      description: First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`.
+      schema:
+        type: string
+        format: date
+    DateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: Last local date (inclusive); defaults to `date`. At most 60 days after it.
+      schema:
+        type: string
+        format: date
+    Part:
+      name: part
+      in: query
+      required: false
+      description: Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`.
+      schema:
+        type: string
+        enum:
+          - MORNING
+          - AFTERNOON
+          - EVENING
+    Free:
+      name: free
+      in: query
+      required: false
+      description: Events that cost nothing.
+      schema:
+        type: boolean
+        default: false
+    Online:
+      name: online
+      in: query
+      required: false
+      description: Events held online.
+      schema:
+        type: boolean
+        default: false
+    Business:
+      name: business
+      in: query
+      required: false
+      description: A business's public slug, to get only its places (a brand page lists its locations this way).
+      schema:
+        type: string
+    Location:
+      name: location
+      in: query
+      required: false
+      description: Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before.
       schema:
         type: string

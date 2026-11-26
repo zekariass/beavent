@@ -1,8 +1,15 @@
 import { BeaventTabs, type TabSpec } from "@beavent/native";
 
-/** Consumer tabs at this stage: Explore · Bookings · Account (MARKETPLACE_NAVIGATION.md §2.4; Saved arrives in Stage 8). */
+/** Consumer tabs: Explore · Saved · Bookings · Account (MARKETPLACE_NAVIGATION.md §2.4). */
 const TABS: readonly TabSpec[] = [
   { name: "index", label: "nav.explore", href: "/", sf: "magnifyingglass", md: "search" },
+  {
+    name: "saved",
+    label: "nav.saved",
+    href: "/saved",
+    sf: { default: "heart", selected: "heart.fill" },
+    md: "favorite",
+  },
   {
     name: "bookings",
     label: "nav.bookings",

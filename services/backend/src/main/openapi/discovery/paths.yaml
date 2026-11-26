@@ -1,0 +1,597 @@
+search:
+  get:
+    tags: [Discovery]
+    operationId: searchListings
+    summary: Search places to book and things to do, together
+    description: |
+      Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+      misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+      date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+      Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+    security: []
+    parameters:
+      - $ref: ./parameters.yaml#/Q
+      - $ref: ./parameters.yaml#/Kind
+      - $ref: ./parameters.yaml#/Market
+      - $ref: ./parameters.yaml#/Category
+      - $ref: ./parameters.yaml#/Area
+      - $ref: ./parameters.yaml#/Lat
+      - $ref: ./parameters.yaml#/Lng
+      - $ref: ./parameters.yaml#/Radius
+      - $ref: ./parameters.yaml#/West
+      - $ref: ./parameters.yaml#/South
+      - $ref: ./parameters.yaml#/East
+      - $ref: ./parameters.yaml#/North
+      - $ref: ./parameters.yaml#/Sort
+      - $ref: ./parameters.yaml#/MaxPrice
+      - $ref: ./parameters.yaml#/MinRating
+      - $ref: ./parameters.yaml#/OpenNow
+      - $ref: ./parameters.yaml#/AtHome
+      - $ref: ./parameters.yaml#/Audience
+      - $ref: ./parameters.yaml#/Language
+      - $ref: ./parameters.yaml#/Date
+      - $ref: ./parameters.yaml#/DateTo
+      - $ref: ./parameters.yaml#/Part
+      - $ref: ./parameters.yaml#/Free
+      - $ref: ./parameters.yaml#/Online
+      - $ref: ./parameters.yaml#/Business
+      - $ref: ./parameters.yaml#/Location
+      - $ref: ../common/parameters.yaml#/Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+    responses:
+      '200':
+        description: A page of listings.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchPage
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+pins:
+  get:
+    tags: [Discovery]
+    operationId: searchPins
+    summary: Pins for the map, with the same filters as the search
+    description: Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+    security: []
+    parameters:
+      - $ref: ./parameters.yaml#/Q
+      - $ref: ./parameters.yaml#/Kind
+      - $ref: ./parameters.yaml#/Market
+      - $ref: ./parameters.yaml#/Category
+      - $ref: ./parameters.yaml#/Area
+      - $ref: ./parameters.yaml#/Lat
+      - $ref: ./parameters.yaml#/Lng
+      - $ref: ./parameters.yaml#/Radius
+      - $ref: ./parameters.yaml#/West
+      - $ref: ./parameters.yaml#/South
+      - $ref: ./parameters.yaml#/East
+      - $ref: ./parameters.yaml#/North
+      - $ref: ./parameters.yaml#/MaxPrice
+      - $ref: ./parameters.yaml#/MinRating
+      - $ref: ./parameters.yaml#/OpenNow
+      - $ref: ./parameters.yaml#/AtHome
+      - $ref: ./parameters.yaml#/Audience
+      - $ref: ./parameters.yaml#/Language
+      - $ref: ./parameters.yaml#/Date
+      - $ref: ./parameters.yaml#/DateTo
+      - $ref: ./parameters.yaml#/Part
+      - $ref: ./parameters.yaml#/Free
+      - $ref: ./parameters.yaml#/Online
+      - $ref: ./parameters.yaml#/Business
+      - $ref: ./parameters.yaml#/Location
+    responses:
+      '200':
+        description: Pins.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchPins
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+suggestions:
+  get:
+    tags: [Discovery]
+    operationId: searchSuggestions
+    summary: Categories, places and events matching what has been typed so far
+    security: []
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+      - $ref: ./parameters.yaml#/Market
+      - name: limit
+        in: query
+        required: false
+        description: Per group.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+    responses:
+      '200':
+        description: Up to `limit` of each.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SearchSuggestions
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+marketplace:
+  get:
+    tags: [Discovery]
+    operationId: getMarketplaceStatus
+    summary: Where the business stands on the marketplace, and what it still needs
+    description: Needs `org.settings.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: The status.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceStatus
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Discovery]
+    operationId: setMarketplaceRequest
+    summary: Ask to be listed on the marketplace, or take the request (or the listing) back
+    description: |
+      Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+      and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+      while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+      listing back (the business becomes hidden and can ask again).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [requested]
+            properties:
+              requested:
+                type: boolean
+    responses:
+      '200':
+        description: The new status.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketplaceStatus
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+mySaved:
+  get:
+    tags: [Discovery]
+    operationId: listSavedPlaces
+    summary: The signed-in person's saved places, newest first
+    description: Places taken off the marketplace since they were saved are left out until they are listed again.
+    responses:
+      '200':
+        description: Saved places.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SavedList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+mySavedLocation:
+  put:
+    tags: [Discovery]
+    operationId: savePlace
+    summary: Save a place (saving it again changes nothing)
+    description: The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Saved.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Discovery]
+    operationId: unsavePlace
+    summary: Take a place off the saved list
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Not saved (any more).
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myFollows:
+  get:
+    tags: [Discovery]
+    operationId: listFollowedBusinesses
+    summary: The businesses and organizers the signed-in person follows, newest first
+    responses:
+      '200':
+        description: Followed businesses.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/FollowedList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myFollow:
+  put:
+    tags: [Discovery]
+    operationId: followBusiness
+    summary: Follow a business, or change whether to be told about its news
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              notifications:
+                type: boolean
+                description: Default true.
+    responses:
+      '200':
+        description: Followed.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Followed
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags: [Discovery]
+    operationId: unfollowBusiness
+    summary: Stop following a business
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Not followed (any more).
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+brand:
+  get:
+    tags: [Discovery]
+    operationId: getBrand
+    summary: A business as a whole, for its brand page
+    description: Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: The brand.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Brand
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+brandReviews:
+  get:
+    tags: [Discovery]
+    operationId: listBrandReviews
+    summary: Published reviews of a business or of one of its places, newest first
+    description: Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: location
+        in: query
+        required: false
+        schema:
+          type: string
+      - $ref: ../common/parameters.yaml#/Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+    responses:
+      '200':
+        description: The reviews.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReviewPage
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+myReviews:
+  get:
+    tags: [Discovery]
+    operationId: listMyReviews
+    summary: Visits waiting for a review, and the reviews the person wrote
+    description: A visit can be reviewed once it is completed and for 90 days after it ended.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReviews
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myAppointmentReview:
+  post:
+    tags: [Discovery]
+    operationId: writeReview
+    summary: Review a completed visit
+    description: |
+      One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+      `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+      changes at once.
+    parameters:
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewInput
+    responses:
+      '201':
+        description: Published.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myReview:
+  put:
+    tags: [Discovery]
+    operationId: editReview
+    summary: Change the rating or text of the person's own review
+    description: The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+  delete:
+    tags: [Discovery]
+    operationId: deleteReview
+    summary: Delete the person's own review
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Deleted.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+orgReviews:
+  get:
+    tags: [Discovery]
+    operationId: listOrgReviews
+    summary: The reviews of the business's places, newest first
+    description: Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: unanswered
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReviewPage
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+orgReviewResponse:
+  put:
+    tags: [Discovery]
+    operationId: answerReview
+    summary: Answer a published review, or replace the answer
+    description: Needs `reviews.respond`. The answer shows under the review for everyone.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewAnswerInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+  delete:
+    tags: [Discovery]
+    operationId: removeReviewAnswer
+    summary: Take the answer back
+    description: Needs `reviews.respond`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+orgReviewReport:
+  post:
+    tags: [Discovery]
+    operationId: reportReview
+    summary: Ask platform staff to look at a review
+    description: Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewReportInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

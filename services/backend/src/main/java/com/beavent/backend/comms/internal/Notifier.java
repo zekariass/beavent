@@ -64,6 +64,19 @@ class Notifier {
 
     static final String PAYOUT_FAILED = "PAYOUT_FAILED";
 
+    /** Some time after a completed visit: how was it? Leads to the review form (plan 8.3). */
+    static final String REVIEW_REQUEST = "APPOINTMENT_REVIEW_REQUEST";
+    /** How long after the visit the request goes. */
+    private static final Duration REVIEW_REQUEST_DELAY = Duration.ofHours(2);
+
+    /** Reviews and the marketplace: to the business, or to the author of a review (plans 8.3 and 8.1). */
+    static final String REVIEW_RECEIVED = "REVIEW_RECEIVED";
+
+    static final String REVIEW_REMOVED = "REVIEW_REMOVED";
+    static final String REVIEW_RESTORED = "REVIEW_RESTORED";
+    static final String REVIEW_REPORT_OUTCOME = "REVIEW_REPORT_OUTCOME";
+    static final String MARKETPLACE_CHANGED = "MARKETPLACE_CHANGED";
+
     static final List<String> REMINDERS = List.of(REMINDER_24H, REMINDER_2H);
     static final String CONSUMER = "comms.appointments";
 
@@ -418,6 +431,13 @@ class Notifier {
             case "refund.succeeded" -> add(orgId, customerId, userId, REFUND_SENT, data, now, start);
             case "payment_link.created" -> add(orgId, customerId, userId, PAYMENT_LINK, data, now, start);
             case "refund.credited" -> add(orgId, customerId, userId, REFUND_CREDITED, data, now, start);
+            case "appointment.completed" -> {
+                // Only a person with an account can review; a guest has nowhere to write it.
+                if (userId != null) {
+                    data.put("web", webUrl);
+                    add(orgId, customerId, userId, REVIEW_REQUEST, data, now.plus(REVIEW_REQUEST_DELAY), start);
+                }
+            }
             case "appointment.rescheduled" -> {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, RESCHEDULED, data, now, start);
@@ -453,7 +473,9 @@ class Notifier {
                 .set(NOTIFICATIONS.ORG_ID, orgId)
                 .set(NOTIFICATIONS.RECIPIENT_USER_ID, userId)
                 .set(NOTIFICATIONS.RECIPIENT_CUSTOMER_ID, customerId)
-                .set(NOTIFICATIONS.CATEGORY, REMINDERS.contains(code) ? "REMINDER" : "TRANSACTIONAL")
+                .set(
+                        NOTIFICATIONS.CATEGORY,
+                        REMINDERS.contains(code) || REVIEW_REQUEST.equals(code) ? "REMINDER" : "TRANSACTIONAL")
                 .set(NOTIFICATIONS.TEMPLATE_CODE, code)
                 .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
                 .set(

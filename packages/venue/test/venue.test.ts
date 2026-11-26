@@ -13,6 +13,13 @@ import {
   pick,
   policySentences,
   priceText,
+  QUIET_PRESETS,
+  quietChoice,
+  quietHoursText,
+  ratingLine,
+  ratingShares,
+  reviewedService,
+  visitedText,
   weekHours,
   type Venue,
   type VenueVariant,
@@ -64,7 +71,7 @@ const venue = (over: Partial<Venue> = {}): Venue =>
 
 const en = createTranslator("en");
 /** Currency formatting uses a no-break space between symbol and number. */
-const plain = (text: string) => text.replace(/\u00a0/g, " ");
+const plain = (text: string | null) => text?.replace(/\u00a0/g, " ") ?? null;
 const am = createTranslator("am");
 
 test("text falls back from the reader's language to English to anything", () => {
@@ -190,4 +197,246 @@ test("a local date and time at the venue is the right instant", () => {
   // A zone with daylight saving: Berlin is UTC+1 in winter, UTC+2 in summer.
   assert.equal(localToInstant("2026-01-15", "10:00", "Europe/Berlin"), "2026-01-15T09:00:00.000Z");
   assert.equal(localToInstant("2026-07-15", "10:00", "Europe/Berlin"), "2026-07-15T08:00:00.000Z");
+});
+
+// --- search results --------------------------------------------------------------------------------------------
+
+import {
+  distanceText,
+  menuLinePrice,
+  nextAvailableText,
+  resultHref,
+  resultMeta,
+  resultPrice,
+  slugOf,
+  type SearchItem,
+} from "../src/index.ts";
+
+const item = (over: Partial<SearchItem> = {}): SearchItem => ({
+  id: "i",
+  kind: "LOCATION",
+  title: "Abeba Beauty",
+  summary: {},
+  imageVariants: {},
+  businessSlug: "abeba",
+  locationSlug: "bole",
+  path: "/abeba/bole",
+  category: { en: "Hair salon", am: "የፀጉር ሳሎን" },
+  area: { en: "Bole", am: "ቦሌ" },
+  ratingCount: 0,
+  online: false,
+  deliveryModes: [],
+  serviceCount: 1,
+  menu: [],
+  newOnBeavent: false,
+  timezone: "Africa/Addis_Ababa",
+  ...over,
+});
+
+test("distances read in metres below a kilometre and in kilometres above", () => {
+  const t = createTranslator("en");
+  assert.equal(distanceText(240, "en", t), "240 m");
+  assert.equal(distanceText(4, "en", t), "10 m");
+  assert.equal(distanceText(1200, "en", t), "1.2 km");
+  assert.equal(distanceText(1000, "am", createTranslator("am")), "1 ኪ.ሜ");
+});
+
+test("a result row's facts: category, area, distance and price", () => {
+  const en = createTranslator("en");
+  assert.equal(resultMeta(item({ distanceMeters: 1200 }), "en", en), "Hair salon · Bole · 1.2 km");
+  assert.equal(resultMeta(item(), "am", createTranslator("am")), "የፀጉር ሳሎን · ቦሌ");
+  assert.equal(
+    plain(resultPrice(item({ priceFromMinor: 180_000, currency: "ETB" }), "en", en)),
+    "from Br 1,800",
+  );
+  assert.equal(resultPrice(item({ priceFromMinor: 0, currency: "ETB" }), "en", en), "Free");
+  assert.equal(resultPrice(item(), "en", en), null);
+  const line = {
+    serviceId: "s",
+    name: {},
+    durationMinutes: 90,
+    priceMinor: 220_000,
+    priceType: "FROM",
+    matches: true,
+  } as const;
+  assert.equal(plain(menuLinePrice(line, "ETB", "en", en)), "from Br 2,200");
+  assert.equal(plain(menuLinePrice({ ...line, priceType: "FIXED" }, "ETB", "en", en)), "Br 2,200");
+  assert.equal(menuLinePrice({ ...line, priceMinor: 0 }, "ETB", "en", en), "Free");
+});
+
+test("the next free time says today, tomorrow or the date, in both time conventions", () => {
+  const en = createTranslator("en");
+  const now = new Date("2026-12-01T06:00:00Z"); // 09:00 in Addis Ababa
+  const at = (iso: string) => item({ nextAvailableAt: iso });
+  assert.equal(
+    nextAvailableText(at("2026-12-01T13:00:00Z"), "en", en, now),
+    "Next: today 4:00 PM (10:00 in the afternoon)",
+  );
+  assert.match(
+    nextAvailableText(at("2026-12-02T06:00:00Z"), "en", en, now) ?? "",
+    /^Next: tomorrow /,
+  );
+  assert.match(
+    nextAvailableText(at("2026-12-05T06:00:00Z"), "en", en, now) ?? "",
+    /^Next: .*5.*, /,
+  );
+  assert.equal(nextAvailableText(item(), "en", en, now), null);
+});
+
+test("links and slugs", () => {
+  assert.equal(resultHref(item()), "/b/abeba/bole");
+  assert.equal(slugOf("HAIR_SALON"), "hair-salon");
+  assert.equal(slugOf("Addis Ababa"), "addis-ababa");
+  assert.equal(slugOf("  Café & Bar "), "cafe-bar");
+});
+
+// --- map area -------------------------------------------------------------------------------------------------------
+
+import {
+  activeFilterChips,
+  activeFilterCount,
+  parseBox,
+  parseFilters,
+  toApiQuery,
+  toPinsQuery,
+  toRecord,
+} from "../src/index.ts";
+
+test("a map window is four sensible numbers, rounded", () => {
+  assert.equal(parseBox("38.66682,8.94163,38.77706,9.13695"), "38.66682,8.94163,38.77706,9.13695");
+  assert.equal(parseBox("38.1234567,8.1,38.9,9.1"), "38.12346,8.1,38.9,9.1");
+  assert.equal(parseBox("38.9,8.1,38.1,9.1"), undefined); // west after east
+  assert.equal(parseBox("38,8,39"), undefined);
+  assert.equal(parseBox("a,b,c,d"), undefined);
+  assert.equal(parseBox("38,8,39,95"), undefined); // past the pole
+  assert.equal(parseBox(undefined), undefined);
+});
+
+test("the map window rides along in the filters, the API query and the pins query", () => {
+  const filters = parseFilters({ q: "braids", bbox: "38.6,8.9,38.8,9.1" });
+  assert.equal(filters.bbox, "38.6,8.9,38.8,9.1");
+  assert.equal(toRecord(filters).bbox, "38.6,8.9,38.8,9.1");
+  assert.equal(activeFilterCount(filters), 1);
+  const api = toApiQuery(filters, { market: "ET", limit: 20 });
+  assert.deepEqual([api.west, api.south, api.east, api.north], [38.6, 8.9, 38.8, 9.1]);
+  const pins = toPinsQuery(filters, { market: "ET", window: "38.62,8.82,38.95,9.15" });
+  assert.deepEqual([pins.west, pins.south, pins.east, pins.north], [38.6, 8.9, 38.8, 9.1]);
+  assert.equal("limit" in pins || "cursor" in pins || "sort" in pins, false);
+  // Without a window of its own the pins fall back to the given one (the whole city).
+  const city = toPinsQuery({ q: "braids" }, { market: "ET", window: "38.62,8.82,38.95,9.15" });
+  assert.deepEqual([city.west, city.south, city.east, city.north], [38.62, 8.82, 38.95, 9.15]);
+  const en = createTranslator("en");
+  assert.deepEqual(
+    activeFilterChips(filters, "en", en).map((c) => c.label),
+    ["“braids”", "Map area"],
+  );
+});
+
+// --- past visits --------------------------------------------------------------------------------------------------
+
+import { lastVisitText, pastVisits, type MyAppointment } from "../src/index.ts";
+
+const visit = (
+  over: Partial<MyAppointment> & { place?: MyAppointment["place"] },
+): MyAppointment => ({
+  id: "a",
+  reference: "ABC123",
+  status: "COMPLETED",
+  start: "2026-11-01T07:00:00Z",
+  end: "2026-11-01T08:00:00Z",
+  timezone: "Africa/Addis_Ababa",
+  items: [
+    {
+      variantId: "v",
+      serviceName: "Box braids",
+      staffName: "Hana",
+      start: "2026-11-01T07:00:00Z",
+      end: "2026-11-01T08:00:00Z",
+      priceMinor: 1,
+      currency: "ETB",
+    },
+  ],
+  place: {
+    locationId: "L1",
+    businessName: "Abeba",
+    businessSlug: "abeba",
+    locationName: "Bole",
+    locationSlug: "bole",
+  },
+  ...over,
+});
+
+test("book again lists each place of a completed visit once, newest first, with what they had last", () => {
+  const list = pastVisits([
+    visit({ id: "old", start: "2026-09-01T07:00:00Z" }),
+    visit({ id: "new", start: "2026-11-01T07:00:00Z" }),
+    visit({
+      id: "other",
+      start: "2026-10-01T07:00:00Z",
+      place: { ...visit({}).place!, locationId: "L2", locationSlug: "piassa" },
+    }),
+    visit({ id: "cancelled", status: "CANCELLED", start: "2026-11-20T07:00:00Z" }),
+    visit({ id: "upcoming", status: "CONFIRMED", start: "2026-12-01T07:00:00Z" }),
+    visit({ id: "nowhere", place: undefined, start: "2026-11-10T07:00:00Z" }),
+  ]);
+  assert.deepEqual(
+    list.map((v) => v.locationId),
+    ["L1", "L2"],
+  );
+  assert.equal(list[0]!.at, "2026-11-01T07:00:00Z");
+  assert.equal(list[0]!.lastService, "Box braids");
+  assert.equal(list[0]!.lastVariantId, "v");
+  assert.equal(
+    pastVisits([visit({}), visit({ place: { ...visit({}).place!, locationId: "L3" } })], 1).length,
+    1,
+  );
+  const en = createTranslator("en");
+  assert.equal(lastVisitText(list[0]!, en), "Last: Box braids · with Hana");
+  assert.equal(lastVisitText({ ...list[0]!, lastPerson: null }, en), "Last: Box braids");
+});
+
+test("a rating reads as the average and the count, and is left out when nobody has reviewed", () => {
+  const en = createTranslator("en");
+  assert.equal(ratingLine(4.5, 12, "en", en), "4.5 · 12 reviews");
+  assert.equal(ratingLine(4, 1, "en", en), "4 · 1 review");
+  assert.equal(ratingLine(undefined, 0, "en", en), null);
+  assert.equal(ratingLine(5, 0, "en", en), null);
+  assert.equal(ratingLine(4.5, 3, "am", createTranslator("am")), "4.5 · 3 ግምገማዎች");
+});
+
+test("a review says what the visit was, who did it and when, in the reader's calendar", () => {
+  const en = createTranslator("en");
+  const braids = { en: "Box braids", am: "ቦክስ ሹሩባ" };
+  assert.equal(
+    reviewedService({ serviceName: braids, staffName: "Hana" }, "en", en),
+    "Box braids with Hana",
+  );
+  assert.equal(reviewedService({ serviceName: braids }, "am", createTranslator("am")), "ቦክስ ሹሩባ");
+  assert.equal(reviewedService({}, "en", en), null);
+  assert.match(visitedText("2026-11-26", "en", en), /^Visited .*2026/);
+  // The Ethiopian calendar for Amharic readers: 26 Nov 2026 is 16 Hidar 2019.
+  assert.match(visitedText("2026-11-26", "am", createTranslator("am")), /ኅዳር|ሕዳር/);
+});
+
+test("the star distribution turns into shares of all reviews", () => {
+  assert.deepEqual(
+    ratingShares({ count: 4, distribution: [1, 0, 1, 0, 2] }),
+    [0.25, 0, 0.25, 0, 0.5],
+  );
+  assert.deepEqual(ratingShares({ count: 0, distribution: [0, 0, 0, 0, 0] }), [0, 0, 0, 0, 0]);
+});
+
+test("quiet hours are one of three presets, off, or another range, and read in both time conventions", () => {
+  const base = { remindersSms: true, remindersEmail: true, quietHours: true };
+  assert.equal(
+    quietChoice({ ...base, quietHours: false, quietFrom: "21:00", quietTo: "07:00" }),
+    "off",
+  );
+  assert.equal(quietChoice({ ...base, quietFrom: "22:00", quietTo: "06:00" }), 1);
+  assert.equal(quietChoice({ ...base, quietFrom: "23:00", quietTo: "05:00" }), "other");
+  assert.equal(QUIET_PRESETS.length, 3);
+  const en = createTranslator("en");
+  const text = quietHoursText("21:00", "07:00", "en", en);
+  assert.match(text.primary, /^9:00 PM to 7:00 AM$/);
+  assert.match(text.secondary, /^3:00 in the evening to 1:00 in the morning$/);
 });

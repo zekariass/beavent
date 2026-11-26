@@ -229,7 +229,7 @@ See [doc 04](04-payments-and-money.md). `providers`, `methods`, `provider_capabi
 `provider_accounts` (SMS/WhatsApp/Telegram/email/push), `templates` (platform defaults + org overrides, per language and version), `notifications` (dedupe key, scheduled send), `deliveries` (per channel; cost), `preferences`, `suppressions` (STOP, bounces), `conversations`, `participants`, `messages` (bridged channels), `ai_agents`, `ai_knowledge`, `ai_sessions`, `ai_actions` (append-only).
 
 ### discovery (7)
-`listings` (public read model for locations and events; written only by the projector), `reviews` (verified only, one per visit/order), `follows`, `saved_items`, `collections`, `collection_items`, `search_events`.
+`listings` (public read model for locations and events; written only by the projector; carries `search_text` for trigram matches and, in `attributes`, the hours and bookable dates the filters use, V8_01), `reviews` (verified only, one per visit/order), `follows`, `saved_items`, `collections`, `collection_items`, `search_events`.
 
 ### trust (6)
 `verification_cases` (KYB/KYC/payout account/event review; MANUAL, FAYDA, SMILE_ID, BANK_NAME_ENQUIRY), `verification_documents`, `risk_profiles` (payout delay, reserve, pre-event payout share, manual review), `content_reports`, `moderation_actions` (append-only), `fraud_signals`.

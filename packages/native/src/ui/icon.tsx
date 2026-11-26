@@ -14,6 +14,10 @@ const ICONS = {
   error: { ios: "exclamationmark.circle", android: "error", web: "error" },
   chevron: { ios: "chevron.right", android: "chevron_right", web: "chevron_right" },
   check: { ios: "checkmark", android: "check", web: "check" },
+  search: { ios: "magnifyingglass", android: "search", web: "search" },
+  close: { ios: "xmark", android: "close", web: "close" },
+  heart: { ios: "heart", android: "favorite_border", web: "favorite_border" },
+  heartFilled: { ios: "heart.fill", android: "favorite", web: "favorite" },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;

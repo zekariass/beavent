@@ -15,9 +15,12 @@ import {
 import { radius, space } from "@beavent/ui";
 import { calendarLanguage, cancelNotice, price, refundNotice } from "@beavent/venue";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 
+import { ReviewForm } from "@/components/reviews/review-form";
+import { enablePush, pushState, type PushState } from "@/lib/push";
+import { StarRow } from "@/components/reviews/star-row";
 import { useMenuNames } from "@/hooks/use-menu-names";
 
 /** Appointment detail (S-11): status, when and where, what and with whom, the terms, and what can be done now. */
@@ -27,17 +30,29 @@ export default function AppointmentScreen() {
   const router = useRouter();
   const [a, setA] = useState<Schemas["AppointmentDetail"] | null | "error">(null);
   const [forms, setForms] = useState<Schemas["MyFormDue"][]>([]);
+  const [reviews, setReviews] = useState<Schemas["MyReviews"] | null>(null);
+  const [reviewsAgain, setReviewsAgain] = useState(0);
+  const [phone, setPhone] = useState<PushState | null>(null);
+  useEffect(() => {
+    void pushState().then(setPhone);
+  }, []);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
+      void reviewsAgain; // asking again after a review was written is the point of this dependency
       let cancelled = false;
       api
         .GET("/v1/me/appointments/{appointmentId}", { params: { path: { appointmentId: id! } } })
         .then(({ data }) => !cancelled && setA(data ?? "error"))
         .catch(() => !cancelled && setA("error"));
+      // A completed visit can be reviewed here; the answer says whether it still waits or already has a review.
+      api
+        .GET("/v1/me/reviews")
+        .then(({ data }) => !cancelled && setReviews(data ?? null))
+        .catch(() => undefined);
       // Forms to fill in before the visit (refreshed when coming back from one).
       api
         .GET("/v1/me/appointments/{appointmentId}/forms", {
@@ -48,7 +63,7 @@ export default function AppointmentScreen() {
       return () => {
         cancelled = true;
       };
-    }, [api, id]),
+    }, [api, id, reviewsAgain]),
   );
   // While the deposit is unpaid, ask now and then: the person pays on the provider's page, outside the app.
   const waitingForPayment = a !== null && a !== "error" && a.status === "PENDING_PAYMENT";
@@ -88,6 +103,8 @@ export default function AppointmentScreen() {
   const time = formatDualTime(a.start, prefs);
   const minutes = Math.round((new Date(a.end).getTime() - new Date(a.start).getTime()) / 60000);
   const business = a.place?.businessName ?? "";
+  const waiting = reviews?.pending.some((p) => p.appointmentId === a.id) ?? false;
+  const written = reviews?.reviews.find((r) => r.appointmentId === a.id);
   const finished = ["CANCELLED", "DECLINED", "EXPIRED", "COMPLETED", "NO_SHOW"].includes(a.status);
   const heldUntil = a.payment?.expiresAt ? formatDualTime(a.payment.expiresAt, prefs).primary : "";
   const banner =
@@ -186,6 +203,40 @@ export default function AppointmentScreen() {
             onPress={checkPaid}
           />
         </View>
+      ) : null}
+
+      {phone === "off" && (a.status === "CONFIRMED" || a.status === "REQUESTED") ? (
+        <Section title={t("notifications.title")}>
+          <Text>{t("notifications.phone.prompt")}</Text>
+          <View style={{ flexDirection: "row" }}>
+            <Button
+              variant="secondary"
+              label={t("notifications.phone.turnOn")}
+              onPress={() => void enablePush(api, language).then(setPhone)}
+            />
+          </View>
+        </Section>
+      ) : null}
+      {a.status === "COMPLETED" && waiting ? (
+        <Section title={t("reviews.write")}>
+          <ReviewForm appointmentId={a.id} onSaved={() => setReviewsAgain((n) => n + 1)} />
+        </Section>
+      ) : null}
+      {a.status === "COMPLETED" && written ? (
+        <Section title={t("reviews.mine.title")}>
+          <View style={{ gap: space[2] }}>
+            <StarRow rating={written.rating} />
+            {written.body ? <Text>{written.body}</Text> : null}
+            <View style={{ flexDirection: "row" }}>
+              <Button
+                variant="tertiary"
+                size="sm"
+                label={t("reviews.page.title")}
+                onPress={() => router.push("/reviews")}
+              />
+            </View>
+          </View>
+        </Section>
       ) : null}
 
       {!finished && forms.length > 0 ? (

@@ -8,6 +8,8 @@ import com.beavent.backend.admin.internal.AuditTrail;
 import com.beavent.backend.admin.internal.Directory;
 import com.beavent.backend.admin.internal.Flags;
 import com.beavent.backend.admin.internal.Kyb;
+import com.beavent.backend.admin.internal.MarketplaceReview;
+import com.beavent.backend.admin.internal.ReviewModeration;
 import com.beavent.backend.admin.internal.PayoutDesk;
 import com.beavent.backend.admin.internal.PayoutReview;
 import com.beavent.backend.admin.internal.ReconciliationDesk;
@@ -36,6 +38,8 @@ class AdminController {
     private final Directory directory;
     private final Kyb kyb;
     private final PayoutReview payouts;
+    private final MarketplaceReview marketplaceReview;
+    private final ReviewModeration reviewModeration;
     private final PayoutDesk desk;
     private final RefundDesk refundDesk;
     private final ReconciliationDesk reconciliationDesk;
@@ -47,6 +51,8 @@ class AdminController {
             Directory directory,
             Kyb kyb,
             PayoutReview payouts,
+            MarketplaceReview marketplaceReview,
+            ReviewModeration reviewModeration,
             PayoutDesk desk,
             RefundDesk refundDesk,
             ReconciliationDesk reconciliationDesk,
@@ -56,6 +62,8 @@ class AdminController {
         this.directory = directory;
         this.kyb = kyb;
         this.payouts = payouts;
+        this.marketplaceReview = marketplaceReview;
+        this.reviewModeration = reviewModeration;
         this.desk = desk;
         this.refundDesk = refundDesk;
         this.reconciliationDesk = reconciliationDesk;
@@ -143,6 +151,38 @@ class AdminController {
     AdminBodies.PayoutAccountSummary decidePayoutAccount(
             @PathVariable UUID accountId, @Valid @RequestBody AdminBodies.Decision body) {
         return payouts.decide(StaffAccess.current(), accountId, body);
+    }
+
+    @GetMapping("/v1/admin/reviews")
+    AdminBodies.Page<com.beavent.backend.discovery.Reviews.ForStaff> reviews(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return reviewModeration.queue(StaffAccess.current(), status, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/reviews/{reviewId}/decision")
+    com.beavent.backend.discovery.Reviews.ForStaff decideReview(
+            @PathVariable UUID reviewId, @Valid @RequestBody AdminBodies.ReviewDecision body) {
+        return reviewModeration.decide(
+                StaffAccess.current(),
+                reviewId,
+                com.beavent.backend.discovery.Reviews.Decision.valueOf(body.decision()),
+                body.reason());
+    }
+
+    @GetMapping("/v1/admin/marketplace-listings")
+    AdminBodies.Page<AdminBodies.MarketplaceListing> marketplaceListings(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return marketplaceReview.queue(StaffAccess.current(), status, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/orgs/{orgId}/marketplace-decision")
+    AdminBodies.MarketplaceListing decideMarketplace(
+            @PathVariable UUID orgId, @Valid @RequestBody AdminBodies.MarketplaceDecision body) {
+        return marketplaceReview.decide(StaffAccess.current(), orgId, body);
     }
 
     @GetMapping("/v1/admin/payouts")
