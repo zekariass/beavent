@@ -2538,3 +2538,131 @@ test("reconciliation · statements, what is left to explain, and the provider's 
   }
   await context.close();
 });
+
+// --- Stage 4.1: the counter -----------------------------------------------------------------------------------------------
+
+test("counter · the cash drawer and checking a visit out", async ({ browser }) => {
+  test.setTimeout(1_500_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const walkIn = async (n: number, name: string) => {
+    // The next day with a free time (the salon is closed some days).
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1) {
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    }
+    return (await deskBook(salon, start, name)) as { id: string };
+  };
+  const visitB = await walkIn(8, "Selam Bekele");
+  const visitC = await walkIn(9, "Hiwot Alemu");
+  const visitD = await walkIn(10, "Dawit Mekonnen");
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const base = (language: string) => `${WEB}/${language}/business/o/${salon.orgId}`;
+  const looks = async (
+    name: string,
+    url: (language: string) => string,
+    wait: (p: Page, language: string) => Promise<void>,
+    schemes: readonly ("light" | "dark")[] = SCHEMES,
+    languages: readonly string[] = LANGUAGES,
+  ) => {
+    for (const language of languages) {
+      for (const scheme of schemes) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(url(language));
+          await wait(page, language);
+          await shot(page, `counter-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+  };
+  const heading = async (p: Page) => {
+    await p.getByRole("heading", { level: 1 }).waitFor();
+    await p.waitForLoadState("networkidle");
+  };
+
+  // 1. The drawer is closed; a visit's checkout says so and offers to open it.
+  await looks("cash-closed", (l) => `${base(l)}/cash`, heading);
+  await looks("checkout-closed", (l) => `${base(l)}/checkout/${booked.id}`, heading, ["light"]);
+
+  // 2. Open, with a few movements.
+  const session = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 50000 },
+    salon.token,
+  )) as { id: string };
+  for (const [kind, amountMinor, note] of [
+    ["PAY_IN", 10000, "Change from the bank"],
+    ["PAY_OUT", 3000, "Milk and coffee"],
+  ] as const) {
+    await api(
+      "POST",
+      `/v1/orgs/${salon.orgId}/cash-drawer/${session.id}/movements`,
+      { kind, amountMinor, note },
+      salon.token,
+    );
+  }
+  await looks("cash-open", (l) => `${base(l)}/cash`, heading);
+  await looks("checkout", (l) => `${base(l)}/checkout/${booked.id}`, heading);
+
+  // 3. A tip is chosen and too little cash given.
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize(scheme === "light" ? DESKTOP : PHONE);
+      await page.goto(`${base(language)}/checkout/${booked.id}`);
+      await page.getByRole("button", { name: "10%" }).click();
+      await page.locator('input[inputmode="decimal"]').last().fill("1000");
+      await shot(
+        page,
+        `counter-checkout-short-${language}-${scheme}-${scheme === "light" ? "desktop" : "phone"}`,
+      );
+    }
+  }
+
+  // 4. Visits paid: one in each language, then the drawer is closed a little short.
+  for (const [language, visit] of [
+    ["en", visitB],
+    ["am", visitC],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize(DESKTOP);
+    await page.goto(`${base(language)}/checkout/${visit.id}`);
+    await page.getByRole("button", { name: "10%" }).click();
+    await page
+      .getByRole("button", { name: /Take Br|ብር/ })
+      .last()
+      .click();
+    await page.getByRole("status").first().waitFor();
+    await shot(page, `counter-done-${language}-light-desktop`);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.setViewportSize(PHONE);
+    await shot(page, `counter-done-${language}-dark-phone`);
+  }
+  await page.goto(`${base("en")}/checkout/${visitB.id}`);
+  await shot(page, "counter-checkout-already-en-dark-phone");
+  void visitD;
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/${session.id}/close`,
+    { countedMinor: 120000 },
+    salon.token,
+  );
+  await looks("cash-history", (l) => `${base(l)}/cash`, heading);
+  await context.close();
+});

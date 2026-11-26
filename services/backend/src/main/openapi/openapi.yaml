@@ -50,6 +50,8 @@ tags:
     description: What the public sees of a business (venue pages)
   - name: GiftCards
     description: Gift cards a business sells, delivers and honours as a payment method
+  - name: Counter
+    description: Taking payments at the counter - the cash drawer and checking a visit out
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -76,6 +78,16 @@ paths:
     $ref: ./payments/paths.yaml#/paymentLinkStart
   /v1/public/payment-links/{token}/check:
     $ref: ./payments/paths.yaml#/paymentLinkCheck
+  /v1/orgs/{orgId}/cash-drawer:
+    $ref: ./commerce/paths.yaml#/cashDrawer
+  /v1/orgs/{orgId}/cash-drawer/open:
+    $ref: ./commerce/paths.yaml#/cashDrawerOpen
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/movements:
+    $ref: ./commerce/paths.yaml#/cashDrawerMovements
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/close:
+    $ref: ./commerce/paths.yaml#/cashDrawerClose
+  /v1/orgs/{orgId}/appointments/{appointmentId}/checkout:
+    $ref: ./commerce/paths.yaml#/appointmentCheckout
   /v1/orgs/{orgId}/gift-cards/program:
     $ref: ./retention/paths.yaml#/giftCardProgram
   /v1/orgs/{orgId}/gift-cards:

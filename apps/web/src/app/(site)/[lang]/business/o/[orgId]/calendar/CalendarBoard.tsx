@@ -4,6 +4,7 @@ import type { Schemas } from "@beavent/api-client";
 import { formatEthiopianTime, formatStandardTime, toEthiopianTime, zoned } from "@beavent/calendar";
 import { createTranslator, type Language } from "@beavent/i18n";
 import { localDateOf, localToInstant, price } from "@beavent/venue";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { answerRequest, changeStatus } from "./actions";
@@ -574,6 +575,14 @@ function AppointmentPanel({
               {t("portal.calendar.decline")}
             </button>
           </>
+        ) : null}
+        {s === "CONFIRMED" || s === "ARRIVED" || s === "IN_PROGRESS" ? (
+          <Link
+            href={`/${language}/business/o/${orgId}/checkout/${appointment.id}`}
+            className="bv-type-label inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            {t("counter.checkout.link")}
+          </Link>
         ) : null}
         {s === "CONFIRMED" ? statusButton("ARRIVED", t("portal.calendar.arrived"), true) : null}
         {s === "CONFIRMED" || s === "ARRIVED"

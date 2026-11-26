@@ -277,6 +277,53 @@ class OrdersService implements Orders {
                 ZoneId.of(row.value3()));
     }
 
+    @Override
+    public void addTips(UUID orgId, UUID orderId, List<Tip> tips) {
+        if (tips.isEmpty()) return;
+        var order = dsl.selectFrom(ORDERS)
+                .where(ORDERS.ID.eq(orderId))
+                .and(ORDERS.ORG_ID.eq(orgId))
+                .forUpdate()
+                .fetchOne();
+        if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+        if (!order.getStatus().equals("CONFIRMED")) {
+            throw new ApiException(ProblemCode.CONFLICT, "A tip can only go on an order that stands.");
+        }
+        Short last = dsl.select(DSL.max(ORDER_LINES.SEQ))
+                .from(ORDER_LINES)
+                .where(ORDER_LINES.ORDER_ID.eq(orderId))
+                .fetchOne(0, Short.class);
+        int seq = last == null ? 0 : last;
+        long sum = 0;
+        for (Tip tip : tips) {
+            if (tip.amountMinor() <= 0) throw new IllegalArgumentException("A tip is more than zero");
+            dsl.insertInto(ORDER_LINES)
+                    .set(ORDER_LINES.ID, Ids.newId())
+                    .set(ORDER_LINES.ORG_ID, orgId)
+                    .set(ORDER_LINES.ORDER_ID, orderId)
+                    .set(ORDER_LINES.SEQ, (short) ++seq)
+                    .set(ORDER_LINES.LINE_TYPE, "TIP")
+                    .set(ORDER_LINES.STAFF_ID, tip.staffId())
+                    .set(ORDER_LINES.DESCRIPTION, tip.description())
+                    .set(ORDER_LINES.QUANTITY, 1)
+                    .set(ORDER_LINES.UNIT_PRICE_MINOR, tip.amountMinor())
+                    .set(ORDER_LINES.DISCOUNT_MINOR, 0L)
+                    .set(ORDER_LINES.TAX_MINOR, 0L)
+                    .set(ORDER_LINES.TOTAL_MINOR, tip.amountMinor())
+                    .set(ORDER_LINES.CURRENCY_CODE, order.getCurrencyCode())
+                    .set(ORDER_LINES.TAX_CATEGORY_CODE, "EXEMPT")
+                    .set(ORDER_LINES.TAX_INCLUSIVE, order.getPricesIncludeTax())
+                    .execute();
+            sum += tip.amountMinor();
+        }
+        dsl.update(ORDERS)
+                .set(ORDERS.SUBTOTAL_MINOR, ORDERS.SUBTOTAL_MINOR.plus(sum))
+                .set(ORDERS.TOTAL_MINOR, ORDERS.TOTAL_MINOR.plus(sum))
+                .set(ORDERS.VERSION, ORDERS.VERSION.plus(1))
+                .where(ORDERS.ID.eq(orderId))
+                .execute();
+    }
+
     /** The catalogue facts of each line: its service and category (promotion targets) and its tax category. */
     private List<OrderPricing.Item> items(List<LineInput> lines) {
         List<OrderPricing.Item> items = new ArrayList<>();

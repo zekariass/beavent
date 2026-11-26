@@ -14,7 +14,8 @@
 | 1 Catalogue and team | ✅ Done | Business console screens (menu, team, rota, policies), business app "My schedule" |
 | 2 Appointments | **In progress** | 2.1–2.5 done: availability, venue page, booking with messages, booking screens on web and app, the business calendar (console and business app) with live updates. 2.6 done: clients, forms and patch tests, waitlist, front-desk groups and series. Stage 2 exit checks pass on the local stack (one journey test, live update 0.8 s, availability median 50 ms); **only the rehearsal with real phones remains, blocked on D4 (SMS provider)** |
 | 3 Commerce and online payments | **In progress** | Re-cut 24 Nov 2026: ArifPay is the default provider (Beavent collects, pays sellers out, refunds by hand), Chapa switchable (§1, L1–L2). 3.1 (provider choice and adapters), 3.2 (orders, tax and fees), 3.3 (deposits and prepayment at booking), 3.4 (seller "Get paid") and 3.5 (ledger, seller balances and payouts) and 3.6 (refunds for deposits) and 3.7 (payment links) and 3.8 (gift cards and customer balance) done; 3.9 (reconciliation and go-live checks) built against the stub, real-sandbox certification waits on D1/D2 |
-| 4–10 | Not started | Unchanged except where noted in §0.2 |
+| 4 POS and in-person sales | **In progress** | Cut into slices 4.1–4.5 (below). 4.1 (the cash drawer and checking a visit out in cash) done; next 4.2 other ways to pay at the counter |
+| 5–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
 
@@ -512,10 +513,27 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 
 **Goal:** the front desk can take every payment at the counter.
 
-**4.1 POS.**
-- In the business app and the business console: services, products, gift cards, tips (with staff allocation), discounts, split tender.
+Built in slices, in this order (re-cut 26 Nov 2026 so that each ends with something a front desk can use):
 
-**4.2 Payment methods at the counter.**
+| Slice | Content | Where |
+|---|---|---|
+| 4.1 | The cash drawer and checking a visit out in cash: tips for the team, the visit completed, a receipt with a gapless number | backend, business console |
+| 4.2 | Other ways to pay at the counter: gift card and customer balance, a payment link or QR for the provider, **split tender**; discounts | backend, business console |
+| 4.3 | Receipts: by SMS or email, printable | backend, business console |
+| 4.4 | Platform fees on cash sales (a seller receivable) | backend, ledger |
+| 4.5 | Products: retail sold at the counter, stock levels and movements; walk-in sales without a visit | backend, business console |
+| 4.6 | The business app: the same checkout and drawer on the phone | business app |
+
+**4.1 The cash drawer and checking a visit out in cash.** ✅ *Done* (26 Nov 2026) on the API and the business console.
+- **The drawer** (`commerce/CashDrawers`, `/v1/orgs/{orgId}/cash-drawer`; `pos.cash_drawer`, and `pos.sell` to look): one drawer per location, made on first use, one open session at a time (the database holds the line). It is opened with a **float**; **cash sales**, **cash put in**, **paid out** (an expense) and **taken to the safe** are append-only movements; nothing can be taken out that the drawer should not hold. It is closed with a **count**: the answer holds what was expected (float and every movement), what was counted and the variance, and the history lists closed sessions with their variance. Console page *Cash drawer*.
+- **Checking a visit out** (`scheduling/Checkouts`, `GET|POST /v1/orgs/{orgId}/appointments/{id}/checkout`; `pos.sell`, and the visit's location): the bill shows the services as booked, what was paid online (a deposit) and what is due. The checkout, all in one transaction, adds **tips** (one `TIP` line per person on the order, no tax, no platform fee; the console splits a chosen percentage evenly between the people who worked on the visit and lets each amount be changed), takes the **cash** into the open drawer (the cash handed over, the change given back; only what stays is a drawer movement), **completes the visit** (the same status path as the calendar's *Complete*, so the payout release and the client's last visit follow), completes the order and issues the **receipt**. A visit with no order (a phone or walk-in booking, or pay at the venue) gets its order now (channel `PARTNER_POS`, the services as booked, fees assessed as for any order); a visit whose deposit was paid online adds the tips to its order and collects the balance only. A visit waiting for its deposit, cancelled, or checked out already is refused.
+- **Receipts** (`commerce/Receipts`): the next number of the legal entity's `RECEIPT` sequence (`R0000001` …), taken in the transaction that issues it, so a rolled-back checkout leaves no gap; one receipt per order. Printing and sending it are 4.3.
+- **Cash is not in the ledger yet:** the order and the payment (a `CASH` attempt tied to the drawer session) are recorded and the seller's balances do not move; the platform's fees on a cash sale are slice 4.4, which makes them a receivable from the seller.
+- **Tests:** 4 API tests (the drawer's life and who may do what; a visit with no order checked out with tips, change, a receipt, the drawer and no change to the ledger, and gapless numbering; a visit with an online deposit paying only the balance and leaving the online money as it was; refusals and permissions); a Playwright journey (open the drawer, check out a visit with a deposit with a 10 % tip, short cash refused, change shown, receipt, the drawer closes level); visual checks of the drawer and the checkout in both languages, both themes, phone and desktop.
+- **Decisions while building:** the checkout is one request, not a cart, so a sale cannot exist without its drawer movement or receipt; only the full amount due can be paid in cash for now (split tender is 4.2); a tip goes on the order as lines for the people it is for, so it can be paid out to them later (team pay, Stage 5) and refunded with the order; the receipt letter prefix is `R`.
+- **Left for later:** discounts and promo codes at the counter (4.2), the other ways to pay and split tender (4.2), refunds of cash sales and drawer corrections (Stage 5), the drawer for box-office sessions (Stage 7), reconciling the drawer against the safe, a different drawer per till, and the business app (4.6).
+
+**4.2 Payment methods at the counter** (plan text before the re-cut above).
 - **Chapa**: a direct-charge prompt to the customer's phone, or a payment link/QR the customer opens.
 - **Cash**: drawer sessions with float and variance.
 - **Gift card** and **customer balance**.

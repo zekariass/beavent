@@ -1,0 +1,225 @@
+CashDrawerMovement:
+  type: object
+  required: [id, kind, amountMinor, at, byUserId]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      type: string
+      enum: [SALE, REFUND, PAY_IN, PAY_OUT, DROP, CORRECTION]
+    amountMinor:
+      type: integer
+      format: int64
+      description: Signed; plus into the drawer.
+    note:
+      type: [string, 'null']
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+    byUserId:
+      $ref: ../common/schemas.yaml#/Uuid
+CashDrawerSession:
+  type: object
+  required:
+    [id, locationId, drawerName, currency, status, openedAt, openedBy, openingFloatMinor, salesMinor, payInMinor,
+     payOutMinor, expectedMinor, movements]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    drawerName:
+      type: string
+    currency:
+      type: string
+    status:
+      type: string
+      enum: [OPEN, CLOSED, RECONCILED]
+    openedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    openedBy:
+      $ref: ../common/schemas.yaml#/Uuid
+    openingFloatMinor:
+      type: integer
+      format: int64
+    salesMinor:
+      type: integer
+      format: int64
+    payInMinor:
+      type: integer
+      format: int64
+    payOutMinor:
+      type: integer
+      format: int64
+      description: Taken out for expenses and to the safe, as a positive amount.
+    expectedMinor:
+      type: integer
+      format: int64
+      description: What should be in the drawer; once closed, what was expected when it closed.
+    countedMinor:
+      type: [integer, 'null']
+      format: int64
+    varianceMinor:
+      type: [integer, 'null']
+      format: int64
+      description: Counted less expected; negative when cash is missing.
+    closedAt:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Instant
+        - type: 'null'
+    movements:
+      type: array
+      description: Newest first; empty in the history listing.
+      items:
+        $ref: '#/CashDrawerMovement'
+CashDrawerState:
+  type: object
+  required: [history]
+  properties:
+    session:
+      oneOf:
+        - $ref: '#/CashDrawerSession'
+        - type: 'null'
+    history:
+      type: array
+      items:
+        $ref: '#/CashDrawerSession'
+CashDrawerOpen:
+  type: object
+  required: [locationId, openingFloatMinor]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    openingFloatMinor:
+      type: integer
+      format: int64
+      minimum: 0
+CashDrawerMovementInput:
+  type: object
+  required: [kind, amountMinor]
+  properties:
+    kind:
+      type: string
+      enum: [PAY_IN, PAY_OUT, DROP]
+    amountMinor:
+      type: integer
+      format: int64
+      minimum: 1
+    note:
+      type: string
+      maxLength: 200
+CashDrawerClose:
+  type: object
+  required: [countedMinor]
+  properties:
+    countedMinor:
+      type: integer
+      format: int64
+      minimum: 0
+CheckoutBill:
+  type: object
+  required:
+    [appointmentId, locationId, reference, status, currency, lines, totalMinor, paidMinor, dueMinor, team, drawerOpen, canCheckout]
+  properties:
+    appointmentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    reference:
+      type: string
+    status:
+      type: string
+    customerName:
+      type: [string, 'null']
+    currency:
+      type: string
+    lines:
+      type: array
+      items:
+        type: object
+        required: [description, totalMinor]
+        properties:
+          description:
+            type: string
+          totalMinor:
+            type: integer
+            format: int64
+    totalMinor:
+      type: integer
+      format: int64
+    paidMinor:
+      type: integer
+      format: int64
+      description: Already paid online (a deposit).
+    dueMinor:
+      type: integer
+      format: int64
+      description: Still to pay at the counter, before any tip.
+    team:
+      type: array
+      description: Who worked on the visit; a tip can go to each.
+      items:
+        type: object
+        required: [staffId, name]
+        properties:
+          staffId:
+            $ref: ../common/schemas.yaml#/Uuid
+          name:
+            type: string
+    drawerOpen:
+      type: boolean
+    canCheckout:
+      type: boolean
+    receiptNumber:
+      type: [string, 'null']
+CheckoutInput:
+  type: object
+  properties:
+    tips:
+      type: array
+      items:
+        type: object
+        required: [staffId, amountMinor]
+        properties:
+          staffId:
+            $ref: ../common/schemas.yaml#/Uuid
+          amountMinor:
+            type: integer
+            format: int64
+            minimum: 0
+    cashTenderedMinor:
+      type: integer
+      format: int64
+      minimum: 0
+      description: The cash handed over; at least what is due with the tips. Omit when nothing is due.
+CheckoutDone:
+  type: object
+  required:
+    [orderId, orderNumber, receiptNumber, currency, totalMinor, paidOnlineMinor, tipMinor, cashMinor, tenderedMinor, changeMinor]
+  properties:
+    orderId:
+      $ref: ../common/schemas.yaml#/Uuid
+    orderNumber:
+      type: string
+    receiptNumber:
+      type: string
+    currency:
+      type: string
+    totalMinor:
+      type: integer
+      format: int64
+    paidOnlineMinor:
+      type: integer
+      format: int64
+    tipMinor:
+      type: integer
+      format: int64
+    cashMinor:
+      type: integer
+      format: int64
+      description: What stays in the drawer.
+    tenderedMinor:
+      type: integer
+      format: int64
+    changeMinor:
+      type: integer
+      format: int64

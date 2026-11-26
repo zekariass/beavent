@@ -97,4 +97,16 @@ public interface Payments {
 
     /** What the person has in their balance with the business that could be spent on this order (0 for none). */
     long balanceFor(UUID orgId, UUID orderId, UUID userId);
+
+    /**
+     * Cash taken at the counter for what an order has still to be paid at the venue (plan 4.1): the whole of it, in
+     * the caller's transaction. The payment is recorded as taken (a cash attempt tied to the drawer's session);
+     * nothing goes to the provider or the ledger.
+     *
+     * @param amountMinor what stays in the drawer (what was handed over less the change); must equal what is due
+     * @return the payment's id
+     * @throws com.beavent.backend.platform.ApiException {@code CONFLICT} when nothing is due at the venue, or an online
+     *     payment of it is in progress
+     */
+    UUID recordCash(UUID orgId, UUID orderId, UUID sessionId, long amountMinor, Instant now);
 }

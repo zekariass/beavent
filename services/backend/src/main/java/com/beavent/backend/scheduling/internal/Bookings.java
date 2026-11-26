@@ -879,9 +879,9 @@ class Bookings {
     }
 
     /** What an appointment's rows say it contains and costs. */
-    private record Items(List<PlanItem> items, long total, String currency) {}
+    record Items(List<PlanItem> items, long total, String currency) {}
 
-    private Items loadItems(UUID appointmentId) {
+    Items loadItems(UUID appointmentId) {
         List<PlanItem> items = new ArrayList<>();
         long total = 0;
         String currency = null;

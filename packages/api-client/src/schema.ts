@@ -165,6 +165,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/cash-drawer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The location's cash drawer now, and its closed sessions
+         * @description Needs `pos.sell` or `pos.cash_drawer`.
+         */
+        get: operations["getCashDrawer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open the drawer with a float
+         * @description Needs `pos.cash_drawer`. `CONFLICT` when it is open already.
+         */
+        post: operations["openCashDrawer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/{sessionId}/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cash put in, taken out for an expense, or taken to the safe
+         * @description Needs `pos.cash_drawer`. More cannot be taken out than the drawer should hold.
+         */
+        post: operations["moveCash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/{sessionId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count the drawer and close it
+         * @description Needs `pos.cash_drawer`. The answer holds what was expected and the variance.
+         */
+        post: operations["closeCashDrawer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a visit comes to at the counter
+         * @description Needs `pos.sell`. The services as booked, what was already paid online, what is due, who a tip can go to and whether
+         *     the drawer is open.
+         */
+        get: operations["getCheckoutBill"];
+        put?: never;
+        /**
+         * Check a visit out in cash
+         * @description Needs `pos.sell`. Adds the tips, takes the cash into the open drawer, completes the visit and issues the receipt, all
+         *     or nothing. `CONFLICT` when the drawer is closed, the visit is not in a state to be paid, or it was checked out
+         *     already; `VALIDATION_FAILED` when the cash is less than what is due.
+         */
+        post: operations["checkoutAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/gift-cards/program": {
         parameters: {
             query?: never;
@@ -3157,6 +3264,141 @@ export interface components {
             amountMinor: number;
             currency: string;
         };
+        CashDrawerMovement: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            kind: "SALE" | "REFUND" | "PAY_IN" | "PAY_OUT" | "DROP" | "CORRECTION";
+            /**
+             * Format: int64
+             * @description Signed; plus into the drawer.
+             */
+            amountMinor: number;
+            note?: string | null;
+            at: components["schemas"]["Instant"];
+            byUserId: components["schemas"]["Uuid"];
+        };
+        CashDrawerSession: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            drawerName: string;
+            currency: string;
+            /** @enum {string} */
+            status: "OPEN" | "CLOSED" | "RECONCILED";
+            openedAt: components["schemas"]["Instant"];
+            openedBy: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            openingFloatMinor: number;
+            /** Format: int64 */
+            salesMinor: number;
+            /** Format: int64 */
+            payInMinor: number;
+            /**
+             * Format: int64
+             * @description Taken out for expenses and to the safe, as a positive amount.
+             */
+            payOutMinor: number;
+            /**
+             * Format: int64
+             * @description What should be in the drawer; once closed, what was expected when it closed.
+             */
+            expectedMinor: number;
+            /** Format: int64 */
+            countedMinor?: number | null;
+            /**
+             * Format: int64
+             * @description Counted less expected; negative when cash is missing.
+             */
+            varianceMinor?: number | null;
+            closedAt?: components["schemas"]["Instant"] | null;
+            /** @description Newest first; empty in the history listing. */
+            movements: components["schemas"]["CashDrawerMovement"][];
+        };
+        CashDrawerState: {
+            session?: components["schemas"]["CashDrawerSession"] | null;
+            history: components["schemas"]["CashDrawerSession"][];
+        };
+        CashDrawerOpen: {
+            locationId: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            openingFloatMinor: number;
+        };
+        CashDrawerMovementInput: {
+            /** @enum {string} */
+            kind: "PAY_IN" | "PAY_OUT" | "DROP";
+            /** Format: int64 */
+            amountMinor: number;
+            note?: string;
+        };
+        CashDrawerClose: {
+            /** Format: int64 */
+            countedMinor: number;
+        };
+        CheckoutBill: {
+            appointmentId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            reference: string;
+            status: string;
+            customerName?: string | null;
+            currency: string;
+            lines: {
+                description: string;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            /** Format: int64 */
+            totalMinor: number;
+            /**
+             * Format: int64
+             * @description Already paid online (a deposit).
+             */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Still to pay at the counter, before any tip.
+             */
+            dueMinor: number;
+            /** @description Who worked on the visit; a tip can go to each. */
+            team: {
+                staffId: components["schemas"]["Uuid"];
+                name: string;
+            }[];
+            drawerOpen: boolean;
+            canCheckout: boolean;
+            receiptNumber?: string | null;
+        };
+        CheckoutInput: {
+            tips?: {
+                staffId: components["schemas"]["Uuid"];
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            /**
+             * Format: int64
+             * @description The cash handed over; at least what is due with the tips. Omit when nothing is due.
+             */
+            cashTenderedMinor?: number;
+        };
+        CheckoutDone: {
+            orderId: components["schemas"]["Uuid"];
+            orderNumber: string;
+            receiptNumber: string;
+            currency: string;
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidOnlineMinor: number;
+            /** Format: int64 */
+            tipMinor: number;
+            /**
+             * Format: int64
+             * @description What stays in the drawer.
+             */
+            cashMinor: number;
+            /** Format: int64 */
+            tenderedMinor: number;
+            /** Format: int64 */
+            changeMinor: number;
+        };
         GiftCardProgram: {
             id: components["schemas"]["Uuid"];
             name: string;
@@ -5997,6 +6239,187 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getCashDrawer: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open session (null when the drawer is closed) and the last closed ones. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    openCashDrawer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerOpen"];
+            };
+        };
+        responses: {
+            /** @description Opened. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    moveCash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                sessionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerMovementInput"];
+            };
+        };
+        responses: {
+            /** @description The session with its movements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    closeCashDrawer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                sessionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerClose"];
+            };
+        };
+        responses: {
+            /** @description Closed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getCheckoutBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bill. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutBill"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    checkoutAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutInput"];
+            };
+        };
+        responses: {
+            /** @description Checked out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getGiftCardProgram: {

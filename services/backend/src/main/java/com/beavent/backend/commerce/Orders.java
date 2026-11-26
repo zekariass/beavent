@@ -105,6 +105,19 @@ public interface Orders {
 
     record Placed(UUID orderId, String number, Quote quote) {}
 
+    /**
+     * A tip left at the counter for one member of the team.
+     *
+     * @param staffId who it is for
+     */
+    record Tip(UUID staffId, String description, long amountMinor) {}
+
+    /**
+     * Adds tips to an order that stands (no tax, no platform fee): one {@code TIP} line each, and the order's total goes
+     * up by their sum. The order's payment schedule is the caller's to adjust.
+     */
+    void addTips(UUID orgId, UUID orderId, List<Tip> tips);
+
     Quote quote(UUID orgId, Basket basket);
 
     /**

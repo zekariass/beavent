@@ -17,6 +17,7 @@ import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.SystemDb;
 import java.net.URI;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -454,6 +455,94 @@ class PaymentsService implements Payments {
                         null,
                         "TENDER"),
                 now);
+    }
+
+    @Override
+    public UUID recordCash(UUID orgId, UUID orderId, UUID sessionId, long amountMinor, Instant now) {
+        var order = dsl.select(ORDERS.CURRENCY_CODE, ORDERS.CUSTOMER_ID)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId), ORDERS.ORG_ID.eq(orgId))
+                .forUpdate()
+                .fetchOne();
+        if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+        var rows = dsl.selectFrom(PAYMENT_SCHEDULE)
+                .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
+                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                .orderBy(PAYMENT_SCHEDULE.SEQ)
+                .forUpdate()
+                .fetch();
+        if (rows.size() != 1) throw new ApiException(ProblemCode.CONFLICT, "There is nothing to take at the counter.");
+        var row = rows.getFirst();
+        if (row.getAmountMinor() - row.getCollectedMinor() != amountMinor) {
+            throw new ApiException(ProblemCode.CONFLICT, "The cash must be all of what is due.");
+        }
+        OffsetDateTime at = now.atOffset(ZoneOffset.UTC);
+        String currency = order.value1().trim();
+        var intent = dsl.selectFrom(PAYMENT_INTENTS)
+                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(row.getId()))
+                .forUpdate()
+                .fetchOne();
+        UUID intentId;
+        if (intent == null) {
+            intentId = Ids.newId();
+            dsl.insertInto(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.ID, intentId)
+                    .set(PAYMENT_INTENTS.ORG_ID, orgId)
+                    .set(PAYMENT_INTENTS.PURPOSE, "ORDER")
+                    .set(PAYMENT_INTENTS.ORDER_ID, orderId)
+                    .set(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID, row.getId())
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.CURRENCY_CODE, currency)
+                    .set(PAYMENT_INTENTS.CAPTURED_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_INTENTS.PAYER_CUSTOMER_ID, order.value2())
+                    .set(PAYMENT_INTENTS.IDEMPOTENCY_KEY, "schedule:" + row.getId())
+                    .set(PAYMENT_INTENTS.SUCCEEDED_AT, at)
+                    .execute();
+        } else {
+            if (intent.getStatus().equals("SUCCEEDED")) {
+                throw new ApiException(ProblemCode.CONFLICT, "This is already paid.");
+            }
+            boolean open = dsl.fetchExists(
+                    PAYMENT_ATTEMPTS,
+                    PAYMENT_ATTEMPTS
+                            .INTENT_ID
+                            .eq(intent.getId())
+                            .and(PAYMENT_ATTEMPTS.STATUS.in("CREATED", "AWAITING_CUSTOMER", "PROCESSING", "UNKNOWN")));
+            if (open) throw new ApiException(ProblemCode.CONFLICT, "A payment of this is in progress.");
+            intentId = intent.getId();
+            dsl.update(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.CAPTURED_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_INTENTS.SUCCEEDED_AT, at)
+                    .set(PAYMENT_INTENTS.UPDATED_AT, at)
+                    .where(PAYMENT_INTENTS.ID.eq(intentId))
+                    .execute();
+        }
+        UUID attemptId = Ids.newId();
+        dsl.insertInto(PAYMENT_ATTEMPTS)
+                .set(PAYMENT_ATTEMPTS.ID, attemptId)
+                .set(PAYMENT_ATTEMPTS.ORG_ID, orgId)
+                .set(PAYMENT_ATTEMPTS.INTENT_ID, intentId)
+                .set(PAYMENT_ATTEMPTS.METHOD_CODE, "CASH")
+                .set(PAYMENT_ATTEMPTS.INTERACTION, "IN_PERSON")
+                .set(PAYMENT_ATTEMPTS.AMOUNT_MINOR, amountMinor)
+                .set(PAYMENT_ATTEMPTS.CURRENCY_CODE, currency)
+                .set(PAYMENT_ATTEMPTS.STATUS, "SUCCEEDED")
+                .set(PAYMENT_ATTEMPTS.CASH_SESSION_ID, sessionId)
+                .set(PAYMENT_ATTEMPTS.COMPLETED_AT, at)
+                .set(PAYMENT_ATTEMPTS.IDEMPOTENCY_KEY, "cash:" + attemptId)
+                .execute();
+        dsl.update(PAYMENT_SCHEDULE)
+                .set(PAYMENT_SCHEDULE.STATUS, "PAID")
+                .set(PAYMENT_SCHEDULE.COLLECTED_MINOR, row.getAmountMinor())
+                .where(PAYMENT_SCHEDULE.ID.eq(row.getId()))
+                .execute();
+        return attemptId;
     }
 
     /** The intent of a schedule row: found, or created waiting for a method; a paid one cannot be paid again. */

@@ -28,6 +28,7 @@ export default async function WorkspaceLayout({
     [`${base}/team`, t("portal.nav.team")],
     [`${base}/rota`, t("portal.nav.rota")],
     [`${base}/policies`, t("portal.nav.policies")],
+    [`${base}/cash`, t("portal.nav.cash")],
     [`${base}/gift-cards`, t("portal.nav.giftCards")],
     [`${base}/earnings`, t("portal.nav.earnings")],
     [`${base}/get-paid`, t("portal.nav.getPaid")],
