@@ -28,6 +28,7 @@ export default async function WorkspaceLayout({
     [`${base}/team`, t("portal.nav.team")],
     [`${base}/rota`, t("portal.nav.rota")],
     [`${base}/policies`, t("portal.nav.policies")],
+    [`${base}/cash`, t("portal.nav.cash")],
     [`${base}/gift-cards`, t("portal.nav.giftCards")],
     [`${base}/earnings`, t("portal.nav.earnings")],
     [`${base}/get-paid`, t("portal.nav.getPaid")],
@@ -37,7 +38,7 @@ export default async function WorkspaceLayout({
   ] as const;
   return (
     <div className="flex flex-1 flex-col lg:flex-row">
-      <aside className="flex shrink-0 flex-col gap-4 border-b border-border bg-surface px-4 py-3 lg:w-60 lg:border-r lg:border-b-0 lg:py-6">
+      <aside className="flex shrink-0 flex-col gap-4 border-b border-border bg-surface px-4 py-3 lg:w-60 lg:border-r lg:border-b-0 lg:py-6 print:hidden">
         <Link
           href={`/${language}/business/orgs`}
           className="bv-type-title2 rounded-lg px-3 hover:text-primary"

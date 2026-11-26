@@ -32,6 +32,9 @@ final class Texts {
         if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
             return giftCardReceived(lang, data);
         }
+        if (code.equals(Notifier.RECEIPT_SENT)) {
+            return receiptSent(lang, data);
+        }
         if (code.startsWith("REVIEW_") || code.startsWith("MARKETPLACE_")) {
             return discovery(code, lang, data);
         }
@@ -279,6 +282,22 @@ final class Texts {
                                         : sender + " sent you a gift card for " + business + ": ")
                                 + amount + ". Code: " + code + "." + quote + valid
                                 + " Use it when you pay for a booking: " + url);
+    }
+
+    /** The receipt of a sale, with the link that opens it (plan 4.3). */
+    private static Message receiptSent(String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String number = String.valueOf(data.get("number"));
+        String amount = birr(Long.parseLong(String.valueOf(data.get("totalMinor"))), am);
+        String link = data.get("web") + "/" + lang + "/receipt/" + data.get("token");
+        return am
+                ? new Message(
+                        business + " · ደረሰኝ " + number,
+                        business + "፦ ደረሰኝ " + number + "፣ " + amount + "። ለማየት ወይም ለማተም፦ " + link)
+                : new Message(
+                        business + " · receipt " + number,
+                        business + ": receipt " + number + ", " + amount + ". View or print it: " + link);
     }
 
     /** A payout was paid, or did not go through (plan 3.5). */

@@ -108,6 +108,7 @@ class Dispatcher {
                                 .like("APPOINTMENT_%")
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("RECEIPT_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("REVIEW_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%")),
                         DSL.notExists(DSL.selectOne()
@@ -201,6 +202,7 @@ class Dispatcher {
     private String stale(String code, Map<String, Object> data) {
         if (code.startsWith("PAYOUT_")
                 || code.startsWith("GIFT_CARD_")
+                || code.startsWith("RECEIPT_")
                 || code.startsWith("REVIEW_")
                 || code.startsWith("MARKETPLACE_")) {
             return null;

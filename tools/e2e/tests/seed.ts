@@ -295,6 +295,17 @@ export function sql(query: string): void {
   );
 }
 
+/** Runs SQL against the local database and answers the first column of every row (a dev stack only). */
+export function query(statement: string): string[] {
+  return execSync(
+    `docker exec ${POSTGRES} psql -U beavent -d beavent -v ON_ERROR_STOP=1 -t -A -c "${statement.replace(/"/g, '\\"')}"`,
+    { encoding: "utf8" },
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 /** Seals a secret the way the API does (AES-256-GCM, `box:v1:` + base64(iv, ciphertext, tag)). */
 export function seal(plain: string): string {
   const iv = randomBytes(12);

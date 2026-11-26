@@ -12,6 +12,7 @@ import com.beavent.backend.admin.internal.MarketplaceReview;
 import com.beavent.backend.admin.internal.ReviewModeration;
 import com.beavent.backend.admin.internal.PayoutDesk;
 import com.beavent.backend.admin.internal.PayoutReview;
+import com.beavent.backend.admin.internal.ReconciliationDesk;
 import com.beavent.backend.admin.internal.RefundDesk;
 import com.beavent.backend.admin.internal.StaffAccess;
 import com.beavent.backend.platform.ApiException;
@@ -41,6 +42,7 @@ class AdminController {
     private final ReviewModeration reviewModeration;
     private final PayoutDesk desk;
     private final RefundDesk refundDesk;
+    private final ReconciliationDesk reconciliationDesk;
     private final AuditTrail auditTrail;
     private final Flags flags;
     private final DSLContext system;
@@ -53,6 +55,7 @@ class AdminController {
             ReviewModeration reviewModeration,
             PayoutDesk desk,
             RefundDesk refundDesk,
+            ReconciliationDesk reconciliationDesk,
             AuditTrail auditTrail,
             Flags flags,
             @SystemDb DSLContext system) {
@@ -63,6 +66,7 @@ class AdminController {
         this.reviewModeration = reviewModeration;
         this.desk = desk;
         this.refundDesk = refundDesk;
+        this.reconciliationDesk = reconciliationDesk;
         this.auditTrail = auditTrail;
         this.flags = flags;
         this.system = system;
@@ -228,6 +232,50 @@ class AdminController {
     AdminBodies.RefundSummary payRefund(
             @PathVariable UUID refundId, @Valid @RequestBody AdminBodies.RefundPayment body) {
         return refundDesk.pay(StaffAccess.current(), refundId, body);
+    }
+
+    @GetMapping("/v1/admin/reconciliation/accounts")
+    AdminBodies.Items<com.beavent.backend.payments.Reconciliation.AccountRow> reconciliationAccounts() {
+        return new AdminBodies.Items<>(reconciliationDesk.accounts(StaffAccess.current()));
+    }
+
+    @GetMapping("/v1/admin/reconciliation/statements")
+    AdminBodies.Items<com.beavent.backend.payments.Reconciliation.StatementRow> statements() {
+        return new AdminBodies.Items<>(reconciliationDesk.statements(StaffAccess.current()));
+    }
+
+    @PostMapping("/v1/admin/reconciliation/statements")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    com.beavent.backend.payments.Reconciliation.StatementRow uploadStatement(
+            @Valid @RequestBody AdminBodies.StatementUpload body) {
+        return reconciliationDesk.upload(StaffAccess.current(), body);
+    }
+
+    @GetMapping("/v1/admin/reconciliation/exceptions")
+    AdminBodies.Items<com.beavent.backend.payments.Reconciliation.ExceptionRow> reconciliationExceptions() {
+        return new AdminBodies.Items<>(reconciliationDesk.exceptions(StaffAccess.current()));
+    }
+
+    @PostMapping("/v1/admin/reconciliation/resolutions")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void resolveException(@Valid @RequestBody AdminBodies.ExceptionResolution body) {
+        reconciliationDesk.resolve(StaffAccess.current(), body);
+    }
+
+    @GetMapping("/v1/admin/payment-provider")
+    com.beavent.backend.payments.Reconciliation.Certification paymentProvider() {
+        return reconciliationDesk.certification(StaffAccess.current());
+    }
+
+    @PostMapping("/v1/admin/payment-provider/go-live")
+    com.beavent.backend.payments.Reconciliation.Certification goLive(@Valid @RequestBody AdminBodies.GoLive body) {
+        return reconciliationDesk.goLive(StaffAccess.current(), body.evidence());
+    }
+
+    @PostMapping("/v1/admin/payment-provider/suspension")
+    com.beavent.backend.payments.Reconciliation.Certification suspendProvider(
+            @Valid @RequestBody AdminBodies.Suspension body) {
+        return reconciliationDesk.suspend(StaffAccess.current(), body.reason());
     }
 
     @GetMapping("/v1/admin/audit-log")

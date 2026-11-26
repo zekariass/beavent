@@ -30,7 +30,18 @@ public final class OrderPricing {
             Map<String, TaxEngine.Rate> ratesByCategory,
             List<PromotionEngine.Promo> promotions,
             List<FeeEngine.Rule> feeRules,
-            TaxEngine.Rate platformFeeRate) {}
+            TaxEngine.Rate platformFeeRate,
+            long manualDiscountMinor) {
+
+        public Facts(
+                boolean pricesIncludeTax,
+                Map<String, TaxEngine.Rate> ratesByCategory,
+                List<PromotionEngine.Promo> promotions,
+                List<FeeEngine.Rule> feeRules,
+                TaxEngine.Rate platformFeeRate) {
+            this(pricesIncludeTax, ratesByCategory, promotions, feeRules, platformFeeRate, 0);
+        }
+    }
 
     /** The fee and, for a buyer-paid one, the index of the {@code BUYER_FEE} line that shows it. */
     public record ChargedFee(FeeEngine.Fee fee, Integer feeLineIndex) {}
@@ -63,6 +74,8 @@ public final class OrderPricing {
         for (PromotionEngine.Applied a : applied) {
             for (int i = 0; i < discounts.length; i++) discounts[i] += a.discounts()[i];
         }
+
+        shareManualDiscount(items, discounts, facts.manualDiscountMinor());
 
         List<Orders.PricedLine> lines = new ArrayList<>();
         List<FeeEngine.Line> feeBase = new ArrayList<>();
@@ -132,6 +145,37 @@ public final class OrderPricing {
             total += l.totalMinor();
         }
         return new Result(lines, applied, fees, subtotal, discount, tax, buyerFees, total, sellerFees);
+    }
+
+    /**
+     * A discount given by hand is shared between the lines in proportion to what is left of their price (the first line
+     * with the largest share takes the odd coins), and is never more than they cost.
+     */
+    static void shareManualDiscount(List<Item> items, long[] discounts, long manualMinor) {
+        if (manualMinor <= 0) return;
+        long[] room = new long[items.size()];
+        long roomTotal = 0;
+        for (int i = 0; i < room.length; i++) {
+            Orders.LineInput in = items.get(i).input();
+            room[i] = Math.multiplyExact(in.unitPriceMinor(), in.quantity()) - discounts[i];
+            roomTotal += room[i];
+        }
+        long want = Math.min(manualMinor, roomTotal);
+        if (want <= 0) return;
+        long given = 0;
+        for (int i = 0; i < room.length; i++) {
+            long share = Math.multiplyExact(want, room[i]) / roomTotal;
+            discounts[i] += share;
+            room[i] -= share;
+            given += share;
+        }
+        // What is left after rounding down goes one coin at a time to the lines with the most room left.
+        for (long left = want - given; left > 0; left--) {
+            int best = 0;
+            for (int i = 1; i < room.length; i++) if (room[i] > room[best]) best = i;
+            discounts[best]++;
+            room[best]--;
+        }
     }
 
     /** The snapshot wording of a fee line (the order keeps it; screens translate by type). */

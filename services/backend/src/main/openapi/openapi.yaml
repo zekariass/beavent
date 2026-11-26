@@ -54,6 +54,8 @@ tags:
     description: Search over places to book and things to do (public)
   - name: GiftCards
     description: Gift cards a business sells, delivers and honours as a payment method
+  - name: Counter
+    description: Taking payments at the counter - the cash drawer and checking a visit out
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -80,6 +82,22 @@ paths:
     $ref: ./payments/paths.yaml#/paymentLinkStart
   /v1/public/payment-links/{token}/check:
     $ref: ./payments/paths.yaml#/paymentLinkCheck
+  /v1/orgs/{orgId}/cash-drawer:
+    $ref: ./commerce/paths.yaml#/cashDrawer
+  /v1/orgs/{orgId}/cash-drawer/open:
+    $ref: ./commerce/paths.yaml#/cashDrawerOpen
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/movements:
+    $ref: ./commerce/paths.yaml#/cashDrawerMovements
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/close:
+    $ref: ./commerce/paths.yaml#/cashDrawerClose
+  /v1/orgs/{orgId}/appointments/{appointmentId}/checkout:
+    $ref: ./commerce/paths.yaml#/appointmentCheckout
+  /v1/orgs/{orgId}/orders/{orderId}/receipt:
+    $ref: ./commerce/paths.yaml#/orderReceipt
+  /v1/orgs/{orgId}/orders/{orderId}/receipt/send:
+    $ref: ./commerce/paths.yaml#/orderReceiptSend
+  /v1/public/receipts/{token}:
+    $ref: ./commerce/paths.yaml#/publicReceipt
   /v1/orgs/{orgId}/gift-cards/program:
     $ref: ./retention/paths.yaml#/giftCardProgram
   /v1/orgs/{orgId}/gift-cards:
@@ -408,6 +426,20 @@ paths:
     $ref: ./admin/paths.yaml#/adminRefundApproval
   /v1/admin/refunds/{refundId}/payment:
     $ref: ./admin/paths.yaml#/adminRefundPayment
+  /v1/admin/reconciliation/accounts:
+    $ref: ./admin/paths.yaml#/adminReconciliationAccounts
+  /v1/admin/reconciliation/statements:
+    $ref: ./admin/paths.yaml#/adminReconciliationStatements
+  /v1/admin/reconciliation/exceptions:
+    $ref: ./admin/paths.yaml#/adminReconciliationExceptions
+  /v1/admin/reconciliation/resolutions:
+    $ref: ./admin/paths.yaml#/adminReconciliationResolutions
+  /v1/admin/payment-provider:
+    $ref: ./admin/paths.yaml#/adminPaymentProvider
+  /v1/admin/payment-provider/go-live:
+    $ref: ./admin/paths.yaml#/adminPaymentProviderGoLive
+  /v1/admin/payment-provider/suspension:
+    $ref: ./admin/paths.yaml#/adminPaymentProviderSuspension
   /v1/admin/audit-log:
     $ref: ./admin/paths.yaml#/adminAuditLog
   /v1/admin/feature-flags:

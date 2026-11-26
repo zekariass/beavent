@@ -165,6 +165,177 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/cash-drawer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The location's cash drawer now, and its closed sessions
+         * @description Needs `pos.sell` or `pos.cash_drawer`.
+         */
+        get: operations["getCashDrawer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open the drawer with a float
+         * @description Needs `pos.cash_drawer`. `CONFLICT` when it is open already.
+         */
+        post: operations["openCashDrawer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/{sessionId}/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cash put in, taken out for an expense, or taken to the safe
+         * @description Needs `pos.cash_drawer`. More cannot be taken out than the drawer should hold.
+         */
+        post: operations["moveCash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/cash-drawer/{sessionId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count the drawer and close it
+         * @description Needs `pos.cash_drawer`. The answer holds what was expected and the variance.
+         */
+        post: operations["closeCashDrawer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/appointments/{appointmentId}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a visit comes to at the counter
+         * @description Needs `pos.sell`. The services as booked, what was already paid online, what is due, who a tip can go to and whether
+         *     the drawer is open.
+         */
+        get: operations["getCheckoutBill"];
+        put?: never;
+        /**
+         * Check a visit out
+         * @description Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+         *     as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+         *     What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+         *     `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+         *     cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+         *     is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
+         */
+        post: operations["checkoutAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/orders/{orderId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A sale's receipt, to show and print
+         * @description Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+         */
+        get: operations["getOrderReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/orders/{orderId}/receipt/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the customer a link to their receipt
+         * @description Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+         *     makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+         */
+        post: operations["sendOrderReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/receipts/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The receipt a link opens
+         * @description No sign-in; the link is the credential. Never indexed.
+         */
+        get: operations["getPublicReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/gift-cards/program": {
         parameters: {
             query?: never;
@@ -3178,6 +3349,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/reconciliation/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The provider accounts a statement can be uploaded for
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["listReconciliationAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Imported statements, latest period first
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["listProviderStatements"];
+        put?: never;
+        /**
+         * Import a provider statement and match it (audited)
+         * @description Needs `admin.reconciliation`. Each line is matched to our payments, refunds and payouts by reference and amount; the
+         *     provider's fees are posted to the ledger; money nothing explains is held in suspense. `CONFLICT` when the days
+         *     overlap a statement imported before; `VALIDATION_FAILED` names the line of a file that cannot be read.
+         */
+        post: operations["importProviderStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What finance still has to explain
+         * @description Needs `admin.reconciliation`. Oldest first, at most 200.
+         */
+        get: operations["listReconciliationExceptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say why an exception is fine (audited)
+         * @description Needs `admin.reconciliation`. The note is kept with who wrote it.
+         */
+        post: operations["resolveReconciliationException"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The active provider's status and what stands between it and going live
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["getPaymentProviderCertification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider/go-live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the active provider live once every check passes (step-up, audited)
+         * @description Needs `admin.reconciliation` and a fresh code. `CONFLICT` while a check fails.
+         */
+        post: operations["goLivePaymentProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider/suspension": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop taking new online payments through the active provider (step-up, audited)
+         * @description Needs `admin.reconciliation` and a fresh code.
+         */
+        post: operations["suspendPaymentProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -3471,6 +3788,229 @@ export interface components {
             /** Format: int64 */
             amountMinor: number;
             currency: string;
+        };
+        CashDrawerMovement: {
+            id: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            kind: "SALE" | "REFUND" | "PAY_IN" | "PAY_OUT" | "DROP" | "CORRECTION";
+            /**
+             * Format: int64
+             * @description Signed; plus into the drawer.
+             */
+            amountMinor: number;
+            note?: string | null;
+            at: components["schemas"]["Instant"];
+            byUserId: components["schemas"]["Uuid"];
+        };
+        CashDrawerSession: {
+            id: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            drawerName: string;
+            currency: string;
+            /** @enum {string} */
+            status: "OPEN" | "CLOSED" | "RECONCILED";
+            openedAt: components["schemas"]["Instant"];
+            openedBy: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            openingFloatMinor: number;
+            /** Format: int64 */
+            salesMinor: number;
+            /** Format: int64 */
+            payInMinor: number;
+            /**
+             * Format: int64
+             * @description Taken out for expenses and to the safe, as a positive amount.
+             */
+            payOutMinor: number;
+            /**
+             * Format: int64
+             * @description What should be in the drawer; once closed, what was expected when it closed.
+             */
+            expectedMinor: number;
+            /** Format: int64 */
+            countedMinor?: number | null;
+            /**
+             * Format: int64
+             * @description Counted less expected; negative when cash is missing.
+             */
+            varianceMinor?: number | null;
+            closedAt?: components["schemas"]["Instant"] | null;
+            /** @description Newest first; empty in the history listing. */
+            movements: components["schemas"]["CashDrawerMovement"][];
+        };
+        CashDrawerState: {
+            session?: components["schemas"]["CashDrawerSession"] | null;
+            history: components["schemas"]["CashDrawerSession"][];
+        };
+        CashDrawerOpen: {
+            locationId: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            openingFloatMinor: number;
+        };
+        CashDrawerMovementInput: {
+            /** @enum {string} */
+            kind: "PAY_IN" | "PAY_OUT" | "DROP";
+            /** Format: int64 */
+            amountMinor: number;
+            note?: string;
+        };
+        CashDrawerClose: {
+            /** Format: int64 */
+            countedMinor: number;
+        };
+        CheckoutTender: {
+            /** @enum {string} */
+            method: "GIFT_CARD" | "STORE_CREDIT" | "CASH";
+            /** Format: int64 */
+            amountMinor: number;
+        };
+        CheckoutBill: {
+            appointmentId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            /** @description The visit's order, once it has one (the receipt is the order's). */
+            orderId?: components["schemas"]["Uuid"] | null;
+            reference: string;
+            status: string;
+            customerName?: string | null;
+            currency: string;
+            lines: {
+                description: string;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            /** Format: int64 */
+            totalMinor: number;
+            /**
+             * Format: int64
+             * @description Already paid online (a deposit).
+             */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Still to pay at the counter, before any tip.
+             */
+            dueMinor: number;
+            /** @description Who worked on the visit; a tip can go to each. */
+            team: {
+                staffId: components["schemas"]["Uuid"];
+                name: string;
+            }[];
+            drawerOpen: boolean;
+            canCheckout: boolean;
+            receiptNumber?: string | null;
+            /**
+             * Format: int64
+             * @description What the customer has in their balance with the business.
+             */
+            balanceMinor: number;
+            /** @description A discount can be given (the visit has no order yet and the caller holds `pos.discount`). */
+            canDiscount: boolean;
+            /** @description Paid at the counter so far (a sale that was started and not finished). */
+            tenders: components["schemas"]["CheckoutTender"][];
+        };
+        CheckoutInput: {
+            tips?: {
+                staffId: components["schemas"]["Uuid"];
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            /** @description Needs `pos.discount`; only on a visit that has no order yet. Shared between the services in proportion to their price. */
+            discount?: {
+                /** @enum {string} */
+                kind: "AMOUNT" | "PERCENT";
+                /**
+                 * Format: int64
+                 * @description Minor units for AMOUNT; 1 to 100 for PERCENT.
+                 */
+                value: number;
+                reason: string;
+            };
+            /** @description Codes, in the order to use them; each pays as much as is due. */
+            giftCards?: string[];
+            /** @description Use the customer's balance with the business (after any gift cards). */
+            useBalance?: boolean;
+            /**
+             * Format: int64
+             * @description The cash handed over for what the cards and balance did not pay. Omit for exactly what is due.
+             */
+            cashTenderedMinor?: number;
+        };
+        CheckoutDone: {
+            orderId: components["schemas"]["Uuid"];
+            orderNumber: string;
+            receiptNumber: string;
+            currency: string;
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidOnlineMinor: number;
+            /** Format: int64 */
+            tipMinor: number;
+            /**
+             * Format: int64
+             * @description What stays in the drawer.
+             */
+            cashMinor: number;
+            /** Format: int64 */
+            tenderedMinor: number;
+            /** Format: int64 */
+            changeMinor: number;
+            /** Format: int64 */
+            discountMinor: number;
+            tenders: components["schemas"]["CheckoutTender"][];
+        };
+        ReceiptView: {
+            number: string;
+            issuedAt: components["schemas"]["Instant"];
+            orderNumber: string;
+            currency: string;
+            timezone: string;
+            /** @description The legal entity's registered name. */
+            business: string;
+            tin?: string | null;
+            location?: string | null;
+            landmark?: string | null;
+            phone?: string | null;
+            customer?: string | null;
+            pricesIncludeTax: boolean;
+            lines: {
+                type: string;
+                description: string;
+                quantity: number;
+                /** Format: int64 */
+                unitMinor: number;
+                /** Format: int64 */
+                discountMinor: number;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            /** Format: int64 */
+            subtotalMinor: number;
+            /** Format: int64 */
+            discountMinor: number;
+            /** Format: int64 */
+            taxMinor: number;
+            /** Format: int64 */
+            totalMinor: number;
+            taxes: {
+                code: string;
+                rate: number;
+                /** Format: int64 */
+                taxableMinor: number;
+                /** Format: int64 */
+                taxMinor: number;
+            }[];
+            tenders: {
+                method: string;
+                name: string;
+                /** Format: int64 */
+                amountMinor: number;
+                at?: components["schemas"]["Instant"] | null;
+            }[];
+        };
+        ReceiptSent: {
+            /** @enum {string} */
+            via: "SMS" | "EMAIL";
         };
         GiftCardProgram: {
             id: components["schemas"]["Uuid"];
@@ -6094,6 +6634,105 @@ export interface components {
             reference: string;
             note?: string;
         };
+        ReconciliationAccount: {
+            id: components["schemas"]["Uuid"];
+            provider: string;
+            name: string;
+            /** @enum {string} */
+            environment: "SANDBOX" | "LIVE";
+            currency: string;
+        };
+        ReconciliationAccountList: {
+            items: components["schemas"]["ReconciliationAccount"][];
+        };
+        schemas_Statement: {
+            id: components["schemas"]["Uuid"];
+            providerAccountId: components["schemas"]["Uuid"];
+            provider: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            currency: string;
+            /** @enum {string} */
+            status: "IMPORTED" | "RECONCILING" | "RECONCILED" | "EXCEPTIONS";
+            lines: number;
+            matched: number;
+            /** @description Lines not matched, plus payments we confirmed that the statement does not show. */
+            exceptions: number;
+            /** Format: int64 */
+            closingBalanceMinor?: number | null;
+            /** Format: int64 */
+            ledgerBalanceMinor?: number | null;
+            /** Format: int64 */
+            differenceMinor?: number | null;
+            importedAt: components["schemas"]["Instant"];
+        };
+        StatementList: {
+            items: components["schemas"]["schemas_Statement"][];
+        };
+        StatementUpload: {
+            providerAccountId: components["schemas"]["Uuid"];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int64 */
+            openingBalanceMinor?: number | null;
+            /**
+             * Format: int64
+             * @description What the provider says the account holds at the end of the last day; compared with the ledger.
+             */
+            closingBalanceMinor?: number | null;
+            /**
+             * @description A header row naming `reference`, `type`, `amount` and `date` (and optionally `fee`), then one line per statement
+             *     line. `type` is COLLECTION, REFUND, PAYOUT, FEE, SETTLEMENT, REVERSAL, CHARGEBACK or ADJUSTMENT; `amount` and
+             *     `fee` are in major units; the reference is our payment's id or the provider's own reference for it.
+             */
+            csv: string;
+        };
+        ReconciliationException: {
+            /** @enum {string} */
+            kind: "AMOUNT_MISMATCH" | "MISSING_INTERNALLY" | "UNMATCHED" | "MISSING_ON_STATEMENT" | "BALANCE_DIFFERENCE";
+            statementId: components["schemas"]["Uuid"];
+            lineId?: components["schemas"]["Uuid"] | null;
+            attemptId?: components["schemas"]["Uuid"] | null;
+            reference?: string | null;
+            lineType: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            occurredAt: components["schemas"]["Instant"];
+            note?: string | null;
+        };
+        ReconciliationExceptionList: {
+            items: components["schemas"]["ReconciliationException"][];
+        };
+        /** @description Name the statement line, or the payment the statement lacks, or neither (a difference in the balance). */
+        ExceptionResolution: {
+            statementId: components["schemas"]["Uuid"];
+            lineId?: components["schemas"]["Uuid"];
+            attemptId?: components["schemas"]["Uuid"];
+            note: string;
+        };
+        ProviderCertification: {
+            provider: string;
+            /** @enum {string} */
+            status: "SANDBOX" | "LIVE" | "SUSPENDED";
+            verifiedAt?: components["schemas"]["Instant"] | null;
+            checks: {
+                code: string;
+                passed: boolean;
+                detail: string;
+            }[];
+            ready: boolean;
+        };
+        GoLive: {
+            evidence: string;
+        };
+        ProviderSuspension: {
+            reason: string;
+        };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
             page: components["schemas"]["PageInfo"];
@@ -6597,6 +7236,263 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCashDrawer: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open session (null when the drawer is closed) and the last closed ones. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    openCashDrawer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerOpen"];
+            };
+        };
+        responses: {
+            /** @description Opened. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    moveCash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                sessionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerMovementInput"];
+            };
+        };
+        responses: {
+            /** @description The session with its movements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    closeCashDrawer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                sessionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashDrawerClose"];
+            };
+        };
+        responses: {
+            /** @description Closed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashDrawerSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getCheckoutBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bill. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutBill"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    checkoutAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutInput"];
+            };
+        };
+        responses: {
+            /** @description Checked out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getOrderReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendOrderReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptSent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getPublicReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptView"];
                 };
             };
             404: components["responses"]["NotFound"];
@@ -12462,6 +13358,198 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listReconciliationAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationAccountList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listProviderStatements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    importProviderStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementUpload"];
+            };
+        };
+        responses: {
+            /** @description Imported and matched. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["schemas_Statement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listReconciliationExceptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationExceptionList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    resolveReconciliationException: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExceptionResolution"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPaymentProviderCertification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    goLivePaymentProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoLive"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    suspendPaymentProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderSuspension"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     searchAuditLog: {

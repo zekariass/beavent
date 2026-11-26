@@ -48,6 +48,8 @@ public interface Orders {
      * @param customerId the business's client, when known (eligibility for new- or returning-client promotions)
      * @param serviceStart when the visit starts, for off-peak promotions; null when not timed
      * @param at when the order is priced (rates, rules and promotions in force then)
+     * @param manualDiscountMinor a discount the front desk gives at the counter, shared between the lines in proportion
+     *     to what they cost (after any promotion); never more than the lines cost
      */
     record Basket(
             UUID locationId,
@@ -58,7 +60,23 @@ public interface Orders {
             List<LineInput> lines,
             String promoCode,
             Instant serviceStart,
-            Instant at) {}
+            Instant at,
+            long manualDiscountMinor) {
+
+        /** A basket with no manual discount. */
+        public Basket(
+                UUID locationId,
+                UUID customerId,
+                UUID buyerUserId,
+                String channel,
+                String currency,
+                List<LineInput> lines,
+                String promoCode,
+                Instant serviceStart,
+                Instant at) {
+            this(locationId, customerId, buyerUserId, channel, currency, lines, promoCode, serviceStart, at, 0);
+        }
+    }
 
     /**
      * A priced line; fee lines ({@code BUYER_FEE}) are added after the basket's lines, pointing at the line they are
@@ -104,6 +122,19 @@ public interface Orders {
             PromoResult promo) {}
 
     record Placed(UUID orderId, String number, Quote quote) {}
+
+    /**
+     * A tip left at the counter for one member of the team.
+     *
+     * @param staffId who it is for
+     */
+    record Tip(UUID staffId, String description, long amountMinor) {}
+
+    /**
+     * Adds tips to an order that stands (no tax, no platform fee): one {@code TIP} line each, and the order's total goes
+     * up by their sum. The order's payment schedule is the caller's to adjust.
+     */
+    void addTips(UUID orgId, UUID orderId, List<Tip> tips);
 
     Quote quote(UUID orgId, Basket basket);
 
