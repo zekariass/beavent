@@ -36,6 +36,7 @@
         }
       ],
       "expo-secure-store",
+      ["expo-notifications", { "color": "#0B6B53" }],
       "expo-maps"
     ],
     "experiments": {

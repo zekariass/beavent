@@ -121,6 +121,8 @@ paths:
     $ref: ./identity/paths.yaml#/meSession
   /v1/me/devices:
     $ref: ./identity/paths.yaml#/meDevices
+  /v1/me/devices/{installationId}:
+    $ref: ./identity/paths.yaml#/meDevice
   /v1/me/consents:
     $ref: ./identity/paths.yaml#/meConsents
   # --- tenancy ----------------------------------------------------------------------------------------------

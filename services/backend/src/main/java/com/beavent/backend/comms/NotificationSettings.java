@@ -11,10 +11,12 @@ import java.util.UUID;
 public interface NotificationSettings {
 
     /**
+     * @param remindersPush a push notification to the phone app, for a person with a registered device
      * @param quietFrom {@code HH:mm}, start of quiet hours
      * @param quietTo {@code HH:mm}, end of quiet hours (the next morning when earlier than {@code quietFrom})
      */
     record Settings(
+            boolean remindersPush,
             boolean remindersSms,
             boolean remindersEmail,
             boolean quietHours,

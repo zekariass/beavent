@@ -215,6 +215,16 @@ public class Sessions {
                 .fetchOne(DEVICES.ID);
     }
 
+    /** Takes the person's push token off the installation (nothing happens when it is not theirs or not known). */
+    public void unregisterDevice(UUID userId, String installationId) {
+        dsl.update(DEVICES)
+                .setNull(DEVICES.PUSH_TOKEN)
+                .setNull(DEVICES.USER_ID)
+                .set(DEVICES.UPDATED_AT, OffsetDateTime.now())
+                .where(DEVICES.INSTALLATION_ID.eq(installationId), DEVICES.USER_ID.eq(userId))
+                .execute();
+    }
+
     // --- internals ----------------------------------------------------------------------------------------------
 
     private UUID upsertDevice(UUID userId, ClientContext.Device device) {

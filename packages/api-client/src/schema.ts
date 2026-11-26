@@ -546,6 +546,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/devices/{installationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop push notifications to this phone for this person
+         * @description Called when the person signs out or turns notifications off. Nothing happens for a phone that is not theirs or not known.
+         */
+        delete: operations["unregisterDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/consents": {
         parameters: {
             query?: never;
@@ -5654,7 +5674,12 @@ export interface components {
          *     not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
          */
         NotificationSettings: {
-            /** @description Reminders and review requests by text message. */
+            /** @description Reminders and review requests as a push notification to the phone app (when a phone is set up). */
+            remindersPush: boolean;
+            /**
+             * @description Reminders and review requests by text message. A person who gets them as a push notification on a set-up phone
+             *     is not also sent a text message.
+             */
             remindersSms: boolean;
             /** @description Reminders and review requests by email. */
             remindersEmail: boolean;
@@ -7137,6 +7162,21 @@ export interface operations {
         responses: {
             204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    unregisterDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
             401: components["responses"]["Unauthorized"];
         };
     };
