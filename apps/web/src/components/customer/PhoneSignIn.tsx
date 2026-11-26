@@ -14,7 +14,14 @@ const primary =
  * Inline sign-in by phone code (DD10): no separate screen, no password. Someone new then says what to call them (C-6
  * step 3). Refreshes the page when signed in.
  */
-export function PhoneSignIn({ language }: { language: Language }) {
+export function PhoneSignIn({
+  language,
+  onSignedIn,
+}: {
+  language: Language;
+  /** Called once signed in, before the page refreshes: to continue what the person was doing (DD10). */
+  onSignedIn?: () => void;
+}) {
   const t = createTranslator(language);
   const router = useRouter();
   const [phone, setPhone] = useState("");
@@ -68,7 +75,10 @@ export function PhoneSignIn({ language }: { language: Language }) {
               start(async () => {
                 const r = await saveCustomerName(language, given, father);
                 if (r.ok) {
-                  router.refresh();
+                  {
+                    onSignedIn?.();
+                    router.refresh();
+                  }
                 } else {
                   // Held for ten minutes: after that, start again with the phone number.
                   if (r.code === "UNAUTHENTICATED") {
@@ -106,8 +116,10 @@ export function PhoneSignIn({ language }: { language: Language }) {
               start(async () => {
                 const r = await verifySignIn(language, challenge.id, code);
                 if (r.ok && r.value.needsName) setAskName(true);
-                else if (r.ok) router.refresh();
-                else setError(r.message || t("booking.error"));
+                else if (r.ok) {
+                  onSignedIn?.();
+                  router.refresh();
+                } else setError(r.message || t("booking.error"));
               })
             }
           >

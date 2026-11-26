@@ -13,7 +13,8 @@ import {
   zoned,
   type CalendarLanguage,
 } from "@beavent/calendar";
-import { formatDuration, type Language, type Translate } from "@beavent/i18n";
+import { formatDuration, LANGUAGE_NAMES, type Language, type Translate } from "@beavent/i18n";
+import type { Filters } from "./filters.ts";
 import { formatDisplay, money } from "@beavent/money";
 
 export type Venue = Schemas["Venue"];
@@ -228,6 +229,192 @@ export function waitlistWhen(
   return t("waitlist.when", { days: dayText, parts: partText });
 }
 
+// --- search results ----------------------------------------------------------------------------------------------
+// How a place reads in a result row (S-02 VenueResultRow, S-01 VenueCard): the same on web and in the app.
+
+export type SearchItem = Schemas["SearchItem"];
+export type SearchMenuLine = Schemas["SearchMenuLine"];
+export type SearchPage = Schemas["SearchPage"];
+export type SearchPin = Schemas["SearchPin"];
+export type SearchPins = Schemas["SearchPins"];
+
+/** "250 m" under a kilometre (rounded to 10 m), otherwise "1.2 km". */
+export function distanceText(meters: number, language: Language, t: Translate): string {
+  if (meters < 1000)
+    return t("distance.meters", { value: Math.max(10, Math.round(meters / 10) * 10) });
+  const km = new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(meters / 1000);
+  return t("distance.km", { value: km });
+}
+
+/** "Hair salon · Addis Ketema", then the distance when the search knew where the reader is. */
+export function resultMeta(item: SearchItem, language: Language, t: Translate): string {
+  return [
+    pick(item.category, language),
+    pick(item.area, language),
+    item.distanceMeters === undefined ? "" : distanceText(item.distanceMeters, language, t),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** "from Br 1,800", "Free", or nothing when the place has no price yet. */
+export function resultPrice(item: SearchItem, language: Language, t: Translate): string | null {
+  if (item.priceFromMinor === undefined || !item.currency) return null;
+  if (item.priceFromMinor === 0) return t("venue.free");
+  return t("venue.from", { price: price(item.priceFromMinor, item.currency, language) });
+}
+
+/** A service line in a result row: "Box braids" with its duration, and the price ("from Br 2,200" or "Br 1,800"). */
+export function menuLinePrice(
+  line: SearchMenuLine,
+  currency: string,
+  language: Language,
+  t: Translate,
+): string {
+  if (line.priceType === "ON_CONSULTATION") return t("venue.onConsultation");
+  if (line.priceMinor === 0) return t("venue.free");
+  const text = price(line.priceMinor, currency, language);
+  return line.priceType === "FROM" ? t("venue.from", { price: text }) : text;
+}
+
+/**
+ * "Next: today ከሰዓት 4:00 (16:00)", in the place's own time zone and both time conventions (DD7). `null` when no bookable
+ * time was found at the last refresh.
+ */
+export function nextAvailableText(
+  item: SearchItem,
+  language: Language,
+  t: Translate,
+  now: Date = new Date(),
+): string | null {
+  if (!item.nextAvailableAt || !item.timezone) return null;
+  const local = zoned(item.nextAvailableAt, item.timezone);
+  const hhmm = `${String(local.hour).padStart(2, "0")}:${String(local.minute).padStart(2, "0")}`;
+  const clock = dualClock(hhmm, language);
+  const time = `${clock.primary} (${clock.secondary})`;
+  const day = localDateOf(item.nextAvailableAt, item.timezone);
+  const today = todayIn(item.timezone, now);
+  if (day === today) return t("results.next.today", { time });
+  if (day === addDays(today, 1)) return t("results.next.tomorrow", { time });
+  const date = formatDualDate(
+    item.nextAvailableAt,
+    { ...defaultDisplayPreferences(calendarLanguage(language)), timeZone: item.timezone },
+    { year: false },
+  );
+  return t("results.next.date", { date: date.primary, time });
+}
+
+/** The page of a result: venue pages open at `/b/{business}/{location}` (events later, Stage 6). */
+export const resultHref = (item: SearchItem): string => `/b${item.path}`;
+
+/** URL-safe name of a category or city, for landing pages: "HAIR_SALON" → "hair-salon", "Addis Ababa" → "addis-ababa". */
+export const slugOf = (text: string): string =>
+  text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+export * from "./filters.ts";
+
+/** What is narrowing a search, as removable chips ("Under Br 1,000", "Open now", …); `remove` undoes that one filter. */
+export function activeFilterChips(
+  filters: Filters,
+  language: Language,
+  t: Translate,
+): { key: string; label: string; remove: Partial<Filters> }[] {
+  const chips: { key: string; label: string; remove: Partial<Filters> }[] = [];
+  if (filters.q) chips.push({ key: "q", label: `“${filters.q}”`, remove: { q: undefined } });
+  if (filters.date)
+    chips.push({ key: "date", label: filters.date, remove: { date: undefined, part: undefined } });
+  if (filters.maxPrice !== undefined)
+    chips.push({
+      key: "maxPrice",
+      label: t("filter.price.under", { amount: price(filters.maxPrice, "ETB", language) }),
+      remove: { maxPrice: undefined },
+    });
+  if (filters.minRating !== undefined)
+    chips.push({
+      key: "minRating",
+      label: t("filter.rating.from", { rating: filters.minRating }),
+      remove: { minRating: undefined },
+    });
+  if (filters.openNow)
+    chips.push({ key: "openNow", label: t("filter.openNow"), remove: { openNow: undefined } });
+  if (filters.atHome)
+    chips.push({ key: "atHome", label: t("filter.atHome"), remove: { atHome: undefined } });
+  if (filters.audience)
+    chips.push({
+      key: "audience",
+      label: t(`filter.for.${filters.audience}`),
+      remove: { audience: undefined },
+    });
+  if (filters.language)
+    chips.push({
+      key: "language",
+      label: LANGUAGE_NAMES[filters.language as Language] ?? filters.language,
+      remove: { language: undefined },
+    });
+  if (filters.area) chips.push({ key: "area", label: filters.area, remove: { area: undefined } });
+  if (filters.bbox)
+    chips.push({ key: "bbox", label: t("filter.mapArea"), remove: { bbox: undefined } });
+  return chips;
+}
+
+// --- saved places, following and book again (plan 8.2) -------------------------------------------------------------
+
+export type SavedEntry = Schemas["SavedEntry"];
+export type Followed = Schemas["Followed"];
+export type Brand = Schemas["Brand"];
+export type MyAppointment = Schemas["MyAppointment"];
+
+/** A place a person has been to and what they had there last, for the Book again shelf. */
+export interface PastVisit {
+  locationId: string;
+  businessSlug: string;
+  locationSlug: string;
+  /** The service of the last visit, as the business named it. */
+  lastService: string;
+  /** Its variant, to look the name up in the reader's language. */
+  lastVariantId: string | null;
+  /** Who did it, when the booking named a person. */
+  lastPerson: string | null;
+  /** When it was. */
+  at: string;
+}
+
+/**
+ * The places of a person's completed visits, most recent first and each once, with what they had last (S-01 "Book
+ * again"). Cancelled, missed and upcoming appointments do not count.
+ */
+export function pastVisits(appointments: MyAppointment[], limit = 8): PastVisit[] {
+  const seen = new Set<string>();
+  const out: PastVisit[] = [];
+  for (const a of [...appointments].sort((x, y) => y.start.localeCompare(x.start))) {
+    if (a.status !== "COMPLETED" || !a.place || seen.has(a.place.locationId)) continue;
+    seen.add(a.place.locationId);
+    const item = a.items[0];
+    out.push({
+      locationId: a.place.locationId,
+      businessSlug: a.place.businessSlug,
+      locationSlug: a.place.locationSlug,
+      lastService: item?.serviceName ?? "",
+      lastVariantId: item?.variantId ?? null,
+      lastPerson: item?.staffName ?? null,
+      at: a.start,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** "Last: Box braids · with Hana" (or without the person). */
+export function lastVisitText(visit: PastVisit, t: Translate): string {
+  return visit.lastPerson
+    ? t("bookAgain.lastWith", { service: visit.lastService, person: visit.lastPerson })
+    : t("bookAgain.last", { service: visit.lastService });
+}
+
 /** The parts of a customer's appointment that say what happens to the money. */
 export type AppointmentMoney = Pick<Schemas["AppointmentDetail"], "status" | "refund"> & {
   payment?: { paidMinor: number; currency: string } | null;
@@ -271,4 +458,105 @@ export function refundNotice(a: AppointmentMoney, language: Language, t: Transla
     return t("appointment.refund.none", { amount: price(paid, r.currency, language) });
   }
   return t("appointment.refund.onTheWay", { amount });
+}
+
+// --- reviews (plan 8.3) ----------------------------------------------------------------------------------------------
+
+export type Review = Schemas["Review"];
+export type ReviewSummary = Schemas["ReviewSummary"];
+export type ReviewPage = Schemas["ReviewPage"];
+export type PendingReview = Schemas["PendingReview"];
+export type MyReview = Schemas["MyReview"];
+export type MyReviews = Schemas["MyReviews"];
+export type BusinessReview = Schemas["BusinessReview"];
+export type BusinessReviewPage = Schemas["BusinessReviewPage"];
+
+/** The star ratings people can give. */
+export const STARS = [1, 2, 3, 4, 5] as const;
+
+/** "4.5" with one decimal, "4" for a round number: how a place's average reads. */
+export function ratingNumber(average: number, language: Language): string {
+  return new Intl.NumberFormat(language, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  }).format(average);
+}
+
+/** "4.5 · 12 reviews", or null when nobody has reviewed the place (an empty rating is not shown as 0). */
+export function ratingLine(
+  average: number | undefined,
+  count: number,
+  language: Language,
+  t: Translate,
+): string | null {
+  if (average === undefined || count === 0) return null;
+  return `${ratingNumber(average, language)} · ${t("reviews.count", { count })}`;
+}
+
+/** What a screen reader says for the average: "Rated 4.5 out of 5". */
+export const ratingLabel = (average: number, language: Language, t: Translate): string =>
+  t("reviews.rated", { rating: ratingNumber(average, language) });
+
+/** The day of a visit in the reader's calendar ("Visited Hamle 12"); `visitedOn` is a local date, so no zone shift. */
+export function visitedText(visitedOn: string, language: Language, t: Translate): string {
+  const [year, month, day] = visitedOn.split("-").map(Number) as [number, number, number];
+  const date = formatDualDate(
+    { year, month, day },
+    defaultDisplayPreferences(calendarLanguage(language)),
+    { year: true },
+  );
+  return t("reviews.visited", { date: date.primary });
+}
+
+/** What the visit was, in the reader's language: "Box braids" or "Box braids with Hana"; null when nothing is named. */
+export function reviewedService(
+  review: { serviceName?: Record<string, string>; staffName?: string },
+  language: Language,
+  t: Translate,
+): string | null {
+  const service = pick(review.serviceName, language);
+  if (!service) return null;
+  return review.staffName
+    ? t("reviews.serviceWith", { service, person: review.staffName })
+    : t("reviews.service", { service });
+}
+
+/** Share of each star level, 0–1, from the star-1 end to the star-5 end (for the distribution bars). */
+export function ratingShares(summary: ReviewSummary): number[] {
+  return summary.distribution.map((n) => (summary.count === 0 ? 0 : n / summary.count));
+}
+
+// --- notification settings (plan 8.4) -----------------------------------------------------------------------------
+
+export type NotificationSettings = Schemas["NotificationSettings"];
+
+/** The quiet hours people can pick: late evening to morning, in three widths. */
+export const QUIET_PRESETS = [
+  { from: "21:00", to: "07:00" },
+  { from: "22:00", to: "06:00" },
+  { from: "20:00", to: "08:00" },
+] as const;
+
+/** Which preset the settings hold: its index, `"off"` when quiet hours are off, `"other"` for a range set elsewhere. */
+export function quietChoice(settings: NotificationSettings): number | "off" | "other" {
+  if (!settings.quietHours) return "off";
+  const index = QUIET_PRESETS.findIndex(
+    (p) => p.from === settings.quietFrom && p.to === settings.quietTo,
+  );
+  return index === -1 ? "other" : index;
+}
+
+/** "9:00 PM to 7:00 AM" in the reader's first convention, and the same in the other one (DD7). */
+export function quietHoursText(
+  from: string,
+  to: string,
+  language: Language,
+  t: Translate,
+): { primary: string; secondary: string } {
+  const a = dualClock(from, language);
+  const b = dualClock(to, language);
+  return {
+    primary: t("notifications.quiet.range", { from: a.primary, to: b.primary }),
+    secondary: t("notifications.quiet.range", { from: a.secondary, to: b.secondary }),
+  };
 }

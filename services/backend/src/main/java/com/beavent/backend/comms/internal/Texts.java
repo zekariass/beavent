@@ -32,6 +32,9 @@ final class Texts {
         if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
             return giftCardReceived(lang, data);
         }
+        if (code.startsWith("REVIEW_") || code.startsWith("MARKETPLACE_")) {
+            return discovery(code, lang, data);
+        }
         if (code.equals(Notifier.PAYOUT_PAID) || code.equals(Notifier.PAYOUT_FAILED)) {
             return payoutOutcome(code.equals(Notifier.PAYOUT_PAID), lang, data);
         }
@@ -117,6 +120,12 @@ final class Texts {
                 am
                         ? business + "፦ ቀጠሮዎ " + ref + " ወደ " + date + "፣ " + when + " ተዛውሯል።"
                         : business + ": your booking " + ref + " is now on " + date + ", " + when + ".";
+            case Notifier.REVIEW_REQUEST -> {
+                String link = data.get("web") + "/" + lang + "/account/reviews";
+                yield am
+                        ? business + "፦ በ" + date + " የነበረው ጉብኝትዎ እንዴት ነበር? በአንድ ደቂቃ ውስጥ ደረጃ ይስጡ፦ " + link
+                        : business + ": how was your visit on " + date + "? Rate it in a minute: " + link;
+            }
             case Notifier.REMINDER_24H ->
                 am
                         ? "ማስታወሻ፦ ነገ " + date + "፣ " + when + " በ" + business + "። ቀጠሮ " + ref + "።" + suffix(place, am)
@@ -130,6 +139,93 @@ final class Texts {
         };
         String subject = am ? business + " · ቀጠሮ " + ref : business + " · booking " + ref;
         return new Message(subject, text);
+    }
+
+    /** Messages about reviews and about being on the marketplace (plan 8.3 and 8.1), to the business or the author. */
+    private static Message discovery(String code, String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String place = String.valueOf(data.get("place"));
+        String reason = data.get("reason") == null ? "" : String.valueOf(data.get("reason"));
+        String why = reason.isBlank() ? "" : (am ? " ምክንያት፦ " : " Reason: ") + reason + (am ? "።" : ".");
+        return switch (code) {
+            case Notifier.REVIEW_RECEIVED -> {
+                String link = data.get("web") + "/" + lang + "/business/o/" + data.get("orgId") + "/reviews";
+                String rating = String.valueOf(data.get("rating"));
+                yield am
+                        ? new Message(
+                                business + " · አዲስ ግምገማ",
+                                business + "፦ ለ" + place + " አዲስ የ" + rating + " ኮከብ ግምገማ ደርሷል። ያንብቡና ይመልሱ፦ " + link)
+                        : new Message(
+                                business + " · new review",
+                                business + ": a new " + rating + "-star review for " + place + ". Read and reply: "
+                                        + link);
+            }
+            case Notifier.REVIEW_REMOVED ->
+                am
+                        ? new Message(
+                                business + " · ግምገማ ወርዷል",
+                                "ቢቨንት ለ" + business + " (" + place + ") የጻፉትን ግምገማ አውርዶታል። አይቆጠርም፤ መለወጥም አይቻልም።" + why)
+                        : new Message(
+                                business + " · review taken down",
+                                "Beavent took down your review of " + business + " (" + place
+                                        + "). It no longer counts and cannot be changed." + why);
+            case Notifier.REVIEW_RESTORED ->
+                am
+                        ? new Message(
+                                business + " · ግምገማ ተመልሷል",
+                                "ለ" + business + " (" + place + ") የጻፉት ግምገማ እንደገና ታይቷል።")
+                        : new Message(
+                                business + " · review back",
+                                "Your review of " + business + " (" + place + ") is showing again.");
+            case Notifier.REVIEW_REPORT_OUTCOME ->
+                "HIDE".equals(data.get("decision"))
+                        ? (am
+                                ? new Message(
+                                        business + " · ግምገማ ወርዷል",
+                                        business + "፦ ያሳወቁት የ" + place + " ግምገማ በቢቨንት ወርዷል።")
+                                : new Message(
+                                        business + " · review taken down",
+                                        business + ": Beavent took down the review you reported for " + place + "."))
+                        : (am
+                                ? new Message(
+                                        business + " · ግምገማ ቀጥሏል",
+                                        business + "፦ ያሳወቁትን የ" + place + " ግምገማ ቢቨንት መርምሮ እንዲቆይ ወስኗል።")
+                                : new Message(
+                                        business + " · review kept",
+                                        business + ": Beavent looked at the review you reported for " + place
+                                                + " and kept it."));
+            case Notifier.MARKETPLACE_CHANGED -> {
+                String status = String.valueOf(data.get("status"));
+                yield switch (status) {
+                    case "LISTED" ->
+                        am
+                                ? new Message(
+                                        business + " · በቢቨንት",
+                                        business + "፦ አሁን በቢቨንት ላይ ተዘርዝረዋል። ሰዎች በፍለጋ ሊያገኟችሁ ይችላሉ።")
+                                : new Message(
+                                        business + " · on Beavent",
+                                        business + " is now listed on Beavent. People can find you in search.");
+                    case "DELISTED" ->
+                        am
+                                ? new Message(
+                                        business + " · ከቢቨንት ወርዷል",
+                                        "ቢቨንት " + business + "ን ከገበያ ቦታው አውርዶታል።" + why)
+                                : new Message(
+                                        business + " · taken off Beavent",
+                                        "Beavent took " + business + " off the marketplace." + why);
+                    default ->
+                        am
+                                ? new Message(
+                                        business + " · ጥያቄ ተመልሷል",
+                                        "ቢቨንት " + business + " ለመዘርዘር ያቀረቡትን ጥያቄ መልሶታል።" + why)
+                                : new Message(
+                                        business + " · request sent back",
+                                        "Beavent sent back the request to list " + business + "." + why);
+                };
+            }
+            default -> throw new IllegalArgumentException("No text for " + code);
+        };
     }
 
     /** The people who manage payouts hear that the account changed and when payouts to it start (plan 3.4). */

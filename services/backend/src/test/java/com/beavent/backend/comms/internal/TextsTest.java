@@ -57,4 +57,44 @@ class TextsTest {
         assertThat(Dispatcher.mask("+251911223344")).isEqualTo("+2519•••44");
         assertThat(Dispatcher.mask("hana@example.com")).isEqualTo("h•••@example.com");
     }
+
+    @Test
+    void reviewRequestsAndMessagesAboutReviewsAndTheMarketplaceRenderInBothLanguages() {
+        Map<String, Object> visit = new java.util.HashMap<>(DATA);
+        visit.put("web", "https://beavent.example");
+        for (String language : new String[] {"am", "en", null}) {
+            Texts.Message request = Texts.render(Notifier.REVIEW_REQUEST, language, visit);
+            assertThat(request.text()).contains("Abeba Beauty").contains("/account/reviews");
+            assertThat(request.text().length()).isLessThan(300);
+        }
+        assertThat(Texts.render(Notifier.REVIEW_REQUEST, "en", visit).text())
+                .isEqualTo("Abeba Beauty: how was your visit on Fri 27 Nov? Rate it in a minute:"
+                        + " https://beavent.example/en/account/reviews");
+
+        Map<String, Object> review = Map.of(
+                "business", "Abeba Beauty", "place", "Bole", "rating", 2, "web", "https://beavent.example",
+                "orgId", "org-1", "reason", "Insults the staff.", "decision", "HIDE", "status", "DELISTED");
+        for (String code : new String[] {
+            Notifier.REVIEW_RECEIVED, Notifier.REVIEW_REMOVED, Notifier.REVIEW_RESTORED,
+            Notifier.REVIEW_REPORT_OUTCOME, Notifier.MARKETPLACE_CHANGED
+        }) {
+            for (String language : new String[] {"am", "en"}) {
+                Texts.Message m = Texts.render(code, language, review);
+                assertThat(m.text()).as(code + " " + language).contains("Abeba Beauty");
+                assertThat(m.subject()).as(code + " " + language).isNotBlank();
+                assertThat(m.text().length()).as("fits two SMS").isLessThan(320);
+            }
+        }
+        assertThat(Texts.render(Notifier.REVIEW_RECEIVED, "en", review).text())
+                .contains("2-star review for Bole")
+                .contains("https://beavent.example/en/business/o/org-1/reviews");
+        assertThat(Texts.render(Notifier.REVIEW_REMOVED, "en", review).text()).contains("Reason: Insults the staff.");
+        for (String status : new String[] {"LISTED", "DELISTED", "HIDDEN"}) {
+            Map<String, Object> change = new java.util.HashMap<>(review);
+            change.put("status", status);
+            assertThat(Texts.render(Notifier.MARKETPLACE_CHANGED, "en", change).text())
+                    .as(status)
+                    .contains("Abeba Beauty");
+        }
+    }
 }

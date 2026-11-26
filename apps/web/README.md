@@ -4,7 +4,7 @@ One Next.js 16 app for everything on the web. Routes:
 
 | URL                          | What                                                                                 |
 | ---------------------------- | ------------------------------------------------------------------------------------ |
-| `/[lang]` (`am`, `en`, `om`) | Public site (marketplace shell today; Services and Events marketplace to come)       |
+| `/[lang]` (`am`, `en`, `om`) | Public site: Explore home, `/search`, `/{city}/{category}` pages, venue pages `/b/…` |
 | `/[lang]/business/...`       | Business and organizer console: sign-in, onboarding, menu, team, rota, booking rules |
 | `/<ADMIN_PATH>/...`          | Admin console for platform staff (secret path; default `/ops` in development)        |
 

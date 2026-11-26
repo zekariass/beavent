@@ -70,7 +70,7 @@ export type Translate = (key: MessageKey, values?: Values) => string;
 
 /** A translator for one language; missing keys fall back to English, unknown keys to the key itself. */
 export function createTranslator(language: Language): Translate {
-  const plural = new Intl.PluralRules(language);
+  const plural = pluralRules(language);
   const numbers = new Intl.NumberFormat(language);
   return (key, values = {}) => {
     const message = catalogues[language][key] ?? en[key] ?? key;
@@ -78,11 +78,31 @@ export function createTranslator(language: Language): Translate {
   };
 }
 
+/** What a message needs to pick a plural form. */
+interface Plurals {
+  select(count: number): string;
+}
+
+/**
+ * Plural categories of a language. Hermes, the JavaScript engine of the phone apps, has no `Intl.PluralRules`, so
+ * without it the rules of our three languages are applied directly: Amharic uses "one" for 0 and 1; English and Afaan
+ * Oromoo for exactly 1.
+ */
+function pluralRules(language: Language): Plurals {
+  if (typeof Intl !== "undefined" && typeof Intl.PluralRules === "function") {
+    return new Intl.PluralRules(language);
+  }
+  return {
+    select: (count) =>
+      (language === "am" ? count === 0 || count === 1 : count === 1) ? "one" : "other",
+  };
+}
+
 /** ICU subset: {name}, {count, plural, =0 {…} one {…} other {…}} with # for the number. */
 function render(
   message: string,
   values: Values,
-  plural: Intl.PluralRules,
+  plural: Plurals,
   numbers: Intl.NumberFormat,
 ): string {
   let out = "";

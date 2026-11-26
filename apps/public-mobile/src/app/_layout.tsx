@@ -24,11 +24,18 @@ function Shell() {
           headerTitleStyle: { color: colors.text },
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
+          // iOS would print the previous route's name ("(tabs)") next to the arrow.
+          headerBackButtonDisplayMode: "minimal",
           contentStyle: { backgroundColor: colors.background },
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="sign-in" options={{ presentation: "modal", title: t("nav.signIn") }} />
+        {/* Search covers the tabs and fades in (MARKETPLACE_NAVIGATION.md §4); results and places push over them. */}
+        <Stack.Screen
+          name="search"
+          options={{ presentation: "fullScreenModal", animation: "fade", headerShown: false }}
+        />
         {/* Booking is a full-screen flow over the venue (DD4). */}
         <Stack.Screen
           name="b/[business]/[location]/book"

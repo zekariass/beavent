@@ -7,6 +7,8 @@ const sections = () => [
   { href: "/", label: "Overview" },
   { href: "/verification", label: "Verification queue" },
   { href: "/organizations", label: "Organizations" },
+  { href: "/marketplace", label: "Marketplace" },
+  { href: "/reviews", label: "Reviews" },
   { href: "/payout-accounts", label: "Payout accounts" },
   { href: "/payouts", label: "Payouts" },
   { href: "/refunds", label: "Refunds" },

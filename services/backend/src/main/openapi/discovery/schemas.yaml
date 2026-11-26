@@ -1,0 +1,502 @@
+SearchKind:
+  type: string
+  enum: [LOCATION, EVENT]
+SearchMenuLine:
+  type: object
+  description: One service of a place that matches what was typed or the category, for the result row.
+  required: [serviceId, name, durationMinutes, priceMinor, priceType, matches]
+  properties:
+    serviceId:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    durationMinutes:
+      type: integer
+    priceMinor:
+      type: integer
+      format: int64
+      description: The lowest price of the service, minor units of the listing's currency.
+    priceType:
+      type: string
+      enum: [FIXED, FROM, ON_CONSULTATION]
+    matches:
+      type: boolean
+SearchItem:
+  type: object
+  description: |
+    A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+    (`path` is the part after the prefix).
+  required:
+    - id
+    - kind
+    - title
+    - summary
+    - imageVariants
+    - businessSlug
+    - path
+    - category
+    - area
+    - ratingCount
+    - online
+    - deliveryModes
+    - serviceCount
+    - menu
+    - newOnBeavent
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+      description: Places only. The id the save endpoints take.
+    kind:
+      $ref: '#/SearchKind'
+    title:
+      type: string
+    summary:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    imageUrl:
+      type: string
+    imageVariants:
+      type: object
+      description: Smaller sizes by name (w320, w960).
+      additionalProperties:
+        type: string
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    eventSlug:
+      type: string
+    path:
+      type: string
+      description: "`/{businessSlug}/{locationSlug or eventSlug}`."
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    area:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    landmark:
+      type: string
+    latitude:
+      type: number
+    longitude:
+      type: number
+    distanceMeters:
+      type: integer
+      description: From `lat`/`lng` when they were given.
+    priceFromMinor:
+      type: integer
+      format: int64
+      description: All-in "from" price in minor units; `0` is free.
+    currency:
+      type: string
+    ratingAvg:
+      type: number
+    ratingCount:
+      type: integer
+    nextAvailableAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+      description: Places only. The earliest bookable time found at the last refresh.
+    nextStartsAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+      description: Events only.
+    lastEndsAt:
+      allOf:
+        - $ref: ../common/schemas.yaml#/Instant
+    online:
+      type: boolean
+    timezone:
+      type: string
+    serviceMode:
+      type: string
+      enum: [ON_PREMISES, MOBILE_ONLY, BOTH]
+    deliveryModes:
+      type: array
+      items:
+        type: string
+    serviceCount:
+      type: integer
+    menu:
+      type: array
+      description: Up to three services matching the words typed or the category; empty otherwise.
+      items:
+        $ref: '#/SearchMenuLine'
+    newOnBeavent:
+      type: boolean
+SearchPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SearchItem'
+    nextCursor:
+      type: string
+      description: Absent on the last page.
+    total:
+      type: integer
+      description: How many listings match; given on the first page only.
+SearchPin:
+  type: object
+  required: [id, kind, title, path, latitude, longitude]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      $ref: '#/SearchKind'
+    title:
+      type: string
+    path:
+      type: string
+    latitude:
+      type: number
+    longitude:
+      type: number
+    priceFromMinor:
+      type: integer
+      format: int64
+    currency:
+      type: string
+    ratingAvg:
+      type: number
+SearchPins:
+  type: object
+  required: [pins, truncated]
+  properties:
+    pins:
+      type: array
+      items:
+        $ref: '#/SearchPin'
+    truncated:
+      type: boolean
+      description: More listings match than are returned (at most 200), so zoom in or narrow the filters.
+SearchCategoryHit:
+  type: object
+  required: [code, kind, name]
+  properties:
+    code:
+      type: string
+    kind:
+      type: string
+      enum: [BUSINESS, SERVICE, EVENT, PRODUCT]
+    name:
+      $ref: ../common/schemas.yaml#/LocalizedText
+SearchSuggestions:
+  type: object
+  required: [categories, places, events]
+  properties:
+    categories:
+      type: array
+      items:
+        $ref: '#/SearchCategoryHit'
+    places:
+      type: array
+      items:
+        $ref: '#/SearchItem'
+    events:
+      type: array
+      items:
+        $ref: '#/SearchItem'
+MarketplaceRequirement:
+  type: object
+  required: [code, met]
+  properties:
+    code:
+      type: string
+      enum: [LOCATION, SERVICE]
+      description: An active location, or an active service people can book online at one.
+    met:
+      type: boolean
+MarketplaceStatus:
+  type: object
+  required: [status, requirements, canRequest]
+  properties:
+    status:
+      type: string
+      enum: [HIDDEN, PENDING_REVIEW, LISTED, DELISTED]
+    note:
+      type: string
+      description: Why staff sent the request back or took the business off; present until it asks again.
+    changedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    requirements:
+      type: array
+      items:
+        $ref: '#/MarketplaceRequirement'
+    canRequest:
+      type: boolean
+      description: The business may ask now (hidden, ready, not taken off by staff).
+SavedEntry:
+  type: object
+  required: [savedAt, place]
+  properties:
+    savedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    place:
+      $ref: '#/SearchItem'
+SavedList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SavedEntry'
+Followed:
+  type: object
+  required: [businessSlug, name, category, since, source, notifications]
+  properties:
+    businessSlug:
+      type: string
+    name:
+      type: string
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoUrl:
+      type: string
+    since:
+      $ref: ../common/schemas.yaml#/Instant
+    source:
+      type: string
+      enum: [MANUAL, AFTER_PURCHASE, AFTER_VISIT]
+    notifications:
+      type: boolean
+      description: The person wants to hear about this business's news and offers.
+FollowedList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Followed'
+Brand:
+  type: object
+  required: [slug, name, description, category, logoVariants, places, followers]
+  properties:
+    slug:
+      type: string
+    name:
+      type: string
+    description:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    category:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    logoUrl:
+      type: string
+    logoVariants:
+      type: object
+      description: Smaller sizes by name (w320, w960).
+      additionalProperties:
+        type: string
+    places:
+      type: integer
+      description: How many of its places are listed on the marketplace.
+    followers:
+      type: integer
+
+ReviewResponse:
+  type: object
+  required: [body, at]
+  properties:
+    body:
+      type: string
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+ReviewSummary:
+  type: object
+  required: [count, distribution]
+  properties:
+    average:
+      type: number
+      description: Average of the published reviews, two decimals; absent when there are none.
+    count:
+      type: integer
+    distribution:
+      type: array
+      description: How many reviews gave 1, 2, 3, 4 and 5 stars, in that order.
+      items:
+        type: integer
+Review:
+  type: object
+  description: A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name.
+  required: [id, rating, locationSlug, placeName, visitedOn, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    body:
+      type: string
+    authorName:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedOn:
+      type: string
+      format: date
+      description: The day of the visit, in the place's time zone.
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      $ref: '#/ReviewResponse'
+ReviewPage:
+  type: object
+  required: [summary, items]
+  properties:
+    summary:
+      $ref: '#/ReviewSummary'
+    items:
+      type: array
+      items:
+        $ref: '#/Review'
+    nextCursor:
+      type: string
+PendingReview:
+  type: object
+  description: A completed visit that has no review yet and can still get one.
+  required: [appointmentId, locationId, businessSlug, locationSlug, placeName, visitedAt, canReviewUntil]
+  properties:
+    appointmentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    canReviewUntil:
+      $ref: ../common/schemas.yaml#/Instant
+MyReview:
+  type: object
+  required: [id, appointmentId, businessSlug, locationSlug, placeName, rating, status, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    appointmentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    rating:
+      type: integer
+    body:
+      type: string
+    status:
+      type: string
+      enum: [PUBLISHED, HIDDEN, PENDING_MODERATION, REMOVED]
+      description: "`HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed."
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      $ref: '#/ReviewResponse'
+MyReviews:
+  type: object
+  required: [pending, reviews]
+  properties:
+    pending:
+      type: array
+      items:
+        $ref: '#/PendingReview'
+    reviews:
+      type: array
+      items:
+        $ref: '#/MyReview'
+ReviewInput:
+  type: object
+  required: [rating]
+  properties:
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    body:
+      type: string
+      maxLength: 1000
+BusinessReview:
+  type: object
+  required: [id, rating, locationId, placeName, visitedOn, createdAt, status, reported]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    rating:
+      type: integer
+    body:
+      type: string
+    authorName:
+      type: string
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedOn:
+      type: string
+      format: date
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    status:
+      type: string
+      enum: [PUBLISHED, HIDDEN, PENDING_MODERATION, REMOVED]
+    response:
+      $ref: '#/ReviewResponse'
+    reported:
+      type: boolean
+      description: A report is waiting for staff.
+BusinessReviewPage:
+  type: object
+  required: [summary, items]
+  properties:
+    summary:
+      $ref: '#/ReviewSummary'
+    items:
+      type: array
+      items:
+        $ref: '#/BusinessReview'
+    nextCursor:
+      type: string
+ReviewAnswerInput:
+  type: object
+  required: [body]
+  properties:
+    body:
+      type: string
+      minLength: 1
+      maxLength: 1000
+ReviewReportInput:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [INAPPROPRIATE, HARASSMENT, MISLEADING_PRICE, UNSAFE, OTHER]
+    details:
+      type: string
+      maxLength: 500

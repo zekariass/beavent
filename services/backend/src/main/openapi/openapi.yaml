@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Notifications
+    description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
     description: Sign-in, tokens and sessions
   - name: Me
@@ -48,6 +50,8 @@ tags:
     description: The business's clients — details, notes and alerts, tags, history, merging, importing, forms and patch tests
   - name: Marketplace
     description: What the public sees of a business (venue pages)
+  - name: Discovery
+    description: Search over places to book and things to do (public)
   - name: GiftCards
     description: Gift cards a business sells, delivers and honours as a payment method
   - name: Files
@@ -307,6 +311,41 @@ paths:
     $ref: ./marketplace/paths.yaml#/businessLocations
   /v1/public/venues/{businessSlug}/{locationSlug}:
     $ref: ./marketplace/paths.yaml#/venue
+  # --- discovery --------------------------------------------------------------------------------------------
+  /v1/public/search:
+    $ref: ./discovery/paths.yaml#/search
+  /v1/public/search/pins:
+    $ref: ./discovery/paths.yaml#/pins
+  /v1/public/search/suggestions:
+    $ref: ./discovery/paths.yaml#/suggestions
+  /v1/orgs/{orgId}/marketplace:
+    $ref: ./discovery/paths.yaml#/marketplace
+  /v1/me/saved:
+    $ref: ./discovery/paths.yaml#/mySaved
+  /v1/me/saved/locations/{locationId}:
+    $ref: ./discovery/paths.yaml#/mySavedLocation
+  /v1/me/follows:
+    $ref: ./discovery/paths.yaml#/myFollows
+  /v1/me/follows/{businessSlug}:
+    $ref: ./discovery/paths.yaml#/myFollow
+  /v1/public/businesses/{businessSlug}:
+    $ref: ./discovery/paths.yaml#/brand
+  /v1/public/businesses/{businessSlug}/reviews:
+    $ref: ./discovery/paths.yaml#/brandReviews
+  /v1/me/notification-settings:
+    $ref: ./comms/paths.yaml#/notificationSettings
+  /v1/me/reviews:
+    $ref: ./discovery/paths.yaml#/myReviews
+  /v1/me/reviews/{reviewId}:
+    $ref: ./discovery/paths.yaml#/myReview
+  /v1/me/appointments/{appointmentId}/review:
+    $ref: ./discovery/paths.yaml#/myAppointmentReview
+  /v1/orgs/{orgId}/reviews:
+    $ref: ./discovery/paths.yaml#/orgReviews
+  /v1/orgs/{orgId}/reviews/{reviewId}/response:
+    $ref: ./discovery/paths.yaml#/orgReviewResponse
+  /v1/orgs/{orgId}/reviews/{reviewId}/report:
+    $ref: ./discovery/paths.yaml#/orgReviewReport
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles
@@ -345,6 +384,14 @@ paths:
     $ref: ./admin/paths.yaml#/adminPayoutAccountReveal
   /v1/admin/payout-accounts/{accountId}/decision:
     $ref: ./admin/paths.yaml#/adminPayoutAccountDecision
+  /v1/admin/marketplace-listings:
+    $ref: ./admin/paths.yaml#/adminMarketplaceListings
+  /v1/admin/reviews:
+    $ref: ./admin/paths.yaml#/adminReviews
+  /v1/admin/reviews/{reviewId}/decision:
+    $ref: ./admin/paths.yaml#/adminReviewDecision
+  /v1/admin/orgs/{orgId}/marketplace-decision:
+    $ref: ./admin/paths.yaml#/adminMarketplaceDecision
   /v1/admin/payouts:
     $ref: ./admin/paths.yaml#/adminPayouts
   /v1/admin/payouts/export:

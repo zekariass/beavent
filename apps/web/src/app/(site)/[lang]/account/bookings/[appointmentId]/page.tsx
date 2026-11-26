@@ -9,6 +9,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { customerApi } from "@/lib/customer/session";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { menuNames } from "@/lib/venue";
+import { MyReviewRow } from "@/components/reviews/MyReviewRow";
+import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { CancelBooking } from "./CancelBooking";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -67,6 +69,14 @@ export default async function AppointmentPage({
         })
       ).data?.items ?? []);
 
+  // A completed visit can be reviewed here: the form while it waits, the review afterwards.
+  const reviews =
+    a.status === "COMPLETED"
+      ? ((await api.GET("/v1/me/reviews").catch(() => null))?.data ?? null)
+      : null;
+  const waiting = reviews?.pending.find((p) => p.appointmentId === a.id);
+  const written = reviews?.reviews.find((r) => r.appointmentId === a.id);
+
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <SiteHeader language={language} path={`/account/bookings/${a.id}`} />
@@ -116,6 +126,20 @@ export default async function AppointmentPage({
               amount: price(a.payment.dueNowMinor, a.payment.currency, language),
             })}
           </Link>
+        ) : null}
+
+        {waiting ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="bv-type-title2 text-fg">{t("reviews.write")}</h2>
+            <ReviewForm language={language} appointmentId={a.id} />
+          </section>
+        ) : written ? (
+          <section className="flex flex-col gap-1">
+            <h2 className="bv-type-title2 text-fg">{t("reviews.mine.title")}</h2>
+            <ul className="border-t border-border">
+              <MyReviewRow review={written} language={language} />
+            </ul>
+          </section>
         ) : null}
 
         {forms.length > 0 ? (

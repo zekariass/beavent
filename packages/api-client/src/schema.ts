@@ -2256,6 +2256,362 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search places to book and things to do, together
+         * @description Public. One search over the marketplace listings: full text (whole and partial words, in Amharic or Latin letters,
+         *     misspellings), category, area, distance or map window, price, rating, open now, at home, audience, language, and a
+         *     date (with a part of the day) with a bookable time or an occurrence. `total` is given on the first page only.
+         *     Bookable times are refreshed about once a minute and are advisory: the booking flow checks again.
+         */
+        get: operations["searchListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/search/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pins for the map, with the same filters as the search
+         * @description Needs a map window (`west`…`north`) or `lat`/`lng`. At most 200 pins; `truncated` says there are more.
+         */
+        get: operations["searchPins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/search/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categories, places and events matching what has been typed so far */
+        get: operations["searchSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketplace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the business stands on the marketplace, and what it still needs
+         * @description Needs `org.settings.manage`.
+         */
+        get: operations["getMarketplaceStatus"];
+        /**
+         * Ask to be listed on the marketplace, or take the request (or the listing) back
+         * @description Needs `org.settings.manage`. `requested: true` asks platform staff to list the business: it needs an active location
+         *     and a service people can book online (`CONSTRAINT_VIOLATION` otherwise), and cannot be asked again while it waits,
+         *     while it is listed, or after staff took it off (`CONFLICT`). `requested: false` takes a waiting request or a
+         *     listing back (the business becomes hidden and can ask again).
+         */
+        put: operations["setMarketplaceRequest"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in person's saved places, newest first
+         * @description Places taken off the marketplace since they were saved are left out until they are listed again.
+         */
+        get: operations["listSavedPlaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/saved/locations/{locationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save a place (saving it again changes nothing)
+         * @description The place must be listed on the marketplace (`NOT_FOUND` otherwise).
+         */
+        put: operations["savePlace"];
+        post?: never;
+        /** Take a place off the saved list */
+        delete: operations["unsavePlace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The businesses and organizers the signed-in person follows, newest first */
+        get: operations["listFollowedBusinesses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/follows/{businessSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Follow a business, or change whether to be told about its news */
+        put: operations["followBusiness"];
+        post?: never;
+        /** Stop following a business */
+        delete: operations["unfollowBusiness"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/businesses/{businessSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A business as a whole, for its brand page
+         * @description Public. A business that is active or still onboarding; the places it lists come from the search (`business`).
+         */
+        get: operations["getBrand"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/businesses/{businessSlug}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Published reviews of a business or of one of its places, newest first
+         * @description Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+         */
+        get: operations["listBrandReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The person's choices about reminders and quiet hours
+         * @description A person who never chose gets the defaults (reminders by text message and email, no quiet hours).
+         */
+        get: operations["getNotificationSettings"];
+        /**
+         * Change the choices about reminders and quiet hours
+         * @description A reminder that would arrive in quiet hours waits until they end; one that cannot wait (the visit is less than
+         *     30 minutes after they end) is not sent. A review request waits the same way. `VALIDATION_FAILED` when the start
+         *     and end of quiet hours are the same.
+         */
+        put: operations["saveNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visits waiting for a review, and the reviews the person wrote
+         * @description A visit can be reviewed once it is completed and for 90 days after it ended.
+         */
+        get: operations["listMyReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/reviews/{reviewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the rating or text of the person's own review
+         * @description The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+         */
+        put: operations["editReview"];
+        post?: never;
+        /** Delete the person's own review */
+        delete: operations["deleteReview"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review a completed visit
+         * @description One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+         *     `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+         *     changes at once.
+         */
+        post: operations["writeReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reviews of the business's places, newest first
+         * @description Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+         */
+        get: operations["listOrgReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews/{reviewId}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Answer a published review, or replace the answer
+         * @description Needs `reviews.respond`. The answer shows under the review for everyone.
+         */
+        put: operations["answerReview"];
+        post?: never;
+        /**
+         * Take the answer back
+         * @description Needs `reviews.respond`.
+         */
+        delete: operations["removeReviewAnswer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews/{reviewId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask platform staff to look at a review
+         * @description Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+         */
+        post: operations["reportReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -2566,6 +2922,91 @@ export interface paths {
          *     `REQUEST_INFO` is not used for accounts. Approving makes it the business's default account; the earlier one is retired.
          */
         post: operations["decidePayoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/marketplace-listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Businesses by their place on the marketplace, oldest first (default `PENDING_REVIEW`)
+         * @description Needs `admin.marketplace.review`, in the business's market.
+         */
+        get: operations["listMarketplaceListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reviews that businesses reported (default) or that staff took down, oldest first
+         * @description Needs `admin.moderation`, in the business's market.
+         */
+        get: operations["listReviewsForModeration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reviews/{reviewId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide a review, put it back, or dismiss the reports on it (reason required, audited)
+         * @description Needs `admin.moderation`; staff cannot decide about a business they belong to. `HIDE` takes a published review
+         *     down (it stops counting in the place's rating) and closes its reports as actioned; `RESTORE` puts a hidden review
+         *     back; `DISMISS` closes the open reports and leaves the review. Each decision is recorded with its reason.
+         */
+        post: operations["decideReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/orgs/{orgId}/marketplace-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List a business on the marketplace, send its request back, or take it off (reason required, audited)
+         * @description Needs `admin.marketplace.review`; staff cannot decide about a business they belong to. `LIST` needs an active
+         *     location and a service people can book online (`CONSTRAINT_VIOLATION`) and a business that is not suspended,
+         *     restricted or closed; `REJECT` answers a waiting request; `DELIST` takes a listed business off. The reason is shown
+         *     to the business after `REJECT` and `DELIST`. The business is in or out of search right away.
+         */
+        post: operations["decideMarketplace"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5019,6 +5460,279 @@ export interface components {
             policy: components["schemas"]["VenuePolicy"];
             otherLocations: components["schemas"]["VenueOther"][];
         };
+        /** @enum {string} */
+        SearchKind: "LOCATION" | "EVENT";
+        /** @description One service of a place that matches what was typed or the category, for the result row. */
+        SearchMenuLine: {
+            serviceId: components["schemas"]["Uuid"];
+            name: components["schemas"]["LocalizedText"];
+            durationMinutes: number;
+            /**
+             * Format: int64
+             * @description The lowest price of the service, minor units of the listing's currency.
+             */
+            priceMinor: number;
+            /** @enum {string} */
+            priceType: "FIXED" | "FROM" | "ON_CONSULTATION";
+            matches: boolean;
+        };
+        /**
+         * @description A place or an event. Places open at `/b/{businessSlug}/{locationSlug}`, events at `/e/{businessSlug}/{eventSlug}`
+         *     (`path` is the part after the prefix).
+         */
+        SearchItem: {
+            id: components["schemas"]["Uuid"];
+            /** @description Places only. The id the save endpoints take. */
+            locationId?: components["schemas"]["Uuid"];
+            kind: components["schemas"]["SearchKind"];
+            title: string;
+            summary: components["schemas"]["LocalizedText"];
+            imageUrl?: string;
+            /** @description Smaller sizes by name (w320, w960). */
+            imageVariants: {
+                [key: string]: string;
+            };
+            businessSlug: string;
+            locationSlug?: string;
+            eventSlug?: string;
+            /** @description `/{businessSlug}/{locationSlug or eventSlug}`. */
+            path: string;
+            category: components["schemas"]["LocalizedText"];
+            area: components["schemas"]["LocalizedText"];
+            landmark?: string;
+            latitude?: number;
+            longitude?: number;
+            /** @description From `lat`/`lng` when they were given. */
+            distanceMeters?: number;
+            /**
+             * Format: int64
+             * @description All-in "from" price in minor units; `0` is free.
+             */
+            priceFromMinor?: number;
+            currency?: string;
+            ratingAvg?: number;
+            ratingCount: number;
+            /** @description Places only. The earliest bookable time found at the last refresh. */
+            nextAvailableAt?: components["schemas"]["Instant"];
+            /** @description Events only. */
+            nextStartsAt?: components["schemas"]["Instant"];
+            lastEndsAt?: components["schemas"]["Instant"];
+            online: boolean;
+            timezone?: string;
+            /** @enum {string} */
+            serviceMode?: "ON_PREMISES" | "MOBILE_ONLY" | "BOTH";
+            deliveryModes: string[];
+            serviceCount: number;
+            /** @description Up to three services matching the words typed or the category; empty otherwise. */
+            menu: components["schemas"]["SearchMenuLine"][];
+            newOnBeavent: boolean;
+        };
+        SearchPage: {
+            items: components["schemas"]["SearchItem"][];
+            /** @description Absent on the last page. */
+            nextCursor?: string;
+            /** @description How many listings match; given on the first page only. */
+            total?: number;
+        };
+        SearchPin: {
+            id: components["schemas"]["Uuid"];
+            kind: components["schemas"]["SearchKind"];
+            title: string;
+            path: string;
+            latitude: number;
+            longitude: number;
+            /** Format: int64 */
+            priceFromMinor?: number;
+            currency?: string;
+            ratingAvg?: number;
+        };
+        SearchPins: {
+            pins: components["schemas"]["SearchPin"][];
+            /** @description More listings match than are returned (at most 200), so zoom in or narrow the filters. */
+            truncated: boolean;
+        };
+        SearchCategoryHit: {
+            code: string;
+            /** @enum {string} */
+            kind: "BUSINESS" | "SERVICE" | "EVENT" | "PRODUCT";
+            name: components["schemas"]["LocalizedText"];
+        };
+        SearchSuggestions: {
+            categories: components["schemas"]["SearchCategoryHit"][];
+            places: components["schemas"]["SearchItem"][];
+            events: components["schemas"]["SearchItem"][];
+        };
+        MarketplaceRequirement: {
+            /**
+             * @description An active location, or an active service people can book online at one.
+             * @enum {string}
+             */
+            code: "LOCATION" | "SERVICE";
+            met: boolean;
+        };
+        MarketplaceStatus: {
+            /** @enum {string} */
+            status: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+            /** @description Why staff sent the request back or took the business off; present until it asks again. */
+            note?: string;
+            changedAt?: components["schemas"]["Instant"];
+            requirements: components["schemas"]["MarketplaceRequirement"][];
+            /** @description The business may ask now (hidden, ready, not taken off by staff). */
+            canRequest: boolean;
+        };
+        SavedEntry: {
+            savedAt: components["schemas"]["Instant"];
+            place: components["schemas"]["SearchItem"];
+        };
+        SavedList: {
+            items: components["schemas"]["SavedEntry"][];
+        };
+        Followed: {
+            businessSlug: string;
+            name: string;
+            category: components["schemas"]["LocalizedText"];
+            logoUrl?: string;
+            since: components["schemas"]["Instant"];
+            /** @enum {string} */
+            source: "MANUAL" | "AFTER_PURCHASE" | "AFTER_VISIT";
+            /** @description The person wants to hear about this business's news and offers. */
+            notifications: boolean;
+        };
+        FollowedList: {
+            items: components["schemas"]["Followed"][];
+        };
+        Brand: {
+            slug: string;
+            name: string;
+            description: components["schemas"]["LocalizedText"];
+            category: components["schemas"]["LocalizedText"];
+            logoUrl?: string;
+            /** @description Smaller sizes by name (w320, w960). */
+            logoVariants: {
+                [key: string]: string;
+            };
+            /** @description How many of its places are listed on the marketplace. */
+            places: number;
+            followers: number;
+        };
+        ReviewSummary: {
+            /** @description Average of the published reviews, two decimals; absent when there are none. */
+            average?: number;
+            count: number;
+            /** @description How many reviews gave 1, 2, 3, 4 and 5 stars, in that order. */
+            distribution: number[];
+        };
+        ReviewResponse: {
+            body: string;
+            at: components["schemas"]["Instant"];
+        };
+        /** @description A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name. */
+        Review: {
+            id: components["schemas"]["Uuid"];
+            rating: number;
+            body?: string;
+            authorName?: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            /**
+             * Format: date
+             * @description The day of the visit, in the place's time zone.
+             */
+            visitedOn: string;
+            createdAt: components["schemas"]["Instant"];
+            response?: components["schemas"]["ReviewResponse"];
+        };
+        ReviewPage: {
+            summary: components["schemas"]["ReviewSummary"];
+            items: components["schemas"]["Review"][];
+            nextCursor?: string;
+        };
+        /**
+         * @description What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
+         *     not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
+         */
+        NotificationSettings: {
+            /** @description Reminders and review requests by text message. */
+            remindersSms: boolean;
+            /** @description Reminders and review requests by email. */
+            remindersEmail: boolean;
+            /** @description Hold reminders and review requests during quiet hours. */
+            quietHours: boolean;
+            /** @description Start of quiet hours, `HH:mm`. */
+            quietFrom: string;
+            /** @description End of quiet hours, `HH:mm`; the next morning when earlier than `quietFrom`. */
+            quietTo: string;
+        };
+        /** @description A completed visit that has no review yet and can still get one. */
+        PendingReview: {
+            appointmentId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            businessSlug: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            visitedAt: components["schemas"]["Instant"];
+            canReviewUntil: components["schemas"]["Instant"];
+        };
+        MyReview: {
+            id: components["schemas"]["Uuid"];
+            appointmentId: components["schemas"]["Uuid"];
+            businessSlug: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            rating: number;
+            body?: string;
+            /**
+             * @description `HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed.
+             * @enum {string}
+             */
+            status: "PUBLISHED" | "HIDDEN" | "PENDING_MODERATION" | "REMOVED";
+            createdAt: components["schemas"]["Instant"];
+            response?: components["schemas"]["ReviewResponse"];
+        };
+        MyReviews: {
+            pending: components["schemas"]["PendingReview"][];
+            reviews: components["schemas"]["MyReview"][];
+        };
+        ReviewInput: {
+            rating: number;
+            body?: string;
+        };
+        BusinessReview: {
+            id: components["schemas"]["Uuid"];
+            rating: number;
+            body?: string;
+            authorName?: string;
+            locationId: components["schemas"]["Uuid"];
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            /** Format: date */
+            visitedOn: string;
+            createdAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            status: "PUBLISHED" | "HIDDEN" | "PENDING_MODERATION" | "REMOVED";
+            response?: components["schemas"]["ReviewResponse"];
+            /** @description A report is waiting for staff. */
+            reported: boolean;
+        };
+        BusinessReviewPage: {
+            summary: components["schemas"]["ReviewSummary"];
+            items: components["schemas"]["BusinessReview"][];
+            nextCursor?: string;
+        };
+        ReviewAnswerInput: {
+            body: string;
+        };
+        ReviewReportInput: {
+            /** @enum {string} */
+            reason: "INAPPROPRIATE" | "HARASSMENT" | "MISLEADING_PRICE" | "UNSAFE" | "OTHER";
+            details?: string;
+        };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
          *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
@@ -5225,6 +5939,65 @@ export interface components {
         };
         AccountNumber: {
             accountNumber: string;
+        };
+        MarketplaceListing: {
+            orgId: components["schemas"]["Uuid"];
+            slug: string;
+            organization: string;
+            marketCode: string;
+            organizationStatus: string;
+            /** @enum {string} */
+            status: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+            /** @description The reason of the last send-back or take-down. */
+            note?: string;
+            changedAt?: components["schemas"]["Instant"];
+            /** @description Active locations. */
+            locations: number;
+            /** @description Active services people can book online. */
+            services: number;
+        };
+        MarketplaceListingPage: {
+            items: components["schemas"]["MarketplaceListing"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        StaffReviewReport: {
+            id: components["schemas"]["Uuid"];
+            reason: string;
+            details?: string;
+            /** @enum {string} */
+            status: "OPEN" | "IN_REVIEW" | "ACTIONED" | "DISMISSED";
+            at: components["schemas"]["Instant"];
+        };
+        StaffReview: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            businessName: string;
+            placeName: string;
+            rating: number;
+            body?: string;
+            authorName?: string;
+            /** @enum {string} */
+            status: "PENDING_MODERATION" | "PUBLISHED" | "HIDDEN" | "REMOVED";
+            createdAt: components["schemas"]["Instant"];
+            response?: {
+                body: string;
+                at: components["schemas"]["Instant"];
+            };
+            reports: components["schemas"]["StaffReviewReport"][];
+        };
+        StaffReviewPage: {
+            items: components["schemas"]["StaffReview"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        ReviewDecision: {
+            /** @enum {string} */
+            decision: "HIDE" | "RESTORE" | "DISMISS";
+            reason: string;
+        };
+        MarketplaceDecision: {
+            /** @enum {string} */
+            decision: "LIST" | "REJECT" | "DELIST";
+            reason: string;
         };
         PayoutSummary: {
             id: components["schemas"]["Uuid"];
@@ -5515,6 +6288,56 @@ export interface components {
         AppointmentIdParam: components["schemas"]["Uuid"];
         /** @description ETag of the version being updated. */
         IfMatch: string;
+        /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+        Q: string;
+        /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+        Kind: "LOCATION" | "EVENT";
+        /** @description Market code, e.g. `ET`. */
+        Market: string;
+        /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+        Category: string;
+        /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+        Area: string;
+        /** @description With `lng`, only listings within `radius` metres. */
+        Lat: number;
+        Lng: number;
+        /** @description Metres around `lat`/`lng`. Default 5000. */
+        Radius: number;
+        /** @description A map window (all four needed, west < east, south < north). */
+        West: number;
+        South: number;
+        East: number;
+        North: number;
+        /**
+         * @description `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+         *     `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+         */
+        Sort: "RECOMMENDED" | "NEAREST" | "TOP_RATED" | "LOWEST_PRICE" | "SOONEST" | "NEWEST";
+        /** @description The "from" price is at most this many minor units of its currency. */
+        MaxPrice: number;
+        MinRating: number;
+        /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+        OpenNow: boolean;
+        /** @description Places whose professionals come to the customer. */
+        AtHome: boolean;
+        /** @description Places with services for this group (or for everyone). */
+        Audience: "WOMEN" | "MEN" | "CHILDREN";
+        /** @description A language a professional speaks, e.g. `am`. */
+        Language: string;
+        /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+        Date: string;
+        /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+        DateTo: string;
+        /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+        Part: "MORNING" | "AFTERNOON" | "EVENING";
+        /** @description Events that cost nothing. */
+        Free: boolean;
+        /** @description Events held online. */
+        Online: boolean;
+        /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+        Business: string;
+        /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+        Location: string;
     };
     requestBodies: never;
     headers: never;
@@ -10101,6 +10924,694 @@ export interface operations {
             429: components["responses"]["TooManyRequests"];
         };
     };
+    searchListings: {
+        parameters: {
+            query?: {
+                /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+                q?: components["parameters"]["Q"];
+                /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+                kind?: components["parameters"]["Kind"];
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+                category?: components["parameters"]["Category"];
+                /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+                area?: components["parameters"]["Area"];
+                /** @description With `lng`, only listings within `radius` metres. */
+                lat?: components["parameters"]["Lat"];
+                lng?: components["parameters"]["Lng"];
+                /** @description Metres around `lat`/`lng`. Default 5000. */
+                radius?: components["parameters"]["Radius"];
+                /** @description A map window (all four needed, west < east, south < north). */
+                west?: components["parameters"]["West"];
+                south?: components["parameters"]["South"];
+                east?: components["parameters"]["East"];
+                north?: components["parameters"]["North"];
+                /**
+                 * @description `RECOMMENDED` (default; relevance when words were typed), `NEAREST` (needs `lat`/`lng`), `TOP_RATED`,
+                 *     `LOWEST_PRICE`, `SOONEST` (next bookable time or event start), `NEWEST`.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description The "from" price is at most this many minor units of its currency. */
+                maxPrice?: components["parameters"]["MaxPrice"];
+                minRating?: components["parameters"]["MinRating"];
+                /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+                openNow?: components["parameters"]["OpenNow"];
+                /** @description Places whose professionals come to the customer. */
+                atHome?: components["parameters"]["AtHome"];
+                /** @description Places with services for this group (or for everyone). */
+                audience?: components["parameters"]["Audience"];
+                /** @description A language a professional speaks, e.g. `am`. */
+                language?: components["parameters"]["Language"];
+                /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+                date?: components["parameters"]["Date"];
+                /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+                dateTo?: components["parameters"]["DateTo"];
+                /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+                part?: components["parameters"]["Part"];
+                /** @description Events that cost nothing. */
+                free?: components["parameters"]["Free"];
+                /** @description Events held online. */
+                online?: components["parameters"]["Online"];
+                /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+                business?: components["parameters"]["Business"];
+                /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+                location?: components["parameters"]["Location"];
+                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of listings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    searchPins: {
+        parameters: {
+            query?: {
+                /** @description What the person typed, in any script (Latin or Ge'ez). "bole" and "ቦሌ" find the same places; partial words and small misspellings match. */
+                q?: components["parameters"]["Q"];
+                /** @description Only places (`LOCATION`) or only events (`EVENT`). Omitted = both together. */
+                kind?: components["parameters"]["Kind"];
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Category code (e.g. `BRAIDS`, `MUSIC`) or id. Matches the business's own category and its services', and the categories below it. */
+                category?: components["parameters"]["Category"];
+                /** @description Administrative area code (e.g. `BOLE`, `AA`) or id; includes the areas inside it. */
+                area?: components["parameters"]["Area"];
+                /** @description With `lng`, only listings within `radius` metres. */
+                lat?: components["parameters"]["Lat"];
+                lng?: components["parameters"]["Lng"];
+                /** @description Metres around `lat`/`lng`. Default 5000. */
+                radius?: components["parameters"]["Radius"];
+                /** @description A map window (all four needed, west < east, south < north). */
+                west?: components["parameters"]["West"];
+                south?: components["parameters"]["South"];
+                east?: components["parameters"]["East"];
+                north?: components["parameters"]["North"];
+                /** @description The "from" price is at most this many minor units of its currency. */
+                maxPrice?: components["parameters"]["MaxPrice"];
+                minRating?: components["parameters"]["MinRating"];
+                /** @description Places open at this moment (opening hours only; announced closures are not applied). */
+                openNow?: components["parameters"]["OpenNow"];
+                /** @description Places whose professionals come to the customer. */
+                atHome?: components["parameters"]["AtHome"];
+                /** @description Places with services for this group (or for everyone). */
+                audience?: components["parameters"]["Audience"];
+                /** @description A language a professional speaks, e.g. `am`. */
+                language?: components["parameters"]["Language"];
+                /** @description First local date with a bookable time (places) or an occurrence (events), e.g. `2026-12-05`. */
+                date?: components["parameters"]["Date"];
+                /** @description Last local date (inclusive); defaults to `date`. At most 60 days after it. */
+                dateTo?: components["parameters"]["DateTo"];
+                /** @description Part of the local day (before 12:00, 12:00–17:00, from 17:00) within `date`…`dateTo`. */
+                part?: components["parameters"]["Part"];
+                /** @description Events that cost nothing. */
+                free?: components["parameters"]["Free"];
+                /** @description Events held online. */
+                online?: components["parameters"]["Online"];
+                /** @description A business's public slug, to get only its places (a brand page lists its locations this way). */
+                business?: components["parameters"]["Business"];
+                /** @description Only these places, as a comma-separated list of location ids (at most 20), for the places a person booked before. */
+                location?: components["parameters"]["Location"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pins. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPins"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    searchSuggestions: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description Market code, e.g. `ET`. */
+                market?: components["parameters"]["Market"];
+                /** @description Per group. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to `limit` of each. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSuggestions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getMarketplaceStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setMarketplaceRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    requested: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The new status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceStatus"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listSavedPlaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved places. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    savePlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unsavePlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locationId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not saved (any more). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listFollowedBusinesses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Followed businesses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    followBusiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Default true. */
+                    notifications?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Followed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Followed"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unfollowBusiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not followed (any more). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getBrand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brand. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Brand"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listBrandReviews: {
+        parameters: {
+            query?: {
+                location?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reviews. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPage"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    saveNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listMyReviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviews"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    editReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    writeReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Published. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listOrgReviews: {
+        parameters: {
+            query?: {
+                unanswered?: boolean;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReviewPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    answerReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewAnswerInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeReviewAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reportReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewReportInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     createFileUpload: {
         parameters: {
             query?: never;
@@ -10590,6 +12101,123 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listMarketplaceListings: {
+        parameters: {
+            query?: {
+                status?: "HIDDEN" | "PENDING_REVIEW" | "LISTED" | "DELISTED";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceListingPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listReviewsForModeration: {
+        parameters: {
+            query?: {
+                status?: "REPORTED" | "HIDDEN";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffReviewPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    decideReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    decideMarketplace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketplaceDecision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceListing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     listPayoutsForFinance: {
