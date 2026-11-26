@@ -42,3 +42,21 @@ export async function checkoutVisit(
   }
   return { ok: true, done: data };
 }
+
+/** Sends the customer a link to their receipt: by text message, or email without a phone number. */
+export async function sendReceipt(
+  language: string,
+  orgId: string,
+  orderId: string,
+): Promise<{ ok: true; via: string } | { ok: false; code?: string; message: string }> {
+  const { data, error } = await (
+    await portalApi(language)
+  ).POST("/v1/orgs/{orgId}/orders/{orderId}/receipt/send", {
+    params: { path: { orgId, orderId } },
+  });
+  if (!data) {
+    const code = (error as { code?: string } | undefined)?.code;
+    return { ok: false, code, message: problemText(error) };
+  }
+  return { ok: true, via: data.via };
+}

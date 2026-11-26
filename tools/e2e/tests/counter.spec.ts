@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { api, deskBook, firstFreeStart, seedPaidBooking, seedSalon, sql } from "./seed.ts";
-import { codeCount, codeFor } from "./support.ts";
+import { codeCount, codeFor, receiptLinkFor } from "./support.ts";
 
 test.use({ actionTimeout: 20_000 });
 
@@ -66,6 +66,25 @@ test("a visit with a deposit paid online is checked out in cash with a tip, and 
   await desk.getByRole("button", { name: "Take Br 1,620 in cash" }).click();
   await expect(desk.getByRole("status").first()).toContainText("Paid · Receipt R0000001");
   await expect(desk.getByText("Give Br 380 change")).toBeVisible();
+
+  // The receipt: shown, and sent to the customer, who opens it from the text without signing in.
+  await desk.getByRole("link", { name: "Receipt", exact: true }).click();
+  await expect(desk.getByRole("article")).toContainText("R0000001");
+  await expect(desk.getByRole("article")).toContainText("Total");
+  await expect(desk.getByRole("article")).toContainText("Br 1,980");
+  await expect(desk.getByRole("article")).toContainText("Cash");
+  await expect(desk.getByRole("article")).toContainText("Br 1,620");
+  await desk.getByRole("button", { name: "Send the receipt to the customer" }).click();
+  await expect(desk.getByText("Sent by text message.")).toBeVisible();
+  const link = await receiptLinkFor(booked.phone);
+  const customer = await browser.newContext({ timezoneId: "Africa/Addis_Ababa" });
+  const receipt = await customer.newPage();
+  await receipt.goto(link);
+  await expect(receipt.getByRole("article")).toContainText("R0000001");
+  await expect(receipt.getByRole("button", { name: /Print|አትም/ })).toBeVisible();
+  await receipt.goto(link.replace(/\/receipt\/.+$/, "/receipt/" + "x".repeat(43)));
+  await expect(receipt.getByRole("status")).toBeVisible();
+  await customer.close();
 
   // The visit is completed, and the drawer closes with what should be in it: Br 500 + Br 1,620.
   await desk.goto(`/en/business/o/${salon.orgId}/cash`);

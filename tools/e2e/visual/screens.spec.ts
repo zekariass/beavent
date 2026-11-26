@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
-import { codeCount, codeFor, giftCardCodeFor, newPhone } from "../tests/support.ts";
+import { codeCount, codeFor, giftCardCodeFor, newPhone, receiptLinkFor } from "../tests/support.ts";
 import {
   bookAsCustomer,
   deskBook,
@@ -2806,5 +2806,103 @@ test("counter · a discount, a gift card, credit and cash together", async ({ br
     await page.setViewportSize(PHONE);
     await shot(page, `counter-split-done-${language}-${scheme}-phone`);
   }
+  await context.close();
+});
+
+// --- Stage 4.3: receipts ---------------------------------------------------------------------------------------------------
+
+test("receipts · the front desk's page, the customer's link and the printed page", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 0 },
+    salon.token,
+  );
+  const staff = (await api(
+    "GET",
+    `/v1/orgs/${salon.orgId}/appointments/${booked.id}/checkout`,
+    undefined,
+    salon.token,
+  )) as {
+    team: { staffId: string }[];
+  };
+  // A visit with a deposit paid online, a tip and cash; and a walk-in with a discount.
+  const done = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/appointments/${booked.id}/checkout`,
+    { tips: [{ staffId: staff.team[0]!.staffId, amountMinor: 18000 }], cashTenderedMinor: 162000 },
+    salon.token,
+  )) as { orderId: string };
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  let start = "";
+  for (let d = 8; d < 15 && !start; d += 1)
+    start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+  const walkIn = (await deskBook(salon, start, "Selam Bekele")) as { id: string };
+  const discounted = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/appointments/${walkIn.id}/checkout`,
+    { discount: { kind: "PERCENT", value: 10, reason: "Loyal client" }, cashTenderedMinor: 162000 },
+    salon.token,
+  )) as { orderId: string };
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/orders/${done.orderId}/receipt/send`,
+    undefined,
+    salon.token,
+  );
+  const link = await receiptLinkFor(booked.phone);
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const article = async (p: Page) => {
+    await p.getByRole("article").waitFor();
+    await p.waitForLoadState("networkidle");
+  };
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/receipts/${done.orderId}`);
+        await article(page);
+        await shot(page, `receipt-console-${language}-${scheme}-${viewport}`);
+        await page.goto(link.replace(/\/(am|en)\/receipt\//, `/${language}/receipt/`));
+        await article(page);
+        await shot(page, `receipt-public-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize(DESKTOP);
+  await page.goto(`${WEB}/en/business/o/${salon.orgId}/receipts/${discounted.orderId}`);
+  await article(page);
+  await shot(page, "receipt-discount-en-light-desktop");
+  await page.getByRole("button", { name: "Send the receipt to the customer" }).click();
+  await page.getByText(/no phone number or email/).waitFor(); // a walk-in without either
+  await shot(page, "receipt-nocontact-en-light-desktop");
+  await page.goto(`${WEB}/en/receipt/${"x".repeat(43)}`);
+  await page.getByRole("status").waitFor();
+  await shot(page, "receipt-invalid-en-light-phone");
+  // The printed page: no menus, the light theme.
+  await page.emulateMedia({ colorScheme: "dark", media: "print" });
+  await page.goto(`${WEB}/en/business/o/${salon.orgId}/receipts/${done.orderId}`);
+  await article(page);
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeprint"))); // what the print dialog does
+  await shot(page, "receipt-print-en-desktop");
   await context.close();
 });

@@ -94,7 +94,8 @@ class Dispatcher {
                                 .TEMPLATE_CODE
                                 .like("APPOINTMENT_%")
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
-                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%")),
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("RECEIPT_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -149,7 +150,7 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
-        if (code.startsWith("PAYOUT_") || code.startsWith("GIFT_CARD_")) {
+        if (code.startsWith("PAYOUT_") || code.startsWith("GIFT_CARD_") || code.startsWith("RECEIPT_")) {
             return null;
         }
         if (code.equals(Notifier.WAITLIST_OFFER)) {

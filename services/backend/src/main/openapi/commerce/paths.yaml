@@ -198,3 +198,81 @@ appointmentCheckout:
         $ref: ../common/responses.yaml#/NotFound
       '409':
         $ref: ../common/responses.yaml#/Conflict
+orderReceipt:
+  get:
+    tags: [Counter]
+    operationId: getOrderReceipt
+    summary: A sale's receipt, to show and print
+    description: Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The receipt.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptView
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+orderReceiptSend:
+  post:
+    tags: [Counter]
+    operationId: sendOrderReceipt
+    summary: Send the customer a link to their receipt
+    description: |
+      Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+      makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Sent.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptSent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+publicReceipt:
+  get:
+    tags: [Counter]
+    operationId: getPublicReceipt
+    summary: The receipt a link opens
+    description: No sign-in; the link is the credential. Never indexed.
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+    responses:
+      '200':
+        description: The receipt.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptView
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

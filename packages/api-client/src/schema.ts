@@ -275,6 +275,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/orders/{orderId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A sale's receipt, to show and print
+         * @description Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+         */
+        get: operations["getOrderReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/orders/{orderId}/receipt/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the customer a link to their receipt
+         * @description Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+         *     makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+         */
+        post: operations["sendOrderReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/receipts/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The receipt a link opens
+         * @description No sign-in; the link is the credential. Never indexed.
+         */
+        get: operations["getPublicReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/gift-cards/program": {
         parameters: {
             query?: never;
@@ -3345,6 +3406,8 @@ export interface components {
         CheckoutBill: {
             appointmentId: components["schemas"]["Uuid"];
             locationId: components["schemas"]["Uuid"];
+            /** @description The visit's order, once it has one (the receipt is the order's). */
+            orderId?: components["schemas"]["Uuid"] | null;
             reference: string;
             status: string;
             customerName?: string | null;
@@ -3434,6 +3497,59 @@ export interface components {
             /** Format: int64 */
             discountMinor: number;
             tenders: components["schemas"]["CheckoutTender"][];
+        };
+        ReceiptView: {
+            number: string;
+            issuedAt: components["schemas"]["Instant"];
+            orderNumber: string;
+            currency: string;
+            timezone: string;
+            /** @description The legal entity's registered name. */
+            business: string;
+            tin?: string | null;
+            location?: string | null;
+            landmark?: string | null;
+            phone?: string | null;
+            customer?: string | null;
+            pricesIncludeTax: boolean;
+            lines: {
+                type: string;
+                description: string;
+                quantity: number;
+                /** Format: int64 */
+                unitMinor: number;
+                /** Format: int64 */
+                discountMinor: number;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            /** Format: int64 */
+            subtotalMinor: number;
+            /** Format: int64 */
+            discountMinor: number;
+            /** Format: int64 */
+            taxMinor: number;
+            /** Format: int64 */
+            totalMinor: number;
+            taxes: {
+                code: string;
+                rate: number;
+                /** Format: int64 */
+                taxableMinor: number;
+                /** Format: int64 */
+                taxMinor: number;
+            }[];
+            tenders: {
+                method: string;
+                name: string;
+                /** Format: int64 */
+                amountMinor: number;
+                at?: components["schemas"]["Instant"] | null;
+            }[];
+        };
+        ReceiptSent: {
+            /** @enum {string} */
+            via: "SMS" | "EMAIL";
         };
         GiftCardProgram: {
             id: components["schemas"]["Uuid"];
@@ -6456,6 +6572,82 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getOrderReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendOrderReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptSent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getPublicReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptView"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getGiftCardProgram: {

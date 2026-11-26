@@ -642,4 +642,128 @@ class CounterApiTests extends PayoutTestSupport {
                         .status())
                 .isEqualTo(409);
     }
+
+    // --- plan 4.3: the receipt shown, sent and printed ---------------------------------------------------------------
+
+    private static final java.util.regex.Pattern LINK = java.util.regex.Pattern.compile("/receipt/([A-Za-z0-9_-]{43})");
+
+    private String receiptToken(String phone) throws Exception {
+        BookingMessagesTests.waitFor(
+                "the receipt text",
+                () -> sms.messagesTo(phone).stream()
+                        .anyMatch(m -> LINK.matcher(m).find()));
+        String text = sms.messagesTo(phone).stream()
+                .filter(m -> LINK.matcher(m).find())
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        java.util.regex.Matcher m = LINK.matcher(text);
+        assertThat(m.find()).isTrue();
+        return m.group(1);
+    }
+
+    @Test
+    void aReceiptIsShownWithHowItWasPaidSentByTextAndOpenedByItsLink() throws Exception {
+        Shop shop = shop(true);
+        String token = shop.salon().owner().token();
+        Paid paid = payDeposit(shop, 3);
+        open(shop, 0);
+        Call done = checkout(
+                shop,
+                paid.appointmentId(),
+                Map.of(
+                        "tips",
+                        List.of(Map.of("staffId", shop.abebe(), "amountMinor", 1_000)),
+                        "cashTenderedMinor",
+                        41_000),
+                token);
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        String order = done.body().get("orderId").asString();
+        String receiptPath = shop.salon().path("/orders/" + order + "/receipt");
+
+        JsonNode r = call(get(receiptPath), null, token).body();
+        assertThat(r.get("number").asString())
+                .isEqualTo(done.body().get("receiptNumber").asString());
+        assertThat(r.get("totalMinor").asLong()).isEqualTo(51_000);
+        assertThat(r.get("orderNumber").asString())
+                .isEqualTo(done.body().get("orderNumber").asString());
+        assertThat(r.get("business").asString()).isNotBlank();
+        assertThat(r.get("lines").size()).isEqualTo(2);
+        assertThat(r.get("lines").toString()).contains("TIP").contains("SERVICE");
+        // The deposit paid online and the cash, in the order they were paid; together they are the total.
+        assertThat(r.get("tenders").size()).isEqualTo(2);
+        assertThat(r.get("tenders").get(1).get("method").asString()).isEqualTo("CASH");
+        assertThat(r.get("tenders").get(1).get("amountMinor").asLong()).isEqualTo(41_000);
+        long paidSum = 0;
+        for (JsonNode t : r.get("tenders")) paidSum += t.get("amountMinor").asLong();
+        assertThat(paidSum).isEqualTo(51_000);
+        assertThat(bill(shop, paid.appointmentId()).get("orderId").asString()).isEqualTo(order);
+
+        // Only people who sell, and only this business's orders.
+        Person inventory = newMember(shop.salon(), "INVENTORY_MANAGER");
+        assertThat(callInvalid(get(receiptPath), null, inventory.token()).status())
+                .isEqualTo(403);
+        Shop other = shop(true);
+        assertThat(callInvalid(
+                                get(other.salon().path("/orders/" + order + "/receipt")),
+                                null,
+                                other.salon().owner().token())
+                        .status())
+                .isEqualTo(404);
+
+        // Sent by text message to the customer; the link opens the receipt without signing in.
+        Call sent = call(post(receiptPath + "/send"), null, token);
+        assertThat(sent.status()).as(String.valueOf(sent.body())).isEqualTo(200);
+        assertThat(sent.text("via")).isEqualTo("SMS");
+        String link = receiptToken(paid.phone());
+        assertThat(sms.messagesTo(paid.phone()).stream()
+                        .anyMatch(m -> m.contains(r.get("number").asString())))
+                .isTrue();
+        JsonNode open = call(get("/v1/public/receipts/" + link), null, null).body();
+        assertThat(open.get("number").asString()).isEqualTo(r.get("number").asString());
+        assertThat(open.get("totalMinor").asLong()).isEqualTo(51_000);
+        assertThat(callInvalid(get("/v1/public/receipts/" + "x".repeat(43)), null, null)
+                        .status())
+                .isEqualTo(404);
+        assertThat(callInvalid(get("/v1/public/receipts/short"), null, null).status())
+                .isEqualTo(404);
+        assertThat(system.fetchValue(
+                        "select delivered_via::text from commerce.receipts where order_id = ?::uuid",
+                        UUID.fromString(order)))
+                .isEqualTo("{SMS}");
+        assertThat(system.fetchValue(
+                        "select count(*) from commerce.receipts where order_id = ?::uuid and access_hash = ?",
+                        UUID.fromString(order),
+                        link))
+                .as("only a hash of the link is kept")
+                .isEqualTo(0L);
+
+        // Sending again ends the old link.
+        assertThat(call(post(receiptPath + "/send"), null, token).status()).isEqualTo(200);
+        BookingMessagesTests.waitFor(
+                "a second text",
+                () -> sms.messagesTo(paid.phone()).stream()
+                                .filter(m -> LINK.matcher(m).find())
+                                .count()
+                        >= 2);
+        String newer = receiptToken(paid.phone());
+        assertThat(newer).isNotEqualTo(link);
+        assertThat(callInvalid(get("/v1/public/receipts/" + link), null, null).status())
+                .isEqualTo(404);
+        assertThat(call(get("/v1/public/receipts/" + newer), null, null).status())
+                .isEqualTo(200);
+
+        // A customer with no phone number or email cannot be sent one.
+        String walkIn = deskVisit(shop, 5, "10:00", shop.abebe());
+        Call second = checkout(shop, walkIn, Map.of("cashTenderedMinor", 50_000), token);
+        String walkInOrder = second.body().get("orderId").asString();
+        system.execute(
+                "update crm.customers set phone_e164 = null, email = null where id = (select customer_id from scheduling.appointments where id = ?::uuid)",
+                UUID.fromString(walkIn));
+        assertThat(callInvalid(post(shop.salon().path("/orders/" + walkInOrder + "/receipt/send")), null, token)
+                        .status())
+                .isEqualTo(409);
+        assertThat(callInvalid(get(shop.salon().path("/orders/" + UUID.randomUUID() + "/receipt")), null, token)
+                        .status())
+                .isEqualTo(404);
+    }
 }

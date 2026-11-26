@@ -88,6 +88,12 @@ paths:
     $ref: ./commerce/paths.yaml#/cashDrawerClose
   /v1/orgs/{orgId}/appointments/{appointmentId}/checkout:
     $ref: ./commerce/paths.yaml#/appointmentCheckout
+  /v1/orgs/{orgId}/orders/{orderId}/receipt:
+    $ref: ./commerce/paths.yaml#/orderReceipt
+  /v1/orgs/{orgId}/orders/{orderId}/receipt/send:
+    $ref: ./commerce/paths.yaml#/orderReceiptSend
+  /v1/public/receipts/{token}:
+    $ref: ./commerce/paths.yaml#/publicReceipt
   /v1/orgs/{orgId}/gift-cards/program:
     $ref: ./retention/paths.yaml#/giftCardProgram
   /v1/orgs/{orgId}/gift-cards:

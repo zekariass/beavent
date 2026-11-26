@@ -143,6 +143,12 @@ export function CheckoutForm({
           ))}
         </ul>
         <Link
+          href={`${base}/receipts/${done.orderId}`}
+          className="bv-type-label inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          {t("receipt.open")}
+        </Link>
+        <Link
           href={`${base}/calendar`}
           className="bv-type-label inline-flex min-h-11 items-center self-start underline underline-offset-4"
         >
@@ -154,9 +160,19 @@ export function CheckoutForm({
 
   if (bill.receiptNumber) {
     return (
-      <p role="status" className="bv-type-body">
-        {t("counter.checkout.alreadyDone", { number: bill.receiptNumber })}
-      </p>
+      <div className="flex flex-col gap-3">
+        <p role="status" className="bv-type-body">
+          {t("counter.checkout.alreadyDone", { number: bill.receiptNumber })}
+        </p>
+        {bill.orderId ? (
+          <Link
+            href={`${base}/receipts/${bill.orderId}`}
+            className="bv-type-label inline-flex min-h-12 items-center justify-center self-start rounded-lg bg-primary px-5 text-on-primary hover:bg-primary-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            {t("receipt.open")}
+          </Link>
+        ) : null}
+      </div>
     );
   }
   if (!bill.canCheckout) {

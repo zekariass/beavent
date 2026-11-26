@@ -125,6 +125,11 @@ CheckoutBill:
       $ref: ../common/schemas.yaml#/Uuid
     locationId:
       $ref: ../common/schemas.yaml#/Uuid
+    orderId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+      description: The visit's order, once it has one (the receipt is the order's).
     reference:
       type: string
     status:
@@ -281,3 +286,107 @@ CheckoutDone:
       type: array
       items:
         $ref: '#/CheckoutTender'
+ReceiptView:
+  type: object
+  required:
+    [number, issuedAt, orderNumber, currency, timezone, business, pricesIncludeTax, lines, subtotalMinor, discountMinor,
+     taxMinor, totalMinor, taxes, tenders]
+  properties:
+    number:
+      type: string
+    issuedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    orderNumber:
+      type: string
+    currency:
+      type: string
+    timezone:
+      type: string
+    business:
+      type: string
+      description: The legal entity's registered name.
+    tin:
+      type: [string, 'null']
+    location:
+      type: [string, 'null']
+    landmark:
+      type: [string, 'null']
+    phone:
+      type: [string, 'null']
+    customer:
+      type: [string, 'null']
+    pricesIncludeTax:
+      type: boolean
+    lines:
+      type: array
+      items:
+        type: object
+        required: [type, description, quantity, unitMinor, discountMinor, totalMinor]
+        properties:
+          type:
+            type: string
+          description:
+            type: string
+          quantity:
+            type: integer
+          unitMinor:
+            type: integer
+            format: int64
+          discountMinor:
+            type: integer
+            format: int64
+          totalMinor:
+            type: integer
+            format: int64
+    subtotalMinor:
+      type: integer
+      format: int64
+    discountMinor:
+      type: integer
+      format: int64
+    taxMinor:
+      type: integer
+      format: int64
+    totalMinor:
+      type: integer
+      format: int64
+    taxes:
+      type: array
+      items:
+        type: object
+        required: [code, rate, taxableMinor, taxMinor]
+        properties:
+          code:
+            type: string
+          rate:
+            type: number
+          taxableMinor:
+            type: integer
+            format: int64
+          taxMinor:
+            type: integer
+            format: int64
+    tenders:
+      type: array
+      items:
+        type: object
+        required: [method, name, amountMinor]
+        properties:
+          method:
+            type: string
+          name:
+            type: string
+          amountMinor:
+            type: integer
+            format: int64
+          at:
+            oneOf:
+              - $ref: ../common/schemas.yaml#/Instant
+              - type: 'null'
+ReceiptSent:
+  type: object
+  required: [via]
+  properties:
+    via:
+      type: string
+      enum: [SMS, EMAIL]

@@ -53,6 +53,7 @@ public class Checkouts {
     public record Bill(
             UUID appointmentId,
             UUID locationId,
+            UUID orderId,
             String reference,
             String status,
             String customerName,
@@ -206,6 +207,7 @@ public class Checkouts {
         return new Bill(
                 a.getId(),
                 a.getLocationId(),
+                order == null ? null : order.getId(),
                 a.getReference(),
                 a.getStatus(),
                 customer,

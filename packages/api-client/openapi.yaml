@@ -489,6 +489,87 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/orders/{orderId}/receipt:
+    get:
+      tags:
+        - Counter
+      operationId: getOrderReceipt
+      summary: A sale's receipt, to show and print
+      description: Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/orders/{orderId}/receipt/send:
+    post:
+      tags:
+        - Counter
+      operationId: sendOrderReceipt
+      summary: Send the customer a link to their receipt
+      description: |
+        Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+        makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptSent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/receipts/{token}:
+    get:
+      tags:
+        - Counter
+      operationId: getPublicReceipt
+      summary: The receipt a link opens
+      description: No sign-in; the link is the credential. Never indexed.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: The receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptView'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/gift-cards/program:
     get:
       tags:
@@ -6950,6 +7031,11 @@ components:
           $ref: '#/components/schemas/Uuid'
         locationId:
           $ref: '#/components/schemas/Uuid'
+        orderId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: The visit's order, once it has one (the receipt is the order's).
         reference:
           type: string
         status:
@@ -7121,6 +7207,148 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CheckoutTender'
+    ReceiptView:
+      type: object
+      required:
+        - number
+        - issuedAt
+        - orderNumber
+        - currency
+        - timezone
+        - business
+        - pricesIncludeTax
+        - lines
+        - subtotalMinor
+        - discountMinor
+        - taxMinor
+        - totalMinor
+        - taxes
+        - tenders
+      properties:
+        number:
+          type: string
+        issuedAt:
+          $ref: '#/components/schemas/Instant'
+        orderNumber:
+          type: string
+        currency:
+          type: string
+        timezone:
+          type: string
+        business:
+          type: string
+          description: The legal entity's registered name.
+        tin:
+          type:
+            - string
+            - 'null'
+        location:
+          type:
+            - string
+            - 'null'
+        landmark:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+        customer:
+          type:
+            - string
+            - 'null'
+        pricesIncludeTax:
+          type: boolean
+        lines:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - description
+              - quantity
+              - unitMinor
+              - discountMinor
+              - totalMinor
+            properties:
+              type:
+                type: string
+              description:
+                type: string
+              quantity:
+                type: integer
+              unitMinor:
+                type: integer
+                format: int64
+              discountMinor:
+                type: integer
+                format: int64
+              totalMinor:
+                type: integer
+                format: int64
+        subtotalMinor:
+          type: integer
+          format: int64
+        discountMinor:
+          type: integer
+          format: int64
+        taxMinor:
+          type: integer
+          format: int64
+        totalMinor:
+          type: integer
+          format: int64
+        taxes:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - rate
+              - taxableMinor
+              - taxMinor
+            properties:
+              code:
+                type: string
+              rate:
+                type: number
+              taxableMinor:
+                type: integer
+                format: int64
+              taxMinor:
+                type: integer
+                format: int64
+        tenders:
+          type: array
+          items:
+            type: object
+            required:
+              - method
+              - name
+              - amountMinor
+            properties:
+              method:
+                type: string
+              name:
+                type: string
+              amountMinor:
+                type: integer
+                format: int64
+              at:
+                oneOf:
+                  - $ref: '#/components/schemas/Instant'
+                  - type: 'null'
+    ReceiptSent:
+      type: object
+      required:
+        - via
+      properties:
+        via:
+          type: string
+          enum:
+            - SMS
+            - EMAIL
     GiftCardProgram:
       type: object
       required:
