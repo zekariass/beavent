@@ -194,4 +194,25 @@ public final class AdminBodies {
     public record FlagUpdate(
             @NotNull Boolean defaultEnabled,
             @NotBlank @Size(min = 5, max = 500) String reason) {}
+
+    /** A statement the finance team uploads (plan 3.9): the provider's lines for some days, as CSV. */
+    public record StatementUpload(
+            @jakarta.validation.constraints.NotNull UUID providerAccountId,
+            @jakarta.validation.constraints.NotNull java.time.LocalDate from,
+            @jakarta.validation.constraints.NotNull java.time.LocalDate to,
+            Long openingBalanceMinor,
+            Long closingBalanceMinor,
+            @NotBlank @Size(max = 2_000_000) String csv) {}
+
+    /** Why an exception is fine: the statement line, or the payment the statement lacks, or the balance (neither). */
+    public record ExceptionResolution(
+            @jakarta.validation.constraints.NotNull UUID statementId,
+            UUID lineId,
+            UUID attemptId,
+            @NotBlank @Size(max = 500) String note) {}
+
+    public record GoLive(
+            @NotBlank @Size(min = 10, max = 1000) String evidence) {}
+
+    public record Suspension(@NotBlank @Size(max = 500) String reason) {}
 }

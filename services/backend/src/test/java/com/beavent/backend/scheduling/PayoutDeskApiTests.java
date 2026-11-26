@@ -21,33 +21,6 @@ import tools.jackson.databind.JsonNode;
  */
 class PayoutDeskApiTests extends PayoutTestSupport {
 
-    private Person financeStaff() throws Exception {
-        Person person = newPerson();
-        UUID userId = system.select(USERS.ID)
-                .from(USERS)
-                .where(USERS.PHONE_E164.eq(person.phone()))
-                .fetchSingle(USERS.ID);
-        system.insertInto(USER_STAFF_ROLES)
-                .set(USER_STAFF_ROLES.USER_ID, userId)
-                .set(USER_STAFF_ROLES.ROLE_CODE, "FINANCE")
-                .set(
-                        USER_STAFF_ROLES.MARKET_ID,
-                        system.select(MARKETS.ID)
-                                .from(MARKETS)
-                                .where(MARKETS.CODE.eq("ET"))
-                                .fetchSingle(MARKETS.ID))
-                .execute();
-        ageChallenges(person.phone());
-        Call signedIn = signInWithOtp(person.phone(), "ADMIN_CONSOLE");
-        assertThat(signedIn.status()).as(String.valueOf(signedIn.body())).isEqualTo(200);
-        return new Person(person.phone(), signedIn.text("accessToken"));
-    }
-
-    private String step(Person person) throws Exception {
-        ageChallenges(person.phone());
-        return stepUp(person);
-    }
-
     /** A paid, released sale with a payout created and waiting for approval. */
     private record Waiting(Shop shop, UUID payoutId, Instant when) {}
 

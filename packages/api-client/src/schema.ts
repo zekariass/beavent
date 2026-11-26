@@ -2717,6 +2717,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/reconciliation/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The provider accounts a statement can be uploaded for
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["listReconciliationAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Imported statements, latest period first
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["listProviderStatements"];
+        put?: never;
+        /**
+         * Import a provider statement and match it (audited)
+         * @description Needs `admin.reconciliation`. Each line is matched to our payments, refunds and payouts by reference and amount; the
+         *     provider's fees are posted to the ledger; money nothing explains is held in suspense. `CONFLICT` when the days
+         *     overlap a statement imported before; `VALIDATION_FAILED` names the line of a file that cannot be read.
+         */
+        post: operations["importProviderStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What finance still has to explain
+         * @description Needs `admin.reconciliation`. Oldest first, at most 200.
+         */
+        get: operations["listReconciliationExceptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say why an exception is fine (audited)
+         * @description Needs `admin.reconciliation`. The note is kept with who wrote it.
+         */
+        post: operations["resolveReconciliationException"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The active provider's status and what stands between it and going live
+         * @description Needs `admin.reconciliation`.
+         */
+        get: operations["getPaymentProviderCertification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider/go-live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the active provider live once every check passes (step-up, audited)
+         * @description Needs `admin.reconciliation` and a fresh code. `CONFLICT` while a check fails.
+         */
+        post: operations["goLivePaymentProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payment-provider/suspension": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop taking new online payments through the active provider (step-up, audited)
+         * @description Needs `admin.reconciliation` and a fresh code.
+         */
+        post: operations["suspendPaymentProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -5295,6 +5441,105 @@ export interface components {
         RefundPayment: {
             reference: string;
             note?: string;
+        };
+        ReconciliationAccount: {
+            id: components["schemas"]["Uuid"];
+            provider: string;
+            name: string;
+            /** @enum {string} */
+            environment: "SANDBOX" | "LIVE";
+            currency: string;
+        };
+        ReconciliationAccountList: {
+            items: components["schemas"]["ReconciliationAccount"][];
+        };
+        schemas_Statement: {
+            id: components["schemas"]["Uuid"];
+            providerAccountId: components["schemas"]["Uuid"];
+            provider: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            currency: string;
+            /** @enum {string} */
+            status: "IMPORTED" | "RECONCILING" | "RECONCILED" | "EXCEPTIONS";
+            lines: number;
+            matched: number;
+            /** @description Lines not matched, plus payments we confirmed that the statement does not show. */
+            exceptions: number;
+            /** Format: int64 */
+            closingBalanceMinor?: number | null;
+            /** Format: int64 */
+            ledgerBalanceMinor?: number | null;
+            /** Format: int64 */
+            differenceMinor?: number | null;
+            importedAt: components["schemas"]["Instant"];
+        };
+        StatementList: {
+            items: components["schemas"]["schemas_Statement"][];
+        };
+        StatementUpload: {
+            providerAccountId: components["schemas"]["Uuid"];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int64 */
+            openingBalanceMinor?: number | null;
+            /**
+             * Format: int64
+             * @description What the provider says the account holds at the end of the last day; compared with the ledger.
+             */
+            closingBalanceMinor?: number | null;
+            /**
+             * @description A header row naming `reference`, `type`, `amount` and `date` (and optionally `fee`), then one line per statement
+             *     line. `type` is COLLECTION, REFUND, PAYOUT, FEE, SETTLEMENT, REVERSAL, CHARGEBACK or ADJUSTMENT; `amount` and
+             *     `fee` are in major units; the reference is our payment's id or the provider's own reference for it.
+             */
+            csv: string;
+        };
+        ReconciliationException: {
+            /** @enum {string} */
+            kind: "AMOUNT_MISMATCH" | "MISSING_INTERNALLY" | "UNMATCHED" | "MISSING_ON_STATEMENT" | "BALANCE_DIFFERENCE";
+            statementId: components["schemas"]["Uuid"];
+            lineId?: components["schemas"]["Uuid"] | null;
+            attemptId?: components["schemas"]["Uuid"] | null;
+            reference?: string | null;
+            lineType: string;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            occurredAt: components["schemas"]["Instant"];
+            note?: string | null;
+        };
+        ReconciliationExceptionList: {
+            items: components["schemas"]["ReconciliationException"][];
+        };
+        /** @description Name the statement line, or the payment the statement lacks, or neither (a difference in the balance). */
+        ExceptionResolution: {
+            statementId: components["schemas"]["Uuid"];
+            lineId?: components["schemas"]["Uuid"];
+            attemptId?: components["schemas"]["Uuid"];
+            note: string;
+        };
+        ProviderCertification: {
+            provider: string;
+            /** @enum {string} */
+            status: "SANDBOX" | "LIVE" | "SUSPENDED";
+            verifiedAt?: components["schemas"]["Instant"] | null;
+            checks: {
+                code: string;
+                passed: boolean;
+                detail: string;
+            }[];
+            ready: boolean;
+        };
+        GoLive: {
+            evidence: string;
+        };
+        ProviderSuspension: {
+            reason: string;
         };
         AuditEntryPage: {
             items: components["schemas"]["AuditEntry"][];
@@ -10794,6 +11039,198 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listReconciliationAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationAccountList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listProviderStatements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    importProviderStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementUpload"];
+            };
+        };
+        responses: {
+            /** @description Imported and matched. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["schemas_Statement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listReconciliationExceptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationExceptionList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    resolveReconciliationException: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExceptionResolution"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPaymentProviderCertification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    goLivePaymentProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoLive"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    suspendPaymentProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderSuspension"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCertification"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     searchAuditLog: {

@@ -9,6 +9,8 @@ import {
   seedPaidBooking,
   seedPaidSale,
   seedSalon,
+  query,
+  sql,
 } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
@@ -2425,4 +2427,114 @@ test("gift cards · buying, the business's list, paying a deposit with a card an
   }
   await owner.close();
   for (const page of [...Object.values(pages), creditAm]) await page.context().close();
+});
+
+// --- Stage 3.9: reconciliation and the provider's go-live checks --------------------------------------------------------
+
+test("reconciliation · statements, what is left to explain, and the provider's checks", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const { booked } = await seedPaidBooking("Abeba Beauty");
+  const reviewer = await seedFinanceStaff();
+  const attemptId = query(
+    `select t.id from payments.payment_attempts t join payments.payment_intents i on i.id = t.intent_id ` +
+      `join scheduling.appointments a on a.order_id = i.order_id where a.id = '${booked.id}' and t.status = 'SUCCEEDED'`,
+  )[0]!;
+  const amount = Number(
+    query(`select amount_minor from payments.payment_attempts where id = '${attemptId}'`)[0],
+  );
+  const name = `Visual account ${Date.now()}`;
+  sql(
+    `insert into payments.provider_accounts (provider_code, owner, market_id, environment, display_name, settlement_currency, credentials_secret_ref, status) ` +
+      `select 'ARIFPAY', 'PLATFORM', id, 'LIVE', '${name}', 'ETB', 'env:VISUAL', 'ACTIVE' from ref.markets where code = 'ET'`,
+  );
+  const account = query(
+    `select id from payments.provider_accounts where display_name = '${name}'`,
+  )[0]!;
+  const day = (offset: number) => {
+    const d = new Date(Date.parse("2044-03-01T00:00:00Z") + offset * 86_400_000);
+    return d.toISOString().slice(0, 10);
+  };
+  sql(
+    `update payments.payment_attempts set provider_account_id = '${account}', completed_at = '${day(0)} 11:00+03' where id = '${attemptId}'`,
+  );
+  // A second payment on the first day that the statement will not show.
+  const second = await seedPaidBooking("Lemlem Hair");
+  const secondAttempt = query(
+    `select t.id from payments.payment_attempts t join payments.payment_intents i on i.id = t.intent_id ` +
+      `join scheduling.appointments a on a.order_id = i.order_id where a.id = '${second.booked.id}' and t.status = 'SUCCEEDED'`,
+  )[0]!;
+  sql(
+    `update payments.payment_attempts set provider_account_id = '${account}', completed_at = '${day(1)} 12:00+03' where id = '${secondAttempt}'`,
+  );
+
+  const context = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000); // a new sign-in code can be sent 30 seconds after the last one
+  await page.goto(`${ADMIN}/sign-in`);
+  await page.getByLabel(/Phone number or/).fill(reviewer);
+  const signIn = codeCount(reviewer);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(reviewer, signIn));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/sign-in"));
+
+  await page.goto(`${ADMIN}/reconciliation`);
+  await page
+    .getByText("Everything matches.")
+    .or(page.getByText(/To explain/))
+    .first()
+    .waitFor();
+  await shot(page, "recon-empty-light-desktop");
+
+  const upload = async (from: string, to: string, closing: string, csv: string) => {
+    await page.goto(`${ADMIN}/reconciliation`);
+    await page.getByLabel("Provider account").selectOption(account);
+    await page.getByLabel("First day").fill(from);
+    await page.getByLabel("Last day").fill(to);
+    if (closing) await page.getByLabel(/Balance at the end/).fill(closing);
+    await page.getByLabel(/Statement file/).setInputFiles({
+      name: "statement.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+    await page.getByRole("button", { name: "Import and match" }).click();
+    await page.getByRole("status").waitFor();
+  };
+  const birr = (minor: number) => (minor / 100).toFixed(2);
+  // Day 1 matches. Day 2: the statement shows a payment that is not ours, a wrong amount, and a chargeback.
+  await upload(
+    day(0),
+    day(0),
+    "",
+    `reference,type,amount,fee,date\n${attemptId},COLLECTION,${birr(amount)},1.50,${day(0)} 11:00\n`,
+  );
+  await upload(
+    day(1),
+    day(1),
+    "9999.00",
+    `reference,type,amount,fee,date\nNOBODY-KNOWS,COLLECTION,75.00,,${day(1)} 10:30\n` +
+      `${secondAttempt},COLLECTION,${birr(amount + 5000)},,${day(1)} 12:00\nCB-1,CHARGEBACK,-30.00,,${day(1)} 13:00\n`,
+  );
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const [viewport, size] of [
+      ["desktop", DESKTOP],
+      ["phone", PHONE],
+    ] as const) {
+      await page.setViewportSize(size);
+      await page.goto(`${ADMIN}/reconciliation`);
+      await page
+        .getByText(/To explain/)
+        .first()
+        .waitFor();
+      await shot(page, `recon-${scheme}-${viewport}`);
+      await page.goto(`${ADMIN}/provider`);
+      await page.getByRole("heading", { name: /Payment provider/ }).waitFor();
+      await shot(page, `recon-provider-${scheme}-${viewport}`);
+    }
+  }
+  await context.close();
 });

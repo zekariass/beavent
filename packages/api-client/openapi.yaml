@@ -5812,6 +5812,188 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/reconciliation/accounts:
+    get:
+      tags:
+        - Admin
+      operationId: listReconciliationAccounts
+      summary: The provider accounts a statement can be uploaded for
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationAccountList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reconciliation/statements:
+    get:
+      tags:
+        - Admin
+      operationId: listProviderStatements
+      summary: Imported statements, latest period first
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Admin
+      operationId: importProviderStatement
+      summary: Import a provider statement and match it (audited)
+      description: |
+        Needs `admin.reconciliation`. Each line is matched to our payments, refunds and payouts by reference and amount; the
+        provider's fees are posted to the ledger; money nothing explains is held in suspense. `CONFLICT` when the days
+        overlap a statement imported before; `VALIDATION_FAILED` names the line of a file that cannot be read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementUpload'
+      responses:
+        '201':
+          description: Imported and matched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statement-2'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/reconciliation/exceptions:
+    get:
+      tags:
+        - Admin
+      operationId: listReconciliationExceptions
+      summary: What finance still has to explain
+      description: Needs `admin.reconciliation`. Oldest first, at most 200.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationExceptionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reconciliation/resolutions:
+    post:
+      tags:
+        - Admin
+      operationId: resolveReconciliationException
+      summary: Say why an exception is fine (audited)
+      description: Needs `admin.reconciliation`. The note is kept with who wrote it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionResolution'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/payment-provider:
+    get:
+      tags:
+        - Admin
+      operationId: getPaymentProviderCertification
+      summary: The active provider's status and what stands between it and going live
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payment-provider/go-live:
+    post:
+      tags:
+        - Admin
+      operationId: goLivePaymentProvider
+      summary: Make the active provider live once every check passes (step-up, audited)
+      description: Needs `admin.reconciliation` and a fresh code. `CONFLICT` while a check fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoLive'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/payment-provider/suspension:
+    post:
+      tags:
+        - Admin
+      operationId: suspendPaymentProvider
+      summary: Stop taking new online payments through the active provider (step-up, audited)
+      description: Needs `admin.reconciliation` and a fresh code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderSuspension'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/admin/audit-log:
     get:
       tags:
@@ -12312,6 +12494,266 @@ components:
           maxLength: 120
         note:
           type: string
+          maxLength: 500
+    ReconciliationAccount:
+      type: object
+      required:
+        - id
+        - provider
+        - name
+        - environment
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        provider:
+          type: string
+        name:
+          type: string
+        environment:
+          type: string
+          enum:
+            - SANDBOX
+            - LIVE
+        currency:
+          type: string
+    ReconciliationAccountList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationAccount'
+    Statement-2:
+      type: object
+      required:
+        - id
+        - providerAccountId
+        - provider
+        - from
+        - to
+        - currency
+        - status
+        - lines
+        - matched
+        - exceptions
+        - importedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        providerAccountId:
+          $ref: '#/components/schemas/Uuid'
+        provider:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - IMPORTED
+            - RECONCILING
+            - RECONCILED
+            - EXCEPTIONS
+        lines:
+          type: integer
+        matched:
+          type: integer
+        exceptions:
+          type: integer
+          description: Lines not matched, plus payments we confirmed that the statement does not show.
+        closingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        ledgerBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        differenceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        importedAt:
+          $ref: '#/components/schemas/Instant'
+    StatementList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Statement-2'
+    StatementUpload:
+      type: object
+      required:
+        - providerAccountId
+        - from
+        - to
+        - csv
+      properties:
+        providerAccountId:
+          $ref: '#/components/schemas/Uuid'
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        openingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        closingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+          description: What the provider says the account holds at the end of the last day; compared with the ledger.
+        csv:
+          type: string
+          maxLength: 2000000
+          description: |
+            A header row naming `reference`, `type`, `amount` and `date` (and optionally `fee`), then one line per statement
+            line. `type` is COLLECTION, REFUND, PAYOUT, FEE, SETTLEMENT, REVERSAL, CHARGEBACK or ADJUSTMENT; `amount` and
+            `fee` are in major units; the reference is our payment's id or the provider's own reference for it.
+    ReconciliationException:
+      type: object
+      required:
+        - kind
+        - statementId
+        - lineType
+        - amountMinor
+        - currency
+        - occurredAt
+      properties:
+        kind:
+          type: string
+          enum:
+            - AMOUNT_MISMATCH
+            - MISSING_INTERNALLY
+            - UNMATCHED
+            - MISSING_ON_STATEMENT
+            - BALANCE_DIFFERENCE
+        statementId:
+          $ref: '#/components/schemas/Uuid'
+        lineId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        attemptId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        reference:
+          type:
+            - string
+            - 'null'
+        lineType:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        note:
+          type:
+            - string
+            - 'null'
+    ReconciliationExceptionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationException'
+    ExceptionResolution:
+      type: object
+      required:
+        - statementId
+        - note
+      properties:
+        statementId:
+          $ref: '#/components/schemas/Uuid'
+        lineId:
+          $ref: '#/components/schemas/Uuid'
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 500
+      description: Name the statement line, or the payment the statement lacks, or neither (a difference in the balance).
+    ProviderCertification:
+      type: object
+      required:
+        - provider
+        - status
+        - checks
+        - ready
+      properties:
+        provider:
+          type: string
+        status:
+          type: string
+          enum:
+            - SANDBOX
+            - LIVE
+            - SUSPENDED
+        verifiedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        checks:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - passed
+              - detail
+            properties:
+              code:
+                type: string
+              passed:
+                type: boolean
+              detail:
+                type: string
+        ready:
+          type: boolean
+    GoLive:
+      type: object
+      required:
+        - evidence
+      properties:
+        evidence:
+          type: string
+          minLength: 10
+          maxLength: 1000
+    ProviderSuspension:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
           maxLength: 500
     AuditEntryPage:
       type: object

@@ -1,5 +1,8 @@
 package com.beavent.backend.scheduling;
 
+import static com.beavent.db.iam.Tables.USERS;
+import static com.beavent.db.iam.Tables.USER_STAFF_ROLES;
+import static com.beavent.db.ref.Tables.MARKETS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -141,5 +144,33 @@ abstract class PayoutTestSupport extends SchedulingTestSupport {
         return (UUID) system.fetchValue(
                 "select id from payments.payouts where org_id = ?::uuid order by id desc limit 1",
                 shop.salon().id());
+    }
+
+    /** A person on the finance team (signed in to the admin console). */
+    protected Person financeStaff() throws Exception {
+        Person person = newPerson();
+        UUID userId = system.select(USERS.ID)
+                .from(USERS)
+                .where(USERS.PHONE_E164.eq(person.phone()))
+                .fetchSingle(USERS.ID);
+        system.insertInto(USER_STAFF_ROLES)
+                .set(USER_STAFF_ROLES.USER_ID, userId)
+                .set(USER_STAFF_ROLES.ROLE_CODE, "FINANCE")
+                .set(
+                        USER_STAFF_ROLES.MARKET_ID,
+                        system.select(MARKETS.ID)
+                                .from(MARKETS)
+                                .where(MARKETS.CODE.eq("ET"))
+                                .fetchSingle(MARKETS.ID))
+                .execute();
+        ageChallenges(person.phone());
+        Call signedIn = signInWithOtp(person.phone(), "ADMIN_CONSOLE");
+        assertThat(signedIn.status()).as(String.valueOf(signedIn.body())).isEqualTo(200);
+        return new Person(person.phone(), signedIn.text("accessToken"));
+    }
+
+    protected String step(Person person) throws Exception {
+        ageChallenges(person.phone());
+        return stepUp(person);
     }
 }

@@ -10,6 +10,8 @@ const sections = () => [
   { href: "/payout-accounts", label: "Payout accounts" },
   { href: "/payouts", label: "Payouts" },
   { href: "/refunds", label: "Refunds" },
+  { href: "/reconciliation", label: "Reconciliation" },
+  { href: "/provider", label: "Provider" },
   { href: "/people", label: "People" },
   { href: "/audit", label: "Audit log" },
   { href: "/flags", label: "Feature flags" },

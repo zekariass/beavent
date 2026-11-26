@@ -144,6 +144,32 @@ public final class Postings {
                         new Line(Account.seller(Code.SELLER_AVAILABLE, orgId), -amountMinor)));
     }
 
+    /**
+     * The provider kept a fee on a payment (read from its statement): the platform's cost, taken from what the provider
+     * holds for it.
+     */
+    public static Planned providerFee(Account clearing, long feeMinor) {
+        check(feeMinor > 0, "a fee is more than zero");
+        return new Planned(
+                "PROVIDER_FEE",
+                "providerfee",
+                List.of(
+                        new Line(Account.platform(Code.PLATFORM_PROCESSING_COST), feeMinor),
+                        new Line(clearing, -feeMinor)));
+    }
+
+    /**
+     * Money the provider reports that nothing of ours explains: it is held in suspense until someone says what it is
+     * (docs/04 §14).
+     */
+    public static Planned unexplainedReceipt(Account clearing, long amountMinor) {
+        check(amountMinor > 0, "a receipt is more than zero");
+        return new Planned(
+                "ADJUSTMENT",
+                "suspense",
+                List.of(new Line(clearing, amountMinor), new Line(Account.platform(Code.SUSPENSE), -amountMinor)));
+    }
+
     private static void addFeeLines(List<Line> lines, long feeMinor, long vatMinor) {
         if (feeMinor > 0) lines.add(new Line(Account.platform(Code.PLATFORM_FEE_REVENUE), -feeMinor));
         if (vatMinor > 0) lines.add(new Line(Account.platform(Code.TAX_PAYABLE), -vatMinor));

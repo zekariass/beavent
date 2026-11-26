@@ -214,7 +214,7 @@ Applies to `PLATFORM_COLLECTS` sellers, refund disbursements and (optionally) st
 
 ## 10. Ledger postings
 
-*Built in slice 3.5 (25 Nov 2026):* `ledger/` (`Ledger`, `Postings`). Capture, fees, release, payout (initiated, settled, failed, returned) and money received for refund are posted; refunds and disputes (3.6, 3.9), reserves, promotions funded by the platform and the platform's provider fee are not yet.
+*Built in slice 3.5 (25 Nov 2026):* `ledger/` (`Ledger`, `Postings`). Capture, fees, release, payout (initiated, settled, failed, returned) and money received for refund are posted; disputes, reserves and promotions funded by the platform are not yet; the provider's fee is posted from the statement (3.9).
 
 Sign convention: debit positive, credit negative. Every transaction balances per currency (deferred trigger); entries are immutable; balances are maintained in `ledger.balances`.
 
@@ -267,6 +267,8 @@ Provider clearing ends at 1,500 − 30 − 1,327.50 = **142.50** = fee 150 + VAT
 * Multi-country sellers have one legal entity per country, so each market's sales, taxes and payouts stay in that country's currency.
 
 ## 14. Reconciliation
+
+*Built in slice 3.9 (26 Nov 2026):* statements are uploaded in the admin console (`payments/Reconciliation`, `internal/ReconciliationService`); steps 1, 2, 3 and 4 below are in place (matching on reference and amount, `UNKNOWN` and late payments resolved from the statement, unexplained money to `SUSPENSE`, provider fees posted as `PROVIDER_FEE`). The balance check (step 5) compares the statement's closing balance, when given, with the ledger's clearing balance at the end of the period. API and SFTP imports and matching without references are not built. Go-live certification is in the same module (`Certification`, `goLive`, `suspend`). See plan 3.9.
 
 Daily per provider account:
 
