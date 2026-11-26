@@ -109,7 +109,8 @@ class Dispatcher {
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("REVIEW_%"))
-                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%")),
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("BOOKING_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -164,7 +165,8 @@ class Dispatcher {
                 boolean hasPhone = person != null && !devices(person).isEmpty();
                 boolean pushed = hasPhone && (prefs == null || prefs.remindersPush());
                 if (pushed) channels.add(new String[] {"PUSH", "this phone"});
-                boolean replacesSms = pushed && OPTIONAL.contains(n.getTemplateCode());
+                boolean replacesSms =
+                        pushed && (OPTIONAL.contains(n.getTemplateCode()) || n.getTemplateCode().startsWith("BOOKING_"));
                 if (customer.value1() != null && (prefs == null || prefs.remindersSms()) && !replacesSms)
                     channels.add(new String[] {"SMS", mask(customer.value1())});
                 if (customer.value2() != null && (prefs == null || prefs.remindersEmail()))
@@ -202,7 +204,8 @@ class Dispatcher {
         if (code.startsWith("PAYOUT_")
                 || code.startsWith("GIFT_CARD_")
                 || code.startsWith("REVIEW_")
-                || code.startsWith("MARKETPLACE_")) {
+                || code.startsWith("MARKETPLACE_")
+                || code.startsWith("BOOKING_")) {
             return null;
         }
         if (code.equals(Notifier.WAITLIST_OFFER)) {

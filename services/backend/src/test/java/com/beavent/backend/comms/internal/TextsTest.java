@@ -97,4 +97,24 @@ class TextsTest {
                     .contains("Abeba Beauty");
         }
     }
+
+    @Test
+    void bookingMessagesForTheBusinessRenderInBothLanguages() {
+        Map<String, Object> data = new java.util.HashMap<>(DATA);
+        data.put("customer", "Meron T.");
+        data.put("services", java.util.List.of("Box braids"));
+        data.put("staff", java.util.List.of("Abebe"));
+        data.put("web", "https://beavent.example");
+        data.put("orgId", "org-1");
+        for (String code : new String[] {Notifier.BOOKING_NEW, Notifier.BOOKING_REQUEST, Notifier.BOOKING_CANCELLED}) {
+            for (String language : new String[] {"am", "en"}) {
+                Texts.Message m = Texts.render(code, language, data);
+                assertThat(m.text()).as(code + " " + language).contains("K7M2QX").contains("Meron T.").contains("Abeba Beauty");
+                assertThat(m.subject()).isNotBlank();
+            }
+        }
+        assertThat(Texts.render(Notifier.BOOKING_NEW, "en", data).text())
+                .isEqualTo("Abeba Beauty: new booking K7M2QX from Meron T.: Box braids on Fri 27 Nov, 10:00 AM (4:00 in the"
+                        + " morning) with Abebe. https://beavent.example/en/business/o/org-1/calendar");
+    }
 }

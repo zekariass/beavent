@@ -75,16 +75,19 @@ class ReviewNotifier {
     private final ProcessedMessages processedMessages;
     private final JsonMapper json;
     private final String webUrl;
+    private final OrgPeople people;
 
     ReviewNotifier(
             @SystemDb DSLContext system,
             ProcessedMessages processedMessages,
             JsonMapper json,
-            @Value("${beavent.web.public-url}") String webUrl) {
+            @Value("${beavent.web.public-url}") String webUrl,
+            OrgPeople people) {
         this.system = system;
         this.processedMessages = processedMessages;
         this.json = json;
         this.webUrl = webUrl.replaceAll("/+$", "");
+        this.people = people;
     }
 
     @RabbitListener(queues = QUEUE)
@@ -104,7 +107,7 @@ class ReviewNotifier {
                 data.put("rating", body.get("rating").asInt());
                 data.put("web", webUrl);
                 data.put("orgId", orgId.toString());
-                for (UUID user : peopleWith(orgId, "reviews.respond")) {
+                for (UUID user : people.with(orgId, "reviews.respond")) {
                     add(orgId, user, Notifier.REVIEW_RECEIVED, "OPERATIONAL", data, Notifier.REVIEW_RECEIVED + ":" + reviewId + ":" + user, now);
                 }
             }
@@ -128,7 +131,7 @@ class ReviewNotifier {
                 }
                 // The business that reported it learns what staff decided.
                 if (body.has("reported") && body.get("reported").asBoolean() && !decision.equals("RESTORE")) {
-                    for (UUID user : peopleWith(orgId, "reviews.respond")) {
+                    for (UUID user : people.with(orgId, "reviews.respond")) {
                         add(orgId, user, Notifier.REVIEW_REPORT_OUTCOME, "OPERATIONAL", data, Notifier.REVIEW_REPORT_OUTCOME + ":" + key + ":" + user, now);
                     }
                 }
@@ -150,7 +153,7 @@ class ReviewNotifier {
                 data.put("status", status);
                 data.put("reason", note);
                 String key = Notifier.MARKETPLACE_CHANGED + ":" + orgId + ":" + status + ":" + body.get("at").asString();
-                for (UUID user : peopleWith(orgId, "org.settings.manage")) {
+                for (UUID user : people.with(orgId, "org.settings.manage")) {
                     add(orgId, user, Notifier.MARKETPLACE_CHANGED, "OPERATIONAL", data, key + ":" + user, now);
                 }
             }
@@ -173,20 +176,6 @@ class ReviewNotifier {
                 system.resultQuery("SELECT name FROM tenant.locations WHERE id = ?", UUID.fromString(locationId))
                         .fetchOne(0, String.class));
         return data;
-    }
-
-    /** The business's owners and the active members whose role holds {@code permission}. */
-    private List<UUID> peopleWith(UUID orgId, String permission) {
-        return system.resultQuery(
-                        """
-                        SELECT DISTINCT m.user_id
-                          FROM tenant.members m
-                          LEFT JOIN tenant.role_permissions rp ON rp.role_id = m.role_id AND rp.permission_code = ?
-                         WHERE m.org_id = ? AND m.status = 'ACTIVE' AND (m.is_owner OR rp.permission_code IS NOT NULL)
-                        """,
-                        permission,
-                        orgId)
-                .fetch(0, UUID.class);
     }
 
     private void add(

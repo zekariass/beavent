@@ -16,8 +16,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.JSONB;
@@ -75,6 +77,14 @@ class Notifier {
     static final String REVIEW_REPORT_OUTCOME = "REVIEW_REPORT_OUTCOME";
     static final String MARKETPLACE_CHANGED = "MARKETPLACE_CHANGED";
 
+    /** What the business hears about a booking a customer made or cancelled themselves (plan 8.4). */
+    static final String BOOKING_NEW = "BOOKING_NEW";
+
+    static final String BOOKING_REQUEST = "BOOKING_REQUEST";
+    static final String BOOKING_CANCELLED = "BOOKING_CANCELLED_BY_CUSTOMER";
+    /** Bookings made by the business's own desk are not news to it. */
+    private static final List<String> DESK_SOURCES = List.of("WALK_IN", "PHONE", "PARTNER_PORTAL");
+
     static final List<String> REMINDERS = List.of(REMINDER_24H, REMINDER_2H);
     static final String CONSUMER = "comms.appointments";
 
@@ -82,16 +92,19 @@ class Notifier {
     private final ProcessedMessages processedMessages;
     private final JsonMapper json;
     private final String webUrl;
+    private final OrgPeople people;
 
     Notifier(
             @SystemDb DSLContext system,
             ProcessedMessages processedMessages,
             JsonMapper json,
-            @org.springframework.beans.factory.annotation.Value("${beavent.web.public-url}") String webUrl) {
+            @org.springframework.beans.factory.annotation.Value("${beavent.web.public-url}") String webUrl,
+            OrgPeople people) {
         this.system = system;
         this.processedMessages = processedMessages;
         this.json = json;
         this.webUrl = webUrl.replaceAll("/+$", "");
+        this.people = people;
     }
 
     @RabbitListener(queues = CommsConfiguration.PAYOUTS_QUEUE)
@@ -352,7 +365,10 @@ class Notifier {
                         LOCATIONS.NAME,
                         PLACES.LANDMARK,
                         LOCATIONS.PHONE,
-                        CUSTOMERS.USER_ID)
+                        CUSTOMERS.USER_ID,
+                        APPOINTMENTS.SOURCE,
+                        APPOINTMENTS.CANCELLED_BY,
+                        CUSTOMERS.DISPLAY_NAME)
                 .from(APPOINTMENTS)
                 .join(ORGANIZATIONS)
                 .on(ORGANIZATIONS.ID.eq(APPOINTMENTS.ORG_ID))
@@ -388,18 +404,28 @@ class Notifier {
         UUID orgId = a.value1();
         UUID customerId = a.value2();
         UUID userId = a.value10();
+        boolean madeByCustomer = !DESK_SOURCES.contains(a.value11());
 
         switch (eventType) {
             case "appointment.booked", "appointment.accepted" -> {
                 if (notify) add(orgId, customerId, userId, CONFIRMED, data, now, start);
                 reminders(orgId, customerId, userId, data, now, start);
+                if (eventType.equals("appointment.booked") && madeByCustomer) {
+                    tellBusiness(BOOKING_NEW, orgId, appointmentId, a.value13(), data, now);
+                }
             }
-            case "appointment.requested" -> add(orgId, customerId, userId, REQUESTED, data, now, start);
+            case "appointment.requested" -> {
+                add(orgId, customerId, userId, REQUESTED, data, now, start);
+                if (madeByCustomer) tellBusiness(BOOKING_REQUEST, orgId, appointmentId, a.value13(), data, now);
+            }
             case "appointment.declined" -> add(orgId, customerId, userId, DECLINED, data, now, start);
             case "appointment.expired" -> add(orgId, customerId, userId, EXPIRED, data, now, start);
             case "appointment.cancelled" -> {
                 withdrawReminders(appointmentId);
                 if (notify) add(orgId, customerId, userId, CANCELLED, data, now, start);
+                if ("CUSTOMER".equals(a.value12())) {
+                    tellBusiness(BOOKING_CANCELLED, orgId, appointmentId, a.value13(), data, now);
+                }
             }
             case "refund.succeeded" -> add(orgId, customerId, userId, REFUND_SENT, data, now, start);
             case "payment_link.created" -> add(orgId, customerId, userId, PAYMENT_LINK, data, now, start);
@@ -419,6 +445,42 @@ class Notifier {
             default -> {
                 // other appointment events carry no customer message
             }
+        }
+    }
+
+    /**
+     * Tells the people who run the business, and whoever does the work, about a booking a customer made, asked for or
+     * cancelled. Runs inside a system transaction.
+     */
+    private void tellBusiness(
+            String code, UUID orgId, UUID appointmentId, String customerName, Map<String, Object> visit, Instant now) {
+        Map<String, Object> data = new LinkedHashMap<>(visit);
+        data.put("customer", customerName);
+        data.put("orgId", orgId.toString());
+        data.put("web", webUrl);
+        data.put(
+                "staff",
+                system.select(DSL.field("s.display_name", String.class))
+                        .from(APPOINTMENT_ITEMS)
+                        .join(DSL.table("team.staff").as("s"))
+                        .on(DSL.field("s.id", UUID.class).eq(APPOINTMENT_ITEMS.STAFF_ID))
+                        .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId))
+                        .orderBy(APPOINTMENT_ITEMS.SEQ)
+                        .fetch(0, String.class));
+        Set<UUID> recipients = new LinkedHashSet<>(people.with(orgId, "appointments.manage"));
+        recipients.addAll(people.doing(appointmentId));
+        for (UUID user : recipients) {
+            system.insertInto(NOTIFICATIONS)
+                    .set(NOTIFICATIONS.ID, Ids.newId())
+                    .set(NOTIFICATIONS.ORG_ID, orgId)
+                    .set(NOTIFICATIONS.RECIPIENT_USER_ID, user)
+                    .set(NOTIFICATIONS.CATEGORY, "OPERATIONAL")
+                    .set(NOTIFICATIONS.TEMPLATE_CODE, code)
+                    .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
+                    .set(NOTIFICATIONS.DEDUPE_KEY, code + ":" + appointmentId + ":" + data.get("startsAt") + ":" + user)
+                    .set(NOTIFICATIONS.SEND_AFTER, now.atOffset(ZoneOffset.UTC))
+                    .onConflictDoNothing()
+                    .execute();
         }
     }
 
