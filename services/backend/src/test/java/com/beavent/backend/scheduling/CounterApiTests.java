@@ -766,4 +766,99 @@ class CounterApiTests extends PayoutTestSupport {
                         .status())
                 .isEqualTo(404);
     }
+
+    // --- plan 4.4: the platform's fees on what is paid at the venue
+    // ----------------------------------------------------
+
+    private long receivable(Shop shop) {
+        return ledger.balance(
+                com.beavent.backend.ledger.Ledger.Account.seller(
+                        Code.SELLER_FEES_RECEIVABLE, shop.salon().id()),
+                "ETB");
+    }
+
+    @Test
+    void feesOnWhatIsPaidAtTheVenueAreAReceivableFromTheSellerChargedOnce() throws Exception {
+        Shop shop = shop(true);
+        sellsGiftCards(shop);
+        String token = shop.salon().owner().token();
+        open(shop, 0);
+        long revenue = platform(Code.PLATFORM_FEE_REVENUE);
+        long vat = platform(Code.TAX_PAYABLE);
+        long pending = owed(shop, Code.SELLER_PENDING);
+        long available = owed(shop, Code.SELLER_AVAILABLE);
+
+        // A Br 500 visit paid in cash: the fee of 10 % and the VAT on it (Br 57.50) are owed by the seller.
+        String visit = deskVisit(shop, 3, "10:00", shop.abebe());
+        Call done = checkout(shop, visit, Map.of("cashTenderedMinor", 50_000), token);
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        assertThat(receivable(shop)).isEqualTo(5_750);
+        assertThat(platform(Code.PLATFORM_FEE_REVENUE) - revenue).isEqualTo(-5_000);
+        assertThat(platform(Code.TAX_PAYABLE) - vat).isEqualTo(-750);
+        assertThat(owed(shop, Code.SELLER_PENDING)).as("no money moved").isEqualTo(pending);
+        assertThat(owed(shop, Code.SELLER_AVAILABLE)).isEqualTo(available);
+        assertThat(ledgerSum()).isZero();
+        assertThat(payouts.overview(shop.salon().id()).feesOwedMinor()).isEqualTo(5_750);
+
+        // Once: the sweep and a second call add nothing.
+        assertThat(payouts.chargeVenueFees(
+                        shop.salon().id(), UUID.fromString(done.text("orderId")), java.time.Instant.now()))
+                .isZero();
+        payouts.sweepVenueFees(java.time.Instant.now());
+        assertThat(receivable(shop)).isEqualTo(5_750);
+
+        // A gift card paying for it is a sale at the venue too; a tip carries no fee.
+        String second = deskVisit(shop, 4, "10:00", shop.abebe());
+        String card = card(shop, 60_000);
+        Call byCard = checkout(
+                shop,
+                second,
+                Map.of(
+                        "tips", List.of(Map.of("staffId", shop.abebe(), "amountMinor", 2_000)),
+                        "giftCards", List.of(card),
+                        "cashTenderedMinor", 2_000),
+                token);
+        assertThat(byCard.status()).as(String.valueOf(byCard.body())).isEqualTo(200);
+        assertThat(receivable(shop)).as("5,750 more, none for the tip").isEqualTo(11_500);
+        assertThat(ledgerSum()).isZero();
+    }
+
+    @Test
+    void aVisitWithAnOnlineDepositOwesOnlyTheFeesOnTheRestAndTheyAreTakenFromThePayout() throws Exception {
+        Shop shop = shop(true);
+        String token = shop.salon().owner().token();
+        Paid paid = payDeposit(shop, 3);
+        // The deposit of Br 100 took 1,150 of the 5,750 in fees.
+        assertThat(owed(shop, Code.SELLER_PENDING)).isEqualTo(8_850);
+        open(shop, 0);
+        Call done = checkout(
+                shop,
+                paid.appointmentId(),
+                Map.of(
+                        "tips",
+                        List.of(Map.of("staffId", shop.abebe(), "amountMinor", 1_000)),
+                        "cashTenderedMinor",
+                        41_000),
+                token);
+        assertThat(done.status()).as(String.valueOf(done.body())).isEqualTo(200);
+        assertThat(receivable(shop)).as("5,750 less the 1,150 already taken").isEqualTo(4_600);
+        assertThat(owed(shop, Code.SELLER_PENDING)).isEqualTo(8_850);
+        assertThat(ledgerSum()).isZero();
+
+        // The deposit is released after the visit; the fees owed come off the payout.
+        java.time.Instant when = weeksAfterTheVisit();
+        payouts.releaseDue(when);
+        assertThat(owed(shop, Code.SELLER_AVAILABLE)).isEqualTo(8_850);
+        assertThat(payouts.overview(shop.salon().id()).feesOwedMinor()).isEqualTo(4_600);
+        payouts.createDue(when);
+        assertThat(receivable(shop)).isZero();
+        assertThat(owed(shop, Code.SELLER_AVAILABLE)).isZero();
+        assertThat(system.fetchValue(
+                        "select amount_minor from payments.payouts where org_id = ?::uuid",
+                        shop.salon().id()))
+                .as("8,850 less the 4,600 in fees")
+                .isEqualTo(4_250L);
+        assertThat(ledgerSum()).isZero();
+        assertThat(payouts.overview(shop.salon().id()).feesOwedMinor()).isZero();
+    }
 }

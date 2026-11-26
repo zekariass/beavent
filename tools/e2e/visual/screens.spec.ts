@@ -2887,6 +2887,20 @@ test("receipts · the front desk's page, the customer's link and the printed pag
       }
     }
   }
+  // The fees owed on what was paid at the venue (plan 4.4), on the earnings page.
+  for (const [language, scheme, viewport, size] of [
+    ["en", "light", "desktop", DESKTOP],
+    ["am", "light", "desktop", DESKTOP],
+    ["en", "dark", "phone", PHONE],
+    ["am", "dark", "phone", PHONE],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize(size);
+    await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/earnings`);
+    await page.getByRole("heading", { level: 1 }).waitFor();
+    await page.waitForLoadState("networkidle");
+    await shot(page, `venuefees-earnings-${language}-${scheme}-${viewport}`);
+  }
   await page.emulateMedia({ colorScheme: "light" });
   await page.setViewportSize(DESKTOP);
   await page.goto(`${WEB}/en/business/o/${salon.orgId}/receipts/${discounted.orderId}`);

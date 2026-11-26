@@ -243,6 +243,8 @@ Provider clearing ends at 1,500 − 30 − 1,327.50 = **142.50** = fee 150 + VAT
 
 **Platform-funded promotion** (Br 100 off, paid by the platform): `PAYMENT_CAPTURED` Dr PROVIDER_CLEARING 1,400.00, Dr PLATFORM_PROMO_EXPENSE 100.00 / Cr SELLER_PENDING 1,500.00.
 
+*Built in slice 4.4 (26 Nov 2026):* for a visit checked out at the counter, the fees on what was paid at the venue (cash, gift card, credit) post exactly as below, once per order, less what the order's online payments already took; the receivable is taken from the next payout (`FEE_COLLECTED`: Dr `SELLER_AVAILABLE` / Cr `SELLER_FEES_RECEIVABLE`). The marketplace new-client commission is not charged yet.
+
 **Cash or pay-at-venue sale with a platform fee** (e.g. marketplace new-client commission on an appointment paid in cash): Dr SELLER_FEES_RECEIVABLE / Cr PLATFORM_FEE_REVENUE + TAX_PAYABLE; netted at the next payout (Dr SELLER_AVAILABLE / Cr SELLER_FEES_RECEIVABLE) or invoiced.
 
 ## 11. Fees

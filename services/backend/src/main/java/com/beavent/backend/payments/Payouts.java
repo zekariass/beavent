@@ -37,9 +37,22 @@ public interface Payouts {
             long paidOutMinor,
             String schedule,
             Integer weekday,
-            long minPayoutMinor) {}
+            long minPayoutMinor,
+            long feesOwedMinor) {}
 
     Overview overview(UUID orgId);
+
+    /**
+     * Charges the platform's fees on what was paid at the venue for an order (cash, gift cards, credit; plan 4.4): the
+     * fees assessed on the order less what its online payments already took, as a receivable from the seller. Once per
+     * order, and nothing for tips (they carry no fee). Safe to repeat.
+     *
+     * @return the fees charged, with VAT; 0 when there is nothing to charge
+     */
+    long chargeVenueFees(UUID orgId, UUID orderId, Instant now);
+
+    /** Charges the venue fees of completed orders that were missed (the safety net behind the checkout). */
+    int sweepVenueFees(Instant now);
 
     record PayoutRow(
             UUID id,

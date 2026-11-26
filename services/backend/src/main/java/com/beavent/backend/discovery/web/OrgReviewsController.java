@@ -21,9 +21,11 @@ class OrgReviewsController {
 
     static final String PERMISSION = "reviews.respond";
 
-    record Answer(@NotBlank @Size(max = Reviews.MAX_RESPONSE) String body) {}
+    record Answer(
+            @NotBlank @Size(max = Reviews.MAX_RESPONSE) String body) {}
 
-    record ReportInput(@NotBlank String reason, @Size(max = 500) String details) {}
+    record ReportInput(
+            @NotBlank String reason, @Size(max = 500) String details) {}
 
     private final Reviews reviews;
 

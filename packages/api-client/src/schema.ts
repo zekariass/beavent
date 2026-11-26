@@ -4283,6 +4283,12 @@ export interface components {
             weekday?: number | null;
             /** Format: int64 */
             minPayoutMinor: number;
+            /**
+             * Format: int64
+             * @description The platform's fees on sales paid at the venue (cash, gift cards, credit) that have not been taken yet; they are
+             *     taken from the next payout.
+             */
+            feesOwedMinor: number;
             payouts: components["schemas"]["PayoutRow"][];
         };
         StatementLine: {

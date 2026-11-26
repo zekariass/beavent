@@ -73,7 +73,8 @@ public class ExpoPushGateway implements PushGateway {
                 JsonNode ticket = tickets.get(i);
                 boolean gone = ticket != null
                         && "error".equals(ticket.path("status").asString())
-                        && "DeviceNotRegistered".equals(ticket.path("details").path("error").asString());
+                        && "DeviceNotRegistered"
+                                .equals(ticket.path("details").path("error").asString());
                 result.put(batch.get(i), gone ? Outcome.DEVICE_GONE : Outcome.SENT);
             }
         }

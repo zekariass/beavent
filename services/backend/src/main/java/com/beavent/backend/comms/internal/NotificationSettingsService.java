@@ -50,8 +50,7 @@ class NotificationSettingsService implements NotificationSettings {
         if (from.equals(to)) {
             throw new ApiException(ProblemCode.VALIDATION_FAILED, "Quiet hours need different start and end times.");
         }
-        system.execute(
-                """
+        system.execute("""
                 INSERT INTO comms.notification_settings
                   (user_id, reminders_push, reminders_sms, reminders_email, quiet_hours_enabled, quiet_from, quiet_to)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -59,14 +58,7 @@ class NotificationSettingsService implements NotificationSettings {
                   reminders_push = excluded.reminders_push, reminders_sms = excluded.reminders_sms, reminders_email = excluded.reminders_email,
                   quiet_hours_enabled = excluded.quiet_hours_enabled, quiet_from = excluded.quiet_from,
                   quiet_to = excluded.quiet_to, updated_at = now()
-                """,
-                userId,
-                s.remindersPush(),
-                s.remindersSms(),
-                s.remindersEmail(),
-                s.quietHours(),
-                from,
-                to);
+                """, userId, s.remindersPush(), s.remindersSms(), s.remindersEmail(), s.quietHours(), from, to);
         return get(userId);
     }
 
