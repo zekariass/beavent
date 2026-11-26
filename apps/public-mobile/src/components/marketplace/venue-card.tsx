@@ -3,6 +3,7 @@ import { space } from "@beavent/ui";
 import { nextAvailableText, resultMeta, type SearchItem } from "@beavent/venue";
 import { Pressable, View } from "react-native";
 
+import { RatingLine } from "../reviews/rating-line";
 import { HeartButton } from "./heart-button";
 import { PlaceImage } from "./place-image";
 
@@ -47,6 +48,7 @@ export function VenueCard({
           <Text role="label" tone="muted" lines={1}>
             {meta}
           </Text>
+          <RatingLine average={item.ratingAvg} count={item.ratingCount} />
           {next ? (
             <Text role="label" lines={2}>
               {next}

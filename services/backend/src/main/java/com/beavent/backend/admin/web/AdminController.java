@@ -9,6 +9,7 @@ import com.beavent.backend.admin.internal.Directory;
 import com.beavent.backend.admin.internal.Flags;
 import com.beavent.backend.admin.internal.Kyb;
 import com.beavent.backend.admin.internal.MarketplaceReview;
+import com.beavent.backend.admin.internal.ReviewModeration;
 import com.beavent.backend.admin.internal.PayoutDesk;
 import com.beavent.backend.admin.internal.PayoutReview;
 import com.beavent.backend.admin.internal.RefundDesk;
@@ -37,6 +38,7 @@ class AdminController {
     private final Kyb kyb;
     private final PayoutReview payouts;
     private final MarketplaceReview marketplaceReview;
+    private final ReviewModeration reviewModeration;
     private final PayoutDesk desk;
     private final RefundDesk refundDesk;
     private final AuditTrail auditTrail;
@@ -48,6 +50,7 @@ class AdminController {
             Kyb kyb,
             PayoutReview payouts,
             MarketplaceReview marketplaceReview,
+            ReviewModeration reviewModeration,
             PayoutDesk desk,
             RefundDesk refundDesk,
             AuditTrail auditTrail,
@@ -57,6 +60,7 @@ class AdminController {
         this.kyb = kyb;
         this.payouts = payouts;
         this.marketplaceReview = marketplaceReview;
+        this.reviewModeration = reviewModeration;
         this.desk = desk;
         this.refundDesk = refundDesk;
         this.auditTrail = auditTrail;
@@ -143,6 +147,24 @@ class AdminController {
     AdminBodies.PayoutAccountSummary decidePayoutAccount(
             @PathVariable UUID accountId, @Valid @RequestBody AdminBodies.Decision body) {
         return payouts.decide(StaffAccess.current(), accountId, body);
+    }
+
+    @GetMapping("/v1/admin/reviews")
+    AdminBodies.Page<com.beavent.backend.discovery.Reviews.ForStaff> reviews(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        return reviewModeration.queue(StaffAccess.current(), status, cursor, limit(limit));
+    }
+
+    @PostMapping("/v1/admin/reviews/{reviewId}/decision")
+    com.beavent.backend.discovery.Reviews.ForStaff decideReview(
+            @PathVariable UUID reviewId, @Valid @RequestBody AdminBodies.ReviewDecision body) {
+        return reviewModeration.decide(
+                StaffAccess.current(),
+                reviewId,
+                com.beavent.backend.discovery.Reviews.Decision.valueOf(body.decision()),
+                body.reason());
     }
 
     @GetMapping("/v1/admin/marketplace-listings")

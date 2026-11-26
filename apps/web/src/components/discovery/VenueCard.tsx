@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Language } from "@beavent/i18n";
 import { nextAvailableText, resultHref, resultMeta, type SearchItem } from "@beavent/venue";
 import { PlaceImage } from "@/components/discovery/PlaceImage";
+import { RatingInline } from "@/components/reviews/Stars";
 import { SaveButton } from "@/components/discovery/SaveButton";
 import { translator } from "@/lib/i18n";
 
@@ -40,6 +41,7 @@ export function VenueCard({
           {item.title}
         </span>
         <span className="bv-type-label text-fg-muted">{resultMeta(item, language, t)}</span>
+        <RatingInline average={item.ratingAvg} count={item.ratingCount} language={language} />
         {next ? <span className="bv-type-label text-fg">{next}</span> : null}
         {extra ? <span className="bv-type-label text-fg-muted">{extra}</span> : null}
       </Link>

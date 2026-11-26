@@ -13,6 +13,10 @@ import {
   pick,
   policySentences,
   priceText,
+  ratingLine,
+  ratingShares,
+  reviewedService,
+  visitedText,
   weekHours,
   type Venue,
   type VenueVariant,
@@ -386,4 +390,35 @@ test("book again lists each place of a completed visit once, newest first, with 
   const en = createTranslator("en");
   assert.equal(lastVisitText(list[0]!, en), "Last: Box braids · with Hana");
   assert.equal(lastVisitText({ ...list[0]!, lastPerson: null }, en), "Last: Box braids");
+});
+
+test("a rating reads as the average and the count, and is left out when nobody has reviewed", () => {
+  const en = createTranslator("en");
+  assert.equal(ratingLine(4.5, 12, "en", en), "4.5 · 12 reviews");
+  assert.equal(ratingLine(4, 1, "en", en), "4 · 1 review");
+  assert.equal(ratingLine(undefined, 0, "en", en), null);
+  assert.equal(ratingLine(5, 0, "en", en), null);
+  assert.equal(ratingLine(4.5, 3, "am", createTranslator("am")), "4.5 · 3 ግምገማዎች");
+});
+
+test("a review says what the visit was, who did it and when, in the reader's calendar", () => {
+  const en = createTranslator("en");
+  const braids = { en: "Box braids", am: "ቦክስ ሹሩባ" };
+  assert.equal(
+    reviewedService({ serviceName: braids, staffName: "Hana" }, "en", en),
+    "Box braids with Hana",
+  );
+  assert.equal(reviewedService({ serviceName: braids }, "am", createTranslator("am")), "ቦክስ ሹሩባ");
+  assert.equal(reviewedService({}, "en", en), null);
+  assert.match(visitedText("2026-11-26", "en", en), /^Visited .*2026/);
+  // The Ethiopian calendar for Amharic readers: 26 Nov 2026 is 16 Hidar 2019.
+  assert.match(visitedText("2026-11-26", "am", createTranslator("am")), /ኅዳር|ሕዳር/);
+});
+
+test("the star distribution turns into shares of all reviews", () => {
+  assert.deepEqual(
+    ratingShares({ count: 4, distribution: [1, 0, 1, 0, 2] }),
+    [0.25, 0, 0.25, 0, 0.5],
+  );
+  assert.deepEqual(ratingShares({ count: 0, distribution: [0, 0, 0, 0, 0] }), [0, 0, 0, 0, 0]);
 });

@@ -11,6 +11,7 @@ import {
 } from "@beavent/venue";
 import { formatDuration } from "@beavent/i18n";
 import { PlaceImage } from "@/components/discovery/PlaceImage";
+import { RatingInline } from "@/components/reviews/Stars";
 import { SaveButton } from "@/components/discovery/SaveButton";
 import { translator } from "@/lib/i18n";
 
@@ -64,6 +65,7 @@ export function VenueResultRow({
           ) : null}
         </div>
         <p className="bv-type-label text-fg-muted">{resultMeta(item, language, t)}</p>
+        <RatingInline average={item.ratingAvg} count={item.ratingCount} language={language} />
         {item.landmark ? <p className="bv-type-caption text-fg-muted">{item.landmark}</p> : null}
         {next ? <p className="bv-type-label text-fg">{next}</p> : null}
         {price ? <p className="bv-type-label text-fg">{price}</p> : null}

@@ -5,10 +5,12 @@ import { pick } from "@beavent/venue";
 import { FollowButton } from "@/components/discovery/FollowButton";
 import { PlaceImage } from "@/components/discovery/PlaceImage";
 import { VenueResultRow } from "@/components/discovery/VenueResultRow";
+import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { SiteHeader } from "@/components/SiteHeader";
 import { loadFollowing, savedLocationIds } from "@/lib/customer/saved";
 import { loadBrand, loadPlaces } from "@/lib/discovery";
 import { routeLanguage, translator } from "@/lib/i18n";
+import { loadReviews } from "@/lib/reviews";
 import { loadLocationSlugs } from "@/lib/venue";
 
 type Props = PageProps<"/[lang]/b/[business]">;
@@ -44,9 +46,10 @@ export default async function BusinessPage({ params }: Props) {
     if (!slugs?.[0]) notFound();
     redirect(`/${language}/b/${business}/${slugs[0]}`);
   }
-  const [saved, following] = await Promise.all([
+  const [saved, following, reviews] = await Promise.all([
     savedLocationIds(language),
     loadFollowing(language),
+    loadReviews(language, business, { limit: 5 }),
   ]);
   const description = pick(brand.description, language);
   return (
@@ -98,6 +101,15 @@ export default async function BusinessPage({ params }: Props) {
             ))}
           </ul>
         </section>
+        {reviews ? (
+          <ReviewsSection
+            page={reviews}
+            language={language}
+            business={brand.slug}
+            businessName={brand.name}
+            showPlace
+          />
+        ) : null}
       </main>
     </div>
   );

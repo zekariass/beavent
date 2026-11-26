@@ -11,6 +11,7 @@ import {
 } from "@beavent/venue";
 import { Pressable, View } from "react-native";
 
+import { RatingLine } from "../reviews/rating-line";
 import { HeartButton } from "./heart-button";
 import { PlaceImage } from "./place-image";
 
@@ -65,6 +66,7 @@ export function VenueResultRow({
             <Text role="label" tone="muted">
               {meta}
             </Text>
+            <RatingLine average={item.ratingAvg} count={item.ratingCount} />
             {next ? <Text role="label">{next}</Text> : null}
             {price ? <Text role="label">{price}</Text> : null}
           </View>

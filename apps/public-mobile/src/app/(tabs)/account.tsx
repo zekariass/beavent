@@ -44,6 +44,11 @@ export default function AccountScreen() {
               chevron
               onPress={() => router.push("/following")}
             />
+            <ListRow
+              title={t("reviews.page.title")}
+              chevron
+              onPress={() => router.push("/reviews")}
+            />
           </Group>
         </Section>
       )}

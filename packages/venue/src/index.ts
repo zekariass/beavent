@@ -459,3 +459,69 @@ export function refundNotice(a: AppointmentMoney, language: Language, t: Transla
   }
   return t("appointment.refund.onTheWay", { amount });
 }
+
+// --- reviews (plan 8.3) ----------------------------------------------------------------------------------------------
+
+export type Review = Schemas["Review"];
+export type ReviewSummary = Schemas["ReviewSummary"];
+export type ReviewPage = Schemas["ReviewPage"];
+export type PendingReview = Schemas["PendingReview"];
+export type MyReview = Schemas["MyReview"];
+export type MyReviews = Schemas["MyReviews"];
+export type BusinessReview = Schemas["BusinessReview"];
+export type BusinessReviewPage = Schemas["BusinessReviewPage"];
+
+/** The star ratings people can give. */
+export const STARS = [1, 2, 3, 4, 5] as const;
+
+/** "4.5" with one decimal, "4" for a round number: how a place's average reads. */
+export function ratingNumber(average: number, language: Language): string {
+  return new Intl.NumberFormat(language, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  }).format(average);
+}
+
+/** "4.5 · 12 reviews", or null when nobody has reviewed the place (an empty rating is not shown as 0). */
+export function ratingLine(
+  average: number | undefined,
+  count: number,
+  language: Language,
+  t: Translate,
+): string | null {
+  if (average === undefined || count === 0) return null;
+  return `${ratingNumber(average, language)} · ${t("reviews.count", { count })}`;
+}
+
+/** What a screen reader says for the average: "Rated 4.5 out of 5". */
+export const ratingLabel = (average: number, language: Language, t: Translate): string =>
+  t("reviews.rated", { rating: ratingNumber(average, language) });
+
+/** The day of a visit in the reader's calendar ("Visited Hamle 12"); `visitedOn` is a local date, so no zone shift. */
+export function visitedText(visitedOn: string, language: Language, t: Translate): string {
+  const [year, month, day] = visitedOn.split("-").map(Number) as [number, number, number];
+  const date = formatDualDate(
+    { year, month, day },
+    defaultDisplayPreferences(calendarLanguage(language)),
+    { year: true },
+  );
+  return t("reviews.visited", { date: date.primary });
+}
+
+/** What the visit was, in the reader's language: "Box braids" or "Box braids with Hana"; null when nothing is named. */
+export function reviewedService(
+  review: { serviceName?: Record<string, string>; staffName?: string },
+  language: Language,
+  t: Translate,
+): string | null {
+  const service = pick(review.serviceName, language);
+  if (!service) return null;
+  return review.staffName
+    ? t("reviews.serviceWith", { service, person: review.staffName })
+    : t("reviews.service", { service });
+}
+
+/** Share of each star level, 0–1, from the star-1 end to the star-5 end (for the distribution bars). */
+export function ratingShares(summary: ReviewSummary): number[] {
+  return summary.distribution.map((n) => (summary.count === 0 ? 0 : n / summary.count));
+}

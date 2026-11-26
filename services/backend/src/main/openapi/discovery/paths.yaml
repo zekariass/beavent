@@ -330,3 +330,268 @@ brand:
         $ref: ../common/responses.yaml#/NotFound
       '429':
         $ref: ../common/responses.yaml#/TooManyRequests
+brandReviews:
+  get:
+    tags: [Discovery]
+    operationId: listBrandReviews
+    summary: Published reviews of a business or of one of its places, newest first
+    description: Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+    security: []
+    parameters:
+      - name: businessSlug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: location
+        in: query
+        required: false
+        schema:
+          type: string
+      - $ref: ../common/parameters.yaml#/Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+    responses:
+      '200':
+        description: The reviews.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReviewPage
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+myReviews:
+  get:
+    tags: [Discovery]
+    operationId: listMyReviews
+    summary: Visits waiting for a review, and the reviews the person wrote
+    description: A visit can be reviewed once it is completed and for 90 days after it ended.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReviews
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+myAppointmentReview:
+  post:
+    tags: [Discovery]
+    operationId: writeReview
+    summary: Review a completed visit
+    description: |
+      One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+      `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+      changes at once.
+    parameters:
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewInput
+    responses:
+      '201':
+        description: Published.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+myReview:
+  put:
+    tags: [Discovery]
+    operationId: editReview
+    summary: Change the rating or text of the person's own review
+    description: The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MyReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+  delete:
+    tags: [Discovery]
+    operationId: deleteReview
+    summary: Delete the person's own review
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Deleted.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+orgReviews:
+  get:
+    tags: [Discovery]
+    operationId: listOrgReviews
+    summary: The reviews of the business's places, newest first
+    description: Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: unanswered
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReviewPage
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+orgReviewResponse:
+  put:
+    tags: [Discovery]
+    operationId: answerReview
+    summary: Answer a published review, or replace the answer
+    description: Needs `reviews.respond`. The answer shows under the review for everyone.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewAnswerInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+  delete:
+    tags: [Discovery]
+    operationId: removeReviewAnswer
+    summary: Take the answer back
+    description: Needs `reviews.respond`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+orgReviewReport:
+  post:
+    tags: [Discovery]
+    operationId: reportReview
+    summary: Ask platform staff to look at a review
+    description: Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ReviewReportInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/BusinessReview
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

@@ -5396,6 +5396,280 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/public/businesses/{businessSlug}/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listBrandReviews
+      summary: Published reviews of a business or of one of its places, newest first
+      description: Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+      security: []
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: location
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: The reviews.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listMyReviews
+      summary: Visits waiting for a review, and the reviews the person wrote
+      description: A visit can be reviewed once it is completed and for 90 days after it ended.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/reviews/{reviewId}:
+    put:
+      tags:
+        - Discovery
+      operationId: editReview
+      summary: Change the rating or text of the person's own review
+      description: The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+        - Discovery
+      operationId: deleteReview
+      summary: Delete the person's own review
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/me/appointments/{appointmentId}/review:
+    post:
+      tags:
+        - Discovery
+      operationId: writeReview
+      summary: Review a completed visit
+      description: |
+        One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+        `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+        changes at once.
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '201':
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/reviews:
+    get:
+      tags:
+        - Discovery
+      operationId: listOrgReviews
+      summary: The reviews of the business's places, newest first
+      description: Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: unanswered
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReviewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/reviews/{reviewId}/response:
+    put:
+      tags:
+        - Discovery
+      operationId: answerReview
+      summary: Answer a published review, or replace the answer
+      description: Needs `reviews.respond`. The answer shows under the review for everyone.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewAnswerInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+        - Discovery
+      operationId: removeReviewAnswer
+      summary: Take the answer back
+      description: Needs `reviews.respond`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/reviews/{reviewId}/report:
+    post:
+      tags:
+        - Discovery
+      operationId: reportReview
+      summary: Ask platform staff to look at a review
+      description: Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewReportInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/files:
     post:
       tags:
@@ -5947,6 +6221,76 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/admin/reviews:
+    get:
+      tags:
+        - Admin
+      operationId: listReviewsForModeration
+      summary: Reviews that businesses reported (default) or that staff took down, oldest first
+      description: Needs `admin.moderation`, in the business's market.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - REPORTED
+              - HIDDEN
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffReviewPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reviews/{reviewId}/decision:
+    post:
+      tags:
+        - Admin
+      operationId: decideReview
+      summary: Hide a review, put it back, or dismiss the reports on it (reason required, audited)
+      description: |
+        Needs `admin.moderation`; staff cannot decide about a business they belong to. `HIDE` takes a published review
+        down (it stops counting in the place's rating) and closes its reports as actioned; `RESTORE` puts a hidden review
+        back; `DISMISS` closes the open reports and leaves the review. Each decision is recorded with its reason.
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewDecision'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffReview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/admin/orgs/{orgId}/marketplace-decision:
     post:
       tags:
@@ -12351,6 +12695,263 @@ components:
           description: How many of its places are listed on the marketplace.
         followers:
           type: integer
+    ReviewSummary:
+      type: object
+      required:
+        - count
+        - distribution
+      properties:
+        average:
+          type: number
+          description: Average of the published reviews, two decimals; absent when there are none.
+        count:
+          type: integer
+        distribution:
+          type: array
+          description: How many reviews gave 1, 2, 3, 4 and 5 stars, in that order.
+          items:
+            type: integer
+    ReviewResponse:
+      type: object
+      required:
+        - body
+        - at
+      properties:
+        body:
+          type: string
+        at:
+          $ref: '#/components/schemas/Instant'
+    Review:
+      type: object
+      description: A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name.
+      required:
+        - id
+        - rating
+        - locationSlug
+        - placeName
+        - visitedOn
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+        authorName:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedOn:
+          type: string
+          format: date
+          description: The day of the visit, in the place's time zone.
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+    ReviewPage:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        nextCursor:
+          type: string
+    PendingReview:
+      type: object
+      description: A completed visit that has no review yet and can still get one.
+      required:
+        - appointmentId
+        - locationId
+        - businessSlug
+        - locationSlug
+        - placeName
+        - visitedAt
+        - canReviewUntil
+      properties:
+        appointmentId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedAt:
+          $ref: '#/components/schemas/Instant'
+        canReviewUntil:
+          $ref: '#/components/schemas/Instant'
+    MyReview:
+      type: object
+      required:
+        - id
+        - appointmentId
+        - businessSlug
+        - locationSlug
+        - placeName
+        - rating
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        appointmentId:
+          $ref: '#/components/schemas/Uuid'
+        businessSlug:
+          type: string
+        locationSlug:
+          type: string
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        rating:
+          type: integer
+        body:
+          type: string
+        status:
+          type: string
+          enum:
+            - PUBLISHED
+            - HIDDEN
+            - PENDING_MODERATION
+            - REMOVED
+          description: '`HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed.'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+    MyReviews:
+      type: object
+      required:
+        - pending
+        - reviews
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingReview'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyReview'
+    ReviewInput:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+          maxLength: 1000
+    BusinessReview:
+      type: object
+      required:
+        - id
+        - rating
+        - locationId
+        - placeName
+        - visitedOn
+        - createdAt
+        - status
+        - reported
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        rating:
+          type: integer
+        body:
+          type: string
+        authorName:
+          type: string
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        placeName:
+          type: string
+        serviceName:
+          $ref: '#/components/schemas/LocalizedText'
+        staffName:
+          type: string
+        visitedOn:
+          type: string
+          format: date
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        status:
+          type: string
+          enum:
+            - PUBLISHED
+            - HIDDEN
+            - PENDING_MODERATION
+            - REMOVED
+        response:
+          $ref: '#/components/schemas/ReviewResponse'
+        reported:
+          type: boolean
+          description: A report is waiting for staff.
+    BusinessReviewPage:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusinessReview'
+        nextCursor:
+          type: string
+    ReviewAnswerInput:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewReportInput:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          enum:
+            - INAPPROPRIATE
+            - HARASSMENT
+            - MISLEADING_PRICE
+            - UNSAFE
+            - OTHER
+        details:
+          type: string
+          maxLength: 500
     FilePurpose:
       type: string
       enum:
@@ -12929,6 +13530,106 @@ components:
             $ref: '#/components/schemas/MarketplaceListing'
         page:
           $ref: '#/components/schemas/PageInfo'
+    StaffReviewReport:
+      type: object
+      required:
+        - id
+        - reason
+        - status
+        - at
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        reason:
+          type: string
+        details:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - IN_REVIEW
+            - ACTIONED
+            - DISMISSED
+        at:
+          $ref: '#/components/schemas/Instant'
+    StaffReview:
+      type: object
+      required:
+        - id
+        - orgId
+        - businessName
+        - placeName
+        - rating
+        - status
+        - createdAt
+        - reports
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        orgId:
+          $ref: '#/components/schemas/Uuid'
+        businessName:
+          type: string
+        placeName:
+          type: string
+        rating:
+          type: integer
+        body:
+          type: string
+        authorName:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING_MODERATION
+            - PUBLISHED
+            - HIDDEN
+            - REMOVED
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+        response:
+          type: object
+          required:
+            - body
+            - at
+          properties:
+            body:
+              type: string
+            at:
+              $ref: '#/components/schemas/Instant'
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffReviewReport'
+    StaffReviewPage:
+      type: object
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffReview'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ReviewDecision:
+      type: object
+      required:
+        - decision
+        - reason
+      properties:
+        decision:
+          type: string
+          enum:
+            - HIDE
+            - RESTORE
+            - DISMISS
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
     MarketplaceDecision:
       type: object
       required:

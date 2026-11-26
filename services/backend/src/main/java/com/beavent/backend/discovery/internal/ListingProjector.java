@@ -711,6 +711,16 @@ class ListingProjector implements Listings {
                        excluded.next_available_at, excluded.next_starts_at, excluded.last_ends_at,
                        excluded.attributes, excluded.quality_score, excluded.is_listed, excluded.search_text)
                 """.formatted(geoSql, areaSql, conflict), binds.toArray());
+        if (locationId != null) {
+            // A place listed for the first time (or again) shows the average of the reviews it already has.
+            system.execute("""
+                    UPDATE discovery.listings li
+                       SET rating_avg = s.avg, rating_count = s.n
+                      FROM (SELECT round(avg(rating), 2) AS avg, count(*)::int AS n
+                              FROM discovery.reviews WHERE location_id = ? AND status = 'PUBLISHED') s
+                     WHERE li.location_id = ? AND (li.rating_avg, li.rating_count) IS DISTINCT FROM (s.avg, s.n)
+                    """, locationId, locationId);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------------------

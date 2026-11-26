@@ -550,3 +550,78 @@ MarketplaceDecision:
       type: string
       minLength: 5
       maxLength: 500
+
+StaffReviewReport:
+  type: object
+  required: [id, reason, status, at]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    reason:
+      type: string
+    details:
+      type: string
+    status:
+      type: string
+      enum: [OPEN, IN_REVIEW, ACTIONED, DISMISSED]
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+
+StaffReview:
+  type: object
+  required: [id, orgId, businessName, placeName, rating, status, createdAt, reports]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    orgId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessName:
+      type: string
+    placeName:
+      type: string
+    rating:
+      type: integer
+    body:
+      type: string
+    authorName:
+      type: string
+    status:
+      type: string
+      enum: [PENDING_MODERATION, PUBLISHED, HIDDEN, REMOVED]
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      type: object
+      required: [body, at]
+      properties:
+        body:
+          type: string
+        at:
+          $ref: ../common/schemas.yaml#/Instant
+    reports:
+      type: array
+      items:
+        $ref: '#/StaffReviewReport'
+
+StaffReviewPage:
+  type: object
+  required: [items, page]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/StaffReview'
+    page:
+      $ref: ../common/schemas.yaml#/PageInfo
+
+ReviewDecision:
+  type: object
+  required: [decision, reason]
+  properties:
+    decision:
+      type: string
+      enum: [HIDE, RESTORE, DISMISS]
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 500

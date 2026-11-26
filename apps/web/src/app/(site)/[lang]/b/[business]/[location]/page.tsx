@@ -8,6 +8,9 @@ import { TeamRail } from "@/components/venue/TeamRail";
 import { VenueGallery } from "@/components/venue/VenueGallery";
 import { FollowButton } from "@/components/discovery/FollowButton";
 import { SaveButton } from "@/components/discovery/SaveButton";
+import { ReviewsSection } from "@/components/reviews/ReviewsSection";
+import { RatingInline } from "@/components/reviews/Stars";
+import { loadReviews } from "@/lib/reviews";
 import { loadFollowing, savedLocationIds } from "@/lib/customer/saved";
 import { SiteHeader } from "@/components/SiteHeader";
 import { routeLanguage, translator } from "@/lib/i18n";
@@ -49,9 +52,10 @@ export default async function VenuePage({ params }: Props) {
   const t = translator(language);
   const venue = await loadVenue(business, location);
   if (!venue) notFound();
-  const [saved, following] = await Promise.all([
+  const [saved, following, reviews] = await Promise.all([
     savedLocationIds(language),
     loadFollowing(language),
+    loadReviews(language, business, { location, limit: 5 }),
   ]);
   const now = new Date();
   // A failure to ask must not break the page: no gift card link then.
@@ -109,6 +113,15 @@ export default async function VenuePage({ params }: Props) {
               {venue.landmark ? (
                 <p className="bv-type-label text-fg-muted">{venue.landmark}</p>
               ) : null}
+              {reviews?.summary.average !== undefined ? (
+                <a href="#reviews" className="self-start hover:text-primary">
+                  <RatingInline
+                    average={reviews.summary.average}
+                    count={reviews.summary.count}
+                    language={language}
+                  />
+                </a>
+              ) : null}
               <p className="bv-type-label text-fg">
                 {status.open && until ? (
                   <>
@@ -142,6 +155,11 @@ export default async function VenuePage({ params }: Props) {
                   {t("venue.team")}
                 </a>
               ) : null}
+              {reviews ? (
+                <a href="#reviews" className={tab}>
+                  {t("reviews.title")}
+                </a>
+              ) : null}
               <a href="#about" className={tab}>
                 {t("venue.about")}
               </a>
@@ -166,6 +184,17 @@ export default async function VenuePage({ params }: Props) {
                 <h2 className="bv-type-title2 text-fg">{t("venue.team")}</h2>
                 <TeamRail venue={venue} />
               </section>
+            ) : null}
+
+            {reviews ? (
+              <ReviewsSection
+                id="reviews"
+                page={reviews}
+                language={language}
+                business={venue.businessSlug}
+                businessName={venue.businessName}
+                location={venue.locationSlug}
+              />
             ) : null}
 
             <section id="about" className="flex scroll-mt-16 flex-col gap-3">

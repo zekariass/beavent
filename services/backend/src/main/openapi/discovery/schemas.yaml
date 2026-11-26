@@ -297,3 +297,206 @@ Brand:
       description: How many of its places are listed on the marketplace.
     followers:
       type: integer
+
+ReviewResponse:
+  type: object
+  required: [body, at]
+  properties:
+    body:
+      type: string
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+ReviewSummary:
+  type: object
+  required: [count, distribution]
+  properties:
+    average:
+      type: number
+      description: Average of the published reviews, two decimals; absent when there are none.
+    count:
+      type: integer
+    distribution:
+      type: array
+      description: How many reviews gave 1, 2, 3, 4 and 5 stars, in that order.
+      items:
+        type: integer
+Review:
+  type: object
+  description: A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name.
+  required: [id, rating, locationSlug, placeName, visitedOn, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    body:
+      type: string
+    authorName:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedOn:
+      type: string
+      format: date
+      description: The day of the visit, in the place's time zone.
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      $ref: '#/ReviewResponse'
+ReviewPage:
+  type: object
+  required: [summary, items]
+  properties:
+    summary:
+      $ref: '#/ReviewSummary'
+    items:
+      type: array
+      items:
+        $ref: '#/Review'
+    nextCursor:
+      type: string
+PendingReview:
+  type: object
+  description: A completed visit that has no review yet and can still get one.
+  required: [appointmentId, locationId, businessSlug, locationSlug, placeName, visitedAt, canReviewUntil]
+  properties:
+    appointmentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedAt:
+      $ref: ../common/schemas.yaml#/Instant
+    canReviewUntil:
+      $ref: ../common/schemas.yaml#/Instant
+MyReview:
+  type: object
+  required: [id, appointmentId, businessSlug, locationSlug, placeName, rating, status, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    appointmentId:
+      $ref: ../common/schemas.yaml#/Uuid
+    businessSlug:
+      type: string
+    locationSlug:
+      type: string
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    rating:
+      type: integer
+    body:
+      type: string
+    status:
+      type: string
+      enum: [PUBLISHED, HIDDEN, PENDING_MODERATION, REMOVED]
+      description: "`HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed."
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    response:
+      $ref: '#/ReviewResponse'
+MyReviews:
+  type: object
+  required: [pending, reviews]
+  properties:
+    pending:
+      type: array
+      items:
+        $ref: '#/PendingReview'
+    reviews:
+      type: array
+      items:
+        $ref: '#/MyReview'
+ReviewInput:
+  type: object
+  required: [rating]
+  properties:
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    body:
+      type: string
+      maxLength: 1000
+BusinessReview:
+  type: object
+  required: [id, rating, locationId, placeName, visitedOn, createdAt, status, reported]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    rating:
+      type: integer
+    body:
+      type: string
+    authorName:
+      type: string
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    placeName:
+      type: string
+    serviceName:
+      $ref: ../common/schemas.yaml#/LocalizedText
+    staffName:
+      type: string
+    visitedOn:
+      type: string
+      format: date
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+    status:
+      type: string
+      enum: [PUBLISHED, HIDDEN, PENDING_MODERATION, REMOVED]
+    response:
+      $ref: '#/ReviewResponse'
+    reported:
+      type: boolean
+      description: A report is waiting for staff.
+BusinessReviewPage:
+  type: object
+  required: [summary, items]
+  properties:
+    summary:
+      $ref: '#/ReviewSummary'
+    items:
+      type: array
+      items:
+        $ref: '#/BusinessReview'
+    nextCursor:
+      type: string
+ReviewAnswerInput:
+  type: object
+  required: [body]
+  properties:
+    body:
+      type: string
+      minLength: 1
+      maxLength: 1000
+ReviewReportInput:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [INAPPROPRIATE, HARASSMENT, MISLEADING_PRICE, UNSAFE, OTHER]
+    details:
+      type: string
+      maxLength: 500

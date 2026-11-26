@@ -328,6 +328,20 @@ paths:
     $ref: ./discovery/paths.yaml#/myFollow
   /v1/public/businesses/{businessSlug}:
     $ref: ./discovery/paths.yaml#/brand
+  /v1/public/businesses/{businessSlug}/reviews:
+    $ref: ./discovery/paths.yaml#/brandReviews
+  /v1/me/reviews:
+    $ref: ./discovery/paths.yaml#/myReviews
+  /v1/me/reviews/{reviewId}:
+    $ref: ./discovery/paths.yaml#/myReview
+  /v1/me/appointments/{appointmentId}/review:
+    $ref: ./discovery/paths.yaml#/myAppointmentReview
+  /v1/orgs/{orgId}/reviews:
+    $ref: ./discovery/paths.yaml#/orgReviews
+  /v1/orgs/{orgId}/reviews/{reviewId}/response:
+    $ref: ./discovery/paths.yaml#/orgReviewResponse
+  /v1/orgs/{orgId}/reviews/{reviewId}/report:
+    $ref: ./discovery/paths.yaml#/orgReviewReport
   # --- files ------------------------------------------------------------------------------------------------
   /v1/orgs/{orgId}/files:
     $ref: ./files/paths.yaml#/orgFiles
@@ -368,6 +382,10 @@ paths:
     $ref: ./admin/paths.yaml#/adminPayoutAccountDecision
   /v1/admin/marketplace-listings:
     $ref: ./admin/paths.yaml#/adminMarketplaceListings
+  /v1/admin/reviews:
+    $ref: ./admin/paths.yaml#/adminReviews
+  /v1/admin/reviews/{reviewId}/decision:
+    $ref: ./admin/paths.yaml#/adminReviewDecision
   /v1/admin/orgs/{orgId}/marketplace-decision:
     $ref: ./admin/paths.yaml#/adminMarketplaceDecision
   /v1/admin/payouts:

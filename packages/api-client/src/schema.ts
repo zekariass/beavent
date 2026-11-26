@@ -2439,6 +2439,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/businesses/{businessSlug}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Published reviews of a business or of one of its places, newest first
+         * @description Public. `summary` counts all published reviews in scope, not just this page. `location` is a place's slug.
+         */
+        get: operations["listBrandReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visits waiting for a review, and the reviews the person wrote
+         * @description A visit can be reviewed once it is completed and for 90 days after it ended.
+         */
+        get: operations["listMyReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/reviews/{reviewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the rating or text of the person's own review
+         * @description The business's answer stays. A review that Beavent took down cannot be changed (`CONFLICT`).
+         */
+        put: operations["editReview"];
+        post?: never;
+        /** Delete the person's own review */
+        delete: operations["deleteReview"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/appointments/{appointmentId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review a completed visit
+         * @description One review per visit. `NOT_FOUND` when the visit is not the person's; `CONFLICT` when it is already reviewed;
+         *     `CONSTRAINT_VIOLATION` when it was not completed or ended more than 90 days ago. The place's rating in search
+         *     changes at once.
+         */
+        post: operations["writeReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reviews of the business's places, newest first
+         * @description Needs `reviews.respond`. `unanswered` keeps published reviews the business has not answered.
+         */
+        get: operations["listOrgReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews/{reviewId}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Answer a published review, or replace the answer
+         * @description Needs `reviews.respond`. The answer shows under the review for everyone.
+         */
+        put: operations["answerReview"];
+        post?: never;
+        /**
+         * Take the answer back
+         * @description Needs `reviews.respond`.
+         */
+        delete: operations["removeReviewAnswer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/reviews/{reviewId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask platform staff to look at a review
+         * @description Needs `reviews.respond`. Reporting a review that already has an open report changes nothing.
+         */
+        post: operations["reportReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/files": {
         parameters: {
             query?: never;
@@ -2769,6 +2916,48 @@ export interface paths {
         get: operations["listMarketplaceListings"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reviews that businesses reported (default) or that staff took down, oldest first
+         * @description Needs `admin.moderation`, in the business's market.
+         */
+        get: operations["listReviewsForModeration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reviews/{reviewId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide a review, put it back, or dismiss the reports on it (reason required, audited)
+         * @description Needs `admin.moderation`; staff cannot decide about a business they belong to. `HIDE` takes a published review
+         *     down (it stops counting in the place's rating) and closes its reports as actioned; `RESTORE` puts a hidden review
+         *     back; `DISMISS` closes the open reports and leaves the review. Each decision is recorded with its reason.
+         */
+        post: operations["decideReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5400,6 +5589,108 @@ export interface components {
             places: number;
             followers: number;
         };
+        ReviewSummary: {
+            /** @description Average of the published reviews, two decimals; absent when there are none. */
+            average?: number;
+            count: number;
+            /** @description How many reviews gave 1, 2, 3, 4 and 5 stars, in that order. */
+            distribution: number[];
+        };
+        ReviewResponse: {
+            body: string;
+            at: components["schemas"]["Instant"];
+        };
+        /** @description A published review. The author is shown by given name and the initial of the father's name ("Hana T."); absent when the person gave no name. */
+        Review: {
+            id: components["schemas"]["Uuid"];
+            rating: number;
+            body?: string;
+            authorName?: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            /**
+             * Format: date
+             * @description The day of the visit, in the place's time zone.
+             */
+            visitedOn: string;
+            createdAt: components["schemas"]["Instant"];
+            response?: components["schemas"]["ReviewResponse"];
+        };
+        ReviewPage: {
+            summary: components["schemas"]["ReviewSummary"];
+            items: components["schemas"]["Review"][];
+            nextCursor?: string;
+        };
+        /** @description A completed visit that has no review yet and can still get one. */
+        PendingReview: {
+            appointmentId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            businessSlug: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            visitedAt: components["schemas"]["Instant"];
+            canReviewUntil: components["schemas"]["Instant"];
+        };
+        MyReview: {
+            id: components["schemas"]["Uuid"];
+            appointmentId: components["schemas"]["Uuid"];
+            businessSlug: string;
+            locationSlug: string;
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            rating: number;
+            body?: string;
+            /**
+             * @description `HIDDEN`: Beavent took the review down; it no longer counts and cannot be changed.
+             * @enum {string}
+             */
+            status: "PUBLISHED" | "HIDDEN" | "PENDING_MODERATION" | "REMOVED";
+            createdAt: components["schemas"]["Instant"];
+            response?: components["schemas"]["ReviewResponse"];
+        };
+        MyReviews: {
+            pending: components["schemas"]["PendingReview"][];
+            reviews: components["schemas"]["MyReview"][];
+        };
+        ReviewInput: {
+            rating: number;
+            body?: string;
+        };
+        BusinessReview: {
+            id: components["schemas"]["Uuid"];
+            rating: number;
+            body?: string;
+            authorName?: string;
+            locationId: components["schemas"]["Uuid"];
+            placeName: string;
+            serviceName?: components["schemas"]["LocalizedText"];
+            staffName?: string;
+            /** Format: date */
+            visitedOn: string;
+            createdAt: components["schemas"]["Instant"];
+            /** @enum {string} */
+            status: "PUBLISHED" | "HIDDEN" | "PENDING_MODERATION" | "REMOVED";
+            response?: components["schemas"]["ReviewResponse"];
+            /** @description A report is waiting for staff. */
+            reported: boolean;
+        };
+        BusinessReviewPage: {
+            summary: components["schemas"]["ReviewSummary"];
+            items: components["schemas"]["BusinessReview"][];
+            nextCursor?: string;
+        };
+        ReviewAnswerInput: {
+            body: string;
+        };
+        ReviewReportInput: {
+            /** @enum {string} */
+            reason: "INAPPROPRIATE" | "HARASSMENT" | "MISLEADING_PRICE" | "UNSAFE" | "OTHER";
+            details?: string;
+        };
         /**
          * @description What the file is for; decides who may upload and read it, allowed types and size, and how it is served.
          *     Organization workspace: LOGO, COVER, GALLERY (JPEG/PNG, public), EVENT_MEDIA (public), KYC (PDF/JPEG/PNG,
@@ -5626,6 +5917,40 @@ export interface components {
         MarketplaceListingPage: {
             items: components["schemas"]["MarketplaceListing"][];
             page: components["schemas"]["PageInfo"];
+        };
+        StaffReviewReport: {
+            id: components["schemas"]["Uuid"];
+            reason: string;
+            details?: string;
+            /** @enum {string} */
+            status: "OPEN" | "IN_REVIEW" | "ACTIONED" | "DISMISSED";
+            at: components["schemas"]["Instant"];
+        };
+        StaffReview: {
+            id: components["schemas"]["Uuid"];
+            orgId: components["schemas"]["Uuid"];
+            businessName: string;
+            placeName: string;
+            rating: number;
+            body?: string;
+            authorName?: string;
+            /** @enum {string} */
+            status: "PENDING_MODERATION" | "PUBLISHED" | "HIDDEN" | "REMOVED";
+            createdAt: components["schemas"]["Instant"];
+            response?: {
+                body: string;
+                at: components["schemas"]["Instant"];
+            };
+            reports: components["schemas"]["StaffReviewReport"][];
+        };
+        StaffReviewPage: {
+            items: components["schemas"]["StaffReview"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        ReviewDecision: {
+            /** @enum {string} */
+            decision: "HIDE" | "RESTORE" | "DISMISS";
+            reason: string;
         };
         MarketplaceDecision: {
             /** @enum {string} */
@@ -10948,6 +11273,256 @@ export interface operations {
             429: components["responses"]["TooManyRequests"];
         };
     };
+    listBrandReviews: {
+        parameters: {
+            query?: {
+                location?: string;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                businessSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reviews. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPage"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listMyReviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviews"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    editReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    writeReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Published. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    listOrgReviews: {
+        parameters: {
+            query?: {
+                unanswered?: boolean;
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReviewPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    answerReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewAnswerInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeReviewAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reportReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewReportInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     createFileUpload: {
         parameters: {
             query?: never;
@@ -11464,6 +12039,64 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listReviewsForModeration: {
+        parameters: {
+            query?: {
+                status?: "REPORTED" | "HIDDEN";
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffReviewPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    decideReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecision"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffReview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     decideMarketplace: {

@@ -32,12 +32,15 @@ import {
   serviceFacts,
   venueFacts,
   weekHours,
+  type ReviewPage,
   type Venue,
   type VenueService,
 } from "@beavent/venue";
 import { formatDuration } from "@beavent/i18n";
 
 import { HeartButton } from "../../../../components/marketplace/heart-button";
+import { RatingLine } from "../../../../components/reviews/rating-line";
+import { ReviewsSection } from "../../../../components/reviews/reviews-section";
 import { useFollowing } from "../../../../hooks/use-following";
 import { useSaved } from "../../../../hooks/use-saved";
 
@@ -126,6 +129,7 @@ function VenueContent({ venue }: { venue: Venue }) {
     .filter(Boolean)
     .join(" · ");
   const named = venue.groups.filter((g) => g.id);
+  const [reviewSummary, setReviewSummary] = useState<ReviewPage["summary"] | null>(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -187,6 +191,9 @@ function VenueContent({ venue }: { venue: Venue }) {
             <Text role="label" tone="muted">
               {venue.landmark}
             </Text>
+          ) : null}
+          {reviewSummary ? (
+            <RatingLine average={reviewSummary.average} count={reviewSummary.count} />
           ) : null}
           <Text role="label">
             {status.open && until
@@ -294,6 +301,13 @@ function VenueContent({ venue }: { venue: Venue }) {
             </ScrollView>
           </Section>
         ) : null}
+
+        <ReviewsSection
+          business={venue.businessSlug}
+          location={venue.locationSlug}
+          businessName={venue.businessName}
+          onLoaded={(page) => setReviewSummary(page.summary)}
+        />
 
         <Section title={t("venue.about")}>
           {pick(venue.description, language) ? (

@@ -125,6 +125,11 @@ public final class AdminBodies {
 
             @NotBlank @Size(min = 5, max = 500) String reason) {}
 
+    public record ReviewDecision(
+            @NotNull @Pattern(regexp = "HIDE|RESTORE|DISMISS") String decision,
+
+            @NotBlank @Size(min = 5, max = 500) String reason) {}
+
     /** A payout account waiting for (or past) review; the number is masked, see {@code reveal}. */
     public record PayoutAccountSummary(
             UUID id,
