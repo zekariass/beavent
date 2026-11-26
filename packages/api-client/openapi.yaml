@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Notifications
+    description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
     description: Sign-in, tokens and sessions
   - name: Me
@@ -5435,6 +5437,48 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/me/notification-settings:
+    get:
+      tags:
+        - Notifications
+      operationId: getNotificationSettings
+      summary: The person's choices about reminders and quiet hours
+      description: A person who never chose gets the defaults (reminders by text message and email, no quiet hours).
+      responses:
+        '200':
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags:
+        - Notifications
+      operationId: saveNotificationSettings
+      summary: Change the choices about reminders and quiet hours
+      description: |
+        A reminder that would arrive in quiet hours waits until they end; one that cannot wait (the visit is less than
+        30 minutes after they end) is not sent. A review request waits the same way. `VALIDATION_FAILED` when the start
+        and end of quiet hours are the same.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationSettings'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/me/reviews:
     get:
       tags:
@@ -12772,6 +12816,35 @@ components:
             $ref: '#/components/schemas/Review'
         nextCursor:
           type: string
+    NotificationSettings:
+      type: object
+      description: |
+        What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
+        not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
+      required:
+        - remindersSms
+        - remindersEmail
+        - quietHours
+        - quietFrom
+        - quietTo
+      properties:
+        remindersSms:
+          type: boolean
+          description: Reminders and review requests by text message.
+        remindersEmail:
+          type: boolean
+          description: Reminders and review requests by email.
+        quietHours:
+          type: boolean
+          description: Hold reminders and review requests during quiet hours.
+        quietFrom:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          description: Start of quiet hours, `HH:mm`.
+        quietTo:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          description: End of quiet hours, `HH:mm`; the next morning when earlier than `quietFrom`.
     PendingReview:
       type: object
       description: A completed visit that has no review yet and can still get one.

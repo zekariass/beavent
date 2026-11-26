@@ -656,6 +656,11 @@ class ReviewsService implements Reviews {
             Record r = reviewRow(reviewId);
             String status = r.get("status", String.class);
             UUID orgId = r.get("org_id", UUID.class);
+            boolean reported = system.resultQuery(
+                            "SELECT EXISTS (SELECT 1 FROM trust.content_reports WHERE review_id = ?"
+                                    + " AND status IN ('OPEN','IN_REVIEW'))",
+                            reviewId)
+                    .fetchOne(0, Boolean.class);
             switch (decision) {
                 case HIDE -> {
                     if (!"PUBLISHED".equals(status)) {
@@ -685,6 +690,15 @@ class ReviewsService implements Reviews {
                 }
             }
             refreshRating(r.get("location_id", UUID.class));
+            Map<String, Object> event = new java.util.HashMap<>();
+            event.put("reviewId", reviewId);
+            event.put("locationId", r.get("location_id", UUID.class));
+            event.put("authorUserId", r.get("author_user_id", UUID.class));
+            event.put("decision", decision.name());
+            event.put("reported", reported);
+            event.put("reason", reason);
+            event.put("at", Instant.now().toString());
+            outbox.publish(new DomainEvent("review", reviewId, "review.moderated", 1, orgId, event));
             audit.record(new Audit.Entry(
                     Audit.Actor.PLATFORM_STAFF,
                     staffUserId,

@@ -1,0 +1,24 @@
+NotificationSettings:
+  type: object
+  description: |
+    What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
+    not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
+  required: [remindersSms, remindersEmail, quietHours, quietFrom, quietTo]
+  properties:
+    remindersSms:
+      type: boolean
+      description: Reminders and review requests by text message.
+    remindersEmail:
+      type: boolean
+      description: Reminders and review requests by email.
+    quietHours:
+      type: boolean
+      description: Hold reminders and review requests during quiet hours.
+    quietFrom:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      description: Start of quiet hours, `HH:mm`.
+    quietTo:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      description: End of quiet hours, `HH:mm`; the next morning when earlier than `quietFrom`.

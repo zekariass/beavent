@@ -7,6 +7,7 @@ import static com.beavent.db.iam.Tables.USERS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 
+import com.beavent.backend.comms.NotificationSettings;
 import com.beavent.backend.platform.EmailGateway;
 import com.beavent.backend.platform.Ids;
 import com.beavent.backend.platform.SmsGateway;
@@ -41,6 +42,11 @@ class Dispatcher {
     static final int MAX_ATTEMPTS = 5;
     private static final Duration LEASE = Duration.ofMinutes(2);
     private static final int BATCH = 50;
+    /** Messages the person can switch off or move out of quiet hours. */
+    static final java.util.Set<String> OPTIONAL =
+            java.util.Set.of(Notifier.REMINDER_24H, Notifier.REMINDER_2H, Notifier.REVIEW_REQUEST);
+    /** A reminder is not worth sending later than this before the visit. */
+    private static final Duration LATEST_REMINDER = Duration.ofMinutes(30);
     private static final Logger log = LoggerFactory.getLogger(Dispatcher.class);
     private static final TypeReference<Map<String, Object>> DATA = new TypeReference<>() {};
 
@@ -49,18 +55,21 @@ class Dispatcher {
     private final SmsGateway sms;
     private final EmailGateway email;
     private final JsonMapper json;
+    private final NotificationSettings settings;
 
     Dispatcher(
             @SystemDb DSLContext system,
             @SystemDb TransactionTemplate transactions,
             SmsGateway sms,
             EmailGateway email,
-            JsonMapper json) {
+            JsonMapper json,
+            NotificationSettings settings) {
         this.system = system;
         this.transactions = transactions;
         this.sms = sms;
         this.email = email;
         this.json = json;
+        this.settings = settings;
     }
 
     @Scheduled(fixedDelayString = "${beavent.comms.dispatch-interval-ms:5000}")
@@ -94,7 +103,9 @@ class Dispatcher {
                                 .TEMPLATE_CODE
                                 .like("APPOINTMENT_%")
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
-                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%")),
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("REVIEW_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -108,20 +119,49 @@ class Dispatcher {
             String stale = stale(n.getTemplateCode(), data);
             // A customer's contact details, or (for messages to a person's own account) their verified ones.
             var customer = n.getRecipientCustomerId() != null
-                    ? system.select(CUSTOMERS.PHONE_E164, CUSTOMERS.EMAIL)
+                    ? system.select(CUSTOMERS.PHONE_E164, CUSTOMERS.EMAIL, CUSTOMERS.USER_ID)
                             .from(CUSTOMERS)
                             .where(CUSTOMERS.ID.eq(n.getRecipientCustomerId()))
                             .fetchOne()
                     : system.select(
                                     DSL.when(USERS.PHONE_VERIFIED_AT.isNotNull(), USERS.PHONE_E164),
-                                    DSL.when(USERS.EMAIL_VERIFIED_AT.isNotNull(), USERS.EMAIL.cast(String.class)))
+                                    DSL.when(USERS.EMAIL_VERIFIED_AT.isNotNull(), USERS.EMAIL.cast(String.class)),
+                                    USERS.ID)
                             .from(USERS)
                             .where(USERS.ID.eq(n.getRecipientUserId()))
                             .fetchOne();
+            // What the person chose about reminders and review requests (transactional messages ignore it).
+            NotificationSettings.Settings prefs = null;
+            UUID person = customer == null ? null : customer.value3();
+            if (stale == null && person != null && OPTIONAL.contains(n.getTemplateCode())) {
+                prefs = settings.get(person);
+                Instant resume = prefs.quietHours() ? QuietHours.end(prefs, data, now) : null;
+                if (resume != null) {
+                    Instant start = data.get("startsAt") == null
+                            ? null
+                            : Instant.parse(String.valueOf(data.get("startsAt")));
+                    boolean reminder = Notifier.REMINDERS.contains(n.getTemplateCode());
+                    if (reminder && (start == null || resume.isAfter(start.minus(LATEST_REMINDER)))) {
+                        stale = "quiet hours";
+                    } else {
+                        // Wait until quiet hours end; the notification comes round again then.
+                        system.update(NOTIFICATIONS)
+                                .set(NOTIFICATIONS.SEND_AFTER, resume.atOffset(ZoneOffset.UTC))
+                                .where(NOTIFICATIONS.ID.eq(n.getId()))
+                                .execute();
+                        continue;
+                    }
+                }
+            }
             List<String[]> channels = new ArrayList<>();
             if (stale == null && customer != null) {
-                if (customer.value1() != null) channels.add(new String[] {"SMS", mask(customer.value1())});
-                if (customer.value2() != null) channels.add(new String[] {"EMAIL", mask(customer.value2())});
+                if (customer.value1() != null && (prefs == null || prefs.remindersSms()))
+                    channels.add(new String[] {"SMS", mask(customer.value1())});
+                if (customer.value2() != null && (prefs == null || prefs.remindersEmail()))
+                    channels.add(new String[] {"EMAIL", mask(customer.value2())});
+                if (channels.isEmpty() && prefs != null && (customer.value1() != null || customer.value2() != null)) {
+                    stale = "turned off by the person";
+                }
             }
             if (channels.isEmpty()) {
                 system.insertInto(DELIVERIES)
@@ -149,7 +189,10 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
-        if (code.startsWith("PAYOUT_") || code.startsWith("GIFT_CARD_")) {
+        if (code.startsWith("PAYOUT_")
+                || code.startsWith("GIFT_CARD_")
+                || code.startsWith("REVIEW_")
+                || code.startsWith("MARKETPLACE_")) {
             return null;
         }
         if (code.equals(Notifier.WAITLIST_OFFER)) {
@@ -171,6 +214,15 @@ class Dispatcher {
             case Notifier.CONFIRMED, Notifier.RESCHEDULED, Notifier.REMINDER_24H, Notifier.REMINDER_2H ->
                 "CONFIRMED".equals(a.value1()) && sameTime ? null : "appointment changed";
             case Notifier.REQUESTED -> "REQUESTED".equals(a.value1()) ? null : "request already answered";
+            case Notifier.REVIEW_REQUEST ->
+                !"COMPLETED".equals(a.value1())
+                        ? "visit not completed"
+                        : system.fetchExists(
+                                        DSL.table("discovery.reviews"),
+                                        DSL.field("appointment_id", UUID.class)
+                                                .eq(UUID.fromString(String.valueOf(data.get("appointmentId")))))
+                                ? "already reviewed"
+                                : null;
             case Notifier.PAYMENT_LINK ->
                 List.of("CANCELLED", "EXPIRED", "DECLINED", "NO_SHOW").contains(a.value1()) ? "booking closed" : null;
             default -> null;

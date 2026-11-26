@@ -205,8 +205,13 @@ class MarketplaceService implements Marketplace {
                 to,
                 note,
                 orgId);
-        outbox.publish(
-                new DomainEvent("organization", orgId, "org.marketplace_changed", 1, orgId, Map.of("status", to)));
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("status", to);
+        payload.put("at", Instant.now().toString());
+        if (note != null) {
+            payload.put("note", note);
+        }
+        outbox.publish(new DomainEvent("organization", orgId, "org.marketplace_changed", 1, orgId, payload));
         audit.record(new Audit.Entry(
                 kind,
                 actor,

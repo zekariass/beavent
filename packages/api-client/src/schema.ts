@@ -2459,6 +2459,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The person's choices about reminders and quiet hours
+         * @description A person who never chose gets the defaults (reminders by text message and email, no quiet hours).
+         */
+        get: operations["getNotificationSettings"];
+        /**
+         * Change the choices about reminders and quiet hours
+         * @description A reminder that would arrive in quiet hours waits until they end; one that cannot wait (the visit is less than
+         *     30 minutes after they end) is not sent. A review request waits the same way. `VALIDATION_FAILED` when the start
+         *     and end of quiet hours are the same.
+         */
+        put: operations["saveNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/reviews": {
         parameters: {
             query?: never;
@@ -5622,6 +5648,22 @@ export interface components {
             summary: components["schemas"]["ReviewSummary"];
             items: components["schemas"]["Review"][];
             nextCursor?: string;
+        };
+        /**
+         * @description What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
+         *     not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
+         */
+        NotificationSettings: {
+            /** @description Reminders and review requests by text message. */
+            remindersSms: boolean;
+            /** @description Reminders and review requests by email. */
+            remindersEmail: boolean;
+            /** @description Hold reminders and review requests during quiet hours. */
+            quietHours: boolean;
+            /** @description Start of quiet hours, `HH:mm`. */
+            quietFrom: string;
+            /** @description End of quiet hours, `HH:mm`; the next morning when earlier than `quietFrom`. */
+            quietTo: string;
         };
         /** @description A completed visit that has no review yet and can still get one. */
         PendingReview: {
@@ -11299,6 +11341,53 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    saveNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listMyReviews: {

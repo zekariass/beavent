@@ -525,3 +525,38 @@ export function reviewedService(
 export function ratingShares(summary: ReviewSummary): number[] {
   return summary.distribution.map((n) => (summary.count === 0 ? 0 : n / summary.count));
 }
+
+// --- notification settings (plan 8.4) -----------------------------------------------------------------------------
+
+export type NotificationSettings = Schemas["NotificationSettings"];
+
+/** The quiet hours people can pick: late evening to morning, in three widths. */
+export const QUIET_PRESETS = [
+  { from: "21:00", to: "07:00" },
+  { from: "22:00", to: "06:00" },
+  { from: "20:00", to: "08:00" },
+] as const;
+
+/** Which preset the settings hold: its index, `"off"` when quiet hours are off, `"other"` for a range set elsewhere. */
+export function quietChoice(settings: NotificationSettings): number | "off" | "other" {
+  if (!settings.quietHours) return "off";
+  const index = QUIET_PRESETS.findIndex(
+    (p) => p.from === settings.quietFrom && p.to === settings.quietTo,
+  );
+  return index === -1 ? "other" : index;
+}
+
+/** "9:00 PM to 7:00 AM" in the reader's first convention, and the same in the other one (DD7). */
+export function quietHoursText(
+  from: string,
+  to: string,
+  language: Language,
+  t: Translate,
+): { primary: string; secondary: string } {
+  const a = dualClock(from, language);
+  const b = dualClock(to, language);
+  return {
+    primary: t("notifications.quiet.range", { from: a.primary, to: b.primary }),
+    secondary: t("notifications.quiet.range", { from: a.secondary, to: b.secondary }),
+  };
+}

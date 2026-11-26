@@ -63,12 +63,20 @@ export default async function BookingsPage({
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="bv-type-title1 text-fg">{t("nav.bookings")}</h1>
-          <Link
-            href={`/${language}/account/reviews`}
-            className="bv-type-label inline-flex min-h-12 items-center text-primary hover:text-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
-          >
-            {t("reviews.page.title")}
-          </Link>
+          <nav className="flex flex-wrap gap-x-4">
+            <Link
+              href={`/${language}/account/notifications`}
+              className="bv-type-label inline-flex min-h-12 items-center text-primary hover:text-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              {t("notifications.title")}
+            </Link>
+            <Link
+              href={`/${language}/account/reviews`}
+              className="bv-type-label inline-flex min-h-12 items-center text-primary hover:text-primary-pressed focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              {t("reviews.page.title")}
+            </Link>
+          </nav>
         </div>
         {!signedIn ? (
           <section className="flex flex-col gap-4">

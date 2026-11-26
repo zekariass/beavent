@@ -821,6 +821,22 @@ export const en = {
   "bookAgain.last": "Last: {service}",
   "bookAgain.lastWith": "Last: {service} · with {person}",
   "bookAgain.action": "Book again",
+  "notifications.title": "Notifications",
+  "notifications.intro":
+    "Confirmations, changes and payments always reach you. Choose what else you hear from us, and when not to be disturbed.",
+  "notifications.reminders": "Reminders and review requests",
+  "notifications.reminders.hint":
+    "A reminder the day before and two hours before a visit, and a request to rate it afterwards.",
+  "notifications.sms": "Text message",
+  "notifications.email": "Email",
+  "notifications.quiet": "Quiet hours",
+  "notifications.quiet.off": "No quiet hours",
+  "notifications.quiet.hint":
+    "Reminders wait until quiet hours end, in the place's local time. A reminder that would come too close to the visit is not sent.",
+  "notifications.quiet.range": "{from} to {to}",
+  "notifications.saved": "Saved.",
+  "notifications.error": "That was not saved. Please try again.",
+  "notifications.signedOut": "Sign in to choose what you hear from us.",
   "reviews.title": "Reviews",
   "reviews.count": "{count, plural, one {# review} other {# reviews}}",
   "reviews.rated": "Rated {rating} out of 5",

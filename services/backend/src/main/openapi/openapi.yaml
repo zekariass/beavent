@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Notifications
+    description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
     description: Sign-in, tokens and sessions
   - name: Me
@@ -330,6 +332,8 @@ paths:
     $ref: ./discovery/paths.yaml#/brand
   /v1/public/businesses/{businessSlug}/reviews:
     $ref: ./discovery/paths.yaml#/brandReviews
+  /v1/me/notification-settings:
+    $ref: ./comms/paths.yaml#/notificationSettings
   /v1/me/reviews:
     $ref: ./discovery/paths.yaml#/myReviews
   /v1/me/reviews/{reviewId}:

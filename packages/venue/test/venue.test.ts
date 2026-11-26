@@ -13,6 +13,9 @@ import {
   pick,
   policySentences,
   priceText,
+  QUIET_PRESETS,
+  quietChoice,
+  quietHoursText,
   ratingLine,
   ratingShares,
   reviewedService,
@@ -421,4 +424,19 @@ test("the star distribution turns into shares of all reviews", () => {
     [0.25, 0, 0.25, 0, 0.5],
   );
   assert.deepEqual(ratingShares({ count: 0, distribution: [0, 0, 0, 0, 0] }), [0, 0, 0, 0, 0]);
+});
+
+test("quiet hours are one of three presets, off, or another range, and read in both time conventions", () => {
+  const base = { remindersSms: true, remindersEmail: true, quietHours: true };
+  assert.equal(
+    quietChoice({ ...base, quietHours: false, quietFrom: "21:00", quietTo: "07:00" }),
+    "off",
+  );
+  assert.equal(quietChoice({ ...base, quietFrom: "22:00", quietTo: "06:00" }), 1);
+  assert.equal(quietChoice({ ...base, quietFrom: "23:00", quietTo: "05:00" }), "other");
+  assert.equal(QUIET_PRESETS.length, 3);
+  const en = createTranslator("en");
+  const text = quietHoursText("21:00", "07:00", "en", en);
+  assert.match(text.primary, /^9:00 PM to 7:00 AM$/);
+  assert.match(text.secondary, /^3:00 in the evening to 1:00 in the morning$/);
 });

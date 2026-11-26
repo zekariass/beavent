@@ -17,6 +17,7 @@
 | 8.1 Discovery and search | **In progress** (built alongside Stage 3; it needs no payments) | Slices 1 (backend), 2 (web), 3 (consumer app), 4 (the map) and 5 (approving businesses for the marketplace) done (25–26 Nov 2026). Left: choosing the map provider for production (G8), and events (Stage 6) |
 | 8.2 Profiles and saved | **Done for places** (25 Nov 2026) | Brand page, follow (and auto-follow after a first visit), Saved tab and Book again on web and the consumer app. Events and professionals can be saved once they have pages (Stage 6, 8.3) |
 | 8.3 Reviews | **Done for places** (26 Nov 2026) | Verified reviews after a completed visit, the business's reply and reports, staff moderation, ratings in search; on web (venue and brand pages, account, business console, admin console) and in the consumer app. Events wait for Stage 6 |
+| 8.4 Notifications | **In progress** (26 Nov 2026) | Done: reminder and review-request choices, quiet hours, review-request after a visit, messages about reviews and the marketplace, in Amharic and English by SMS and email. Left: push (needs a dependency approval and provider keys), WhatsApp and Telegram, an in-app inbox, and the real SMS provider (D4) |
 | 4–10 | Not started | Unchanged except where noted in §0.2 |
 
 ### 0.2 Review findings (what was wrong or missing in v2, and what v3 does)
@@ -680,11 +681,18 @@ Order matters: 2.2 needs 2.1's next-available times; 2.4 needs 2.2 and 2.3; 2.5 
 - Tests: 4 API tests (write and edit and delete with the average following in search, eligibility and limits, the business's reply and its permissions, report and moderation with the rating following), venue-package tests, two Playwright specs (customer reviews and the business replies; business answers and reports and staff take one down). Checked on the web (light and dark, Amharic and English, phone and desktop) and on the iOS simulator (rating line on the venue screen).
 - Deviations: **places only** (no event reviews until Stage 6, no review of a professional on their own); one rating, no sub-ratings or photos; the customer cannot report another person's review (the business can); no message to the business or the author when a review arrives or is taken down (8.4); the brand screen in the app has no reviews section; signed-in app screens were checked on the web build, not tapped on a device.
 
-**8.4 Notifications.** Extends the minimal messaging built in step 2.3.
+**8.4 Notifications.** *In progress.* Extends the minimal messaging built in step 2.3 (confirmations, changes, reminders 24 h and 2 h before in Ethiopian and international time, waitlist offers, payment links, refunds, gift cards, payouts: all already in Amharic and English).
 - Amharic/English templates for every transactional event.
 - Channels: SMS, email and push (Telegram bot when ready).
 - Reminders 24 h and 2 h before, showing Ethiopian local time.
 - Quiet hours and preferences.
+- **Done (26 Nov 2026), slice 1.**
+  - **Choices.** `GET` and `PUT /v1/me/notification-settings` (table `comms.notification_settings`, migration `V8_04`): reminders and review requests by text message and by email, each on or off, and quiet hours (three presets: 9 PM to 7 AM, 10 PM to 6 AM, 8 PM to 8 AM; the API takes any `HH:mm` range). Confirmations, changes, payments, payouts and security messages are not optional and ignore them. Web page `/account/notifications` and an app screen under Account, saved as each change is made, in both time conventions.
+  - **Quiet hours** are in the local time of the place the message is about. A reminder due inside them waits until they end; one that would then be less than 30 minutes before the visit is not sent (the day-before reminder already went). A review request waits too. A person who turned off every channel they have gets nothing, and the delivery records why.
+  - **Review request.** Two hours after a visit is completed, a person with an account gets "how was your visit?" with a link to `/account/reviews` (plan 8.3); not sent when the visit was already reviewed, or for a guest.
+  - **Messages about reviews and the marketplace** (new `ReviewNotifier`): the business's owners and roles with `reviews.respond` are told when a review arrives and what staff decided about one they reported; the author is told when staff take a review down (with the reason) or put it back; people with `org.settings.manage` are told when staff list the business, take it off or send a request back (with the reason). The business's own request and withdrawal are not news.
+  - Tests: 7 API tests (settings, channels turned off, quiet hours wait and skip, quiet-hour arithmetic, review requests, requests turned off, and the review and marketplace messages), text tests for every new code in both languages, a Playwright spec (choices survive a reload). Checked on web and in the app's web build, light and dark, Amharic and English.
+- **Left in 8.4:** **push** (needs `expo-notifications`, device tokens and FCM or APNs keys: a dependency to approve first); **WhatsApp and Telegram** (accounts and approved templates); an **in-app inbox** (the table has `show_in_app`, `read_at`; the design adds an Inbox tab with in-app messaging); a **new-booking message to the business**; per-business **follow** notifications (8.5, with campaigns); the real **SMS provider** (D4) and a native-speaker check of the texts. Quiet hours cover reminders and review requests only.
 
 **8.5 Basic marketing.**
 - SMS campaigns to consenting customers; followers and past-attendee audiences; tracking links.
