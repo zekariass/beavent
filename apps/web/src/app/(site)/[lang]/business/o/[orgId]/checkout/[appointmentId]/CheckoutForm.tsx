@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { formatPrice, inputClass, toBirr } from "@/components/business/ui";
+import type { Sellable } from "@/lib/business/products";
+import { ProductPicker } from "../../sell/ProductPicker";
 import { sendPaymentLink } from "../../calendar/actions";
 import { OpenForm } from "../../cash/CashForms";
 import { checkoutVisit } from "../actions";
@@ -28,10 +30,12 @@ export function CheckoutForm({
   language,
   orgId,
   bill,
+  products,
 }: {
   language: Language;
   orgId: string;
   bill: Schemas["CheckoutBill"];
+  products: Sellable[];
 }) {
   const t = createTranslator(language);
   const router = useRouter();
@@ -46,6 +50,7 @@ export function CheckoutForm({
   const [cardInput, setCardInput] = useState("");
   const [useBalance, setUseBalance] = useState(false);
   const [cash, setCash] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Schemas["CheckoutDone"] | null>(null);
   const [linkVia, setLinkVia] = useState<"SMS" | "EMAIL" | null>(null);
@@ -72,7 +77,12 @@ export function CheckoutForm({
     () => bill.team.reduce((sum, p) => sum + minor(tips[p.staffId] ?? ""), 0),
     [bill.team, tips],
   );
-  const owe = bill.dueMinor - discountMinor + tipTotal;
+  const goods = products.filter((p) => (quantities[p.variantId] ?? 0) > 0);
+  const goodsTotal = goods.reduce(
+    (sum, p) => sum + p.priceMinor * (quantities[p.variantId] ?? 0),
+    0,
+  );
+  const owe = bill.dueMinor - discountMinor + tipTotal + goodsTotal;
   const valueUsed = cards.length > 0 || useBalance;
   const handed = cash === null || cash.trim() === "" ? owe : minor(cash);
   const enough = valueUsed || handed >= owe;
@@ -199,6 +209,10 @@ export function CheckoutForm({
                 reason: discountReason.trim(),
               }
             : null,
+        products: goods.map((p) => ({
+          variantId: p.variantId,
+          quantity: quantities[p.variantId] ?? 0,
+        })),
         giftCards: cards,
         useBalance,
         cashTenderedMinor:
@@ -238,6 +252,19 @@ export function CheckoutForm({
               <span className="bv-type-body tabular-nums">{money(l.totalMinor)}</span>
             </li>
           ))}
+          {goods.map((p) => (
+            <li key={p.variantId} className="flex min-h-12 items-center justify-between gap-4 py-2">
+              <span className="bv-type-body">
+                {t("counter.checkout.products.row", {
+                  name: p.name,
+                  count: String(quantities[p.variantId] ?? 0),
+                })}
+              </span>
+              <span className="bv-type-body tabular-nums">
+                {money(p.priceMinor * (quantities[p.variantId] ?? 0))}
+              </span>
+            </li>
+          ))}
           {discountMinor > 0 ? (
             <li className="flex min-h-12 items-center justify-between gap-4 py-2">
               <span className="bv-type-body">{t("counter.checkout.discount.row")}</span>
@@ -265,11 +292,27 @@ export function CheckoutForm({
           <li className="flex min-h-12 items-center justify-between gap-4 py-2">
             <span className="bv-type-body font-medium">{t("counter.checkout.due")}</span>
             <span className="bv-type-body font-medium tabular-nums">
-              {money(bill.dueMinor - discountMinor)}
+              {money(bill.dueMinor - discountMinor + goodsTotal)}
             </span>
           </li>
         </ul>
       </section>
+
+      {products.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="bv-type-title2">{t("counter.checkout.products")}</h2>
+          <ProductPicker
+            language={language}
+            items={products}
+            quantities={quantities}
+            onChange={(id, q) => {
+              setQuantities({ ...quantities, [id]: Math.max(q, 0) });
+              setCash(null);
+            }}
+            prefix="counter.checkout.products"
+          />
+        </section>
+      ) : null}
 
       {bill.canDiscount ? (
         <section className="flex flex-col gap-3">
@@ -384,7 +427,7 @@ export function CheckoutForm({
         </section>
       ) : null}
 
-      {bill.dueMinor > 0 ? (
+      {owe > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="bv-type-title2">{t("counter.checkout.pay")}</h2>
           {bill.paidMinor > 0 ? (

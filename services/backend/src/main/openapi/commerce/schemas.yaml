@@ -202,6 +202,19 @@ CheckoutTender:
 CheckoutInput:
   type: object
   properties:
+    products:
+      type: array
+      description: Retail products to sell with the visit; taken off the location's stock.
+      items:
+        type: object
+        required: [variantId, quantity]
+        properties:
+          variantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          quantity:
+            type: integer
+            minimum: 1
+            maximum: 99
     tips:
       type: array
       items:
@@ -390,3 +403,280 @@ ReceiptSent:
     via:
       type: string
       enum: [SMS, EMAIL]
+Product:
+  type: object
+  required: [id, name, trackInventory, status, variants]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: object
+      additionalProperties:
+        type: string
+      description: The name per language (`am`, `en`).
+    brand:
+      type: [string, 'null']
+    trackInventory:
+      type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+    variants:
+      type: array
+      items:
+        $ref: '#/ProductVariant'
+ProductVariant:
+  type: object
+  required: [id, label, priceMinor, currency, status]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    label:
+      type: string
+      description: What tells the variant apart ("250 ml"); empty for a product with a single variant.
+    sku:
+      type: [string, 'null']
+    barcode:
+      type: [string, 'null']
+    priceMinor:
+      type: integer
+      format: int64
+    costMinor:
+      type: [integer, 'null']
+      format: int64
+      description: Shown to those who manage the catalogue or the stock only.
+    currency:
+      type: string
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+    onHand:
+      type: [integer, 'null']
+      format: int64
+      description: In stock at the location asked about; null when stock is not kept or no location was asked about.
+ProductList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Product'
+ProductInput:
+  type: object
+  required: [name, trackInventory, variants]
+  properties:
+    name:
+      type: object
+      additionalProperties:
+        type: string
+        maxLength: 120
+    brand:
+      type: string
+      maxLength: 80
+    trackInventory:
+      type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+    variants:
+      type: array
+      minItems: 1
+      maxItems: 50
+      description: Without an `id` a variant is new; one left out is archived.
+      items:
+        type: object
+        required: [priceMinor]
+        properties:
+          id:
+            $ref: ../common/schemas.yaml#/Uuid
+          label:
+            type: string
+            maxLength: 60
+          sku:
+            type: string
+            maxLength: 60
+          barcode:
+            type: string
+            maxLength: 60
+          priceMinor:
+            type: integer
+            format: int64
+            minimum: 0
+          costMinor:
+            type: integer
+            format: int64
+            minimum: 0
+StockReceiptInput:
+  type: object
+  required: [locationId, variantId, quantity, reason]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    quantity:
+      type: integer
+      format: int64
+      minimum: 1
+    unitCostMinor:
+      type: integer
+      format: int64
+      minimum: 0
+    reason:
+      type: string
+      minLength: 3
+      maxLength: 200
+StockAdjustmentInput:
+  type: object
+  required: [locationId, variantId, change, kind, reason]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    change:
+      type: integer
+      format: int64
+      description: Added (positive) or taken off (negative), never zero.
+    kind:
+      type: string
+      enum: [ADJUSTMENT, DAMAGE]
+    reason:
+      type: string
+      minLength: 3
+      maxLength: 200
+StockMovement:
+  type: object
+  required: [id, variantId, kind, quantity, at]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    variantId:
+      $ref: ../common/schemas.yaml#/Uuid
+    kind:
+      type: string
+      enum: [RECEIPT, SALE, SALE_RETURN, PROFESSIONAL_USE, TRANSFER_OUT, TRANSFER_IN, ADJUSTMENT, DAMAGE, STOCKTAKE, RESERVE, UNRESERVE]
+    quantity:
+      type: integer
+      format: int64
+      description: Signed effect on what is in stock.
+    unitCostMinor:
+      type: [integer, 'null']
+      format: int64
+    reason:
+      type: [string, 'null']
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+    byUserId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+StockMovementList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/StockMovement'
+SaleStart:
+  type: object
+  required: [locationId, items]
+  properties:
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    customerId:
+      $ref: ../common/schemas.yaml#/Uuid
+    items:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        required: [variantId, quantity]
+        properties:
+          variantId:
+            $ref: ../common/schemas.yaml#/Uuid
+          quantity:
+            type: integer
+            minimum: 1
+            maximum: 99
+    discount:
+      type: object
+      description: Needs `pos.discount`. Shared between the goods in proportion to their price.
+      required: [kind, value, reason]
+      properties:
+        kind:
+          type: string
+          enum: [AMOUNT, PERCENT]
+        value:
+          type: integer
+          format: int64
+          minimum: 1
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 200
+SaleBill:
+  type: object
+  required:
+    [orderId, locationId, number, status, currency, lines, totalMinor, dueMinor, drawerOpen, balanceMinor, canCancel, tenders]
+  properties:
+    orderId:
+      $ref: ../common/schemas.yaml#/Uuid
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    customerId:
+      oneOf:
+        - $ref: ../common/schemas.yaml#/Uuid
+        - type: 'null'
+    number:
+      type: string
+    status:
+      type: string
+    currency:
+      type: string
+    lines:
+      type: array
+      items:
+        type: object
+        required: [description, totalMinor]
+        properties:
+          description:
+            type: string
+          totalMinor:
+            type: integer
+            format: int64
+    totalMinor:
+      type: integer
+      format: int64
+    dueMinor:
+      type: integer
+      format: int64
+    drawerOpen:
+      type: boolean
+    balanceMinor:
+      type: integer
+      format: int64
+    canCancel:
+      type: boolean
+    receiptNumber:
+      type: [string, 'null']
+    tenders:
+      type: array
+      items:
+        $ref: '#/CheckoutTender'
+SalePay:
+  type: object
+  properties:
+    giftCards:
+      type: array
+      items:
+        type: string
+        maxLength: 40
+    useBalance:
+      type: boolean
+    cashTenderedMinor:
+      type: integer
+      format: int64
+      minimum: 0

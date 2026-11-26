@@ -336,6 +336,193 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retail products, with stock at a location
+         * @description Needs `pos.sell`, `catalog.manage` or `inventory.manage`. Cost prices and archived products only for those who manage
+         *     the catalogue or the stock.
+         */
+        get: operations["listProducts"];
+        put?: never;
+        /**
+         * Add a retail product with its variants
+         * @description Needs `catalog.manage`.
+         */
+        post: operations["createProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/products/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a product, its variants and prices, or archive it
+         * @description Needs `catalog.manage`. A variant left out is archived.
+         */
+        put: operations["updateProduct"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/stock/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A product's stock movements at a location, newest first
+         * @description Needs `inventory.manage`.
+         */
+        get: operations["listStockMovements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/stock/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Goods received
+         * @description Needs `inventory.manage`. A reason is kept; stock must be kept for the product.
+         */
+        post: operations["receiveStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/stock/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A correction or goods lost
+         * @description Needs `inventory.manage`. More cannot be taken off than is in stock (`CONFLICT`).
+         */
+        post: operations["adjustStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a retail sale with no visit
+         * @description Needs `pos.sell` (`pos.discount` for a discount). Makes the order and takes the goods off the stock; pay it with
+         *     `POST /sales/{orderId}/payment`, or cancel it while nothing is paid. `CONFLICT` when there is not enough in stock.
+         */
+        post: operations["startSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/sales/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where a retail sale stands
+         * @description Needs `pos.sell`.
+         */
+        get: operations["getSale"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/sales/{orderId}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take the payment for a retail sale
+         * @description Needs `pos.sell`. Gift cards and the customer's balance first, then the cash for the rest; completes the sale and
+         *     issues the receipt. What a card or balance paid is kept if the cash then falls short.
+         */
+        post: operations["paySale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/sales/{orderId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a retail sale nothing has been paid for
+         * @description Needs `pos.sell`. The goods go back on the stock.
+         */
+        post: operations["cancelSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orgs/{orgId}/gift-cards/program": {
         parameters: {
             query?: never;
@@ -3909,6 +4096,11 @@ export interface components {
             tenders: components["schemas"]["CheckoutTender"][];
         };
         CheckoutInput: {
+            /** @description Retail products to sell with the visit; taken off the location's stock. */
+            products?: {
+                variantId: components["schemas"]["Uuid"];
+                quantity: number;
+            }[];
             tips?: {
                 staffId: components["schemas"]["Uuid"];
                 /** Format: int64 */
@@ -4011,6 +4203,148 @@ export interface components {
         ReceiptSent: {
             /** @enum {string} */
             via: "SMS" | "EMAIL";
+        };
+        ProductVariant: {
+            id: components["schemas"]["Uuid"];
+            /** @description What tells the variant apart ("250 ml"); empty for a product with a single variant. */
+            label: string;
+            sku?: string | null;
+            barcode?: string | null;
+            /** Format: int64 */
+            priceMinor: number;
+            /**
+             * Format: int64
+             * @description Shown to those who manage the catalogue or the stock only.
+             */
+            costMinor?: number | null;
+            currency: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+            /**
+             * Format: int64
+             * @description In stock at the location asked about; null when stock is not kept or no location was asked about.
+             */
+            onHand?: number | null;
+        };
+        Product: {
+            id: components["schemas"]["Uuid"];
+            /** @description The name per language (`am`, `en`). */
+            name: {
+                [key: string]: string;
+            };
+            brand?: string | null;
+            trackInventory: boolean;
+            /** @enum {string} */
+            status: "ACTIVE" | "ARCHIVED";
+            variants: components["schemas"]["ProductVariant"][];
+        };
+        ProductList: {
+            items: components["schemas"]["Product"][];
+        };
+        ProductInput: {
+            name: {
+                [key: string]: string;
+            };
+            brand?: string;
+            trackInventory: boolean;
+            /** @enum {string} */
+            status?: "ACTIVE" | "ARCHIVED";
+            /** @description Without an `id` a variant is new; one left out is archived. */
+            variants: {
+                id?: components["schemas"]["Uuid"];
+                label?: string;
+                sku?: string;
+                barcode?: string;
+                /** Format: int64 */
+                priceMinor: number;
+                /** Format: int64 */
+                costMinor?: number;
+            }[];
+        };
+        StockMovement: {
+            id: components["schemas"]["Uuid"];
+            variantId: components["schemas"]["Uuid"];
+            /** @enum {string} */
+            kind: "RECEIPT" | "SALE" | "SALE_RETURN" | "PROFESSIONAL_USE" | "TRANSFER_OUT" | "TRANSFER_IN" | "ADJUSTMENT" | "DAMAGE" | "STOCKTAKE" | "RESERVE" | "UNRESERVE";
+            /**
+             * Format: int64
+             * @description Signed effect on what is in stock.
+             */
+            quantity: number;
+            /** Format: int64 */
+            unitCostMinor?: number | null;
+            reason?: string | null;
+            at: components["schemas"]["Instant"];
+            byUserId?: components["schemas"]["Uuid"] | null;
+        };
+        StockMovementList: {
+            items: components["schemas"]["StockMovement"][];
+        };
+        StockReceiptInput: {
+            locationId: components["schemas"]["Uuid"];
+            variantId: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            quantity: number;
+            /** Format: int64 */
+            unitCostMinor?: number;
+            reason: string;
+        };
+        StockAdjustmentInput: {
+            locationId: components["schemas"]["Uuid"];
+            variantId: components["schemas"]["Uuid"];
+            /**
+             * Format: int64
+             * @description Added (positive) or taken off (negative), never zero.
+             */
+            change: number;
+            /** @enum {string} */
+            kind: "ADJUSTMENT" | "DAMAGE";
+            reason: string;
+        };
+        SaleStart: {
+            locationId: components["schemas"]["Uuid"];
+            customerId?: components["schemas"]["Uuid"];
+            items: {
+                variantId: components["schemas"]["Uuid"];
+                quantity: number;
+            }[];
+            /** @description Needs `pos.discount`. Shared between the goods in proportion to their price. */
+            discount?: {
+                /** @enum {string} */
+                kind: "AMOUNT" | "PERCENT";
+                /** Format: int64 */
+                value: number;
+                reason: string;
+            };
+        };
+        SaleBill: {
+            orderId: components["schemas"]["Uuid"];
+            locationId: components["schemas"]["Uuid"];
+            customerId?: components["schemas"]["Uuid"] | null;
+            number: string;
+            status: string;
+            currency: string;
+            lines: {
+                description: string;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            dueMinor: number;
+            drawerOpen: boolean;
+            /** Format: int64 */
+            balanceMinor: number;
+            canCancel: boolean;
+            receiptNumber?: string | null;
+            tenders: components["schemas"]["CheckoutTender"][];
+        };
+        SalePay: {
+            giftCards?: string[];
+            useBalance?: boolean;
+            /** Format: int64 */
+            cashTenderedMinor?: number;
         };
         GiftCardProgram: {
             id: components["schemas"]["Uuid"];
@@ -7502,6 +7836,279 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listProducts: {
+        parameters: {
+            query?: {
+                locationId?: components["schemas"]["Uuid"];
+                includeArchived?: boolean;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The products. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductInput"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                productId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listStockMovements: {
+        parameters: {
+            query: {
+                locationId: components["schemas"]["Uuid"];
+                variantId: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The movements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovementList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    receiveStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockReceiptInput"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adjustStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockAdjustmentInput"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    startSale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaleStart"];
+            };
+        };
+        responses: {
+            /** @description The sale. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaleBill"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getSale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sale. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaleBill"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    paySale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalePay"];
+            };
+        };
+        responses: {
+            /** @description Paid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    cancelSale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                orderId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getGiftCardProgram: {

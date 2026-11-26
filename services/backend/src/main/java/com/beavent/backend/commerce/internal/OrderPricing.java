@@ -148,16 +148,22 @@ public final class OrderPricing {
     }
 
     /**
-     * A discount given by hand is shared between the lines in proportion to what is left of their price (the first line
+     * A discount given by hand is shared between the lines it applies to in proportion to what is left of their price (the first line
      * with the largest share takes the odd coins), and is never more than they cost.
      */
     static void shareManualDiscount(List<Item> items, long[] discounts, long manualMinor) {
         if (manualMinor <= 0) return;
         long[] room = new long[items.size()];
         long roomTotal = 0;
+        // A discount on a visit is on its services; on a sale of goods alone, on the goods.
+        boolean services = items.stream()
+                .anyMatch(it ->
+                        it.input().type().equals("SERVICE") || it.input().type().equals("ADDON"));
         for (int i = 0; i < room.length; i++) {
             Orders.LineInput in = items.get(i).input();
-            room[i] = Math.multiplyExact(in.unitPriceMinor(), in.quantity()) - discounts[i];
+            boolean eligible =
+                    !services || in.type().equals("SERVICE") || in.type().equals("ADDON");
+            room[i] = eligible ? Math.multiplyExact(in.unitPriceMinor(), in.quantity()) - discounts[i] : 0;
             roomTotal += room[i];
         }
         long want = Math.min(manualMinor, roomTotal);

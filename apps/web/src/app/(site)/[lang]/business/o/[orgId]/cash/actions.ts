@@ -34,6 +34,7 @@ export async function openDrawer(
   if (!data) return { error: problemText(error) };
   revalidatePath(`/${language}/business/o/${orgId}/cash`);
   revalidatePath(`/${language}/business/o/${orgId}/checkout`, "layout");
+  revalidatePath(`/${language}/business/o/${orgId}/sell`, "layout");
   return { done: "✓" };
 }
 

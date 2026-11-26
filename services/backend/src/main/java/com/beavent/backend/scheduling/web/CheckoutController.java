@@ -29,7 +29,12 @@ class CheckoutController {
             @Min(1) long value,
             @NotNull @Size(min = 3, max = 200) String reason) {}
 
+    record ProductInput(
+            @NotNull UUID variantId,
+            @Min(1) @jakarta.validation.constraints.Max(99) int quantity) {}
+
     record CheckoutInput(
+            List<@Valid ProductInput> products,
             List<@Valid TipInput> tips,
             @Valid DiscountInput discount,
             List<@NotNull @Size(min = 1, max = 40) String> giftCards,
@@ -69,7 +74,12 @@ class CheckoutController {
                         discount,
                         body.giftCards() == null ? List.of() : body.giftCards(),
                         Boolean.TRUE.equals(body.useBalance()),
-                        body.cashTenderedMinor()),
+                        body.cashTenderedMinor(),
+                        body.products() == null
+                                ? List.of()
+                                : body.products().stream()
+                                        .map(p -> new Checkouts.ProductItem(p.variantId(), p.quantity()))
+                                        .toList()),
                 Instant.now());
     }
 }

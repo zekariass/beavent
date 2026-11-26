@@ -276,3 +276,313 @@ publicReceipt:
               $ref: ./schemas.yaml#/ReceiptView
       '404':
         $ref: ../common/responses.yaml#/NotFound
+products:
+  get:
+    tags: [Counter]
+    operationId: listProducts
+    summary: Retail products, with stock at a location
+    description: |
+      Needs `pos.sell`, `catalog.manage` or `inventory.manage`. Cost prices and archived products only for those who manage
+      the catalogue or the stock.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: includeArchived
+        in: query
+        required: false
+        schema:
+          type: boolean
+    responses:
+      '200':
+        description: The products.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ProductList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Counter]
+    operationId: createProduct
+    summary: Add a retail product with its variants
+    description: Needs `catalog.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ProductInput
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Product
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+productById:
+  put:
+    tags: [Counter]
+    operationId: updateProduct
+    summary: Change a product, its variants and prices, or archive it
+    description: Needs `catalog.manage`. A variant left out is archived.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: productId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ProductInput
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Product
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+stockMovements:
+  get:
+    tags: [Counter]
+    operationId: listStockMovements
+    summary: A product's stock movements at a location, newest first
+    description: Needs `inventory.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: variantId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+    responses:
+      '200':
+        description: The movements.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/StockMovementList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+stockReceipts:
+  post:
+    tags: [Counter]
+    operationId: receiveStock
+    summary: Goods received
+    description: Needs `inventory.manage`. A reason is kept; stock must be kept for the product.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/StockReceiptInput
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+stockAdjustments:
+  post:
+    tags: [Counter]
+    operationId: adjustStock
+    summary: A correction or goods lost
+    description: Needs `inventory.manage`. More cannot be taken off than is in stock (`CONFLICT`).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/StockAdjustmentInput
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+sales:
+  post:
+    tags: [Counter]
+    operationId: startSale
+    summary: Start a retail sale with no visit
+    description: |
+      Needs `pos.sell` (`pos.discount` for a discount). Makes the order and takes the goods off the stock; pay it with
+      `POST /sales/{orderId}/payment`, or cancel it while nothing is paid. `CONFLICT` when there is not enough in stock.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/SaleStart
+    responses:
+      '201':
+        description: The sale.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SaleBill
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+sale:
+  get:
+    tags: [Counter]
+    operationId: getSale
+    summary: Where a retail sale stands
+    description: Needs `pos.sell`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The sale.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/SaleBill
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+salePayment:
+  post:
+    tags: [Counter]
+    operationId: paySale
+    summary: Take the payment for a retail sale
+    description: |
+      Needs `pos.sell`. Gift cards and the customer's balance first, then the cash for the rest; completes the sale and
+      issues the receipt. What a card or balance paid is kept if the cash then falls short.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/SalePay
+    responses:
+      '200':
+        description: Paid.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CheckoutDone
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+saleCancel:
+  post:
+    tags: [Counter]
+    operationId: cancelSale
+    summary: Cancel a retail sale nothing has been paid for
+    description: Needs `pos.sell`. The goods go back on the stock.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict

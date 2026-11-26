@@ -2920,3 +2920,152 @@ test("receipts · the front desk's page, the customer's link and the printed pag
   await shot(page, "receipt-print-en-desktop");
   await context.close();
 });
+
+// --- Stage 4.5: products ---------------------------------------------------------------------------------------------------
+
+test("products · the catalogue, selling at the counter and goods on a visit", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 0 },
+    salon.token,
+  );
+  const makeProduct = async (
+    name: { en: string; am: string },
+    variants: { label?: string; sku: string; priceMinor: number }[],
+    stock: number,
+    brand?: string,
+  ) => {
+    const product = await api(
+      "POST",
+      `/v1/orgs/${salon.orgId}/products`,
+      { name, brand, trackInventory: true, variants },
+      salon.token,
+    );
+    for (const v of product.variants as { id: string }[]) {
+      await api(
+        "POST",
+        `/v1/orgs/${salon.orgId}/stock/receipts`,
+        {
+          locationId: salon.locationId,
+          variantId: v.id,
+          quantity: stock,
+          reason: "Opening stock",
+        },
+        salon.token,
+      );
+    }
+  };
+  await makeProduct({ en: "Shea butter", am: "የሺአ ቅቤ" }, [{ sku: "SHEA", priceMinor: 25000 }], 12);
+  await makeProduct(
+    { en: "Argan oil", am: "የአርጋን ዘይት" },
+    [
+      { label: "50 ml", sku: "ARG-50", priceMinor: 40000 },
+      { label: "100 ml", sku: "ARG-100", priceMinor: 70000 },
+    ],
+    6,
+    "Atlas",
+  );
+  await makeProduct(
+    { en: "Hair brush", am: "የጸጉር ማበጠሪያ" },
+    [{ sku: "BRUSH", priceMinor: 18000 }],
+    1,
+  );
+  const catalogue = (await api(
+    "GET",
+    `/v1/orgs/${salon.orgId}/products?locationId=${salon.locationId}`,
+    undefined,
+    salon.token,
+  )) as {
+    items: { variants: { id: string }[] }[];
+  };
+  const started = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/sales`,
+    {
+      locationId: salon.locationId,
+      items: [
+        { variantId: catalogue.items[0]!.variants[0]!.id, quantity: 2 },
+        { variantId: catalogue.items[1]!.variants[0]!.id, quantity: 1 },
+      ],
+    },
+    salon.token,
+  )) as { orderId: string };
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  let start = "";
+  for (let d = 8; d < 15 && !start; d += 1)
+    start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+  const visit = (await deskBook(salon, start, "Selam Bekele")) as { id: string };
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const base = (language: string) => `${WEB}/${language}/business/o/${salon.orgId}`;
+  const looks = async (
+    name: string,
+    url: (language: string) => string,
+    prepare: (p: Page, language: string) => Promise<void> = async () => undefined,
+  ) => {
+    for (const language of LANGUAGES) {
+      for (const scheme of SCHEMES) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(url(language));
+          await page.getByRole("heading", { level: 1 }).waitFor();
+          await page.waitForLoadState("networkidle");
+          await prepare(page, language);
+          await shot(page, `products-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+  };
+
+  await looks(
+    "catalogue",
+    (l) => `${base(l)}/products`,
+    async (p) => {
+      await p.locator("details > summary").first().click(); // the price form, open
+    },
+  );
+  await looks(
+    "sell",
+    (l) => `${base(l)}/sell`,
+    async (p) => {
+      await p
+        .getByRole("button", { name: /^Add one|ጨምር$/ })
+        .first()
+        .click();
+      await p
+        .getByRole("button", { name: /^Add one|ጨምር$/ })
+        .nth(1)
+        .click();
+    },
+  );
+  await looks("sale-payment", (l) => `${base(l)}/sell/${started.orderId}`);
+  await looks(
+    "checkout",
+    (l) => `${base(l)}/checkout/${visit.id}`,
+    async (p) => {
+      await p
+        .getByRole("button", { name: /^Add one|ጨምር$/ })
+        .first()
+        .click();
+    },
+  );
+  await context.close();
+});

@@ -1,6 +1,8 @@
 package com.beavent.backend.commerce.internal;
 
 import static com.beavent.db.catalog.Tables.ADDONS;
+import static com.beavent.db.catalog.Tables.PRODUCTS;
+import static com.beavent.db.catalog.Tables.PRODUCT_VARIANTS;
 import static com.beavent.db.catalog.Tables.SERVICES;
 import static com.beavent.db.catalog.Tables.SERVICE_VARIANTS;
 import static com.beavent.db.commerce.Tables.DOCUMENT_SEQUENCES;
@@ -126,49 +128,7 @@ class OrdersService implements Orders {
                 .set(ORDERS.CONFIRMED_AT, status.equals("CONFIRMED") ? at : null)
                 .execute();
 
-        Map<Integer, UUID> lineIds = new HashMap<>();
-        for (PricedLine line : r.lines()) lineIds.put(line.index(), Ids.newId());
-        Map<String, TaxEngine.Rate> rates = sellerRates(seller, basket.at());
-        TaxEngine.Rate platformRate = platformFeeRate(seller, basket.at());
-        for (PricedLine line : r.lines()) {
-            LineInput in = line.index() < basket.lines().size() ? basket.lines().get(line.index()) : null;
-            UUID id = lineIds.get(line.index());
-            dsl.insertInto(ORDER_LINES)
-                    .set(ORDER_LINES.ID, id)
-                    .set(ORDER_LINES.ORG_ID, orgId)
-                    .set(ORDER_LINES.ORDER_ID, orderId)
-                    .set(ORDER_LINES.SEQ, (short) (line.index() + 1))
-                    .set(ORDER_LINES.LINE_TYPE, line.type())
-                    .set(
-                            ORDER_LINES.PARENT_LINE_ID,
-                            line.parentIndex() == null ? null : lineIds.get(line.parentIndex()))
-                    .set(ORDER_LINES.SERVICE_VARIANT_ID, in == null ? null : in.serviceVariantId())
-                    .set(ORDER_LINES.ADDON_ID, in == null ? null : in.addonId())
-                    .set(ORDER_LINES.GIFT_CARD_PROGRAM_ID, in == null ? null : in.giftCardProgramId())
-                    .set(ORDER_LINES.STAFF_ID, in == null ? null : in.staffId())
-                    .set(ORDER_LINES.DESCRIPTION, line.description())
-                    .set(ORDER_LINES.QUANTITY, line.quantity())
-                    .set(ORDER_LINES.UNIT_PRICE_MINOR, line.unitPriceMinor())
-                    .set(ORDER_LINES.DISCOUNT_MINOR, line.discountMinor())
-                    .set(ORDER_LINES.TAX_MINOR, line.taxMinor())
-                    .set(ORDER_LINES.TOTAL_MINOR, line.totalMinor())
-                    .set(ORDER_LINES.CURRENCY_CODE, basket.currency())
-                    .set(ORDER_LINES.TAX_CATEGORY_CODE, line.taxCategory())
-                    .set(ORDER_LINES.TAX_INCLUSIVE, line.taxInclusive())
-                    .execute();
-            if (line.taxMinor() > 0) {
-                TaxEngine.Rate rate = line.type().equals("BUYER_FEE") ? platformRate : rates.get(line.taxCategory());
-                dsl.insertInto(ORDER_LINE_TAXES)
-                        .set(ORDER_LINE_TAXES.ORG_ID, orgId)
-                        .set(ORDER_LINE_TAXES.ORDER_LINE_ID, id)
-                        .set(ORDER_LINE_TAXES.TAX_RATE_ID, rate.id())
-                        .set(ORDER_LINE_TAXES.TAX_CODE, rate.taxCode())
-                        .set(ORDER_LINE_TAXES.RATE, rate.rate())
-                        .set(ORDER_LINE_TAXES.TAXABLE_MINOR, line.totalMinor() - line.taxMinor())
-                        .set(ORDER_LINE_TAXES.TAX_MINOR, line.taxMinor())
-                        .execute();
-            }
-        }
+        Map<Integer, UUID> lineIds = writeLines(orgId, orderId, basket, r, seller, 0);
 
         for (PromotionEngine.Applied a : r.promotions()) {
             dsl.insertInto(REDEMPTIONS)
@@ -205,7 +165,138 @@ class OrdersService implements Orders {
         fees.record(orgId, orderId, basket.currency(), charged);
         // Last, so a refused claim (the final use was just taken) rolls the whole order back.
         for (PromotionEngine.Applied a : r.promotions()) claimRedemption(a.promo());
-        return new Placed(orderId, number, toQuote(priced));
+        return new Placed(orderId, number, toQuote(priced), lineIds);
+    }
+
+    @Override
+    public List<UUID> addProducts(UUID orgId, UUID orderId, List<ProductLine> products) {
+        if (products.isEmpty()) return List.of();
+        var order = dsl.selectFrom(ORDERS)
+                .where(ORDERS.ID.eq(orderId))
+                .and(ORDERS.ORG_ID.eq(orgId))
+                .forUpdate()
+                .fetchOne();
+        if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+        if (!order.getStatus().equals("CONFIRMED")) {
+            throw new ApiException(ProblemCode.CONFLICT, "Products can only go on an order that stands.");
+        }
+        List<LineInput> lines = new ArrayList<>();
+        for (ProductLine p : products) {
+            lines.add(new LineInput(
+                    "PRODUCT",
+                    null,
+                    null,
+                    null,
+                    null,
+                    p.description(),
+                    p.quantity(),
+                    p.unitPriceMinor(),
+                    null,
+                    p.productVariantId()));
+        }
+        Basket basket = new Basket(
+                order.getLocationId(),
+                order.getCustomerId(),
+                null,
+                order.getChannel(),
+                order.getCurrencyCode().trim(),
+                lines,
+                null,
+                null,
+                Instant.now(),
+                0);
+        Priced priced = price(orgId, basket);
+        OrderPricing.Result r = priced.result();
+        Short last = dsl.select(DSL.max(ORDER_LINES.SEQ))
+                .from(ORDER_LINES)
+                .where(ORDER_LINES.ORDER_ID.eq(orderId))
+                .fetchOne(0, Short.class);
+        Map<Integer, UUID> lineIds = writeLines(orgId, orderId, basket, r, priced.seller(), last == null ? 0 : last);
+        for (PromotionEngine.Applied a : r.promotions()) {
+            dsl.insertInto(REDEMPTIONS)
+                    .set(REDEMPTIONS.ORG_ID, orgId)
+                    .set(REDEMPTIONS.PROMOTION_ID, a.promo().id())
+                    .set(REDEMPTIONS.PROMO_CODE_ID, a.promo().codeId())
+                    .set(REDEMPTIONS.ORDER_ID, orderId)
+                    .set(REDEMPTIONS.CUSTOMER_ID, basket.customerId())
+                    .set(REDEMPTIONS.DISCOUNT_MINOR, a.totalMinor())
+                    .set(REDEMPTIONS.PLATFORM_FUNDED_MINOR, a.platformFundedMinor())
+                    .set(REDEMPTIONS.CURRENCY_CODE, basket.currency())
+                    .execute();
+        }
+        List<Fees.Charged> charged = new ArrayList<>();
+        for (OrderPricing.ChargedFee f : r.fees()) {
+            charged.add(new Fees.Charged(
+                    f.fee(),
+                    lineIds.get(f.fee().lineIndex()),
+                    f.feeLineIndex() == null ? null : lineIds.get(f.feeLineIndex())));
+        }
+        fees.record(orgId, orderId, basket.currency(), charged);
+        dsl.update(ORDERS)
+                .set(ORDERS.SUBTOTAL_MINOR, ORDERS.SUBTOTAL_MINOR.plus(r.subtotalMinor()))
+                .set(ORDERS.DISCOUNT_MINOR, ORDERS.DISCOUNT_MINOR.plus(r.discountMinor()))
+                .set(ORDERS.TAX_MINOR, ORDERS.TAX_MINOR.plus(r.taxMinor()))
+                .set(ORDERS.TOTAL_MINOR, ORDERS.TOTAL_MINOR.plus(r.totalMinor()))
+                .set(ORDERS.VERSION, ORDERS.VERSION.plus(1))
+                .where(ORDERS.ID.eq(orderId))
+                .execute();
+        List<UUID> ids = new ArrayList<>();
+        for (int i = 0; i < products.size(); i++) ids.add(lineIds.get(i));
+        return ids;
+    }
+
+    /**
+     * Writes the priced lines of a basket onto an order, with their tax snapshots; {@code seqOffset} is how many lines the
+     * order already has. Returns the id of each line by its index.
+     */
+    private Map<Integer, UUID> writeLines(
+            UUID orgId, UUID orderId, Basket basket, OrderPricing.Result r, Seller seller, int seqOffset) {
+        Map<Integer, UUID> lineIds = new HashMap<>();
+        for (PricedLine line : r.lines()) lineIds.put(line.index(), Ids.newId());
+        Map<String, TaxEngine.Rate> rates = sellerRates(seller, basket.at());
+        TaxEngine.Rate platformRate = platformFeeRate(seller, basket.at());
+        for (PricedLine line : r.lines()) {
+            LineInput in = line.index() < basket.lines().size() ? basket.lines().get(line.index()) : null;
+            UUID id = lineIds.get(line.index());
+            dsl.insertInto(ORDER_LINES)
+                    .set(ORDER_LINES.ID, id)
+                    .set(ORDER_LINES.ORG_ID, orgId)
+                    .set(ORDER_LINES.ORDER_ID, orderId)
+                    .set(ORDER_LINES.SEQ, (short) (seqOffset + line.index() + 1))
+                    .set(ORDER_LINES.LINE_TYPE, line.type())
+                    .set(
+                            ORDER_LINES.PARENT_LINE_ID,
+                            line.parentIndex() == null ? null : lineIds.get(line.parentIndex()))
+                    .set(ORDER_LINES.SERVICE_VARIANT_ID, in == null ? null : in.serviceVariantId())
+                    .set(ORDER_LINES.ADDON_ID, in == null ? null : in.addonId())
+                    .set(ORDER_LINES.GIFT_CARD_PROGRAM_ID, in == null ? null : in.giftCardProgramId())
+                    .set(ORDER_LINES.PRODUCT_VARIANT_ID, in == null ? null : in.productVariantId())
+                    .set(ORDER_LINES.STAFF_ID, in == null ? null : in.staffId())
+                    .set(ORDER_LINES.DESCRIPTION, line.description())
+                    .set(ORDER_LINES.QUANTITY, line.quantity())
+                    .set(ORDER_LINES.UNIT_PRICE_MINOR, line.unitPriceMinor())
+                    .set(ORDER_LINES.DISCOUNT_MINOR, line.discountMinor())
+                    .set(ORDER_LINES.TAX_MINOR, line.taxMinor())
+                    .set(ORDER_LINES.TOTAL_MINOR, line.totalMinor())
+                    .set(ORDER_LINES.CURRENCY_CODE, basket.currency())
+                    .set(ORDER_LINES.TAX_CATEGORY_CODE, line.taxCategory())
+                    .set(ORDER_LINES.TAX_INCLUSIVE, line.taxInclusive())
+                    .execute();
+            if (line.taxMinor() > 0) {
+                TaxEngine.Rate rate = line.type().equals("BUYER_FEE") ? platformRate : rates.get(line.taxCategory());
+                dsl.insertInto(ORDER_LINE_TAXES)
+                        .set(ORDER_LINE_TAXES.ORG_ID, orgId)
+                        .set(ORDER_LINE_TAXES.ORDER_LINE_ID, id)
+                        .set(ORDER_LINE_TAXES.TAX_RATE_ID, rate.id())
+                        .set(ORDER_LINE_TAXES.TAX_CODE, rate.taxCode())
+                        .set(ORDER_LINE_TAXES.RATE, rate.rate())
+                        .set(ORDER_LINE_TAXES.TAXABLE_MINOR, line.totalMinor() - line.taxMinor())
+                        .set(ORDER_LINE_TAXES.TAX_MINOR, line.taxMinor())
+                        .execute();
+            }
+        }
+
+        return lineIds;
     }
 
     // --- pricing facts ---------------------------------------------------------------------------------------------
@@ -333,7 +424,16 @@ class OrdersService implements Orders {
                 throw new ApiException(
                         ProblemCode.VALIDATION_FAILED, "Quantities are positive and prices not negative.");
             }
-            if (in.giftCardProgramId() != null) {
+            if (in.productVariantId() != null) {
+                String category = dsl.select(PRODUCTS.TAX_CATEGORY_CODE)
+                        .from(PRODUCT_VARIANTS)
+                        .join(PRODUCTS)
+                        .on(PRODUCTS.ID.eq(PRODUCT_VARIANTS.PRODUCT_ID))
+                        .where(PRODUCT_VARIANTS.ID.eq(in.productVariantId()))
+                        .fetchOne(PRODUCTS.TAX_CATEGORY_CODE);
+                if (category == null) throw new ApiException(ProblemCode.NOT_FOUND, "Unknown product.");
+                items.add(new OrderPricing.Item(in, null, null, category));
+            } else if (in.giftCardProgramId() != null) {
                 // A gift card is a multi-purpose voucher: not taxed when sold, taxed when it is spent (docs/04 §12).
                 items.add(new OrderPricing.Item(in, null, null, "VOUCHER_MULTI_PURPOSE"));
             } else if (in.serviceVariantId() != null) {

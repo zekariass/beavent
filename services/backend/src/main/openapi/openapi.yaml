@@ -98,6 +98,24 @@ paths:
     $ref: ./commerce/paths.yaml#/orderReceiptSend
   /v1/public/receipts/{token}:
     $ref: ./commerce/paths.yaml#/publicReceipt
+  /v1/orgs/{orgId}/products:
+    $ref: ./commerce/paths.yaml#/products
+  /v1/orgs/{orgId}/products/{productId}:
+    $ref: ./commerce/paths.yaml#/productById
+  /v1/orgs/{orgId}/stock/movements:
+    $ref: ./commerce/paths.yaml#/stockMovements
+  /v1/orgs/{orgId}/stock/receipts:
+    $ref: ./commerce/paths.yaml#/stockReceipts
+  /v1/orgs/{orgId}/stock/adjustments:
+    $ref: ./commerce/paths.yaml#/stockAdjustments
+  /v1/orgs/{orgId}/sales:
+    $ref: ./commerce/paths.yaml#/sales
+  /v1/orgs/{orgId}/sales/{orderId}:
+    $ref: ./commerce/paths.yaml#/sale
+  /v1/orgs/{orgId}/sales/{orderId}/payment:
+    $ref: ./commerce/paths.yaml#/salePayment
+  /v1/orgs/{orgId}/sales/{orderId}/cancel:
+    $ref: ./commerce/paths.yaml#/saleCancel
   /v1/orgs/{orgId}/gift-cards/program:
     $ref: ./retention/paths.yaml#/giftCardProgram
   /v1/orgs/{orgId}/gift-cards:

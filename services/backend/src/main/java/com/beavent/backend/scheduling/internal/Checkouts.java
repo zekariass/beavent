@@ -2,22 +2,21 @@ package com.beavent.backend.scheduling.internal;
 
 import static com.beavent.db.commerce.Tables.ORDERS;
 import static com.beavent.db.commerce.Tables.ORDER_LINES;
-import static com.beavent.db.commerce.Tables.ORDER_STATUS_HISTORY;
 import static com.beavent.db.commerce.Tables.PAYMENT_SCHEDULE;
 import static com.beavent.db.crm.Tables.CUSTOMERS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENTS;
 import static com.beavent.db.scheduling.Tables.APPOINTMENT_ITEMS;
 
+import com.beavent.backend.catalog.Products;
 import com.beavent.backend.commerce.CashDrawers;
 import com.beavent.backend.commerce.Orders;
 import com.beavent.backend.commerce.Receipts;
 import com.beavent.backend.payments.Payments;
-import com.beavent.backend.payments.Payouts;
 import com.beavent.backend.platform.ApiException;
 import com.beavent.backend.platform.ProblemCode;
+import com.beavent.backend.stock.Stock;
 import com.beavent.backend.tenancy.OrgAccess;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -87,7 +86,22 @@ public class Checkouts {
      * @param cashTenderedMinor the cash handed over (more than is due is fine; null: exactly what is due)
      */
     public record Sale(
-            List<Tip> tips, Discount discount, List<String> giftCards, boolean useBalance, Long cashTenderedMinor) {}
+            List<Tip> tips,
+            Discount discount,
+            List<String> giftCards,
+            boolean useBalance,
+            Long cashTenderedMinor,
+            List<ProductItem> products) {
+
+        /** A sale of the visit only. */
+        public Sale(
+                List<Tip> tips, Discount discount, List<String> giftCards, boolean useBalance, Long cashTenderedMinor) {
+            this(tips, discount, giftCards, useBalance, cashTenderedMinor, List.of());
+        }
+    }
+
+    /** A retail product to sell with the visit. */
+    public record ProductItem(UUID variantId, int quantity) {}
 
     /** A part of the sale and how it was paid: {@code GIFT_CARD}, {@code STORE_CREDIT} or {@code CASH}. */
     public record Tender(String method, long amountMinor) {}
@@ -118,8 +132,9 @@ public class Checkouts {
     private final Payments payments;
     private final CashDrawers drawers;
     private final Receipts receipts;
-    private final Payouts payouts;
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Checkouts.class);
+    private final Tendering tendering;
+    private final Stock stock;
+    private final Products products;
 
     Checkouts(
             DSLContext dsl,
@@ -130,7 +145,9 @@ public class Checkouts {
             Payments payments,
             CashDrawers drawers,
             Receipts receipts,
-            Payouts payouts) {
+            Tendering tendering,
+            Stock stock,
+            Products products) {
         this.dsl = dsl;
         this.transactions = transactions;
         this.bookings = bookings;
@@ -139,7 +156,9 @@ public class Checkouts {
         this.payments = payments;
         this.drawers = drawers;
         this.receipts = receipts;
-        this.payouts = payouts;
+        this.tendering = tendering;
+        this.stock = stock;
+        this.products = products;
     }
 
     private static final java.util.Set<String> PAYABLE =
@@ -208,7 +227,7 @@ public class Checkouts {
         Receipts.Receipt receipt = order == null ? null : receipts.find(orgId, order.getId());
         boolean ok = PAYABLE.contains(a.getStatus()) && !waitingOnline && receipt == null;
         long balance = payments.customerBalance(a.getOrgId(), a.getCustomerId(), currency);
-        List<Tender> tenders = order == null ? List.of() : tendersOf(order.getId());
+        List<Tender> tenders = order == null ? List.of() : tendering.tendersOf(order.getId());
         return new Bill(
                 a.getId(),
                 a.getLocationId(),
@@ -262,6 +281,13 @@ public class Checkouts {
             if (t.amountMinor() > 0) perStaff.merge(t.staffId(), t.amountMinor(), Long::sum);
         }
         long tipTotal = perStaff.values().stream().mapToLong(Long::longValue).sum();
+        Map<UUID, Integer> perVariant = new LinkedHashMap<>();
+        for (ProductItem item : sale.products() == null ? List.<ProductItem>of() : sale.products()) {
+            if (item.quantity() < 1 || item.quantity() > 99) {
+                throw new ApiException(ProblemCode.VALIDATION_FAILED, "Sell between 1 and 99 of a product.");
+            }
+            perVariant.merge(item.variantId(), item.quantity(), Integer::sum);
+        }
 
         // Before anything is changed: whatever can already be seen to fail.
         boolean valueTenders = !cards.isEmpty() || sale.useBalance();
@@ -275,8 +301,9 @@ public class Checkouts {
                 throw new ApiException(ProblemCode.CONFLICT, "This visit was checked out already.");
             }
             for (UUID staffId : perStaff.keySet()) staffName(staffId);
+            List<Sold> sold = sold(a.getOrgId(), a.getLocationId(), perVariant, items0Currency(a));
             if (!valueTenders) {
-                long expected = expectedDue(a, discount, tipTotal);
+                long expected = expectedDue(a, discount, tipTotal, sold);
                 if (expected > 0) {
                     if (drawers.current(a.getOrgId(), a.getLocationId()) == null) {
                         throw new ApiException(ProblemCode.CONFLICT, "Open the cash drawer first.");
@@ -296,8 +323,23 @@ public class Checkouts {
             UUID orgId = a.getOrgId();
             Bookings.Items items = bookings.loadItems(appointmentId);
             UUID orderId = a.getOrderId();
+            Map<Integer, UUID> placedLines = Map.of();
+            int serviceLines =
+                    items.items().stream().mapToInt(i -> 1 + i.addons().size()).sum();
+            List<Sold> sold = sold(orgId, a.getLocationId(), perVariant, items.currency());
             if (orderId == null) {
-                orderId = placeOrder(a, items, discount, access.userId(), now);
+                Orders.Placed placed = placeOrder(a, items, discount, sold, access.userId(), now);
+                orderId = placed.orderId();
+                placedLines = placed.lineIds();
+                for (int i = 0; i < sold.size(); i++) {
+                    stock.sell(
+                            orgId,
+                            a.getLocationId(),
+                            sold.get(i).item().variantId(),
+                            sold.get(i).quantity(),
+                            placedLines.get(serviceLines + i),
+                            access.userId());
+                }
             } else {
                 var order = dsl.selectFrom(ORDERS)
                         .where(ORDERS.ID.eq(orderId))
@@ -324,6 +366,35 @@ public class Checkouts {
                             "Part of this is waiting to be paid online; it cannot be checked out yet.");
                 }
             }
+            // Goods go on once, like tips: a sale that was started keeps what it has.
+            if (!sold.isEmpty()
+                    && !dsl.fetchExists(
+                            ORDER_LINES, ORDER_LINES.ORDER_ID.eq(orderId).and(ORDER_LINES.LINE_TYPE.eq("PRODUCT")))) {
+                List<UUID> lineIds = orders.addProducts(
+                        orgId,
+                        orderId,
+                        sold.stream()
+                                .map(p -> new Orders.ProductLine(
+                                        p.item().variantId(),
+                                        p.item().name(),
+                                        p.quantity(),
+                                        p.item().priceMinor()))
+                                .toList());
+                long added = dsl.select(org.jooq.impl.DSL.coalesce(org.jooq.impl.DSL.sum(ORDER_LINES.TOTAL_MINOR), 0))
+                        .from(ORDER_LINES)
+                        .where(ORDER_LINES.ID.in(lineIds))
+                        .fetchSingle(0, Long.class);
+                addToBalance(orgId, orderId, items.currency(), added);
+                for (int i = 0; i < sold.size(); i++) {
+                    stock.sell(
+                            orgId,
+                            a.getLocationId(),
+                            sold.get(i).item().variantId(),
+                            sold.get(i).quantity(),
+                            lineIds.get(i),
+                            access.userId());
+                }
+            }
             // Tips go on once; a sale that was started keeps the tips it has.
             boolean hasTips = dsl.fetchExists(
                     ORDER_LINES, ORDER_LINES.ORDER_ID.eq(orderId).and(ORDER_LINES.LINE_TYPE.eq("TIP")));
@@ -343,122 +414,41 @@ public class Checkouts {
         UUID orderId = prepared.orderId();
         UUID orgId = prepared.orgId();
 
-        // Gift cards, then the balance: as much as is due, each committed as it is taken.
-        if (valueTenders) {
-            for (String code : cards) {
-                if (dueNow(orderId) == 0) break;
-                payments.tenderAtCounter(
-                        orgId,
-                        orderId,
-                        com.beavent.backend.payments.StoredValue.Kind.GIFT_CARD,
-                        code,
-                        access.userId(),
-                        now);
-            }
-            if (sale.useBalance() && dueNow(orderId) > 0) {
-                payments.tenderAtCounter(
-                        orgId,
-                        orderId,
-                        com.beavent.backend.payments.StoredValue.Kind.BALANCE,
-                        null,
-                        access.userId(),
-                        now);
-            }
-        }
-
-        // The cash for the rest, the visit completed and the receipt: together.
-        Done result = transactions.execute(status -> {
-            long due = dueAtVenue(orderId);
-            long handed = 0;
-            long change = 0;
-            if (due > 0) {
-                handed = sale.cashTenderedMinor() == null ? due : sale.cashTenderedMinor();
-                if (handed < due) {
-                    throw new ApiException(
-                            ProblemCode.VALIDATION_FAILED,
-                            "The cash is less than what is due. What the cards and balance paid is kept; "
-                                    + "take the rest to finish.");
-                }
-                var session = drawers.current(orgId, prepared.locationId());
-                if (session == null) throw new ApiException(ProblemCode.CONFLICT, "Open the cash drawer first.");
-                change = handed - due;
-                UUID attempt = payments.recordCash(orgId, orderId, session.id(), due, now);
-                drawers.recordSale(orgId, session.id(), attempt, due, access.userId());
-            }
-            calendar.completeAtCounter(appointmentId, access.userId());
-            dsl.update(ORDERS)
-                    .set(ORDERS.STATUS, "COMPLETED")
-                    .set(ORDERS.COMPLETED_AT, now.atOffset(ZoneOffset.UTC))
-                    .set(ORDERS.VERSION, ORDERS.VERSION.plus(1))
-                    .where(ORDERS.ID.eq(orderId))
-                    .execute();
-            dsl.insertInto(ORDER_STATUS_HISTORY)
-                    .set(ORDER_STATUS_HISTORY.ORG_ID, orgId)
-                    .set(ORDER_STATUS_HISTORY.ORDER_ID, orderId)
-                    .set(ORDER_STATUS_HISTORY.FROM_STATUS, "CONFIRMED")
-                    .set(ORDER_STATUS_HISTORY.TO_STATUS, "COMPLETED")
-                    .set(ORDER_STATUS_HISTORY.ACTOR_KIND, "STAFF")
-                    .set(ORDER_STATUS_HISTORY.ACTOR_USER_ID, access.userId())
-                    .set(ORDER_STATUS_HISTORY.REASON, "Checked out at the counter")
-                    .execute();
-            Receipts.Receipt receipt = receipts.issue(orgId, orderId, now);
-            var order = dsl.selectFrom(ORDERS).where(ORDERS.ID.eq(orderId)).fetchSingle();
-            long tipsOnOrder = dsl.select(org.jooq.impl.DSL.coalesce(org.jooq.impl.DSL.sum(ORDER_LINES.TOTAL_MINOR), 0))
-                    .from(ORDER_LINES)
-                    .where(ORDER_LINES.ORDER_ID.eq(orderId))
-                    .and(ORDER_LINES.LINE_TYPE.eq("TIP"))
-                    .fetchSingle(0, Long.class);
-            return new Done(
-                    orderId,
-                    order.getNumber(),
-                    receipt.number(),
-                    prepared.currency(),
-                    order.getTotalMinor(),
-                    prepared.paidOnline(),
-                    tipsOnOrder,
-                    due,
-                    handed,
-                    change,
-                    order.getDiscountMinor(),
-                    tendersOf(orderId));
-        });
-        // The platform's fees on what was paid at the venue; a failure here is caught up by the payout worker's sweep.
-        try {
-            payouts.chargeVenueFees(orgId, orderId, now);
-        } catch (RuntimeException e) {
-            log.warn("Charging the venue fees of order {} failed; the sweep will", orderId, e);
-        }
-        return result;
-    }
-
-    /** {@link #dueAtVenue} in a transaction of its own (the business's context must be bound for the rows to be seen). */
-    private long dueNow(UUID orderId) {
-        return transactions.execute(status -> dueAtVenue(orderId));
-    }
-
-    /** What is still to be paid at the counter on the order. */
-    private long dueAtVenue(UUID orderId) {
-        return dsl.select(org.jooq.impl.DSL.coalesce(
-                        org.jooq.impl.DSL.sum(PAYMENT_SCHEDULE.AMOUNT_MINOR.minus(PAYMENT_SCHEDULE.COLLECTED_MINOR)),
-                        0))
-                .from(PAYMENT_SCHEDULE)
-                .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
-                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
-                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
-                .fetchSingle(0, Long.class);
+        return tendering.collect(
+                access,
+                prepared.orgId(),
+                prepared.locationId(),
+                orderId,
+                appointmentId,
+                sale.giftCards() == null ? List.of() : sale.giftCards(),
+                sale.useBalance(),
+                sale.cashTenderedMinor(),
+                prepared.currency(),
+                prepared.paidOnline(),
+                now);
     }
 
     /** What the sale will come to at the counter: for a visit without an order, priced now with the discount. */
     private long expectedDue(
-            com.beavent.db.scheduling.tables.records.AppointmentsRecord a, Discount discount, long tipTotal) {
+            com.beavent.db.scheduling.tables.records.AppointmentsRecord a,
+            Discount discount,
+            long tipTotal,
+            List<Sold> sold) {
         if (a.getOrderId() != null) {
             boolean hasTips = dsl.fetchExists(
                     ORDER_LINES, ORDER_LINES.ORDER_ID.eq(a.getOrderId()).and(ORDER_LINES.LINE_TYPE.eq("TIP")));
-            return dueAtVenue(a.getOrderId()) + (hasTips ? 0 : tipTotal);
+            boolean hasProducts = dsl.fetchExists(
+                    ORDER_LINES, ORDER_LINES.ORDER_ID.eq(a.getOrderId()).and(ORDER_LINES.LINE_TYPE.eq("PRODUCT")));
+            long goods = hasProducts
+                    ? 0
+                    : sold.stream()
+                            .mapToLong(p -> p.item().priceMinor() * p.quantity())
+                            .sum();
+            return tendering.dueAtVenue(a.getOrderId()) + (hasTips ? 0 : tipTotal) + goods;
         }
         Bookings.Items items = bookings.loadItems(a.getId());
         long discountMinor = discountOf(items, discount);
-        Orders.Quote quote = orders.quote(a.getOrgId(), basket(a, items, discountMinor, Instant.now()));
+        Orders.Quote quote = orders.quote(a.getOrgId(), basket(a, items, discountMinor, sold, Instant.now()));
         return quote.totalMinor() + tipTotal;
     }
 
@@ -470,6 +460,31 @@ public class Checkouts {
         return Math.min(wanted, gross);
     }
 
+    /** The products as they are sold here: found, in the visit's currency, and in stock. */
+    private List<Sold> sold(UUID orgId, UUID locationId, Map<UUID, Integer> wanted, String currency) {
+        if (wanted.isEmpty()) return List.of();
+        List<Products.Sellable> found = products.sellable(orgId, new ArrayList<>(wanted.keySet()), "en");
+        List<Sold> out = new ArrayList<>();
+        for (Products.Sellable item : found) {
+            int quantity = wanted.get(item.variantId());
+            if (currency != null && !item.currency().equals(currency)) {
+                throw new ApiException(ProblemCode.CONFLICT, "A product is priced in another currency.");
+            }
+            long have = stock.available(orgId, locationId, item.variantId());
+            if (item.tracked() && have < quantity) {
+                throw new ApiException(
+                        ProblemCode.CONFLICT,
+                        "Only " + have + " of " + item.name() + " in stock, " + quantity + " asked for.");
+            }
+            out.add(new Sold(item, quantity));
+        }
+        return out;
+    }
+
+    private String items0Currency(com.beavent.db.scheduling.tables.records.AppointmentsRecord a) {
+        return bookings.loadItems(a.getId()).currency();
+    }
+
     private String staffName(UUID staffId) {
         String name = dsl.select(com.beavent.db.team.Tables.STAFF.DISPLAY_NAME)
                 .from(com.beavent.db.team.Tables.STAFF)
@@ -479,28 +494,14 @@ public class Checkouts {
         return name;
     }
 
-    /** What was paid at the counter so far, by how it was paid. */
-    private List<Tender> tendersOf(UUID orderId) {
-        return dsl.select(
-                        com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS.METHOD_CODE,
-                        com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS.AMOUNT_MINOR)
-                .from(com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS)
-                .join(com.beavent.db.payments.Tables.PAYMENT_INTENTS)
-                .on(com.beavent.db.payments.Tables.PAYMENT_INTENTS.ID.eq(
-                        com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS.INTENT_ID))
-                .join(PAYMENT_SCHEDULE)
-                .on(PAYMENT_SCHEDULE.ID.eq(com.beavent.db.payments.Tables.PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID))
-                .where(com.beavent.db.payments.Tables.PAYMENT_INTENTS.ORDER_ID.eq(orderId))
-                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
-                .and(com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS.STATUS.eq("SUCCEEDED"))
-                .orderBy(com.beavent.db.payments.Tables.PAYMENT_ATTEMPTS.INITIATED_AT)
-                .fetch(r -> new Tender(r.value1(), r.value2()));
-    }
+    /** A product as it is sold: its price and name now, and how many. */
+    private record Sold(Products.Sellable item, int quantity) {}
 
     private Orders.Basket basket(
             com.beavent.db.scheduling.tables.records.AppointmentsRecord a,
             Bookings.Items items,
             long discountMinor,
+            List<Sold> sold,
             Instant now) {
         List<Orders.LineInput> lines = new ArrayList<>();
         for (Bookings.PlanItem item : items.items()) {
@@ -514,6 +515,19 @@ public class Checkouts {
                 lines.add(new Orders.LineInput(
                         "ADDON", null, addon.id(), item.staffId(), parent, addon.name(), 1, addon.priceMinor()));
             }
+        }
+        for (Sold p : sold) {
+            lines.add(new Orders.LineInput(
+                    "PRODUCT",
+                    null,
+                    null,
+                    null,
+                    null,
+                    p.item().name(),
+                    p.quantity(),
+                    p.item().priceMinor(),
+                    null,
+                    p.item().variantId()));
         }
         return new Orders.Basket(
                 a.getLocationId(),
@@ -529,13 +543,14 @@ public class Checkouts {
     }
 
     /** A visit with no order: its services as booked become one (confirmed) and all of it is due at the counter. */
-    private UUID placeOrder(
+    private Orders.Placed placeOrder(
             com.beavent.db.scheduling.tables.records.AppointmentsRecord a,
             Bookings.Items items,
             Discount discount,
+            List<Sold> sold,
             UUID userId,
             Instant now) {
-        Orders.Basket basket = basket(a, items, discountOf(items, discount), now);
+        Orders.Basket basket = basket(a, items, discountOf(items, discount), sold, now);
         Orders.Placed placed = orders.place(a.getOrgId(), basket, "CONFIRMED", null, userId);
         if (placed.quote().totalMinor() > 0) {
             payments.plan(
@@ -563,7 +578,7 @@ public class Checkouts {
                 .set(APPOINTMENTS.ORDER_ID, placed.orderId())
                 .where(APPOINTMENTS.ID.eq(a.getId()))
                 .execute();
-        return placed.orderId();
+        return placed;
     }
 
     /** What the tips add is due at the counter with the rest: onto the open balance, or a balance of its own. */

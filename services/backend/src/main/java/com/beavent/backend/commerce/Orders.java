@@ -26,9 +26,34 @@ public interface Orders {
             String description,
             int quantity,
             long unitPriceMinor,
-            UUID giftCardProgramId) {
+            UUID giftCardProgramId,
+            UUID productVariantId) {
 
-        /** A line that is not a gift card. */
+        /** A line that is not a product. */
+        public LineInput(
+                String type,
+                UUID serviceVariantId,
+                UUID addonId,
+                UUID staffId,
+                Integer parentIndex,
+                String description,
+                int quantity,
+                long unitPriceMinor,
+                UUID giftCardProgramId) {
+            this(
+                    type,
+                    serviceVariantId,
+                    addonId,
+                    staffId,
+                    parentIndex,
+                    description,
+                    quantity,
+                    unitPriceMinor,
+                    giftCardProgramId,
+                    null);
+        }
+
+        /** A line that is not a gift card or a product. */
         public LineInput(
                 String type,
                 UUID serviceVariantId,
@@ -38,7 +63,17 @@ public interface Orders {
                 String description,
                 int quantity,
                 long unitPriceMinor) {
-            this(type, serviceVariantId, addonId, staffId, parentIndex, description, quantity, unitPriceMinor, null);
+            this(
+                    type,
+                    serviceVariantId,
+                    addonId,
+                    staffId,
+                    parentIndex,
+                    description,
+                    quantity,
+                    unitPriceMinor,
+                    null,
+                    null);
         }
     }
 
@@ -121,7 +156,22 @@ public interface Orders {
             long sellerFeesMinor,
             PromoResult promo) {}
 
-    record Placed(UUID orderId, String number, Quote quote) {}
+    /**
+     * @param lineIds the id of the order line made for each line of the basket, by its index
+     */
+    record Placed(UUID orderId, String number, Quote quote, java.util.Map<Integer, UUID> lineIds) {}
+
+    /** A product to add to an order: priced at {@code unitPriceMinor}, taxed as goods. */
+    record ProductLine(UUID productVariantId, String description, int quantity, long unitPriceMinor) {}
+
+    /**
+     * Adds retail products to an order that stands (confirmed): priced, taxed and given their tax snapshots like any
+     * line, the order's totals going up by what they cost.
+     *
+     * @return the id of the order line made for each product, in the order given; the total they add is the sum of the
+     *     lines' totals
+     */
+    List<UUID> addProducts(UUID orgId, UUID orderId, List<ProductLine> products);
 
     /**
      * A tip left at the counter for one member of the team.

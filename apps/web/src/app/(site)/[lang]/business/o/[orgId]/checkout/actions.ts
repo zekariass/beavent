@@ -12,6 +12,7 @@ export interface SaleInput {
   giftCards: string[];
   useBalance: boolean;
   cashTenderedMinor: number | null;
+  products: { variantId: string; quantity: number }[];
 }
 
 /**
@@ -30,6 +31,7 @@ export async function checkoutVisit(
     params: { path: { orgId, appointmentId } },
     body: {
       tips: sale.tips.filter((t) => t.amountMinor > 0),
+      ...(sale.products.length > 0 ? { products: sale.products } : {}),
       ...(sale.discount ? { discount: sale.discount } : {}),
       ...(sale.giftCards.length > 0 ? { giftCards: sale.giftCards } : {}),
       ...(sale.useBalance ? { useBalance: true } : {}),
