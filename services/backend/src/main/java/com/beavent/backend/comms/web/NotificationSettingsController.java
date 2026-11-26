@@ -19,6 +19,7 @@ class NotificationSettingsController {
     private static final String TIME = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
 
     record Input(
+            @NotNull Boolean remindersPush,
             @NotNull Boolean remindersSms,
             @NotNull Boolean remindersEmail,
             @NotNull Boolean quietHours,
@@ -41,6 +42,7 @@ class NotificationSettingsController {
         return settings.save(
                 UUID.fromString(jwt.getSubject()),
                 new NotificationSettings.Settings(
+                        body.remindersPush(),
                         body.remindersSms(),
                         body.remindersEmail(),
                         body.quietHours(),

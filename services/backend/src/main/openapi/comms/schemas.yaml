@@ -3,11 +3,16 @@ NotificationSettings:
   description: |
     What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
     not optional and ignore these settings. Quiet hours are in the local time of the place the message is about.
-  required: [remindersSms, remindersEmail, quietHours, quietFrom, quietTo]
+  required: [remindersPush, remindersSms, remindersEmail, quietHours, quietFrom, quietTo]
   properties:
+    remindersPush:
+      type: boolean
+      description: Reminders and review requests as a push notification to the phone app (when a phone is set up).
     remindersSms:
       type: boolean
-      description: Reminders and review requests by text message.
+      description: |
+        Reminders and review requests by text message. A person who gets them as a push notification on a set-up phone
+        is not also sent a text message.
     remindersEmail:
       type: boolean
       description: Reminders and review requests by email.

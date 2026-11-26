@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 class NotificationSettingsService implements NotificationSettings {
 
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
-    static final Settings DEFAULTS = new Settings(true, true, false, "21:00", "07:00");
+    static final Settings DEFAULTS = new Settings(true, true, true, false, "21:00", "07:00");
 
     private final DSLContext system;
 
@@ -27,7 +27,7 @@ class NotificationSettingsService implements NotificationSettings {
     @Override
     public Settings get(UUID userId) {
         Record r = system.resultQuery(
-                        "SELECT reminders_sms, reminders_email, quiet_hours_enabled, quiet_from, quiet_to"
+                        "SELECT reminders_push, reminders_sms, reminders_email, quiet_hours_enabled, quiet_from, quiet_to"
                                 + " FROM comms.notification_settings WHERE user_id = ?",
                         userId)
                 .fetchOne();
@@ -35,6 +35,7 @@ class NotificationSettingsService implements NotificationSettings {
             return DEFAULTS;
         }
         return new Settings(
+                r.get("reminders_push", Boolean.class),
                 r.get("reminders_sms", Boolean.class),
                 r.get("reminders_email", Boolean.class),
                 r.get("quiet_hours_enabled", Boolean.class),
@@ -52,14 +53,15 @@ class NotificationSettingsService implements NotificationSettings {
         system.execute(
                 """
                 INSERT INTO comms.notification_settings
-                  (user_id, reminders_sms, reminders_email, quiet_hours_enabled, quiet_from, quiet_to)
-                VALUES (?, ?, ?, ?, ?, ?)
+                  (user_id, reminders_push, reminders_sms, reminders_email, quiet_hours_enabled, quiet_from, quiet_to)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (user_id) DO UPDATE SET
-                  reminders_sms = excluded.reminders_sms, reminders_email = excluded.reminders_email,
+                  reminders_push = excluded.reminders_push, reminders_sms = excluded.reminders_sms, reminders_email = excluded.reminders_email,
                   quiet_hours_enabled = excluded.quiet_hours_enabled, quiet_from = excluded.quiet_from,
                   quiet_to = excluded.quiet_to, updated_at = now()
                 """,
                 userId,
+                s.remindersPush(),
                 s.remindersSms(),
                 s.remindersEmail(),
                 s.quietHours(),

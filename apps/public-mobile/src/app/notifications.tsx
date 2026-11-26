@@ -1,4 +1,5 @@
 import {
+  Button,
   CheckRow,
   Divider,
   EmptyState,
@@ -18,6 +19,9 @@ import {
 } from "@beavent/venue";
 import { Stack, useRouter } from "expo-router";
 import { Fragment, useEffect, useState } from "react";
+import { Linking, View } from "react-native";
+
+import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
 
 /**
  * Notifications (plan 8.4): which channels carry reminders and review requests, and quiet hours. Every change is
@@ -29,6 +33,24 @@ export default function NotificationsScreen() {
   const [settings, setSettings] = useState<NotificationSettings | null | "error">(null);
   const [message, setMessage] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [phone, setPhone] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void pushState().then(setPhone);
+  }, []);
+
+  const turnOn = async () => {
+    setBusy(true);
+    setPhone(await enablePush(api, language));
+    setBusy(false);
+  };
+  const turnOff = async () => {
+    setBusy(true);
+    await disablePush(api);
+    setPhone(await pushState());
+    setBusy(false);
+  };
 
   useEffect(() => {
     if (!signedIn) return;
@@ -94,6 +116,13 @@ export default function NotificationsScreen() {
             </Text>
             <Group>
               <CheckRow
+                title={t("notifications.push")}
+                subtitle={t("notifications.push.hint")}
+                checked={settings.remindersPush}
+                onPress={() => change({ remindersPush: !settings.remindersPush })}
+              />
+              <Divider />
+              <CheckRow
                 title={t("notifications.sms")}
                 checked={settings.remindersSms}
                 onPress={() => change({ remindersSms: !settings.remindersSms })}
@@ -106,6 +135,41 @@ export default function NotificationsScreen() {
               />
             </Group>
           </Section>
+          {phone !== null ? (
+            <Section title={t("notifications.phone.title")}>
+              <Text role="body">
+                {phone === "on"
+                  ? t("notifications.phone.on")
+                  : phone === "denied"
+                    ? t("notifications.phone.denied")
+                    : phone === "unsupported"
+                      ? t("notifications.phone.unavailable")
+                      : t("notifications.phone.off")}
+              </Text>
+              <View style={{ flexDirection: "row" }}>
+                {phone === "off" ? (
+                  <Button
+                    label={t("notifications.phone.turnOn")}
+                    loading={busy}
+                    onPress={() => void turnOn()}
+                  />
+                ) : phone === "on" ? (
+                  <Button
+                    variant="secondary"
+                    label={t("notifications.phone.turnOff")}
+                    loading={busy}
+                    onPress={() => void turnOff()}
+                  />
+                ) : phone === "denied" ? (
+                  <Button
+                    variant="secondary"
+                    label={t("notifications.phone.openSettings")}
+                    onPress={() => void Linking.openSettings()}
+                  />
+                ) : null}
+              </View>
+            </Section>
+          ) : null}
           <Section title={t("notifications.quiet")}>
             <Text role="label" tone="muted">
               {t("notifications.quiet.hint")}

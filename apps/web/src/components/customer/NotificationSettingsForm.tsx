@@ -60,6 +60,18 @@ export function NotificationSettingsForm({
             <input
               type="checkbox"
               className={input}
+              checked={settings.remindersPush}
+              onChange={(e) => change({ remindersPush: e.target.checked })}
+            />
+            <span className="flex flex-col">
+              <span className="bv-type-body text-fg">{t("notifications.push")}</span>
+              <span className="bv-type-caption text-fg-muted">{t("notifications.push.hint")}</span>
+            </span>
+          </label>
+          <label className={row}>
+            <input
+              type="checkbox"
+              className={input}
               checked={settings.remindersSms}
               onChange={(e) => change({ remindersSms: e.target.checked })}
             />

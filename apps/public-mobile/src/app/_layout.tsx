@@ -1,6 +1,9 @@
 import { AppProvider, useApp, useBeaventShell } from "@beavent/native";
-import { Stack, ThemeProvider } from "expo-router";
+import { Stack, ThemeProvider, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+
+import { listenForPushes, syncPush } from "../lib/push";
 
 export default function RootLayout() {
   return (
@@ -12,8 +15,25 @@ export default function RootLayout() {
 
 /** Root stack: the consumer tabs, plus the sign-in modal (DD3). */
 function Shell() {
-  const { t } = useApp();
+  const { t, api, language, signedIn } = useApp();
+  const router = useRouter();
   const { ready, theme, scheme, colors } = useBeaventShell();
+  // A tapped notification opens the screen it names; a signed-in person's phone is kept registered for pushes.
+  useEffect(() => {
+    let stop: () => void = () => undefined;
+    let cancelled = false;
+    void listenForPushes((route) => router.push(route as Href)).then((off) => {
+      if (cancelled) off();
+      else stop = off;
+    });
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [router]);
+  useEffect(() => {
+    if (signedIn) void syncPush(api, language);
+  }, [api, language, signedIn]);
   if (!ready) return null;
   return (
     <ThemeProvider value={theme}>

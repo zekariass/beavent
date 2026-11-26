@@ -251,6 +251,24 @@ meDevices:
         $ref: ../common/responses.yaml#/BadRequest
       '401':
         $ref: ../common/responses.yaml#/Unauthorized
+meDevice:
+  delete:
+    tags: [Me]
+    operationId: unregisterDevice
+    summary: Stop push notifications to this phone for this person
+    description: Called when the person signs out or turns notifications off. Nothing happens for a phone that is not theirs or not known.
+    parameters:
+      - name: installationId
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 200
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
 meConsents:
   post:
     tags: [Me]

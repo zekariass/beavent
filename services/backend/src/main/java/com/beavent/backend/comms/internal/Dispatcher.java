@@ -10,6 +10,7 @@ import static com.beavent.db.tenant.Tables.ORGANIZATIONS;
 import com.beavent.backend.comms.NotificationSettings;
 import com.beavent.backend.platform.EmailGateway;
 import com.beavent.backend.platform.Ids;
+import com.beavent.backend.platform.PushGateway;
 import com.beavent.backend.platform.SmsGateway;
 import com.beavent.backend.platform.SystemDb;
 import java.time.Duration;
@@ -56,6 +57,7 @@ class Dispatcher {
     private final EmailGateway email;
     private final JsonMapper json;
     private final NotificationSettings settings;
+    private final PushGateway push;
 
     Dispatcher(
             @SystemDb DSLContext system,
@@ -63,13 +65,15 @@ class Dispatcher {
             SmsGateway sms,
             EmailGateway email,
             JsonMapper json,
-            NotificationSettings settings) {
+            NotificationSettings settings,
+            PushGateway push) {
         this.system = system;
         this.transactions = transactions;
         this.sms = sms;
         this.email = email;
         this.json = json;
         this.settings = settings;
+        this.push = push;
     }
 
     @Scheduled(fixedDelayString = "${beavent.comms.dispatch-interval-ms:5000}")
@@ -155,11 +159,17 @@ class Dispatcher {
             }
             List<String[]> channels = new ArrayList<>();
             if (stale == null && customer != null) {
-                if (customer.value1() != null && (prefs == null || prefs.remindersSms()))
+                // A person with the phone app set up gets a push notification; for reminders and review requests it
+                // replaces the (paid) text message, which stays for everything else.
+                boolean hasPhone = person != null && !devices(person).isEmpty();
+                boolean pushed = hasPhone && (prefs == null || prefs.remindersPush());
+                if (pushed) channels.add(new String[] {"PUSH", "this phone"});
+                boolean replacesSms = pushed && OPTIONAL.contains(n.getTemplateCode());
+                if (customer.value1() != null && (prefs == null || prefs.remindersSms()) && !replacesSms)
                     channels.add(new String[] {"SMS", mask(customer.value1())});
                 if (customer.value2() != null && (prefs == null || prefs.remindersEmail()))
                     channels.add(new String[] {"EMAIL", mask(customer.value2())});
-                if (channels.isEmpty() && prefs != null && (customer.value1() != null || customer.value2() != null)) {
+                if (channels.isEmpty() && prefs != null && (hasPhone || customer.value1() != null || customer.value2() != null)) {
                     stale = "turned off by the person";
                 }
             }
@@ -229,6 +239,15 @@ class Dispatcher {
         };
     }
 
+    /** The push tokens of the person's phones that can receive notifications. */
+    private List<String> devices(UUID user) {
+        return system.resultQuery(
+                        "SELECT push_token FROM iam.devices WHERE user_id = ? AND push_token IS NOT NULL"
+                                + " AND disabled_at IS NULL ORDER BY last_seen_at DESC NULLS LAST",
+                        user)
+                .fetch(0, String.class);
+    }
+
     static String mask(String destination) {
         int at = destination.indexOf('@');
         if (at > 0) {
@@ -249,7 +268,8 @@ class Dispatcher {
             Map<String, Object> data,
             String phone,
             String email,
-            String language) {}
+            String language,
+            UUID user) {}
 
     private List<Claimed> claim(Instant now) {
         return transactions.execute(status -> {
@@ -265,7 +285,8 @@ class Dispatcher {
                             DSL.coalesce(
                                     CUSTOMERS.PREFERRED_LANGUAGE,
                                     USERS.PREFERRED_LANGUAGE,
-                                    ORGANIZATIONS.DEFAULT_LANGUAGE))
+                                    ORGANIZATIONS.DEFAULT_LANGUAGE),
+                            DSL.coalesce(CUSTOMERS.USER_ID, NOTIFICATIONS.RECIPIENT_USER_ID))
                     .from(DELIVERIES)
                     .join(NOTIFICATIONS)
                     .on(NOTIFICATIONS.ID.eq(DELIVERIES.NOTIFICATION_ID))
@@ -299,16 +320,69 @@ class Dispatcher {
                         json.readValue(r.value5().data(), DATA),
                         r.value6(),
                         r.value7(),
-                        r.value8()));
+                        r.value8(),
+                        r.value9()));
             }
             return claimed;
         });
     }
 
+    /** Where tapping a push notification leads in the app, or nothing. */
+    private static Map<String, String> route(String code, Map<String, Object> data) {
+        if (code.equals(Notifier.REVIEW_REQUEST) || code.equals(Notifier.REVIEW_REMOVED) || code.equals(Notifier.REVIEW_RESTORED)) {
+            return Map.of("route", "/reviews");
+        }
+        if (code.startsWith("APPOINTMENT_") && !code.equals(Notifier.WAITLIST_OFFER) && data.get("appointmentId") != null) {
+            return Map.of("route", "/appointment/" + data.get("appointmentId"));
+        }
+        return Map.of();
+    }
+
+    /** Sends to every phone the person has set up; phones that cannot receive any more are forgotten. */
+    private boolean sendPush(Claimed c, Texts.Message message) {
+        List<String> tokens = c.user() == null ? List.of() : devices(c.user());
+        if (tokens.isEmpty()) {
+            finish(c, "SUPPRESSED", "no phone set up");
+            return false;
+        }
+        Map<String, PushGateway.Outcome> outcomes =
+                push.send(tokens, new PushGateway.Message(message.subject(), message.text(), route(c.code(), c.data())));
+        boolean any = false;
+        for (var outcome : outcomes.entrySet()) {
+            if (outcome.getValue() == PushGateway.Outcome.SENT) {
+                any = true;
+            } else {
+                system.execute("UPDATE iam.devices SET push_token = NULL, updated_at = now() WHERE push_token = ?", outcome.getKey());
+            }
+        }
+        if (!any) {
+            finish(c, "SUPPRESSED", "phone cannot receive notifications");
+            return false;
+        }
+        transactions.executeWithoutResult(status -> system.update(DELIVERIES)
+                .set(DELIVERIES.STATUS, "SENT")
+                .set(DELIVERIES.SENT_AT, OffsetDateTime.now(ZoneOffset.UTC))
+                .setNull(DELIVERIES.NEXT_ATTEMPT_AT)
+                .where(DELIVERIES.ID.eq(c.deliveryId()))
+                .execute());
+        return true;
+    }
+
+    private void finish(Claimed c, String status, String error) {
+        transactions.executeWithoutResult(s -> system.update(DELIVERIES)
+                .set(DELIVERIES.STATUS, status)
+                .set(DELIVERIES.ERROR, error)
+                .setNull(DELIVERIES.NEXT_ATTEMPT_AT)
+                .where(DELIVERIES.ID.eq(c.deliveryId()))
+                .execute());
+    }
+
     private boolean send(Claimed c) {
         try {
             Texts.Message message = Texts.render(c.code(), c.language(), c.data());
-            if ("SMS".equals(c.channel())) {
+            if ("PUSH".equals(c.channel())) {
+                return sendPush(c, message);
+            } else if ("SMS".equals(c.channel())) {
                 sms.send(c.phone(), SmsGateway.Channel.SMS, message.text());
             } else {
                 email.send(c.email(), message.subject(), message.text());

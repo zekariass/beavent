@@ -27,6 +27,9 @@ import org.junit.jupiter.api.Test;
  */
 class NotificationsApiTests extends SchedulingTestSupport {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    com.beavent.backend.platform.messaging.LoggingPushGateway push;
+
     // --- helpers ----------------------------------------------------------------------------------------------
 
     static void waitFor(String what, BooleanSupplier condition) throws InterruptedException {
@@ -74,7 +77,13 @@ class NotificationsApiTests extends SchedulingTestSupport {
     }
 
     Map<String, Object> settings(boolean sms, boolean email, boolean quiet, String from, String to) {
-        return Map.of("remindersSms", sms, "remindersEmail", email, "quietHours", quiet, "quietFrom", from, "quietTo", to);
+        return Map.of(
+                "remindersPush", true,
+                "remindersSms", sms,
+                "remindersEmail", email,
+                "quietHours", quiet,
+                "quietFrom", from,
+                "quietTo", to);
     }
 
     void save(Person person, Map<String, Object> settings) throws Exception {
@@ -138,6 +147,7 @@ class NotificationsApiTests extends SchedulingTestSupport {
         Person ana = newPerson();
         Call defaults = call(get("/v1/me/notification-settings"), null, ana.token());
         assertThat(defaults.status()).isEqualTo(200);
+        assertThat(defaults.body().get("remindersPush").asBoolean()).isTrue();
         assertThat(defaults.body().get("remindersSms").asBoolean()).isTrue();
         assertThat(defaults.body().get("remindersEmail").asBoolean()).isTrue();
         assertThat(defaults.body().get("quietHours").asBoolean()).isFalse();
@@ -231,7 +241,7 @@ class NotificationsApiTests extends SchedulingTestSupport {
 
     @Test
     void quietHoursAreInTheLocalTimeOfThePlaceAndMayRunPastMidnight() {
-        var prefs = new NotificationSettings.Settings(true, true, true, "21:00", "07:00");
+        var prefs = new NotificationSettings.Settings(true, true, true, true, "21:00", "07:00");
         Map<String, Object> data = Map.of("timezone", "Africa/Addis_Ababa");
         // 23:30 Addis time (20:30 UTC) is inside; quiet hours end at 07:00 the next morning (04:00 UTC).
         Instant lateEvening = Instant.parse("2026-11-26T20:30:00Z");
@@ -246,7 +256,7 @@ class NotificationsApiTests extends SchedulingTestSupport {
         assertThat(com.beavent.backend.comms.internal.QuietHours.end(prefs, data, Instant.parse("2026-11-27T04:00:00Z")))
                 .isNull();
         // Daytime quiet hours (13:00 to 15:00).
-        var siesta = new NotificationSettings.Settings(true, true, true, "13:00", "15:00");
+        var siesta = new NotificationSettings.Settings(true, true, true, true, "13:00", "15:00");
         assertThat(com.beavent.backend.comms.internal.QuietHours.end(siesta, data, Instant.parse("2026-11-26T10:30:00Z")))
                 .isEqualTo(Instant.parse("2026-11-26T12:00:00Z"));
     }
@@ -356,5 +366,106 @@ class NotificationsApiTests extends SchedulingTestSupport {
                         .status())
                 .isEqualTo(200);
         waitFor("the owner to hear it is listed", () -> received(owner, "now listed on Beavent"));
+    }
+
+    // --- push -------------------------------------------------------------------------------------------------
+
+    /** A phone of this person with a push token (the installation id is the token, as the app does it). */
+    String phoneApp(Person person, String token) throws Exception {
+        Call registered = call(
+                post("/v1/me/devices"),
+                Map.of("installationId", token, "platform", "IOS", "pushToken", token, "appVersion", "1.0.0", "locale", "en"),
+                person.token());
+        assertThat(registered.status()).as(String.valueOf(registered.body())).isEqualTo(204);
+        return token;
+    }
+
+    @Test
+    void aPersonWithThePhoneAppGetsPushInsteadOfTextForRemindersAndBesideItForTheRest() throws Exception {
+        Shop shop = shop();
+        Person ana = newPerson();
+        String token = phoneApp(ana, "ExponentPushToken[" + UUID.randomUUID() + "]");
+        String visit = book(shop, "10:00", ana).text("id");
+
+        // The confirmation goes to the phone app and by text message.
+        waitFor("the confirmation by text", () -> received(ana, "confirmed"));
+        waitFor("the confirmation as a push", () -> !push.messagesTo(token).isEmpty());
+        assertThat(push.messagesTo(token).getFirst().data()).containsEntry("route", "/appointment/" + visit);
+        assertThat(push.messagesTo(token).getFirst().body()).contains("confirmed");
+
+        // A reminder goes to the phone app only.
+        UUID reminder = notificationSoon("APPOINTMENT_REMINDER_2H", visit);
+        makeDue(reminder);
+        waitFor("the reminder as a push", () -> push.messagesTo(token).stream().anyMatch(m -> m.body().contains("Reminder:")));
+        waitFor("the delivery", () -> delivery(reminder) != null);
+        assertThat(delivery(reminder)[0]).isEqualTo("SENT");
+        assertThat(received(ana, "Reminder:")).as("no text message for a reminder the phone got").isFalse();
+
+        // With push turned off the same reminder comes by text message.
+        Person ben = newPerson();
+        String benToken = phoneApp(ben, "ExponentPushToken[" + UUID.randomUUID() + "]");
+        Map<String, Object> noPush = new HashMap<>(settings(true, true, false, "21:00", "07:00"));
+        noPush.put("remindersPush", false);
+        save(ben, noPush);
+        String benVisit = book(shop, "13:00", ben).text("id");
+        UUID benReminder = notificationSoon("APPOINTMENT_REMINDER_2H", benVisit);
+        makeDue(benReminder);
+        waitFor("the reminder by text", () -> received(ben, "Reminder:"));
+        assertThat(push.messagesTo(benToken).stream().anyMatch(m -> m.body().contains("Reminder:"))).isFalse();
+    }
+
+    @Test
+    void aPhoneThatCannotReceiveAnyMoreIsForgottenAndAReviewRequestLeadsToTheReviews() throws Exception {
+        Shop shop = shop();
+        Person cy = newPerson();
+        String gone = phoneApp(cy, "gone:" + UUID.randomUUID());
+        String visit = book(shop, "10:00", cy).text("id");
+        // The confirmation finds the phone gone: it is forgotten, the text message still goes, and later reminders
+        // use the text message.
+        waitFor("the phone to be forgotten", () -> system
+                        .resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", gone)
+                        .fetchOne(0, String.class)
+                == null);
+        waitFor("the confirmation by text", () -> received(cy, "confirmed"));
+        UUID confirmation = notificationSoon("APPOINTMENT_CONFIRMED", visit);
+        assertThat(system.resultQuery(
+                                "SELECT error FROM comms.deliveries WHERE notification_id = ? AND channel = 'PUSH'", confirmation)
+                        .fetchOne(0, String.class))
+                .contains("cannot receive");
+        UUID reminder = notificationSoon("APPOINTMENT_REMINDER_2H", visit);
+        makeDue(reminder);
+        waitFor("the reminder by text", () -> received(cy, "Reminder:"));
+
+        // A working phone: the review request opens the reviews screen.
+        Person dee = newPerson();
+        String token = phoneApp(dee, "ExponentPushToken[" + UUID.randomUUID() + "]");
+        String deeVisit = book(shop, "13:00", dee).text("id");
+        complete(shop, deeVisit);
+        UUID request = notificationSoon("APPOINTMENT_REVIEW_REQUEST", deeVisit);
+        makeDue(request);
+        waitFor("the request as a push", () -> push.messagesTo(token).stream().anyMatch(m -> "/reviews".equals(m.data().get("route"))));
+        assertThat(received(dee, "how was your visit")).as("no text message when the phone got it").isFalse();
+    }
+
+    @Test
+    void signingOutOfAPhoneStopsPushesToIt() throws Exception {
+        Shop shop = shop();
+        Person eve = newPerson();
+        String token = phoneApp(eve, "ExponentPushToken[" + UUID.randomUUID() + "]");
+        assertThat(call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/v1/me/devices/" + token), null, eve.token())
+                        .status())
+                .isEqualTo(204);
+        String visit = book(shop, "10:00", eve).text("id");
+        waitFor("the confirmation by text", () -> received(eve, "confirmed"));
+        assertThat(push.messagesTo(token)).isEmpty();
+        // Someone else cannot take a phone off a person.
+        Person fay = newPerson();
+        String fayToken = phoneApp(fay, "ExponentPushToken[" + UUID.randomUUID() + "]");
+        assertThat(call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/v1/me/devices/" + fayToken), null, eve.token())
+                        .status())
+                .isEqualTo(204);
+        assertThat(system.resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", fayToken).fetchOne(0, String.class))
+                .isEqualTo(fayToken);
+        assertThat(visit).isNotBlank();
     }
 }

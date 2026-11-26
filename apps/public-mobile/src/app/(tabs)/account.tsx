@@ -15,6 +15,8 @@ import { space } from "@beavent/ui";
 import { useRouter } from "expo-router";
 import { View } from "react-native";
 
+import { disablePush } from "../../lib/push";
+
 /** Account (C-5): who is signed in, display preferences (MARKETPLACE_NAVIGATION.md §7), business link, sign out. */
 export default function AccountScreen() {
   const app = useApp();
@@ -76,7 +78,13 @@ export default function AccountScreen() {
           <Button
             variant="destructiveTertiary"
             label={t("mobile.signOut")}
-            onPress={() => void app.signOut()}
+            onPress={() =>
+              // The phone stops getting this person's pushes first (needs the session), but never holds sign-out up.
+              void Promise.race([
+                disablePush(app.api),
+                new Promise((resolve) => setTimeout(resolve, 3000)),
+              ]).then(() => app.signOut())
+            }
           />
         </View>
       )}

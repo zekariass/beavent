@@ -15,10 +15,11 @@ import {
 import { radius, space } from "@beavent/ui";
 import { calendarLanguage, cancelNotice, price, refundNotice } from "@beavent/venue";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 
 import { ReviewForm } from "@/components/reviews/review-form";
+import { enablePush, pushState, type PushState } from "@/lib/push";
 import { StarRow } from "@/components/reviews/star-row";
 import { useMenuNames } from "@/hooks/use-menu-names";
 
@@ -31,6 +32,10 @@ export default function AppointmentScreen() {
   const [forms, setForms] = useState<Schemas["MyFormDue"][]>([]);
   const [reviews, setReviews] = useState<Schemas["MyReviews"] | null>(null);
   const [reviewsAgain, setReviewsAgain] = useState(0);
+  const [phone, setPhone] = useState<PushState | null>(null);
+  useEffect(() => {
+    void pushState().then(setPhone);
+  }, []);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +205,18 @@ export default function AppointmentScreen() {
         </View>
       ) : null}
 
+      {phone === "off" && (a.status === "CONFIRMED" || a.status === "REQUESTED") ? (
+        <Section title={t("notifications.title")}>
+          <Text>{t("notifications.phone.prompt")}</Text>
+          <View style={{ flexDirection: "row" }}>
+            <Button
+              variant="secondary"
+              label={t("notifications.phone.turnOn")}
+              onPress={() => void enablePush(api, language).then(setPhone)}
+            />
+          </View>
+        </Section>
+      ) : null}
       {a.status === "COMPLETED" && waiting ? (
         <Section title={t("reviews.write")}>
           <ReviewForm appointmentId={a.id} onSaved={() => setReviewsAgain((n) => n + 1)} />
