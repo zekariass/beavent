@@ -14,6 +14,7 @@ import {
   policySentences,
   priceText,
   QUIET_PRESETS,
+  smsSegments,
   quietChoice,
   quietHoursText,
   ratingLine,
@@ -427,7 +428,7 @@ test("the star distribution turns into shares of all reviews", () => {
 });
 
 test("quiet hours are one of three presets, off, or another range, and read in both time conventions", () => {
-  const base = { remindersSms: true, remindersEmail: true, quietHours: true };
+  const base = { remindersPush: true, remindersSms: true, remindersEmail: true, quietHours: true };
   assert.equal(
     quietChoice({ ...base, quietHours: false, quietFrom: "21:00", quietTo: "07:00" }),
     "off",
@@ -439,4 +440,15 @@ test("quiet hours are one of three presets, off, or another range, and read in b
   const text = quietHoursText("21:00", "07:00", "en", en);
   assert.match(text.primary, /^9:00 PM to 7:00 AM$/);
   assert.match(text.secondary, /^3:00 in the evening to 1:00 in the morning$/);
+});
+
+test("a text message campaign counts its parts the way the server does", () => {
+  assert.equal(smsSegments(""), 0);
+  assert.equal(smsSegments("Half price braids."), 1);
+  assert.equal(smsSegments("x".repeat(160)), 1);
+  assert.equal(smsSegments("x".repeat(161)), 2);
+  assert.equal(smsSegments("x".repeat(307)), 3);
+  // Amharic (and anything outside plain Latin) takes more messages.
+  assert.equal(smsSegments("ሰላም ".repeat(17)), 1);
+  assert.equal(smsSegments("ሰላም ".repeat(18)), 2);
 });

@@ -216,3 +216,24 @@ export async function removePatchTest(
   });
   revalidatePath(clientPath(language, orgId, customerId));
 }
+
+/** Records that the client agrees (or no longer agrees) to hear from the business by text message (plan 8.5). */
+export async function saveMarketingConsent(
+  language: string,
+  orgId: string,
+  customerId: string,
+  granted: boolean,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const t = translator(routeLanguage(language));
+  const { data, error } = await (
+    await portalApi(language)
+  ).PUT("/v1/orgs/{orgId}/customers/{customerId}/marketing-consent", {
+    params: { path: { orgId, customerId } },
+    body: { granted, note: text(form, "note") || undefined },
+  });
+  if (!data) return { error: problemText(error, t("portal.marketing.error")) };
+  revalidatePath(clientPath(language, orgId, customerId));
+  return { done: true };
+}

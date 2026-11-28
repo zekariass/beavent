@@ -21,6 +21,11 @@ import org.springframework.test.context.ActiveProfiles;
             "beavent.booking.holds-per-ip-per-hour=100000",
             // Messages and booking time-outs run often enough for tests to wait on them.
             "beavent.comms.dispatch-interval-ms=300",
+            // Marketing is held 20:00 to 08:00 in real life; tests must not depend on the time of day, and start campaigns
+            // themselves.
+            "beavent.marketing.quiet-from=03:00",
+            "beavent.marketing.quiet-to=03:01",
+            "beavent.marketing.worker-interval-ms=3600000",
             "beavent.scheduling.sweep-interval-ms=500",
             // Payments are looked up soon after a notification, and open ones polled often enough for tests to wait on
             // them.

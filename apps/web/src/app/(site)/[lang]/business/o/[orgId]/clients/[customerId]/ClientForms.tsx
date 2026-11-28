@@ -10,7 +10,14 @@ import {
   inputClass,
   secondaryButtonClass,
 } from "@/components/business/ui";
-import { addNote, removeNote, saveDetails, saveTags, type FormState } from "../actions";
+import {
+  addNote,
+  removeNote,
+  saveDetails,
+  saveMarketingConsent,
+  saveTags,
+  type FormState,
+} from "../actions";
 
 const KINDS = ["GENERAL", "ALLERGY", "ALERT", "MEDICAL", "PREFERENCE"] as const;
 
@@ -218,6 +225,39 @@ export function DetailsForm({
           done={state.done ? t("portal.clients.saved") : undefined}
         />
       </div>
+    </form>
+  );
+}
+
+/** Whether the client agreed to hear from the business by text message, and the form to record a change. */
+export function MarketingConsentForm({
+  language,
+  orgId,
+  customerId,
+  granted,
+}: {
+  language: Language;
+  orgId: string;
+  customerId: string;
+  granted: boolean;
+}) {
+  const t = createTranslator(language);
+  const [state, action, pending] = useActionState(
+    saveMarketingConsent.bind(null, language, orgId, customerId, !granted),
+    {} as FormState,
+  );
+  return (
+    <form action={action} className="flex max-w-xl flex-col gap-3">
+      <p className="bv-type-body">
+        {granted ? t("portal.clients.marketing.agreed") : t("portal.clients.marketing.not")}
+      </p>
+      <Field label={t("portal.clients.marketing.note")}>
+        <input name="note" maxLength={300} className={inputClass} />
+      </Field>
+      <FormMessage error={state.error} />
+      <button disabled={pending} className={`self-start ${secondaryButtonClass}`}>
+        {granted ? t("portal.clients.marketing.withdraw") : t("portal.clients.marketing.record")}
+      </button>
     </form>
   );
 }

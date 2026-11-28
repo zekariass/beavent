@@ -80,6 +80,9 @@ class Notifier {
     /** What the business hears about a booking a customer made or cancelled themselves (plan 8.4). */
     static final String BOOKING_NEW = "BOOKING_NEW";
 
+    /** A campaign message to someone who agreed to hear from the business (plan 8.5); the text is composed already. */
+    static final String MARKETING_CAMPAIGN = "MARKETING_CAMPAIGN";
+
     static final String BOOKING_REQUEST = "BOOKING_REQUEST";
     static final String BOOKING_CANCELLED = "BOOKING_CANCELLED_BY_CUSTOMER";
     /** Bookings made by the business's own desk are not news to it. */

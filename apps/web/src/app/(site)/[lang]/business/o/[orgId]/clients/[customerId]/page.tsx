@@ -7,7 +7,7 @@ import { Section, listClass, secondaryButtonLargeClass } from "@/components/busi
 import { dayOf, visitWhen } from "@/components/business/when";
 import { routeLanguage, translator } from "@/lib/i18n";
 import { portalApi, unwrap } from "@/lib/business/session";
-import { DetailsForm, NoteForm, RemoveNote, TagsForm } from "./ClientForms";
+import { DetailsForm, MarketingConsentForm, NoteForm, RemoveNote, TagsForm } from "./ClientForms";
 import { PatchTestForm, RemovePatchTest } from "./PatchTestForm";
 
 const ALERTS = new Set(["ALERT", "ALLERGY", "MEDICAL"]);
@@ -25,7 +25,7 @@ export default async function ClientPage({
   const language = routeLanguage(lang);
   const t = translator(language);
   const api = await portalApi(language);
-  const [client, menu] = await Promise.all([
+  const [client, menu, consent] = await Promise.all([
     api
       .GET("/v1/orgs/{orgId}/customers/{customerId}", {
         params: { path: { orgId, customerId } },
@@ -36,6 +36,13 @@ export default async function ClientPage({
         params: { path: { orgId }, query: { status: "ACTIVE", limit: 100 } },
       })
       .then(unwrap),
+    // Only people who may run marketing can see or change this (others get nothing and no section).
+    api
+      .GET("/v1/orgs/{orgId}/customers/{customerId}/marketing-consent", {
+        params: { path: { orgId, customerId } },
+      })
+      .then((r) => r.data ?? null)
+      .catch(() => null),
   ]);
   // Services that need a patch test (recording one is offered for these).
   const patchServices = menu.items
@@ -237,6 +244,17 @@ export default async function ClientPage({
               services={patchServices}
             />
           ) : null}
+        </Section>
+      ) : null}
+
+      {consent ? (
+        <Section title={t("portal.clients.marketing")}>
+          <MarketingConsentForm
+            language={language}
+            orgId={orgId}
+            customerId={client.id}
+            granted={consent.granted}
+          />
         </Section>
       ) : null}
 

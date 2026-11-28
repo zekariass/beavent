@@ -1,0 +1,485 @@
+marketingAudience:
+  get:
+    tags: [Marketing]
+    operationId: getMarketingAudience
+    summary: How many people a campaign to this audience would reach
+    description: Needs `marketing.manage`. People who asked to stop are counted apart.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: audience
+        in: query
+        required: true
+        schema:
+          $ref: ./schemas.yaml#/Audience
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1095
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/AudienceCount
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+marketingCampaigns:
+  get:
+    tags: [Marketing]
+    operationId: listCampaigns
+    summary: The business's campaigns, newest first
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CampaignList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  post:
+    tags: [Marketing]
+    operationId: createCampaign
+    summary: Start a campaign as a draft
+    description: Needs `marketing.manage`. Nothing is sent until the campaign is scheduled.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CampaignInput
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Campaign
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+marketingCampaign:
+  get:
+    tags: [Marketing]
+    operationId: getCampaign
+    summary: A campaign with what became of its messages
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Campaign
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  put:
+    tags: [Marketing]
+    operationId: updateCampaign
+    summary: Change a draft
+    description: Needs `marketing.manage`. A campaign that was started cannot be changed (`CONFLICT`).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CampaignInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Campaign
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+  delete:
+    tags: [Marketing]
+    operationId: deleteCampaign
+    summary: Delete a draft
+    description: Needs `marketing.manage`. Only a draft (or a cancelled campaign nobody was queued for) can be deleted.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Deleted.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+marketingCampaignPreview:
+  get:
+    tags: [Marketing]
+    operationId: previewCampaign
+    summary: How the message reads in each language, with the link and the stop line
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MessagePreviewList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+marketingCampaignTest:
+  post:
+    tags: [Marketing]
+    operationId: testCampaign
+    summary: Send the message to your own confirmed phone
+    description: Needs `marketing.manage`. Ten test messages a day per person (`RATE_LIMITED` after).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MessagePreview
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+marketingCampaignSchedule:
+  post:
+    tags: [Marketing]
+    operationId: scheduleCampaign
+    summary: Send the campaign now or at a time
+    description: |
+      Needs `marketing.manage`. Messages go between 08:00 and 20:00 in the place's time, by text message, and never to
+      someone who asked to stop. At most 3 campaigns a day (`CONSTRAINT_VIOLATION`), and not to an empty audience.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ScheduleInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Campaign
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+marketingCampaignCancel:
+  post:
+    tags: [Marketing]
+    operationId: cancelCampaign
+    summary: Cancel a campaign; messages not yet sent are not sent
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Campaign
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+marketingLinks:
+  get:
+    tags: [Marketing]
+    operationId: listTrackingLinks
+    summary: Counted links the business shares
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/TrackingLinkList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  post:
+    tags: [Marketing]
+    operationId: createTrackingLink
+    summary: Make a short counted link to a place
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/TrackingLinkInput
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/TrackingLink
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+marketingLink:
+  delete:
+    tags: [Marketing]
+    operationId: deleteTrackingLink
+    summary: Delete a link
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: linkId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '204':
+        description: Deleted.
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+marketingConsent:
+  get:
+    tags: [Marketing]
+    operationId: getMarketingConsent
+    summary: Whether the client agreed to hear from the business by text message
+    description: Needs `marketing.manage`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketingConsent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  put:
+    tags: [Marketing]
+    operationId: recordMarketingConsent
+    summary: Record that the client agrees (or no longer agrees) to hear from the business
+    description: |
+      Needs `marketing.manage`. The business attests that the client agreed (for example on a form); the note is kept
+      as evidence and the change is audited. A client who stops from a message's stop link is recorded the same way.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/MarketingConsentInput
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/MarketingConsent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+publicLink:
+  get:
+    tags: [Marketing]
+    operationId: followLink
+    summary: Count a click on a link from a message or a shared link, and say where it leads
+    description: Public. The web platform turns the answer into a redirect.
+    security: []
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/LinkTarget
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+publicStop:
+  get:
+    tags: [Marketing]
+    operationId: getStopPage
+    summary: Which business a stop link is from
+    description: Public. Does not stop anything, so a link preview cannot.
+    security: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/StopPage
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests
+  post:
+    tags: [Marketing]
+    operationId: stopMessages
+    summary: Stop hearing from the business by text message
+    description: Public. Withdraws the person's agreement, turns off news and offers for a follower, and holds every queued message.
+    security: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Stopped.
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '429':
+        $ref: ../common/responses.yaml#/TooManyRequests

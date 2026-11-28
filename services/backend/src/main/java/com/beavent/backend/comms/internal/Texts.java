@@ -32,6 +32,9 @@ final class Texts {
         if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
             return giftCardReceived(lang, data);
         }
+        if (code.equals(Notifier.MARKETING_CAMPAIGN)) {
+            return new Message(String.valueOf(data.get("business")), String.valueOf(data.get("text")));
+        }
         if (code.startsWith("BOOKING_")) {
             return forBusiness(code, lang, data);
         }

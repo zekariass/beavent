@@ -58,6 +58,8 @@ class Dispatcher {
     private final JsonMapper json;
     private final NotificationSettings settings;
     private final PushGateway push;
+    /** Marketing is not sent between these times (the place's time), whatever the person chose: 20:00 to 08:00. */
+    private final NotificationSettings.Settings marketingHours;
 
     Dispatcher(
             @SystemDb DSLContext system,
@@ -66,7 +68,9 @@ class Dispatcher {
             EmailGateway email,
             JsonMapper json,
             NotificationSettings settings,
-            PushGateway push) {
+            PushGateway push,
+            @org.springframework.beans.factory.annotation.Value("${beavent.marketing.quiet-from:20:00}") String quietFrom,
+            @org.springframework.beans.factory.annotation.Value("${beavent.marketing.quiet-to:08:00}") String quietTo) {
         this.system = system;
         this.transactions = transactions;
         this.sms = sms;
@@ -74,6 +78,7 @@ class Dispatcher {
         this.json = json;
         this.settings = settings;
         this.push = push;
+        this.marketingHours = new NotificationSettings.Settings(false, false, false, true, quietFrom, quietTo);
     }
 
     @Scheduled(fixedDelayString = "${beavent.comms.dispatch-interval-ms:5000}")
@@ -110,7 +115,8 @@ class Dispatcher {
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("REVIEW_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%"))
-                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("BOOKING_%")),
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("BOOKING_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETING_%")),
                         DSL.notExists(DSL.selectOne()
                                 .from(DELIVERIES)
                                 .where(DELIVERIES.NOTIFICATION_ID.eq(NOTIFICATIONS.ID))))
@@ -158,8 +164,25 @@ class Dispatcher {
                     }
                 }
             }
+            // Marketing (plan 8.5): between 08:00 and 20:00 in the place's time, by text message only, never to
+            // someone who stopped (the stop is also checked here, by phone number).
+            boolean marketing = Notifier.MARKETING_CAMPAIGN.equals(n.getTemplateCode());
+            if (marketing && stale == null && customer != null) {
+                Instant resume = QuietHours.end(marketingHours, data, now);
+                if (resume != null) {
+                    system.update(NOTIFICATIONS)
+                            .set(NOTIFICATIONS.SEND_AFTER, resume.atOffset(ZoneOffset.UTC))
+                            .where(NOTIFICATIONS.ID.eq(n.getId()))
+                            .execute();
+                    continue;
+                }
+                if (customer.value1() != null && stopped(n.getOrgId(), customer.value1())) stale = "unsubscribed";
+            }
             List<String[]> channels = new ArrayList<>();
-            if (stale == null && customer != null) {
+            if (marketing) {
+                if (stale == null && customer != null && customer.value1() != null)
+                    channels.add(new String[] {"SMS", mask(customer.value1())});
+            } else if (stale == null && customer != null) {
                 // A person with the phone app set up gets a push notification; for reminders and review requests it
                 // replaces the (paid) text message, which stays for everything else.
                 boolean hasPhone = person != null && !devices(person).isEmpty();
@@ -176,8 +199,9 @@ class Dispatcher {
                 }
             }
             if (channels.isEmpty()) {
+                UUID suppressedId = Ids.newId();
                 system.insertInto(DELIVERIES)
-                        .set(DELIVERIES.ID, Ids.newId())
+                        .set(DELIVERIES.ID, suppressedId)
                         .set(DELIVERIES.ORG_ID, n.getOrgId())
                         .set(DELIVERIES.NOTIFICATION_ID, n.getId())
                         .set(DELIVERIES.CHANNEL, "SMS")
@@ -185,6 +209,7 @@ class Dispatcher {
                         .set(DELIVERIES.STATUS, "SUPPRESSED")
                         .set(DELIVERIES.ERROR, stale != null ? stale : "no phone or email")
                         .execute();
+                if (marketing) recipientStatus(suppressedId, "SUPPRESSED_OPTED_OUT");
                 continue;
             }
             for (String[] channel : channels) {
@@ -201,6 +226,13 @@ class Dispatcher {
 
     /** Why a message no longer applies, or {@code null}. */
     private String stale(String code, Map<String, Object> data) {
+        if (code.equals(Notifier.MARKETING_CAMPAIGN)) {
+            // Still queued: not stopped by the person, not cancelled with its campaign.
+            String status = system.resultQuery(
+                            "SELECT status FROM marketing.campaign_recipients WHERE token = ?", String.valueOf(data.get("token")))
+                    .fetchOne(0, String.class);
+            return "QUEUED".equals(status) ? null : "stopped or cancelled";
+        }
         if (code.startsWith("PAYOUT_")
                 || code.startsWith("GIFT_CARD_")
                 || code.startsWith("REVIEW_")
@@ -240,6 +272,26 @@ class Dispatcher {
                 List.of("CANCELLED", "EXPIRED", "DECLINED", "NO_SHOW").contains(a.value1()) ? "booking closed" : null;
             default -> null;
         };
+    }
+
+    /** Whether the person stopped hearing from this business (or from Beavent altogether) by text message. */
+    private boolean stopped(UUID orgId, String phone) {
+        return system.resultQuery(
+                        "SELECT EXISTS (SELECT 1 FROM comms.suppressions WHERE channel = 'SMS'"
+                                + " AND (org_id = ? OR org_id IS NULL)"
+                                + " AND destination_hash = encode(sha256(convert_to(?, 'UTF8')), 'hex'))",
+                        orgId,
+                        phone)
+                .fetchOne(0, Boolean.class);
+    }
+
+    /** Records what became of a campaign message on the campaign's recipient row. */
+    private void recipientStatus(UUID deliveryId, String status) {
+        system.execute(
+                "UPDATE marketing.campaign_recipients r SET status = ?, delivery_id = d.id FROM comms.deliveries d"
+                        + " WHERE d.id = ? AND r.notification_id = d.notification_id AND r.status = 'QUEUED'",
+                status,
+                deliveryId);
     }
 
     /** The push tokens of the person's phones that can receive notifications. */
@@ -390,12 +442,15 @@ class Dispatcher {
             } else {
                 email.send(c.email(), message.subject(), message.text());
             }
-            transactions.executeWithoutResult(status -> system.update(DELIVERIES)
-                    .set(DELIVERIES.STATUS, "SENT")
-                    .set(DELIVERIES.SENT_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                    .setNull(DELIVERIES.NEXT_ATTEMPT_AT)
-                    .where(DELIVERIES.ID.eq(c.deliveryId()))
-                    .execute());
+            transactions.executeWithoutResult(status -> {
+                system.update(DELIVERIES)
+                        .set(DELIVERIES.STATUS, "SENT")
+                        .set(DELIVERIES.SENT_AT, OffsetDateTime.now(ZoneOffset.UTC))
+                        .setNull(DELIVERIES.NEXT_ATTEMPT_AT)
+                        .where(DELIVERIES.ID.eq(c.deliveryId()))
+                        .execute();
+                if (Notifier.MARKETING_CAMPAIGN.equals(c.code())) recipientStatus(c.deliveryId(), "SENT");
+            });
             return true;
         } catch (RuntimeException e) {
             boolean last = c.attempts() >= MAX_ATTEMPTS;
@@ -405,17 +460,20 @@ class Dispatcher {
                     c.channel(),
                     c.attempts(),
                     e.getMessage());
-            transactions.executeWithoutResult(status -> system.update(DELIVERIES)
-                    .set(DELIVERIES.STATUS, last ? "FAILED" : "QUEUED")
-                    .set(DELIVERIES.ERROR, String.valueOf(e.getMessage()))
-                    .set(
-                            DELIVERIES.NEXT_ATTEMPT_AT,
-                            last
-                                    ? null
-                                    : OffsetDateTime.now(ZoneOffset.UTC)
-                                            .plusMinutes((long) c.attempts() * c.attempts()))
-                    .where(DELIVERIES.ID.eq(c.deliveryId()))
-                    .execute());
+            transactions.executeWithoutResult(status -> {
+                system.update(DELIVERIES)
+                        .set(DELIVERIES.STATUS, last ? "FAILED" : "QUEUED")
+                        .set(DELIVERIES.ERROR, String.valueOf(e.getMessage()))
+                        .set(
+                                DELIVERIES.NEXT_ATTEMPT_AT,
+                                last
+                                        ? null
+                                        : OffsetDateTime.now(ZoneOffset.UTC)
+                                                .plusMinutes((long) c.attempts() * c.attempts()))
+                        .where(DELIVERIES.ID.eq(c.deliveryId()))
+                        .execute();
+                if (last && Notifier.MARKETING_CAMPAIGN.equals(c.code())) recipientStatus(c.deliveryId(), "FAILED");
+            });
             return false;
         }
     }
