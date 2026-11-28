@@ -30,6 +30,7 @@ class PayoutWorker {
         try {
             int released = payouts.releaseDue(now);
             int settled = refunds.sweep(now);
+            payouts.sweepVenueFees(now);
             int created = payouts.createDue(now);
             int moved = refunds.processApiRefunds(now);
             if (released + created + settled + moved > 0) {

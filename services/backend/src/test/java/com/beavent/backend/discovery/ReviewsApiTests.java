@@ -43,7 +43,9 @@ class ReviewsApiTests extends SchedulingTestSupport {
     }
 
     String slug(Shop shop) {
-        return system.resultQuery("SELECT slug::text FROM tenant.organizations WHERE id = ?", shop.salon().id())
+        return system.resultQuery(
+                        "SELECT slug::text FROM tenant.organizations WHERE id = ?",
+                        shop.salon().id())
                 .fetchOne(0, String.class);
     }
 
@@ -117,7 +119,9 @@ class ReviewsApiTests extends SchedulingTestSupport {
     }
 
     void list(Shop shop) {
-        system.execute("UPDATE tenant.organizations SET marketplace_status = 'LISTED' WHERE id = ?", shop.salon().id());
+        system.execute(
+                "UPDATE tenant.organizations SET marketplace_status = 'LISTED' WHERE id = ?",
+                shop.salon().id());
         listings.refreshOrganization(shop.salon().id(), Instant.now());
     }
 
@@ -187,14 +191,17 @@ class ReviewsApiTests extends SchedulingTestSupport {
         Call first = call(get("/v1/public/businesses/" + slug(shop) + "/reviews?limit=1"), null, null);
         assertThat(first.body().get("items").size()).isEqualTo(1);
         String cursor = first.text("nextCursor");
-        Call second = call(get("/v1/public/businesses/" + slug(shop) + "/reviews?limit=1&cursor=" + cursor), null, null);
+        Call second =
+                call(get("/v1/public/businesses/" + slug(shop) + "/reviews?limit=1&cursor=" + cursor), null, null);
         assertThat(second.body().get("items").size()).isEqualTo(1);
         assertThat(second.body().has("nextCursor")).isFalse();
         assertThat(second.body().get("items").get(0).get("id").asString())
                 .isNotEqualTo(first.body().get("items").get(0).get("id").asString());
 
         // Narrowed to a place, and to one that does not exist.
-        String place = system.resultQuery("SELECT slug::text FROM tenant.locations WHERE id = ?", shop.salon().location1())
+        String place = system.resultQuery(
+                        "SELECT slug::text FROM tenant.locations WHERE id = ?",
+                        shop.salon().location1())
                 .fetchOne(0, String.class);
         assertThat(call(get("/v1/public/businesses/" + slug(shop) + "/reviews?location=" + place), null, null)
                         .body()
@@ -202,9 +209,11 @@ class ReviewsApiTests extends SchedulingTestSupport {
                         .get("count")
                         .asInt())
                 .isEqualTo(2);
-        assertThat(call(get("/v1/public/businesses/" + slug(shop) + "/reviews?location=nowhere"), null, null).status())
+        assertThat(call(get("/v1/public/businesses/" + slug(shop) + "/reviews?location=nowhere"), null, null)
+                        .status())
                 .isEqualTo(404);
-        assertThat(call(get("/v1/public/businesses/no-such-business/reviews"), null, null).status())
+        assertThat(call(get("/v1/public/businesses/no-such-business/reviews"), null, null)
+                        .status())
                 .isEqualTo(404);
 
         // The reviewer's own list now holds it, and the visit is no longer pending.
@@ -219,20 +228,29 @@ class ReviewsApiTests extends SchedulingTestSupport {
                 .get(0)
                 .get("id")
                 .asString();
-        Call edited = call(put("/v1/me/reviews/" + benReview), Map.of("rating", 4, "body", "Better on a second look."), ben.token());
+        Call edited = call(
+                put("/v1/me/reviews/" + benReview),
+                Map.of("rating", 4, "body", "Better on a second look."),
+                ben.token());
         assertThat(edited.status()).as(String.valueOf(edited.body())).isEqualTo(200);
         assertThat(searchRating(shop)).containsExactly(4.5, 2);
-        assertThat(call(delete("/v1/me/reviews/" + benReview), null, ben.token()).status())
+        assertThat(call(delete("/v1/me/reviews/" + benReview), null, ben.token())
+                        .status())
                 .isEqualTo(204);
         assertThat(searchRating(shop)).containsExactly(5.0, 1);
-        assertThat(call(get("/v1/me/reviews"), null, ben.token()).body().get("pending").size())
+        assertThat(call(get("/v1/me/reviews"), null, ben.token())
+                        .body()
+                        .get("pending")
+                        .size())
                 .isEqualTo(1);
 
         // Not someone else's review.
         String anaReview = written.text("id");
-        assertThat(call(put("/v1/me/reviews/" + anaReview), Map.of("rating", 1), ben.token()).status())
+        assertThat(call(put("/v1/me/reviews/" + anaReview), Map.of("rating", 1), ben.token())
+                        .status())
                 .isEqualTo(404);
-        assertThat(call(delete("/v1/me/reviews/" + anaReview), null, ben.token()).status())
+        assertThat(call(delete("/v1/me/reviews/" + anaReview), null, ben.token())
+                        .status())
                 .isEqualTo(404);
     }
 
@@ -245,7 +263,10 @@ class ReviewsApiTests extends SchedulingTestSupport {
         // Booked but not completed.
         String upcoming = bookAt(shop, "10:00", ana).text("id");
         assertThat(review(ana, upcoming, 5, null).status()).isEqualTo(422);
-        assertThat(call(get("/v1/me/reviews"), null, ana.token()).body().get("pending").size())
+        assertThat(call(get("/v1/me/reviews"), null, ana.token())
+                        .body()
+                        .get("pending")
+                        .size())
                 .isZero();
 
         // Completed, but not theirs.
@@ -267,7 +288,10 @@ class ReviewsApiTests extends SchedulingTestSupport {
                         + " ends_at = ends_at - interval '120 days' WHERE id = ?",
                 UUID.fromString(upcoming));
         assertThat(review(ana, upcoming, 5, null).status()).isEqualTo(422);
-        assertThat(call(get("/v1/me/reviews"), null, ana.token()).body().get("pending").size())
+        assertThat(call(get("/v1/me/reviews"), null, ana.token())
+                        .body()
+                        .get("pending")
+                        .size())
                 .isZero();
     }
 
@@ -307,12 +331,21 @@ class ReviewsApiTests extends SchedulingTestSupport {
                 .isEqualTo(404);
 
         // The answer shows under the review for everyone, and the review leaves "unanswered".
-        Call answered = call(put(orgPath + "/" + review + "/response"), Map.of("body", "  Thank you, we added a stylist. "), token);
+        Call answered = call(
+                put(orgPath + "/" + review + "/response"), Map.of("body", "  Thank you, we added a stylist. "), token);
         assertThat(answered.status()).as(String.valueOf(answered.body())).isEqualTo(200);
         assertThat(answered.body().get("response").get("body").asString()).isEqualTo("Thank you, we added a stylist.");
-        assertThat(call(get(orgPath + "?unanswered=true"), null, token).body().get("items").size())
+        assertThat(call(get(orgPath + "?unanswered=true"), null, token)
+                        .body()
+                        .get("items")
+                        .size())
                 .isZero();
-        assertThat(publicReviews(shop).get("items").get(0).get("response").get("body").asString())
+        assertThat(publicReviews(shop)
+                        .get("items")
+                        .get(0)
+                        .get("response")
+                        .get("body")
+                        .asString())
                 .isEqualTo("Thank you, we added a stylist.");
         assertThat(call(get("/v1/me/reviews"), null, ana.token())
                         .body()
@@ -322,7 +355,8 @@ class ReviewsApiTests extends SchedulingTestSupport {
                         .get("body")
                         .asString())
                 .isEqualTo("Thank you, we added a stylist.");
-        assertThat(callInvalid(put(orgPath + "/" + review + "/response"), Map.of("body", ""), token).status())
+        assertThat(callInvalid(put(orgPath + "/" + review + "/response"), Map.of("body", ""), token)
+                        .status())
                 .isEqualTo(400);
 
         // Taken back.
@@ -347,12 +381,15 @@ class ReviewsApiTests extends SchedulingTestSupport {
 
         String orgPath = "/v1/orgs/" + shop.salon().id() + "/reviews/" + anaReview;
         String token = shop.salon().owner().token();
-        Call reported = call(post(orgPath + "/report"), Map.of("reason", "HARASSMENT", "details", "Names a staff member."), token);
+        Call reported = call(
+                post(orgPath + "/report"), Map.of("reason", "HARASSMENT", "details", "Names a staff member."), token);
         assertThat(reported.status()).as(String.valueOf(reported.body())).isEqualTo(200);
         assertThat(reported.body().get("reported").asBoolean()).isTrue();
-        assertThat(call(post(orgPath + "/report"), Map.of("reason", "OTHER"), token).status())
+        assertThat(call(post(orgPath + "/report"), Map.of("reason", "OTHER"), token)
+                        .status())
                 .isEqualTo(200);
-        assertThat(callInvalid(post(orgPath + "/report"), Map.of("reason", "NOPE"), token).status())
+        assertThat(callInvalid(post(orgPath + "/report"), Map.of("reason", "NOPE"), token)
+                        .status())
                 .isEqualTo(400);
 
         // The moderator sees it once, with the report.
@@ -371,9 +408,11 @@ class ReviewsApiTests extends SchedulingTestSupport {
         assertThat(mine.get("rating").asInt()).isEqualTo(1);
 
         // Not for staff without the permission, and a reason is required.
-        assertThat(call(get("/v1/admin/reviews"), null, staff("FINANCE")).status()).isEqualTo(403);
+        assertThat(call(get("/v1/admin/reviews"), null, staff("FINANCE")).status())
+                .isEqualTo(403);
         String decision = "/v1/admin/reviews/" + anaReview + "/decision";
-        assertThat(callInvalid(post(decision), Map.of("decision", "HIDE", "reason", "no"), moderator).status())
+        assertThat(callInvalid(post(decision), Map.of("decision", "HIDE", "reason", "no"), moderator)
+                        .status())
                 .isEqualTo(400);
         assertThat(call(post(decision), Map.of("decision", "HIDE", "reason", "It names a person."), staff("FINANCE"))
                         .status())
@@ -386,12 +425,24 @@ class ReviewsApiTests extends SchedulingTestSupport {
         assertThat(publicReviews(shop).get("summary").get("count").asInt()).isEqualTo(1);
         assertThat(searchRating(shop)).containsExactly(5.0, 1);
         Call authors = call(get("/v1/me/reviews"), null, ana.token());
-        assertThat(authors.body().get("reviews").get(0).get("status").asString()).isEqualTo("HIDDEN");
-        assertThat(call(put("/v1/me/reviews/" + anaReview), Map.of("rating", 5), ana.token()).status())
+        assertThat(authors.body().get("reviews").get(0).get("status").asString())
+                .isEqualTo("HIDDEN");
+        assertThat(call(put("/v1/me/reviews/" + anaReview), Map.of("rating", 5), ana.token())
+                        .status())
                 .isEqualTo(409);
-        assertThat(call(delete("/v1/me/reviews/" + anaReview), null, ana.token()).status())
+        assertThat(call(delete("/v1/me/reviews/" + anaReview), null, ana.token())
+                        .status())
                 .isEqualTo(409);
-        assertThat(review(ana, authors.body().get("reviews").get(0).get("appointmentId").asString(), 5, null).status())
+        assertThat(review(
+                                ana,
+                                authors.body()
+                                        .get("reviews")
+                                        .get(0)
+                                        .get("appointmentId")
+                                        .asString(),
+                                5,
+                                null)
+                        .status())
                 .isEqualTo(409);
         assertThat(system.resultQuery(
                                 "SELECT status FROM trust.content_reports WHERE review_id = ? ORDER BY created_at",
@@ -403,30 +454,37 @@ class ReviewsApiTests extends SchedulingTestSupport {
                                 UUID.fromString(anaReview))
                         .fetch(0, String.class))
                 .containsExactly("HIDE");
-        assertThat(call(post(decision), Map.of("decision", "HIDE", "reason", "Again, to be sure."), moderator).status())
+        assertThat(call(post(decision), Map.of("decision", "HIDE", "reason", "Again, to be sure."), moderator)
+                        .status())
                 .isEqualTo(409);
 
         // Listed under "hidden" for staff, and the business can no longer answer it.
         boolean listed = false;
-        for (JsonNode r : call(get("/v1/admin/reviews?status=HIDDEN"), null, moderator).body().get("items")) {
+        for (JsonNode r : call(get("/v1/admin/reviews?status=HIDDEN"), null, moderator)
+                .body()
+                .get("items")) {
             listed |= r.get("id").asString().equals(anaReview);
         }
         assertThat(listed).isTrue();
-        assertThat(call(put(orgPath + "/response"), Map.of("body", "We are sorry."), token).status())
+        assertThat(call(put(orgPath + "/response"), Map.of("body", "We are sorry."), token)
+                        .status())
                 .isEqualTo(409);
 
         // Putting it back restores the rating.
-        Call restored = call(post(decision), Map.of("decision", "RESTORE", "reason", "On a second look it is fine."), moderator);
+        Call restored = call(
+                post(decision), Map.of("decision", "RESTORE", "reason", "On a second look it is fine."), moderator);
         assertThat(restored.status()).isEqualTo(200);
         assertThat(searchRating(shop)).containsExactly(3.0, 2);
 
         // Reports found unfounded: the review stays.
         call(post(orgPath + "/report"), Map.of("reason", "INAPPROPRIATE"), token);
-        Call dismissed = call(post(decision), Map.of("decision", "DISMISS", "reason", "Not against the rules."), moderator);
+        Call dismissed =
+                call(post(decision), Map.of("decision", "DISMISS", "reason", "Not against the rules."), moderator);
         assertThat(dismissed.status()).as(String.valueOf(dismissed.body())).isEqualTo(200);
         assertThat(dismissed.body().get("status").asString()).isEqualTo("PUBLISHED");
         assertThat(searchRating(shop)).containsExactly(3.0, 2);
-        assertThat(call(post(decision), Map.of("decision", "DISMISS", "reason", "Nothing is open."), moderator).status())
+        assertThat(call(post(decision), Map.of("decision", "DISMISS", "reason", "Nothing is open."), moderator)
+                        .status())
                 .isEqualTo(409);
 
         // Staff who belong to the business cannot decide about its reviews.
@@ -437,7 +495,10 @@ class ReviewsApiTests extends SchedulingTestSupport {
                 .set(USER_STAFF_ROLES.MARKET_ID, (UUID) null)
                 .execute();
         Call ownerStaff = signInWithOtp(shop.salon().owner().phone(), "ADMIN_CONSOLE");
-        assertThat(call(post(decision), Map.of("decision", "HIDE", "reason", "My own reviews."), ownerStaff.text("accessToken"))
+        assertThat(call(
+                                post(decision),
+                                Map.of("decision", "HIDE", "reason", "My own reviews."),
+                                ownerStaff.text("accessToken"))
                         .status())
                 .isEqualTo(403);
     }

@@ -38,6 +38,9 @@ final class Texts {
         if (code.startsWith("BOOKING_")) {
             return forBusiness(code, lang, data);
         }
+        if (code.equals(Notifier.RECEIPT_SENT)) {
+            return receiptSent(lang, data);
+        }
         if (code.startsWith("REVIEW_") || code.startsWith("MARKETPLACE_")) {
             return discovery(code, lang, data);
         }
@@ -160,7 +163,11 @@ final class Texts {
                 ? list.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "))
                 : "";
         String with = data.get("staff") instanceof java.util.List<?> staff && !staff.isEmpty()
-                ? (am ? " (" : " with ") + staff.stream().map(String::valueOf).distinct().collect(java.util.stream.Collectors.joining(", "))
+                ? (am ? " (" : " with ")
+                        + staff.stream()
+                                .map(String::valueOf)
+                                .distinct()
+                                .collect(java.util.stream.Collectors.joining(", "))
                         + (am ? ")" : "")
                 : "";
         String link = data.get("web") + "/" + lang + "/business/o/" + data.get("orgId") + "/calendar";
@@ -169,11 +176,12 @@ final class Texts {
                 am
                         ? new Message(
                                 business + " · አዲስ ቀጠሮ " + ref,
-                                business + "፦ አዲስ ቀጠሮ " + ref + " ከ" + customer + "፦ " + services + "፣ " + when + with + "። " + link)
+                                business + "፦ አዲስ ቀጠሮ " + ref + " ከ" + customer + "፦ " + services + "፣ " + when + with
+                                        + "። " + link)
                         : new Message(
                                 business + " · new booking " + ref,
-                                business + ": new booking " + ref + " from " + customer + ": " + services + " on " + when
-                                        + with + ". " + link);
+                                business + ": new booking " + ref + " from " + customer + ": " + services + " on "
+                                        + when + with + ". " + link);
             case Notifier.BOOKING_REQUEST ->
                 am
                         ? new Message(
@@ -229,8 +237,7 @@ final class Texts {
             case Notifier.REVIEW_RESTORED ->
                 am
                         ? new Message(
-                                business + " · ግምገማ ተመልሷል",
-                                "ለ" + business + " (" + place + ") የጻፉት ግምገማ እንደገና ታይቷል።")
+                                business + " · ግምገማ ተመልሷል", "ለ" + business + " (" + place + ") የጻፉት ግምገማ እንደገና ታይቷል።")
                         : new Message(
                                 business + " · review back",
                                 "Your review of " + business + " (" + place + ") is showing again.");
@@ -238,8 +245,7 @@ final class Texts {
                 "HIDE".equals(data.get("decision"))
                         ? (am
                                 ? new Message(
-                                        business + " · ግምገማ ወርዷል",
-                                        business + "፦ ያሳወቁት የ" + place + " ግምገማ በቢቨንት ወርዷል።")
+                                        business + " · ግምገማ ወርዷል", business + "፦ ያሳወቁት የ" + place + " ግምገማ በቢቨንት ወርዷል።")
                                 : new Message(
                                         business + " · review taken down",
                                         business + ": Beavent took down the review you reported for " + place + "."))
@@ -265,8 +271,7 @@ final class Texts {
                     case "DELISTED" ->
                         am
                                 ? new Message(
-                                        business + " · ከቢቨንት ወርዷል",
-                                        "ቢቨንት " + business + "ን ከገበያ ቦታው አውርዶታል።" + why)
+                                        business + " · ከቢቨንት ወርዷል", "ቢቨንት " + business + "ን ከገበያ ቦታው አውርዶታል።" + why)
                                 : new Message(
                                         business + " · taken off Beavent",
                                         "Beavent took " + business + " off the marketplace." + why);
@@ -335,6 +340,22 @@ final class Texts {
                                         : sender + " sent you a gift card for " + business + ": ")
                                 + amount + ". Code: " + code + "." + quote + valid
                                 + " Use it when you pay for a booking: " + url);
+    }
+
+    /** The receipt of a sale, with the link that opens it (plan 4.3). */
+    private static Message receiptSent(String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String number = String.valueOf(data.get("number"));
+        String amount = birr(Long.parseLong(String.valueOf(data.get("totalMinor"))), am);
+        String link = data.get("web") + "/" + lang + "/receipt/" + data.get("token");
+        return am
+                ? new Message(
+                        business + " · ደረሰኝ " + number,
+                        business + "፦ ደረሰኝ " + number + "፣ " + amount + "። ለማየት ወይም ለማተም፦ " + link)
+                : new Message(
+                        business + " · receipt " + number,
+                        business + ": receipt " + number + ", " + amount + ". View or print it: " + link);
     }
 
     /** A payout was paid, or did not go through (plan 3.5). */

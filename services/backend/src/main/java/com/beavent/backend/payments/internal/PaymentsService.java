@@ -17,6 +17,7 @@ import com.beavent.backend.platform.ProblemCode;
 import com.beavent.backend.platform.SystemDb;
 import java.net.URI;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -327,6 +328,131 @@ class PaymentsService implements Payments {
                 .orElse(0);
     }
 
+    @Override
+    public long customerBalance(UUID orgId, UUID customerId, String currency) {
+        if (storedValues.isEmpty() || customerId == null) return 0;
+        return storedValues.getFirst().balance(orgId, customerId, currency.trim()).stream()
+                .mapToLong(StoredValue.Source::availableMinor)
+                .findFirst()
+                .orElse(0);
+    }
+
+    @Override
+    public long tenderAtCounter(
+            UUID orgId, UUID orderId, StoredValue.Kind kind, String code, UUID userId, Instant now) {
+        StoredValue values = storedValues.stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(ProblemCode.PAYMENT_UNAVAILABLE, "Gift cards are not available."));
+        Long taken = transactions.execute(status -> {
+            var order = system.select(ORDERS.STATUS, ORDERS.CURRENCY_CODE, ORDERS.CUSTOMER_ID)
+                    .from(ORDERS)
+                    .where(ORDERS.ID.eq(orderId).and(ORDERS.ORG_ID.eq(orgId)))
+                    .forUpdate()
+                    .fetchOne();
+            if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+            if (!order.value1().equals("CONFIRMED")) {
+                throw new ApiException(ProblemCode.CONFLICT, "This order is not open for payment at the counter.");
+            }
+            String currency = order.value2().trim();
+            var due = system.selectFrom(PAYMENT_SCHEDULE)
+                    .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                    .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
+                    .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                    .orderBy(PAYMENT_SCHEDULE.SEQ)
+                    .limit(1)
+                    .forUpdate()
+                    .fetchOne();
+            if (due == null) throw new ApiException(ProblemCode.CONFLICT, "There is nothing to pay at the counter.");
+            if (system.fetchExists(
+                    PAYMENT_ATTEMPTS.join(PAYMENT_INTENTS).on(PAYMENT_INTENTS.ID.eq(PAYMENT_ATTEMPTS.INTENT_ID)),
+                    PAYMENT_INTENTS
+                            .ORDER_ID
+                            .eq(orderId)
+                            .and(PAYMENT_ATTEMPTS.STATUS.in("AWAITING_CUSTOMER", "PROCESSING", "UNKNOWN")))) {
+                throw new ApiException(ProblemCode.CONFLICT, "A payment is in progress. Finish or cancel it first.");
+            }
+            StoredValue.Source source;
+            if (kind == StoredValue.Kind.GIFT_CARD) {
+                source = values.giftCard(orgId, code, now)
+                        .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "This gift card cannot be used."));
+            } else {
+                if (order.value3() == null) {
+                    throw new ApiException(ProblemCode.CONFLICT, "This sale has no customer, so there is no balance.");
+                }
+                source = values.balance(orgId, order.value3(), currency)
+                        .orElseThrow(() -> new ApiException(ProblemCode.CONFLICT, "The customer has no balance here."));
+            }
+            if (!source.currency().trim().equals(currency)) {
+                throw new ApiException(ProblemCode.CONFLICT, "This gift card is in another currency.");
+            }
+            long take = Math.min(source.availableMinor(), due.getAmountMinor() - due.getCollectedMinor());
+            if (take <= 0) throw new ApiException(ProblemCode.CONFLICT, "There is nothing to pay at the counter.");
+            var row = due;
+            if (take < due.getAmountMinor()) {
+                // What is left stays on the row it was; the part paid with value gets a row of its own.
+                system.update(PAYMENT_SCHEDULE)
+                        .set(PAYMENT_SCHEDULE.AMOUNT_MINOR, due.getAmountMinor() - take)
+                        .where(PAYMENT_SCHEDULE.ID.eq(due.getId()))
+                        .execute();
+                system.update(PAYMENT_INTENTS)
+                        .set(PAYMENT_INTENTS.AMOUNT_MINOR, due.getAmountMinor() - take)
+                        .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(due.getId()))
+                        .and(PAYMENT_INTENTS.STATUS.in("REQUIRES_METHOD", "FAILED"))
+                        .execute();
+                Short next = system.select(org.jooq.impl.DSL.max(PAYMENT_SCHEDULE.SEQ))
+                        .from(PAYMENT_SCHEDULE)
+                        .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                        .fetchOne(0, Short.class);
+                row = system.insertInto(PAYMENT_SCHEDULE)
+                        .set(PAYMENT_SCHEDULE.ORG_ID, orgId)
+                        .set(PAYMENT_SCHEDULE.ORDER_ID, orderId)
+                        .set(PAYMENT_SCHEDULE.SEQ, (short) ((next == null ? 0 : next) + 1))
+                        .set(PAYMENT_SCHEDULE.KIND, due.getKind())
+                        .set(PAYMENT_SCHEDULE.AMOUNT_MINOR, take)
+                        .set(PAYMENT_SCHEDULE.CURRENCY_CODE, currency)
+                        .set(PAYMENT_SCHEDULE.COLLECT_AT, "AT_VENUE")
+                        .returning()
+                        .fetchSingle();
+            }
+            UUID intentId =
+                    ensureIntent(orgId, orderId, row, currency, order.value3(), null, now.plusSeconds(60), "INTERNAL");
+            OffsetDateTime at = now.atOffset(ZoneOffset.UTC);
+            UUID attemptId = Ids.newId();
+            system.insertInto(PAYMENT_ATTEMPTS)
+                    .set(PAYMENT_ATTEMPTS.ID, attemptId)
+                    .set(PAYMENT_ATTEMPTS.ORG_ID, orgId)
+                    .set(PAYMENT_ATTEMPTS.INTENT_ID, intentId)
+                    .set(
+                            PAYMENT_ATTEMPTS.METHOD_CODE,
+                            kind == StoredValue.Kind.GIFT_CARD ? "GIFT_CARD" : "STORE_CREDIT")
+                    .set(PAYMENT_ATTEMPTS.INTERACTION, "INTERNAL")
+                    .set(PAYMENT_ATTEMPTS.AMOUNT_MINOR, take)
+                    .set(PAYMENT_ATTEMPTS.CURRENCY_CODE, currency)
+                    .set(PAYMENT_ATTEMPTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_ATTEMPTS.COMPLETED_AT, at)
+                    .set(PAYMENT_ATTEMPTS.GIFT_CARD_ID, kind == StoredValue.Kind.GIFT_CARD ? source.id() : null)
+                    .set(PAYMENT_ATTEMPTS.IDEMPOTENCY_KEY, "counter-tender:" + attemptId)
+                    .execute();
+            values.spend(source, take, orderId, attemptId, userId);
+            system.update(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, take)
+                    .set(PAYMENT_INTENTS.CAPTURED_MINOR, take)
+                    .set(PAYMENT_INTENTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_INTENTS.SUCCEEDED_AT, at)
+                    .set(PAYMENT_INTENTS.UPDATED_AT, at)
+                    .where(PAYMENT_INTENTS.ID.eq(intentId))
+                    .execute();
+            system.update(PAYMENT_SCHEDULE)
+                    .set(PAYMENT_SCHEDULE.STATUS, "PAID")
+                    .set(PAYMENT_SCHEDULE.COLLECTED_MINOR, take)
+                    .where(PAYMENT_SCHEDULE.ID.eq(row.getId()))
+                    .execute();
+            return take;
+        });
+        return taken;
+    }
+
     private void applyTender(
             StoredValue values,
             UUID orgId,
@@ -454,6 +580,94 @@ class PaymentsService implements Payments {
                         null,
                         "TENDER"),
                 now);
+    }
+
+    @Override
+    public UUID recordCash(UUID orgId, UUID orderId, UUID sessionId, long amountMinor, Instant now) {
+        var order = dsl.select(ORDERS.CURRENCY_CODE, ORDERS.CUSTOMER_ID)
+                .from(ORDERS)
+                .where(ORDERS.ID.eq(orderId), ORDERS.ORG_ID.eq(orgId))
+                .forUpdate()
+                .fetchOne();
+        if (order == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such order.");
+        var rows = dsl.selectFrom(PAYMENT_SCHEDULE)
+                .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
+                .and(PAYMENT_SCHEDULE.STATUS.eq("DUE"))
+                .orderBy(PAYMENT_SCHEDULE.SEQ)
+                .forUpdate()
+                .fetch();
+        if (rows.size() != 1) throw new ApiException(ProblemCode.CONFLICT, "There is nothing to take at the counter.");
+        var row = rows.getFirst();
+        if (row.getAmountMinor() - row.getCollectedMinor() != amountMinor) {
+            throw new ApiException(ProblemCode.CONFLICT, "The cash must be all of what is due.");
+        }
+        OffsetDateTime at = now.atOffset(ZoneOffset.UTC);
+        String currency = order.value1().trim();
+        var intent = dsl.selectFrom(PAYMENT_INTENTS)
+                .where(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID.eq(row.getId()))
+                .forUpdate()
+                .fetchOne();
+        UUID intentId;
+        if (intent == null) {
+            intentId = Ids.newId();
+            dsl.insertInto(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.ID, intentId)
+                    .set(PAYMENT_INTENTS.ORG_ID, orgId)
+                    .set(PAYMENT_INTENTS.PURPOSE, "ORDER")
+                    .set(PAYMENT_INTENTS.ORDER_ID, orderId)
+                    .set(PAYMENT_INTENTS.PAYMENT_SCHEDULE_ID, row.getId())
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.CURRENCY_CODE, currency)
+                    .set(PAYMENT_INTENTS.CAPTURED_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_INTENTS.PAYER_CUSTOMER_ID, order.value2())
+                    .set(PAYMENT_INTENTS.IDEMPOTENCY_KEY, "schedule:" + row.getId())
+                    .set(PAYMENT_INTENTS.SUCCEEDED_AT, at)
+                    .execute();
+        } else {
+            if (intent.getStatus().equals("SUCCEEDED")) {
+                throw new ApiException(ProblemCode.CONFLICT, "This is already paid.");
+            }
+            boolean open = dsl.fetchExists(
+                    PAYMENT_ATTEMPTS,
+                    PAYMENT_ATTEMPTS
+                            .INTENT_ID
+                            .eq(intent.getId())
+                            .and(PAYMENT_ATTEMPTS.STATUS.in("CREATED", "AWAITING_CUSTOMER", "PROCESSING", "UNKNOWN")));
+            if (open) throw new ApiException(ProblemCode.CONFLICT, "A payment of this is in progress.");
+            intentId = intent.getId();
+            dsl.update(PAYMENT_INTENTS)
+                    .set(PAYMENT_INTENTS.COLLECTION_MODE, "INTERNAL")
+                    .set(PAYMENT_INTENTS.AMOUNT_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.CAPTURED_MINOR, amountMinor)
+                    .set(PAYMENT_INTENTS.STATUS, "SUCCEEDED")
+                    .set(PAYMENT_INTENTS.SUCCEEDED_AT, at)
+                    .set(PAYMENT_INTENTS.UPDATED_AT, at)
+                    .where(PAYMENT_INTENTS.ID.eq(intentId))
+                    .execute();
+        }
+        UUID attemptId = Ids.newId();
+        dsl.insertInto(PAYMENT_ATTEMPTS)
+                .set(PAYMENT_ATTEMPTS.ID, attemptId)
+                .set(PAYMENT_ATTEMPTS.ORG_ID, orgId)
+                .set(PAYMENT_ATTEMPTS.INTENT_ID, intentId)
+                .set(PAYMENT_ATTEMPTS.METHOD_CODE, "CASH")
+                .set(PAYMENT_ATTEMPTS.INTERACTION, "IN_PERSON")
+                .set(PAYMENT_ATTEMPTS.AMOUNT_MINOR, amountMinor)
+                .set(PAYMENT_ATTEMPTS.CURRENCY_CODE, currency)
+                .set(PAYMENT_ATTEMPTS.STATUS, "SUCCEEDED")
+                .set(PAYMENT_ATTEMPTS.CASH_SESSION_ID, sessionId)
+                .set(PAYMENT_ATTEMPTS.COMPLETED_AT, at)
+                .set(PAYMENT_ATTEMPTS.IDEMPOTENCY_KEY, "cash:" + attemptId)
+                .execute();
+        dsl.update(PAYMENT_SCHEDULE)
+                .set(PAYMENT_SCHEDULE.STATUS, "PAID")
+                .set(PAYMENT_SCHEDULE.COLLECTED_MINOR, row.getAmountMinor())
+                .where(PAYMENT_SCHEDULE.ID.eq(row.getId()))
+                .execute();
+        return attemptId;
     }
 
     /** The intent of a schedule row: found, or created waiting for a method; a paid one cannot be paid again. */

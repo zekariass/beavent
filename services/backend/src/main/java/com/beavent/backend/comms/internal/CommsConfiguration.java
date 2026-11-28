@@ -83,6 +83,14 @@ class CommsConfiguration {
                 .with("gift_card.delivered");
     }
 
+    /** A receipt was sent to the customer (plan 4.3). */
+    @Bean
+    Binding commsReceiptsBinding(Queue commsAppointmentsQueue) {
+        return BindingBuilder.bind(commsAppointmentsQueue)
+                .to(new TopicExchange(Outbox.EXCHANGE))
+                .with("receipt.sent");
+    }
+
     @Bean
     Binding commsRefundCreditedBinding(Queue commsAppointmentsQueue) {
         return BindingBuilder.bind(commsAppointmentsQueue)

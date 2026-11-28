@@ -41,7 +41,8 @@ class OrgMarketingController {
 
     record LinkInput(@NotBlank @Size(max = 80) String name, UUID locationId) {}
 
-    record ConsentInput(@NotNull Boolean granted, @Size(max = 300) String note) {}
+    record ConsentInput(
+            @NotNull Boolean granted, @Size(max = 300) String note) {}
 
     record Campaigns(List<Marketing.Campaign> items) {}
 
@@ -117,7 +118,9 @@ class OrgMarketingController {
 
     @PostMapping("/v1/orgs/{orgId}/marketing/campaigns/{campaignId}/schedule")
     Marketing.Campaign schedule(
-            @PathVariable UUID orgId, @PathVariable UUID campaignId, @RequestBody(required = false) ScheduleInput body) {
+            @PathVariable UUID orgId,
+            @PathVariable UUID campaignId,
+            @RequestBody(required = false) ScheduleInput body) {
         OrgAccess access = access();
         return marketing.schedule(
                 access.orgId(), campaignId, access.userId(), body == null ? null : body.at(), Instant.now());

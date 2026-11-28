@@ -50,6 +50,8 @@ class Notifier {
     /** A gift card arrived for the recipient (plan 3.8). */
     static final String GIFT_CARD_RECEIVED = "GIFT_CARD_RECEIVED";
 
+    static final String RECEIPT_SENT = "RECEIPT_SENT";
+
     static final String CANCELLED = "APPOINTMENT_CANCELLED";
     static final String RESCHEDULED = "APPOINTMENT_RESCHEDULED";
     static final String REMINDER_24H = "APPOINTMENT_REMINDER_24H";
@@ -299,6 +301,31 @@ class Notifier {
                         .onConflictDoNothing()
                         .execute();
             });
+            return;
+        }
+        if (type.equals("receipt.sent")) {
+            UUID orgId = UUID.fromString(message.getMessageProperties().<String>getHeader("org_id"));
+            Map<String, Object> data = new LinkedHashMap<>();
+            for (String key : List.of("number", "business", "currency", "issuedAt", "timezone", "token", "receiptId")) {
+                data.put(key, body.get(key).asString());
+            }
+            data.put("totalMinor", body.get("totalMinor").asLong());
+            data.put("web", webUrl);
+            UUID customer = UUID.fromString(body.get("customerId").asString());
+            processedMessages.runOnce(
+                    CONSUMER,
+                    messageId,
+                    () -> system.insertInto(NOTIFICATIONS)
+                            .set(NOTIFICATIONS.ID, Ids.newId())
+                            .set(NOTIFICATIONS.ORG_ID, orgId)
+                            .set(NOTIFICATIONS.RECIPIENT_CUSTOMER_ID, customer)
+                            .set(NOTIFICATIONS.CATEGORY, "TRANSACTIONAL")
+                            .set(NOTIFICATIONS.TEMPLATE_CODE, RECEIPT_SENT)
+                            .set(NOTIFICATIONS.DATA, JSONB.valueOf(json.writeValueAsString(data)))
+                            .set(NOTIFICATIONS.DEDUPE_KEY, RECEIPT_SENT + ":" + messageId)
+                            .set(NOTIFICATIONS.SEND_AFTER, Instant.now().atOffset(ZoneOffset.UTC))
+                            .onConflictDoNothing()
+                            .execute());
             return;
         }
         if (type.equals("refund.credited")) {

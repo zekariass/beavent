@@ -39,8 +39,9 @@ public class ReviewModeration {
         String wanted = status == null ? "REPORTED" : status;
         Condition condition = staff.marketFilter(PERMISSION, MARKET);
         switch (wanted) {
-            case "REPORTED" -> condition = condition.and("EXISTS (SELECT 1 FROM trust.content_reports cr"
-                    + " WHERE cr.review_id = r.id AND cr.status IN ('OPEN','IN_REVIEW'))");
+            case "REPORTED" ->
+                condition = condition.and("EXISTS (SELECT 1 FROM trust.content_reports cr"
+                        + " WHERE cr.review_id = r.id AND cr.status IN ('OPEN','IN_REVIEW'))");
             case "HIDDEN" -> condition = condition.and(DSL.field("r.status").eq("HIDDEN"));
             default -> throw new ApiException(ProblemCode.VALIDATION_FAILED, "Unknown status: " + status);
         }

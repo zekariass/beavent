@@ -18,29 +18,22 @@ class OrgPeople {
 
     /** The business's owners and the active members whose role holds {@code permission}. */
     List<UUID> with(UUID orgId, String permission) {
-        return system.resultQuery(
-                        """
+        return system.resultQuery("""
                         SELECT DISTINCT m.user_id
                           FROM tenant.members m
                           LEFT JOIN tenant.role_permissions rp ON rp.role_id = m.role_id AND rp.permission_code = ?
                          WHERE m.org_id = ? AND m.status = 'ACTIVE' AND (m.is_owner OR rp.permission_code IS NOT NULL)
-                        """,
-                        permission,
-                        orgId)
-                .fetch(0, UUID.class);
+                        """, permission, orgId).fetch(0, UUID.class);
     }
 
     /** The people who do the work of an appointment and have their own login. */
     List<UUID> doing(UUID appointmentId) {
-        return system.resultQuery(
-                        """
+        return system.resultQuery("""
                         SELECT DISTINCT m.user_id
                           FROM scheduling.appointment_items i
                           JOIN team.staff s ON s.id = i.staff_id AND s.org_id = i.org_id
                           JOIN tenant.members m ON m.id = s.member_id AND m.org_id = s.org_id AND m.status = 'ACTIVE'
                          WHERE i.appointment_id = ?
-                        """,
-                        appointmentId)
-                .fetch(0, UUID.class);
+                        """, appointmentId).fetch(0, UUID.class);
     }
 }

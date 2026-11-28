@@ -72,11 +72,28 @@ class TextsTest {
                         + " https://beavent.example/en/account/reviews");
 
         Map<String, Object> review = Map.of(
-                "business", "Abeba Beauty", "place", "Bole", "rating", 2, "web", "https://beavent.example",
-                "orgId", "org-1", "reason", "Insults the staff.", "decision", "HIDE", "status", "DELISTED");
+                "business",
+                "Abeba Beauty",
+                "place",
+                "Bole",
+                "rating",
+                2,
+                "web",
+                "https://beavent.example",
+                "orgId",
+                "org-1",
+                "reason",
+                "Insults the staff.",
+                "decision",
+                "HIDE",
+                "status",
+                "DELISTED");
         for (String code : new String[] {
-            Notifier.REVIEW_RECEIVED, Notifier.REVIEW_REMOVED, Notifier.REVIEW_RESTORED,
-            Notifier.REVIEW_REPORT_OUTCOME, Notifier.MARKETPLACE_CHANGED
+            Notifier.REVIEW_RECEIVED,
+            Notifier.REVIEW_REMOVED,
+            Notifier.REVIEW_RESTORED,
+            Notifier.REVIEW_REPORT_OUTCOME,
+            Notifier.MARKETPLACE_CHANGED
         }) {
             for (String language : new String[] {"am", "en"}) {
                 Texts.Message m = Texts.render(code, language, review);
@@ -109,12 +126,17 @@ class TextsTest {
         for (String code : new String[] {Notifier.BOOKING_NEW, Notifier.BOOKING_REQUEST, Notifier.BOOKING_CANCELLED}) {
             for (String language : new String[] {"am", "en"}) {
                 Texts.Message m = Texts.render(code, language, data);
-                assertThat(m.text()).as(code + " " + language).contains("K7M2QX").contains("Meron T.").contains("Abeba Beauty");
+                assertThat(m.text())
+                        .as(code + " " + language)
+                        .contains("K7M2QX")
+                        .contains("Meron T.")
+                        .contains("Abeba Beauty");
                 assertThat(m.subject()).isNotBlank();
             }
         }
         assertThat(Texts.render(Notifier.BOOKING_NEW, "en", data).text())
-                .isEqualTo("Abeba Beauty: new booking K7M2QX from Meron T.: Box braids on Fri 27 Nov, 10:00 AM (4:00 in the"
-                        + " morning) with Abebe. https://beavent.example/en/business/o/org-1/calendar");
+                .isEqualTo(
+                        "Abeba Beauty: new booking K7M2QX from Meron T.: Box braids on Fri 27 Nov, 10:00 AM (4:00 in the"
+                                + " morning) with Abebe. https://beavent.example/en/business/o/org-1/calendar");
     }
 }

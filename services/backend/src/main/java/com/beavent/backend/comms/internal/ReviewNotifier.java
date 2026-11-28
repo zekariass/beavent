@@ -9,7 +9,6 @@ import com.beavent.backend.platform.SystemDb;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.jooq.DSLContext;
@@ -108,7 +107,14 @@ class ReviewNotifier {
                 data.put("web", webUrl);
                 data.put("orgId", orgId.toString());
                 for (UUID user : people.with(orgId, "reviews.respond")) {
-                    add(orgId, user, Notifier.REVIEW_RECEIVED, "OPERATIONAL", data, Notifier.REVIEW_RECEIVED + ":" + reviewId + ":" + user, now);
+                    add(
+                            orgId,
+                            user,
+                            Notifier.REVIEW_RECEIVED,
+                            "OPERATIONAL",
+                            data,
+                            Notifier.REVIEW_RECEIVED + ":" + reviewId + ":" + user,
+                            now);
                 }
             }
             case "review.moderated" -> {
@@ -124,15 +130,36 @@ class ReviewNotifier {
                     if (decision.equals("HIDE")) {
                         Map<String, Object> withReason = new LinkedHashMap<>(data);
                         withReason.put("reason", reason);
-                        add(orgId, author, Notifier.REVIEW_REMOVED, "TRANSACTIONAL", withReason, Notifier.REVIEW_REMOVED + ":" + key, now);
+                        add(
+                                orgId,
+                                author,
+                                Notifier.REVIEW_REMOVED,
+                                "TRANSACTIONAL",
+                                withReason,
+                                Notifier.REVIEW_REMOVED + ":" + key,
+                                now);
                     } else if (decision.equals("RESTORE")) {
-                        add(orgId, author, Notifier.REVIEW_RESTORED, "TRANSACTIONAL", data, Notifier.REVIEW_RESTORED + ":" + key, now);
+                        add(
+                                orgId,
+                                author,
+                                Notifier.REVIEW_RESTORED,
+                                "TRANSACTIONAL",
+                                data,
+                                Notifier.REVIEW_RESTORED + ":" + key,
+                                now);
                     }
                 }
                 // The business that reported it learns what staff decided.
                 if (body.has("reported") && body.get("reported").asBoolean() && !decision.equals("RESTORE")) {
                     for (UUID user : people.with(orgId, "reviews.respond")) {
-                        add(orgId, user, Notifier.REVIEW_REPORT_OUTCOME, "OPERATIONAL", data, Notifier.REVIEW_REPORT_OUTCOME + ":" + key + ":" + user, now);
+                        add(
+                                orgId,
+                                user,
+                                Notifier.REVIEW_REPORT_OUTCOME,
+                                "OPERATIONAL",
+                                data,
+                                Notifier.REVIEW_REPORT_OUTCOME + ":" + key + ":" + user,
+                                now);
                     }
                 }
             }
@@ -152,7 +179,8 @@ class ReviewNotifier {
                 data.put("place", "");
                 data.put("status", status);
                 data.put("reason", note);
-                String key = Notifier.MARKETPLACE_CHANGED + ":" + orgId + ":" + status + ":" + body.get("at").asString();
+                String key = Notifier.MARKETPLACE_CHANGED + ":" + orgId + ":" + status + ":"
+                        + body.get("at").asString();
                 for (UUID user : people.with(orgId, "org.settings.manage")) {
                     add(orgId, user, Notifier.MARKETPLACE_CHANGED, "OPERATIONAL", data, key + ":" + user, now);
                 }

@@ -89,6 +89,29 @@ public final class Postings {
         return new Planned("ADJUSTMENT", "feesback", lines);
     }
 
+    /**
+     * The platform's fees on what was paid at the venue (cash, gift cards, credit): it did not touch the money, so the
+     * seller owes the fees (docs/04 §10, cash or pay-at-venue sale): a receivable, netted at the next payout.
+     */
+    public static Planned venueFees(UUID orgId, long feeMinor, long vatMinor) {
+        check(feeMinor >= 0 && vatMinor >= 0 && feeMinor + vatMinor > 0, "fees are more than zero");
+        List<Line> lines = new ArrayList<>();
+        lines.add(new Line(Account.seller(Code.SELLER_FEES_RECEIVABLE, orgId), feeMinor + vatMinor));
+        addFeeLines(lines, feeMinor, vatMinor);
+        return new Planned("FEES_ASSESSED", "venuefees", lines);
+    }
+
+    /** What the seller owed in fees is taken from the money the platform owes them (at a payout). */
+    public static Planned feesCollected(UUID orgId, long amountMinor) {
+        check(amountMinor > 0, "an amount is more than zero");
+        return new Planned(
+                "FEE_COLLECTED",
+                "feescollected",
+                List.of(
+                        new Line(Account.seller(Code.SELLER_AVAILABLE, orgId), amountMinor),
+                        new Line(Account.seller(Code.SELLER_FEES_RECEIVABLE, orgId), -amountMinor)));
+    }
+
     /** The service was delivered: the seller's share can be paid out. */
     public static Planned released(UUID orgId, long netMinor) {
         check(netMinor > 0, "a release is more than zero");
@@ -142,6 +165,32 @@ public final class Postings {
                 List.of(
                         new Line(clearing, amountMinor),
                         new Line(Account.seller(Code.SELLER_AVAILABLE, orgId), -amountMinor)));
+    }
+
+    /**
+     * The provider kept a fee on a payment (read from its statement): the platform's cost, taken from what the provider
+     * holds for it.
+     */
+    public static Planned providerFee(Account clearing, long feeMinor) {
+        check(feeMinor > 0, "a fee is more than zero");
+        return new Planned(
+                "PROVIDER_FEE",
+                "providerfee",
+                List.of(
+                        new Line(Account.platform(Code.PLATFORM_PROCESSING_COST), feeMinor),
+                        new Line(clearing, -feeMinor)));
+    }
+
+    /**
+     * Money the provider reports that nothing of ours explains: it is held in suspense until someone says what it is
+     * (docs/04 §14).
+     */
+    public static Planned unexplainedReceipt(Account clearing, long amountMinor) {
+        check(amountMinor > 0, "a receipt is more than zero");
+        return new Planned(
+                "ADJUSTMENT",
+                "suspense",
+                List.of(new Line(clearing, amountMinor), new Line(Account.platform(Code.SUSPENSE), -amountMinor)));
     }
 
     private static void addFeeLines(List<Line> lines, long feeMinor, long vatMinor) {

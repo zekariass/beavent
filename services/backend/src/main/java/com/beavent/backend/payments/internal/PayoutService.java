@@ -1,8 +1,14 @@
 package com.beavent.backend.payments.internal;
 
+import static com.beavent.db.billing.Tables.FEE_ASSESSMENTS;
+import static com.beavent.db.commerce.Tables.ORDERS;
+import static com.beavent.db.commerce.Tables.ORDER_LINES;
+import static com.beavent.db.commerce.Tables.PAYMENT_SCHEDULE;
 import static com.beavent.db.ledger.Tables.ACCOUNTS;
 import static com.beavent.db.ledger.Tables.BALANCES;
+import static com.beavent.db.ledger.Tables.ENTRIES;
 import static com.beavent.db.ledger.Tables.SCHEDULED_RELEASES;
+import static com.beavent.db.ledger.Tables.TRANSACTIONS;
 import static com.beavent.db.payments.Tables.ORG_SETTINGS;
 import static com.beavent.db.payments.Tables.PAYOUTS;
 import static com.beavent.db.payments.Tables.PAYOUT_ACCOUNTS;
@@ -35,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
 import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -238,6 +245,23 @@ class PayoutService implements Payouts {
         };
         if (!dueToday || amount < Math.max(minimum, 1)) return false;
 
+        // What the seller owes in fees on sales paid at the venue is taken from this payout (docs/04 §10).
+        long owed = Math.max(0, ledger.balance(Account.seller(Code.SELLER_FEES_RECEIVABLE, orgId), currency));
+        long net = Math.min(owed, amount);
+        if (net > 0) {
+            Postings.Planned c = Postings.feesCollected(orgId, net);
+            ledger.post(new Posting(
+                    c.kind(),
+                    orgId,
+                    "feescollected:" + orgId + ":" + currency + ":" + today + ":" + owed,
+                    "Fees on sales paid at the venue, taken from the payout",
+                    Links.NONE,
+                    currency,
+                    c.lines()));
+            amount -= net;
+            if (amount <= 0) return false; // the payout went to fees: nothing to send
+        }
+
         List<String> reasons = new ArrayList<>();
         if (!system.fetchExists(
                 PAYOUTS,
@@ -289,6 +313,96 @@ class PayoutService implements Payouts {
         return true;
     }
 
+    // --- fees on what was paid at the venue (plan 4.4) -------------------------------------------------------------
+
+    @Override
+    public long chargeVenueFees(UUID orgId, UUID orderId, Instant now) {
+        Long charged = transactions.execute(status -> {
+            var order = system.select(ORDERS.CURRENCY_CODE, ORDERS.STATUS)
+                    .from(ORDERS)
+                    .where(ORDERS.ID.eq(orderId), ORDERS.ORG_ID.eq(orgId))
+                    .forUpdate()
+                    .fetchOne();
+            if (order == null || !order.value2().equals("COMPLETED")) return 0L;
+            // Tips carry no fee: only what was paid at the venue for the sale itself counts.
+            long venuePaid = system.select(DSL.coalesce(DSL.sum(PAYMENT_SCHEDULE.COLLECTED_MINOR), 0))
+                    .from(PAYMENT_SCHEDULE)
+                    .where(PAYMENT_SCHEDULE.ORDER_ID.eq(orderId))
+                    .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
+                    .and(PAYMENT_SCHEDULE.STATUS.eq("PAID"))
+                    .fetchSingle(0, Long.class);
+            long tips = system.select(DSL.coalesce(DSL.sum(ORDER_LINES.TOTAL_MINOR), 0))
+                    .from(ORDER_LINES)
+                    .where(ORDER_LINES.ORDER_ID.eq(orderId))
+                    .and(ORDER_LINES.LINE_TYPE.eq("TIP"))
+                    .and(ORDER_LINES.STATUS.eq("ACTIVE"))
+                    .fetchSingle(0, Long.class);
+            if (venuePaid - tips <= 0) return 0L;
+            var fees = system.select(
+                            DSL.coalesce(DSL.sum(FEE_ASSESSMENTS.AMOUNT_MINOR), java.math.BigDecimal.ZERO),
+                            DSL.coalesce(DSL.sum(FEE_ASSESSMENTS.VAT_MINOR), java.math.BigDecimal.ZERO))
+                    .from(FEE_ASSESSMENTS)
+                    .where(FEE_ASSESSMENTS.ORDER_ID.eq(orderId), FEE_ASSESSMENTS.STATUS.eq("ASSESSED"))
+                    .fetchOne();
+            long fee = fees.value1().longValueExact();
+            long vat = fees.value2().longValueExact();
+            if (fee + vat <= 0) return 0L;
+            // What the order's online payments already took, from the ledger: the rest is for the venue part.
+            long posted = -system.select(DSL.coalesce(DSL.sum(ENTRIES.AMOUNT_MINOR), 0))
+                    .from(ENTRIES)
+                    .join(TRANSACTIONS)
+                    .on(TRANSACTIONS.ID.eq(ENTRIES.TRANSACTION_ID))
+                    .join(ACCOUNTS)
+                    .on(ACCOUNTS.ID.eq(ENTRIES.ACCOUNT_ID))
+                    .where(TRANSACTIONS.ORDER_ID.eq(orderId))
+                    .and(ACCOUNTS.CODE.in(Code.PLATFORM_FEE_REVENUE.name(), Code.TAX_PAYABLE.name()))
+                    .fetchSingle(0, Long.class);
+            long remaining = fee + vat - posted;
+            if (remaining <= 0) return 0L;
+            long[] parts = com.beavent.backend.platform.MoneyMath.allocate(remaining, new long[] {fee, vat});
+            Postings.Planned p = Postings.venueFees(orgId, parts[0], parts[1]);
+            ledger.post(new Posting(
+                    p.kind(),
+                    orgId,
+                    "venuefees:" + orderId,
+                    "Beavent fees on a sale paid at the venue",
+                    new Links(null, null, null, orderId),
+                    order.value1().trim(),
+                    p.lines()));
+            return remaining;
+        });
+        return charged == null ? 0 : charged;
+    }
+
+    @Override
+    public int sweepVenueFees(Instant now) {
+        List<Record2<UUID, UUID>> due = system.select(ORDERS.ORG_ID, ORDERS.ID)
+                .from(ORDERS)
+                .where(ORDERS.STATUS.eq("COMPLETED"))
+                .and(DSL.exists(DSL.selectOne()
+                        .from(PAYMENT_SCHEDULE)
+                        .where(PAYMENT_SCHEDULE.ORDER_ID.eq(ORDERS.ID))
+                        .and(PAYMENT_SCHEDULE.COLLECT_AT.eq("AT_VENUE"))
+                        .and(PAYMENT_SCHEDULE.STATUS.eq("PAID"))))
+                .and(DSL.notExists(DSL.selectOne()
+                        .from(TRANSACTIONS)
+                        .where(TRANSACTIONS.IDEMPOTENCY_KEY.eq(
+                                DSL.concat(DSL.inline("venuefees:"), DSL.cast(ORDERS.ID, String.class))))))
+                .and(DSL.exists(DSL.selectOne().from(FEE_ASSESSMENTS).where(FEE_ASSESSMENTS.ORDER_ID.eq(ORDERS.ID))))
+                .orderBy(ORDERS.COMPLETED_AT)
+                .limit(100)
+                .fetch();
+        int charged = 0;
+        for (var row : due) {
+            try {
+                if (chargeVenueFees(row.value1(), row.value2(), now) > 0) charged++;
+            } catch (RuntimeException e) {
+                log.warn("Charging the venue fees of order {} failed; the next sweep tries again", row.value2(), e);
+            }
+        }
+        return charged;
+    }
+
     // --- the seller's view -----------------------------------------------------------------------------------------
 
     @Override
@@ -321,7 +435,8 @@ class PayoutService implements Payouts {
                 paid == null ? 0 : paid,
                 schedule,
                 weekday,
-                settings == null ? 0 : settings.getMinPayoutMinor());
+                settings == null ? 0 : settings.getMinPayoutMinor(),
+                Math.max(0, ledger.balance(Account.seller(Code.SELLER_FEES_RECEIVABLE, orgId), currency)));
     }
 
     @Override

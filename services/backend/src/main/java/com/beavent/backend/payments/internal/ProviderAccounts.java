@@ -52,6 +52,7 @@ public class ProviderAccounts {
             UUID account = ensureAccount(market, code);
             accounts.put(code, account);
             int routes = 0;
+            java.util.List<String> allowed = new java.util.ArrayList<>();
             for (String method : system.selectDistinct(PROVIDER_CAPABILITIES.METHOD_CODE)
                     .from(PROVIDER_CAPABILITIES)
                     .where(PROVIDER_CAPABILITIES.PROVIDER_CODE.eq(code))
@@ -81,7 +82,17 @@ public class ProviderAccounts {
                         .set(ROUTES.IS_ACTIVE, true)
                         .execute();
                 routes++;
+                allowed.add(method);
             }
+            // A method the provider may no longer take (its capability was suspended) stops being offered.
+            system.update(ROUTES)
+                    .set(ROUTES.IS_ACTIVE, false)
+                    .where(ROUTES.MARKET_ID.eq(market))
+                    .and(ROUTES.ORG_ID.isNull())
+                    .and(ROUTES.PROVIDER_ACCOUNT_ID.eq(account))
+                    .and(allowed.isEmpty() ? org.jooq.impl.DSL.trueCondition() : ROUTES.METHOD_CODE.notIn(allowed))
+                    .and(ROUTES.IS_ACTIVE.isTrue())
+                    .execute();
             // One provider at a time: the platform's routes through any other account are switched off.
             system.update(ROUTES)
                     .set(ROUTES.IS_ACTIVE, false)

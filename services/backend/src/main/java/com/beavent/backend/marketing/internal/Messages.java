@@ -24,7 +24,10 @@ final class Messages {
     /** The text with {@code {name}} filled in (or taken out when the person's name is not known). */
     static String personal(String text, String firstName) {
         String name = firstName == null ? "" : firstName.strip();
-        return text.replace("{name}", name).replaceAll(" {2,}", " ").replace(" ,", ",").strip();
+        return text.replace("{name}", name)
+                .replaceAll(" {2,}", " ")
+                .replace(" ,", ",")
+                .strip();
     }
 
     /** The whole message: text, then the counted link, then how to stop. */

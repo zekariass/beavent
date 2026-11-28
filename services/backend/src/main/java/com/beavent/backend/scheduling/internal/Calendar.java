@@ -547,35 +547,58 @@ public class Calendar {
             if (to.equals("NO_SHOW") && a.getStartsAt().toInstant().isAfter(now)) {
                 throw new ApiException(ProblemCode.CONSTRAINT_VIOLATION, "Mark a no-show only after the start time.");
             }
-            dsl.update(APPOINTMENTS)
-                    .set(APPOINTMENTS.STATUS, to)
-                    .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
-                    .where(APPOINTMENTS.ID.eq(appointmentId))
-                    .execute();
-            if (ITEM_STATUS.containsKey(to)) {
-                dsl.update(APPOINTMENT_ITEMS)
-                        .set(APPOINTMENT_ITEMS.STATUS, ITEM_STATUS.get(to))
-                        .where(
-                                APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId),
-                                APPOINTMENT_ITEMS.STATUS.ne("CANCELLED"))
-                        .execute();
-            }
-            if (to.equals("COMPLETED")) {
-                dsl.update(CUSTOMERS)
-                        .set(CUSTOMERS.LAST_VISIT_AT, a.getStartsAt())
-                        .where(CUSTOMERS.ID.eq(a.getCustomerId()))
-                        .execute();
-            }
-            Bookings.history(dsl, a.getOrgId(), appointmentId, from, to, access.userId(), null);
-            outbox.publish(new DomainEvent(
-                    "scheduling.appointment",
-                    appointmentId,
-                    "appointment." + to.toLowerCase(java.util.Locale.ROOT),
-                    1,
-                    a.getOrgId(),
-                    Map.of("appointmentId", appointmentId, "from", from, "to", to)));
+            apply(a, from, to, access.userId());
             return to;
         });
+    }
+
+    /** Moves the appointment to {@code to}: its items, the client's last visit, the history and the event. */
+    private void apply(
+            com.beavent.db.scheduling.tables.records.AppointmentsRecord a, String from, String to, UUID userId) {
+        UUID appointmentId = a.getId();
+        dsl.update(APPOINTMENTS)
+                .set(APPOINTMENTS.STATUS, to)
+                .set(APPOINTMENTS.VERSION, APPOINTMENTS.VERSION.plus(1))
+                .where(APPOINTMENTS.ID.eq(appointmentId))
+                .execute();
+        if (ITEM_STATUS.containsKey(to)) {
+            dsl.update(APPOINTMENT_ITEMS)
+                    .set(APPOINTMENT_ITEMS.STATUS, ITEM_STATUS.get(to))
+                    .where(APPOINTMENT_ITEMS.APPOINTMENT_ID.eq(appointmentId), APPOINTMENT_ITEMS.STATUS.ne("CANCELLED"))
+                    .execute();
+        }
+        if (to.equals("COMPLETED")) {
+            dsl.update(CUSTOMERS)
+                    .set(CUSTOMERS.LAST_VISIT_AT, a.getStartsAt())
+                    .where(CUSTOMERS.ID.eq(a.getCustomerId()))
+                    .execute();
+        }
+        Bookings.history(dsl, a.getOrgId(), appointmentId, from, to, userId, null);
+        outbox.publish(new DomainEvent(
+                "scheduling.appointment",
+                appointmentId,
+                "appointment." + to.toLowerCase(java.util.Locale.ROOT),
+                1,
+                a.getOrgId(),
+                Map.of("appointmentId", appointmentId, "from", from, "to", to)));
+    }
+
+    /**
+     * The visit was checked out at the counter (plan 4.1): it becomes completed, whatever it was (confirmed, arrived or
+     * started); one already completed stays so. The caller checked the permission and the location.
+     */
+    void completeAtCounter(UUID appointmentId, UUID userId) {
+        var a = dsl.selectFrom(APPOINTMENTS)
+                .where(APPOINTMENTS.ID.eq(appointmentId))
+                .forUpdate()
+                .fetchOne();
+        if (a == null) throw new ApiException(ProblemCode.NOT_FOUND, "There is no such appointment.");
+        if (a.getStatus().equals("COMPLETED")) return;
+        if (!NEXT.getOrDefault(a.getStatus(), Set.of()).contains("COMPLETED")) {
+            throw new ApiException(
+                    ProblemCode.IMMUTABLE, "An appointment that is " + a.getStatus() + " cannot be completed.");
+        }
+        apply(a, a.getStatus(), "COMPLETED", userId);
     }
 
     static OffsetDateTime utc(Instant instant) {

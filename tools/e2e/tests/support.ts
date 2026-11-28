@@ -67,3 +67,17 @@ export async function campaignTokenFor(destination: string, fragment: string): P
   }
   throw new Error(`no campaign message for ${destination} in ${API_LOG}`);
 }
+
+/** The link of the newest receipt text the `log` SMS provider wrote for this phone number (plan 4.3). */
+export async function receiptLinkFor(destination: string): Promise<string> {
+  const pattern = new RegExp(
+    `to ${destination.replace(/[+.]/g, "\\$&")}\\] .*?(https?://\\S*/receipt/[A-Za-z0-9_-]{43})`,
+    "g",
+  );
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const found = [...readFileSync(API_LOG, "utf8").matchAll(pattern)];
+    if (found.length > 0) return found.at(-1)![1]!;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  throw new Error(`no receipt link for ${destination} in ${API_LOG}`);
+}

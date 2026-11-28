@@ -11,7 +11,6 @@ import com.beavent.backend.scheduling.SchedulingTestSupport;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -154,7 +153,8 @@ class NotificationsApiTests extends SchedulingTestSupport {
         assertThat(defaults.text("quietFrom")).isEqualTo("21:00");
         assertThat(defaults.text("quietTo")).isEqualTo("07:00");
 
-        Call saved = call(put("/v1/me/notification-settings"), settings(false, true, true, "22:00", "06:30"), ana.token());
+        Call saved =
+                call(put("/v1/me/notification-settings"), settings(false, true, true, "22:00", "06:30"), ana.token());
         assertThat(saved.status()).as(String.valueOf(saved.body())).isEqualTo(200);
         assertThat(saved.body().get("remindersSms").asBoolean()).isFalse();
         assertThat(saved.text("quietFrom")).isEqualTo("22:00");
@@ -168,10 +168,14 @@ class NotificationsApiTests extends SchedulingTestSupport {
         assertThat(call(put("/v1/me/notification-settings"), settings(true, true, true, "08:00", "08:00"), ana.token())
                         .status())
                 .isEqualTo(400);
-        assertThat(callInvalid(put("/v1/me/notification-settings"), settings(true, true, true, "25:00", "08:00"), ana.token())
+        assertThat(callInvalid(
+                                put("/v1/me/notification-settings"),
+                                settings(true, true, true, "25:00", "08:00"),
+                                ana.token())
                         .status())
                 .isEqualTo(400);
-        assertThat(call(get("/v1/me/notification-settings"), null, null).status()).isEqualTo(401);
+        assertThat(call(get("/v1/me/notification-settings"), null, null).status())
+                .isEqualTo(401);
     }
 
     // --- reminders --------------------------------------------------------------------------------------------
@@ -206,12 +210,15 @@ class NotificationsApiTests extends SchedulingTestSupport {
         // Quiet hours around now: the reminder waits until they end, about an hour from now.
         Person ana = newPerson();
         Instant now = Instant.now();
-        save(ana, settings(true, true, true, hhmm(now.minus(1, ChronoUnit.HOURS)), hhmm(now.plus(1, ChronoUnit.HOURS))));
+        save(
+                ana,
+                settings(true, true, true, hhmm(now.minus(1, ChronoUnit.HOURS)), hhmm(now.plus(1, ChronoUnit.HOURS))));
         String visit = book(shop, "10:00", ana).text("id");
         UUID reminder = notificationSoon("APPOINTMENT_REMINDER_2H", visit);
         makeDue(reminder);
         waitFor("the reminder to be moved", () -> {
-            OffsetDateTime after = system.resultQuery("SELECT send_after FROM comms.notifications WHERE id = ?", reminder)
+            OffsetDateTime after = system.resultQuery(
+                            "SELECT send_after FROM comms.notifications WHERE id = ?", reminder)
                     .fetchOne(0, OffsetDateTime.class);
             return after.toInstant().isAfter(Instant.now().plus(30, ChronoUnit.MINUTES));
         });
@@ -220,7 +227,9 @@ class NotificationsApiTests extends SchedulingTestSupport {
 
         // The visit starts before quiet hours would end: a reminder at the very end would be too late, so none is sent.
         Person ben = newPerson();
-        save(ben, settings(true, true, true, hhmm(now.minus(1, ChronoUnit.HOURS)), hhmm(now.plus(1, ChronoUnit.HOURS))));
+        save(
+                ben,
+                settings(true, true, true, hhmm(now.minus(1, ChronoUnit.HOURS)), hhmm(now.plus(1, ChronoUnit.HOURS))));
         String soon = book(shop, "13:00", ben).text("id");
         UUID late = notificationSoon("APPOINTMENT_REMINDER_2H", soon);
         Instant start = Instant.now().plus(80, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
@@ -248,16 +257,20 @@ class NotificationsApiTests extends SchedulingTestSupport {
         assertThat(com.beavent.backend.comms.internal.QuietHours.end(prefs, data, lateEvening))
                 .isEqualTo(Instant.parse("2026-11-27T04:00:00Z"));
         // 03:00 Addis time (00:00 UTC) is inside too; they end at 07:00 the same morning.
-        assertThat(com.beavent.backend.comms.internal.QuietHours.end(prefs, data, Instant.parse("2026-11-27T00:00:00Z")))
+        assertThat(com.beavent.backend.comms.internal.QuietHours.end(
+                        prefs, data, Instant.parse("2026-11-27T00:00:00Z")))
                 .isEqualTo(Instant.parse("2026-11-27T04:00:00Z"));
         // 12:00 Addis time is outside; 07:00 itself is outside (they end at 07:00).
-        assertThat(com.beavent.backend.comms.internal.QuietHours.end(prefs, data, Instant.parse("2026-11-26T09:00:00Z")))
+        assertThat(com.beavent.backend.comms.internal.QuietHours.end(
+                        prefs, data, Instant.parse("2026-11-26T09:00:00Z")))
                 .isNull();
-        assertThat(com.beavent.backend.comms.internal.QuietHours.end(prefs, data, Instant.parse("2026-11-27T04:00:00Z")))
+        assertThat(com.beavent.backend.comms.internal.QuietHours.end(
+                        prefs, data, Instant.parse("2026-11-27T04:00:00Z")))
                 .isNull();
         // Daytime quiet hours (13:00 to 15:00).
         var siesta = new NotificationSettings.Settings(true, true, true, true, "13:00", "15:00");
-        assertThat(com.beavent.backend.comms.internal.QuietHours.end(siesta, data, Instant.parse("2026-11-26T10:30:00Z")))
+        assertThat(com.beavent.backend.comms.internal.QuietHours.end(
+                        siesta, data, Instant.parse("2026-11-26T10:30:00Z")))
                 .isEqualTo(Instant.parse("2026-11-26T12:00:00Z"));
     }
 
@@ -273,22 +286,29 @@ class NotificationsApiTests extends SchedulingTestSupport {
         complete(shop, eveVisit);
         complete(shop, fayVisit);
 
-        waitFor("both requests", () -> notification("APPOINTMENT_REVIEW_REQUEST", eveVisit) != null
-                && notification("APPOINTMENT_REVIEW_REQUEST", fayVisit) != null);
+        waitFor(
+                "both requests",
+                () -> notification("APPOINTMENT_REVIEW_REQUEST", eveVisit) != null
+                        && notification("APPOINTMENT_REVIEW_REQUEST", fayVisit) != null);
         UUID request = notification("APPOINTMENT_REVIEW_REQUEST", eveVisit);
-        OffsetDateTime sendAfter = system.resultQuery("SELECT send_after FROM comms.notifications WHERE id = ?", request)
+        OffsetDateTime sendAfter = system.resultQuery(
+                        "SELECT send_after FROM comms.notifications WHERE id = ?", request)
                 .fetchOne(0, OffsetDateTime.class);
         assertThat(sendAfter.toInstant())
                 .as("a couple of hours after the visit, not at once")
-                .isBetween(Instant.now().plus(110, ChronoUnit.MINUTES), Instant.now().plus(130, ChronoUnit.MINUTES));
+                .isBetween(
+                        Instant.now().plus(110, ChronoUnit.MINUTES),
+                        Instant.now().plus(130, ChronoUnit.MINUTES));
         makeDue(request);
         waitFor("the request", () -> received(eve, "how was your visit"));
-        assertThat(sms.messagesTo(eve.phone()).stream().filter(m -> m.contains("how was your visit")).findFirst().orElseThrow())
+        assertThat(sms.messagesTo(eve.phone()).stream()
+                        .filter(m -> m.contains("how was your visit"))
+                        .findFirst()
+                        .orElseThrow())
                 .contains("/en/account/reviews");
 
         // Fay reviewed it before the request was due: nothing is sent.
-        Call written = call(
-                post("/v1/me/appointments/" + fayVisit + "/review"), Map.of("rating", 5), fay.token());
+        Call written = call(post("/v1/me/appointments/" + fayVisit + "/review"), Map.of("rating", 5), fay.token());
         assertThat(written.status()).as(String.valueOf(written.body())).isEqualTo(201);
         UUID second = notification("APPOINTMENT_REVIEW_REQUEST", fayVisit);
         makeDue(second);
@@ -324,10 +344,14 @@ class NotificationsApiTests extends SchedulingTestSupport {
         complete(shop, visit);
 
         // A review arrives: the owner is told.
-        Call review = call(post("/v1/me/appointments/" + visit + "/review"), Map.of("rating", 1, "body", "Rude."), author.token());
+        Call review = call(
+                post("/v1/me/appointments/" + visit + "/review"), Map.of("rating", 1, "body", "Rude."), author.token());
         assertThat(review.status()).as(String.valueOf(review.body())).isEqualTo(201);
         waitFor("the owner to hear of the review", () -> received(owner, "1-star review"));
-        assertThat(sms.messagesTo(owner.phone()).stream().filter(m -> m.contains("1-star review")).findFirst().orElseThrow())
+        assertThat(sms.messagesTo(owner.phone()).stream()
+                        .filter(m -> m.contains("1-star review"))
+                        .findFirst()
+                        .orElseThrow())
                 .contains("/en/business/o/" + shop.salon().id() + "/reviews");
 
         // The owner reports it; staff take it down: the author and the owner both hear.
@@ -345,7 +369,10 @@ class NotificationsApiTests extends SchedulingTestSupport {
                 moderator);
         assertThat(hidden.status()).as(String.valueOf(hidden.body())).isEqualTo(200);
         waitFor("the author to hear", () -> received(author, "took down your review"));
-        assertThat(sms.messagesTo(author.phone()).stream().filter(m -> m.contains("took down your review")).findFirst().orElseThrow())
+        assertThat(sms.messagesTo(author.phone()).stream()
+                        .filter(m -> m.contains("took down your review"))
+                        .findFirst()
+                        .orElseThrow())
                 .contains("Insults the staff.");
         waitFor("the owner to hear the outcome", () -> received(owner, "took down the review you reported"));
 
@@ -374,7 +401,17 @@ class NotificationsApiTests extends SchedulingTestSupport {
     String phoneApp(Person person, String token) throws Exception {
         Call registered = call(
                 post("/v1/me/devices"),
-                Map.of("installationId", token, "platform", "IOS", "pushToken", token, "appVersion", "1.0.0", "locale", "en"),
+                Map.of(
+                        "installationId",
+                        token,
+                        "platform",
+                        "IOS",
+                        "pushToken",
+                        token,
+                        "appVersion",
+                        "1.0.0",
+                        "locale",
+                        "en"),
                 person.token());
         assertThat(registered.status()).as(String.valueOf(registered.body())).isEqualTo(204);
         return token;
@@ -396,10 +433,14 @@ class NotificationsApiTests extends SchedulingTestSupport {
         // A reminder goes to the phone app only.
         UUID reminder = notificationSoon("APPOINTMENT_REMINDER_2H", visit);
         makeDue(reminder);
-        waitFor("the reminder as a push", () -> push.messagesTo(token).stream().anyMatch(m -> m.body().contains("Reminder:")));
+        waitFor(
+                "the reminder as a push",
+                () -> push.messagesTo(token).stream().anyMatch(m -> m.body().contains("Reminder:")));
         waitFor("the delivery", () -> delivery(reminder) != null);
         assertThat(delivery(reminder)[0]).isEqualTo("SENT");
-        assertThat(received(ana, "Reminder:")).as("no text message for a reminder the phone got").isFalse();
+        assertThat(received(ana, "Reminder:"))
+                .as("no text message for a reminder the phone got")
+                .isFalse();
 
         // With push turned off the same reminder comes by text message.
         Person ben = newPerson();
@@ -411,7 +452,8 @@ class NotificationsApiTests extends SchedulingTestSupport {
         UUID benReminder = notificationSoon("APPOINTMENT_REMINDER_2H", benVisit);
         makeDue(benReminder);
         waitFor("the reminder by text", () -> received(ben, "Reminder:"));
-        assertThat(push.messagesTo(benToken).stream().anyMatch(m -> m.body().contains("Reminder:"))).isFalse();
+        assertThat(push.messagesTo(benToken).stream().anyMatch(m -> m.body().contains("Reminder:")))
+                .isFalse();
     }
 
     @Test
@@ -422,14 +464,16 @@ class NotificationsApiTests extends SchedulingTestSupport {
         String visit = book(shop, "10:00", cy).text("id");
         // The confirmation finds the phone gone: it is forgotten, the text message still goes, and later reminders
         // use the text message.
-        waitFor("the phone to be forgotten", () -> system
-                        .resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", gone)
-                        .fetchOne(0, String.class)
-                == null);
+        waitFor(
+                "the phone to be forgotten",
+                () -> system.resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", gone)
+                                .fetchOne(0, String.class)
+                        == null);
         waitFor("the confirmation by text", () -> received(cy, "confirmed"));
         UUID confirmation = notificationSoon("APPOINTMENT_CONFIRMED", visit);
         assertThat(system.resultQuery(
-                                "SELECT error FROM comms.deliveries WHERE notification_id = ? AND channel = 'PUSH'", confirmation)
+                                "SELECT error FROM comms.deliveries WHERE notification_id = ? AND channel = 'PUSH'",
+                                confirmation)
                         .fetchOne(0, String.class))
                 .contains("cannot receive");
         UUID reminder = notificationSoon("APPOINTMENT_REMINDER_2H", visit);
@@ -443,8 +487,13 @@ class NotificationsApiTests extends SchedulingTestSupport {
         complete(shop, deeVisit);
         UUID request = notificationSoon("APPOINTMENT_REVIEW_REQUEST", deeVisit);
         makeDue(request);
-        waitFor("the request as a push", () -> push.messagesTo(token).stream().anyMatch(m -> "/reviews".equals(m.data().get("route"))));
-        assertThat(received(dee, "how was your visit")).as("no text message when the phone got it").isFalse();
+        waitFor(
+                "the request as a push",
+                () -> push.messagesTo(token).stream()
+                        .anyMatch(m -> "/reviews".equals(m.data().get("route"))));
+        assertThat(received(dee, "how was your visit"))
+                .as("no text message when the phone got it")
+                .isFalse();
     }
 
     @Test
@@ -452,7 +501,11 @@ class NotificationsApiTests extends SchedulingTestSupport {
         Shop shop = shop();
         Person eve = newPerson();
         String token = phoneApp(eve, "ExponentPushToken[" + UUID.randomUUID() + "]");
-        assertThat(call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/v1/me/devices/" + token), null, eve.token())
+        assertThat(call(
+                                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                                        "/v1/me/devices/" + token),
+                                null,
+                                eve.token())
                         .status())
                 .isEqualTo(204);
         String visit = book(shop, "10:00", eve).text("id");
@@ -461,10 +514,15 @@ class NotificationsApiTests extends SchedulingTestSupport {
         // Someone else cannot take a phone off a person.
         Person fay = newPerson();
         String fayToken = phoneApp(fay, "ExponentPushToken[" + UUID.randomUUID() + "]");
-        assertThat(call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/v1/me/devices/" + fayToken), null, eve.token())
+        assertThat(call(
+                                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                                        "/v1/me/devices/" + fayToken),
+                                null,
+                                eve.token())
                         .status())
                 .isEqualTo(204);
-        assertThat(system.resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", fayToken).fetchOne(0, String.class))
+        assertThat(system.resultQuery("SELECT push_token FROM iam.devices WHERE installation_id = ?", fayToken)
+                        .fetchOne(0, String.class))
                 .isEqualTo(fayToken);
         assertThat(visit).isNotBlank();
     }
@@ -501,8 +559,13 @@ class NotificationsApiTests extends SchedulingTestSupport {
                 .filter(m -> m.contains("new booking " + reference))
                 .findFirst()
                 .orElseThrow();
-        assertThat(message).contains("Haircut").contains("with Abebe").contains("/en/business/o/" + shop.salon().id() + "/calendar");
-        assertThat(received(owner, walkIn.text("reference"))).as("not the walk-in").isFalse();
+        assertThat(message)
+                .contains("Haircut")
+                .contains("with Abebe")
+                .contains("/en/business/o/" + shop.salon().id() + "/calendar");
+        assertThat(received(owner, walkIn.text("reference")))
+                .as("not the walk-in")
+                .isFalse();
         assertThat(received(cashier, "new booking")).isFalse();
 
         // The customer cancels: the business hears that too.

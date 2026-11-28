@@ -48,6 +48,7 @@ class Dispatcher {
             java.util.Set.of(Notifier.REMINDER_24H, Notifier.REMINDER_2H, Notifier.REVIEW_REQUEST);
     /** A reminder is not worth sending later than this before the visit. */
     private static final Duration LATEST_REMINDER = Duration.ofMinutes(30);
+
     private static final Logger log = LoggerFactory.getLogger(Dispatcher.class);
     private static final TypeReference<Map<String, Object>> DATA = new TypeReference<>() {};
 
@@ -69,7 +70,8 @@ class Dispatcher {
             JsonMapper json,
             NotificationSettings settings,
             PushGateway push,
-            @org.springframework.beans.factory.annotation.Value("${beavent.marketing.quiet-from:20:00}") String quietFrom,
+            @org.springframework.beans.factory.annotation.Value("${beavent.marketing.quiet-from:20:00}")
+                    String quietFrom,
             @org.springframework.beans.factory.annotation.Value("${beavent.marketing.quiet-to:08:00}") String quietTo) {
         this.system = system;
         this.transactions = transactions;
@@ -113,6 +115,7 @@ class Dispatcher {
                                 .like("APPOINTMENT_%")
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("PAYOUT_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("GIFT_CARD_%"))
+                                .or(NOTIFICATIONS.TEMPLATE_CODE.like("RECEIPT_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("REVIEW_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("MARKETPLACE_%"))
                                 .or(NOTIFICATIONS.TEMPLATE_CODE.like("BOOKING_%"))
@@ -148,9 +151,8 @@ class Dispatcher {
                 prefs = settings.get(person);
                 Instant resume = prefs.quietHours() ? QuietHours.end(prefs, data, now) : null;
                 if (resume != null) {
-                    Instant start = data.get("startsAt") == null
-                            ? null
-                            : Instant.parse(String.valueOf(data.get("startsAt")));
+                    Instant start =
+                            data.get("startsAt") == null ? null : Instant.parse(String.valueOf(data.get("startsAt")));
                     boolean reminder = Notifier.REMINDERS.contains(n.getTemplateCode());
                     if (reminder && (start == null || resume.isAfter(start.minus(LATEST_REMINDER)))) {
                         stale = "quiet hours";
@@ -188,13 +190,16 @@ class Dispatcher {
                 boolean hasPhone = person != null && !devices(person).isEmpty();
                 boolean pushed = hasPhone && (prefs == null || prefs.remindersPush());
                 if (pushed) channels.add(new String[] {"PUSH", "this phone"});
-                boolean replacesSms =
-                        pushed && (OPTIONAL.contains(n.getTemplateCode()) || n.getTemplateCode().startsWith("BOOKING_"));
+                boolean replacesSms = pushed
+                        && (OPTIONAL.contains(n.getTemplateCode())
+                                || n.getTemplateCode().startsWith("BOOKING_"));
                 if (customer.value1() != null && (prefs == null || prefs.remindersSms()) && !replacesSms)
                     channels.add(new String[] {"SMS", mask(customer.value1())});
                 if (customer.value2() != null && (prefs == null || prefs.remindersEmail()))
                     channels.add(new String[] {"EMAIL", mask(customer.value2())});
-                if (channels.isEmpty() && prefs != null && (hasPhone || customer.value1() != null || customer.value2() != null)) {
+                if (channels.isEmpty()
+                        && prefs != null
+                        && (hasPhone || customer.value1() != null || customer.value2() != null)) {
                     stale = "turned off by the person";
                 }
             }
@@ -229,12 +234,14 @@ class Dispatcher {
         if (code.equals(Notifier.MARKETING_CAMPAIGN)) {
             // Still queued: not stopped by the person, not cancelled with its campaign.
             String status = system.resultQuery(
-                            "SELECT status FROM marketing.campaign_recipients WHERE token = ?", String.valueOf(data.get("token")))
+                            "SELECT status FROM marketing.campaign_recipients WHERE token = ?",
+                            String.valueOf(data.get("token")))
                     .fetchOne(0, String.class);
             return "QUEUED".equals(status) ? null : "stopped or cancelled";
         }
         if (code.startsWith("PAYOUT_")
                 || code.startsWith("GIFT_CARD_")
+                || code.startsWith("RECEIPT_")
                 || code.startsWith("REVIEW_")
                 || code.startsWith("MARKETPLACE_")
                 || code.startsWith("BOOKING_")) {
@@ -384,10 +391,14 @@ class Dispatcher {
 
     /** Where tapping a push notification leads in the app, or nothing. */
     private static Map<String, String> route(String code, Map<String, Object> data) {
-        if (code.equals(Notifier.REVIEW_REQUEST) || code.equals(Notifier.REVIEW_REMOVED) || code.equals(Notifier.REVIEW_RESTORED)) {
+        if (code.equals(Notifier.REVIEW_REQUEST)
+                || code.equals(Notifier.REVIEW_REMOVED)
+                || code.equals(Notifier.REVIEW_RESTORED)) {
             return Map.of("route", "/reviews");
         }
-        if (code.startsWith("APPOINTMENT_") && !code.equals(Notifier.WAITLIST_OFFER) && data.get("appointmentId") != null) {
+        if (code.startsWith("APPOINTMENT_")
+                && !code.equals(Notifier.WAITLIST_OFFER)
+                && data.get("appointmentId") != null) {
             return Map.of("route", "/appointment/" + data.get("appointmentId"));
         }
         return Map.of();
@@ -400,14 +411,16 @@ class Dispatcher {
             finish(c, "SUPPRESSED", "no phone set up");
             return false;
         }
-        Map<String, PushGateway.Outcome> outcomes =
-                push.send(tokens, new PushGateway.Message(message.subject(), message.text(), route(c.code(), c.data())));
+        Map<String, PushGateway.Outcome> outcomes = push.send(
+                tokens, new PushGateway.Message(message.subject(), message.text(), route(c.code(), c.data())));
         boolean any = false;
         for (var outcome : outcomes.entrySet()) {
             if (outcome.getValue() == PushGateway.Outcome.SENT) {
                 any = true;
             } else {
-                system.execute("UPDATE iam.devices SET push_token = NULL, updated_at = now() WHERE push_token = ?", outcome.getKey());
+                system.execute(
+                        "UPDATE iam.devices SET push_token = NULL, updated_at = now() WHERE push_token = ?",
+                        outcome.getKey());
             }
         }
         if (!any) {

@@ -629,6 +629,180 @@ adminRefundPayment:
       '409':
         $ref: ../common/responses.yaml#/Conflict
 
+adminReconciliationAccounts:
+  get:
+    tags: [Admin]
+    operationId: listReconciliationAccounts
+    summary: The provider accounts a statement can be uploaded for
+    description: Needs `admin.reconciliation`.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReconciliationAccountList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminReconciliationStatements:
+  get:
+    tags: [Admin]
+    operationId: listProviderStatements
+    summary: Imported statements, latest period first
+    description: Needs `admin.reconciliation`.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/StatementList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+  post:
+    tags: [Admin]
+    operationId: importProviderStatement
+    summary: Import a provider statement and match it (audited)
+    description: |
+      Needs `admin.reconciliation`. Each line is matched to our payments, refunds and payouts by reference and amount; the
+      provider's fees are posted to the ledger; money nothing explains is held in suspense. `CONFLICT` when the days
+      overlap a statement imported before; `VALIDATION_FAILED` names the line of a file that cannot be read.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/StatementUpload
+    responses:
+      '201':
+        description: Imported and matched.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/Statement
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+adminReconciliationExceptions:
+  get:
+    tags: [Admin]
+    operationId: listReconciliationExceptions
+    summary: What finance still has to explain
+    description: Needs `admin.reconciliation`. Oldest first, at most 200.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReconciliationExceptionList
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminReconciliationResolutions:
+  post:
+    tags: [Admin]
+    operationId: resolveReconciliationException
+    summary: Say why an exception is fine (audited)
+    description: Needs `admin.reconciliation`. The note is kept with who wrote it.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ExceptionResolution
+    responses:
+      '204':
+        $ref: ../common/responses.yaml#/NoContent
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+adminPaymentProvider:
+  get:
+    tags: [Admin]
+    operationId: getPaymentProviderCertification
+    summary: The active provider's status and what stands between it and going live
+    description: Needs `admin.reconciliation`.
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ProviderCertification
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+adminPaymentProviderGoLive:
+  post:
+    tags: [Admin]
+    operationId: goLivePaymentProvider
+    summary: Make the active provider live once every check passes (step-up, audited)
+    description: Needs `admin.reconciliation` and a fresh code. `CONFLICT` while a check fails.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/GoLive
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ProviderCertification
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+adminPaymentProviderSuspension:
+  post:
+    tags: [Admin]
+    operationId: suspendPaymentProvider
+    summary: Stop taking new online payments through the active provider (step-up, audited)
+    description: Needs `admin.reconciliation` and a fresh code.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/ProviderSuspension
+    responses:
+      '200':
+        description: OK.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ProviderCertification
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
 adminMarketplaceListings:
   get:
     tags: [Admin]

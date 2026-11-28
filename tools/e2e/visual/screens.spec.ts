@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
-import { codeCount, codeFor, giftCardCodeFor, newPhone } from "../tests/support.ts";
+import { codeCount, codeFor, giftCardCodeFor, newPhone, receiptLinkFor } from "../tests/support.ts";
 import {
   bookAsCustomer,
   deskBook,
@@ -9,6 +9,8 @@ import {
   seedPaidBooking,
   seedPaidSale,
   seedSalon,
+  query,
+  sql,
 } from "../tests/seed.ts";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
@@ -2425,4 +2427,496 @@ test("gift cards · buying, the business's list, paying a deposit with a card an
   }
   await owner.close();
   for (const page of [...Object.values(pages), creditAm]) await page.context().close();
+});
+
+// --- Stage 3.9: reconciliation and the provider's go-live checks --------------------------------------------------------
+
+test("reconciliation · statements, what is left to explain, and the provider's checks", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const { booked } = await seedPaidBooking("Abeba Beauty");
+  const reviewer = await seedFinanceStaff();
+  const attemptId = query(
+    `select t.id from payments.payment_attempts t join payments.payment_intents i on i.id = t.intent_id ` +
+      `join scheduling.appointments a on a.order_id = i.order_id where a.id = '${booked.id}' and t.status = 'SUCCEEDED'`,
+  )[0]!;
+  const amount = Number(
+    query(`select amount_minor from payments.payment_attempts where id = '${attemptId}'`)[0],
+  );
+  const name = `Visual account ${Date.now()}`;
+  sql(
+    `insert into payments.provider_accounts (provider_code, owner, market_id, environment, display_name, settlement_currency, credentials_secret_ref, status) ` +
+      `select 'ARIFPAY', 'PLATFORM', id, 'LIVE', '${name}', 'ETB', 'env:VISUAL', 'ACTIVE' from ref.markets where code = 'ET'`,
+  );
+  const account = query(
+    `select id from payments.provider_accounts where display_name = '${name}'`,
+  )[0]!;
+  const day = (offset: number) => {
+    const d = new Date(Date.parse("2044-03-01T00:00:00Z") + offset * 86_400_000);
+    return d.toISOString().slice(0, 10);
+  };
+  sql(
+    `update payments.payment_attempts set provider_account_id = '${account}', completed_at = '${day(0)} 11:00+03' where id = '${attemptId}'`,
+  );
+  // A second payment on the first day that the statement will not show.
+  const second = await seedPaidBooking("Lemlem Hair");
+  const secondAttempt = query(
+    `select t.id from payments.payment_attempts t join payments.payment_intents i on i.id = t.intent_id ` +
+      `join scheduling.appointments a on a.order_id = i.order_id where a.id = '${second.booked.id}' and t.status = 'SUCCEEDED'`,
+  )[0]!;
+  sql(
+    `update payments.payment_attempts set provider_account_id = '${account}', completed_at = '${day(1)} 12:00+03' where id = '${secondAttempt}'`,
+  );
+
+  const context = await browser.newContext({ locale: "en-US", viewport: DESKTOP });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000); // a new sign-in code can be sent 30 seconds after the last one
+  await page.goto(`${ADMIN}/sign-in`);
+  await page.getByLabel(/Phone number or/).fill(reviewer);
+  const signIn = codeCount(reviewer);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel(/Code sent to/).fill(await codeFor(reviewer, signIn));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/sign-in"));
+
+  await page.goto(`${ADMIN}/reconciliation`);
+  await page
+    .getByText("Everything matches.")
+    .or(page.getByText(/To explain/))
+    .first()
+    .waitFor();
+  await shot(page, "recon-empty-light-desktop");
+
+  const upload = async (from: string, to: string, closing: string, csv: string) => {
+    await page.goto(`${ADMIN}/reconciliation`);
+    await page.getByLabel("Provider account").selectOption(account);
+    await page.getByLabel("First day").fill(from);
+    await page.getByLabel("Last day").fill(to);
+    if (closing) await page.getByLabel(/Balance at the end/).fill(closing);
+    await page.getByLabel(/Statement file/).setInputFiles({
+      name: "statement.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+    await page.getByRole("button", { name: "Import and match" }).click();
+    await page.getByRole("status").waitFor();
+  };
+  const birr = (minor: number) => (minor / 100).toFixed(2);
+  // Day 1 matches. Day 2: the statement shows a payment that is not ours, a wrong amount, and a chargeback.
+  await upload(
+    day(0),
+    day(0),
+    "",
+    `reference,type,amount,fee,date\n${attemptId},COLLECTION,${birr(amount)},1.50,${day(0)} 11:00\n`,
+  );
+  await upload(
+    day(1),
+    day(1),
+    "9999.00",
+    `reference,type,amount,fee,date\nNOBODY-KNOWS,COLLECTION,75.00,,${day(1)} 10:30\n` +
+      `${secondAttempt},COLLECTION,${birr(amount + 5000)},,${day(1)} 12:00\nCB-1,CHARGEBACK,-30.00,,${day(1)} 13:00\n`,
+  );
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const [viewport, size] of [
+      ["desktop", DESKTOP],
+      ["phone", PHONE],
+    ] as const) {
+      await page.setViewportSize(size);
+      await page.goto(`${ADMIN}/reconciliation`);
+      await page
+        .getByText(/To explain/)
+        .first()
+        .waitFor();
+      await shot(page, `recon-${scheme}-${viewport}`);
+      await page.goto(`${ADMIN}/provider`);
+      await page.getByRole("heading", { name: /Payment provider/ }).waitFor();
+      await shot(page, `recon-provider-${scheme}-${viewport}`);
+    }
+  }
+  await context.close();
+});
+
+// --- Stage 4.1: the counter -----------------------------------------------------------------------------------------------
+
+test("counter · the cash drawer and checking a visit out", async ({ browser }) => {
+  test.setTimeout(1_500_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const walkIn = async (n: number, name: string) => {
+    // The next day with a free time (the salon is closed some days).
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1) {
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    }
+    return (await deskBook(salon, start, name)) as { id: string };
+  };
+  const visitB = await walkIn(8, "Selam Bekele");
+  const visitC = await walkIn(9, "Hiwot Alemu");
+  const visitD = await walkIn(10, "Dawit Mekonnen");
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const base = (language: string) => `${WEB}/${language}/business/o/${salon.orgId}`;
+  const looks = async (
+    name: string,
+    url: (language: string) => string,
+    wait: (p: Page, language: string) => Promise<void>,
+    schemes: readonly ("light" | "dark")[] = SCHEMES,
+    languages: readonly string[] = LANGUAGES,
+  ) => {
+    for (const language of languages) {
+      for (const scheme of schemes) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [viewport, size] of [
+          ["desktop", DESKTOP],
+          ["phone", PHONE],
+        ] as const) {
+          await page.setViewportSize(size);
+          await page.goto(url(language));
+          await wait(page, language);
+          await shot(page, `counter-${name}-${language}-${scheme}-${viewport}`);
+        }
+      }
+    }
+  };
+  const heading = async (p: Page) => {
+    await p.getByRole("heading", { level: 1 }).waitFor();
+    await p.waitForLoadState("networkidle");
+  };
+
+  // 1. The drawer is closed; a visit's checkout says so and offers to open it.
+  await looks("cash-closed", (l) => `${base(l)}/cash`, heading);
+  await looks("checkout-closed", (l) => `${base(l)}/checkout/${booked.id}`, heading, ["light"]);
+
+  // 2. Open, with a few movements.
+  const session = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 50000 },
+    salon.token,
+  )) as { id: string };
+  for (const [kind, amountMinor, note] of [
+    ["PAY_IN", 10000, "Change from the bank"],
+    ["PAY_OUT", 3000, "Milk and coffee"],
+  ] as const) {
+    await api(
+      "POST",
+      `/v1/orgs/${salon.orgId}/cash-drawer/${session.id}/movements`,
+      { kind, amountMinor, note },
+      salon.token,
+    );
+  }
+  await looks("cash-open", (l) => `${base(l)}/cash`, heading);
+  await looks("checkout", (l) => `${base(l)}/checkout/${booked.id}`, heading);
+
+  // 3. A tip is chosen and too little cash given.
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize(scheme === "light" ? DESKTOP : PHONE);
+      await page.goto(`${base(language)}/checkout/${booked.id}`);
+      await page.getByRole("button", { name: "10%" }).click();
+      await page.locator('input[inputmode="decimal"]').last().fill("1000");
+      await shot(
+        page,
+        `counter-checkout-short-${language}-${scheme}-${scheme === "light" ? "desktop" : "phone"}`,
+      );
+    }
+  }
+
+  // 4. Visits paid: one in each language, then the drawer is closed a little short.
+  for (const [language, visit] of [
+    ["en", visitB],
+    ["am", visitC],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize(DESKTOP);
+    await page.goto(`${base(language)}/checkout/${visit.id}`);
+    await page.getByRole("button", { name: "10%" }).click();
+    await page
+      .getByRole("button", { name: /Take Br|ብር/ })
+      .last()
+      .click();
+    await page.getByRole("status").first().waitFor();
+    await shot(page, `counter-done-${language}-light-desktop`);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.setViewportSize(PHONE);
+    await shot(page, `counter-done-${language}-dark-phone`);
+  }
+  await page.goto(`${base("en")}/checkout/${visitB.id}`);
+  await shot(page, "counter-checkout-already-en-dark-phone");
+  void visitD;
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/${session.id}/close`,
+    { countedMinor: 120000 },
+    salon.token,
+  );
+  await looks("cash-history", (l) => `${base(l)}/cash`, heading);
+  await context.close();
+});
+
+// --- Stage 4.2: split tender and discounts at the counter -----------------------------------------------------------------
+
+test("counter · a discount, a gift card, credit and cash together", async ({ browser }) => {
+  test.setTimeout(1_200_000);
+  const salon = await seedSalon("Abeba Beauty", { deposit: true });
+  await api(
+    "PUT",
+    `/v1/orgs/${salon.orgId}/gift-cards/program`,
+    {
+      name: "Gift card",
+      presetsMinor: [20000],
+      minMinor: 10000,
+      maxMinor: 500000,
+      sellOnline: true,
+    },
+    salon.token,
+  );
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const makeCard = (minorAmount: number) => {
+    const plain = Array.from(
+      { length: 16 },
+      () => letters[Math.floor(Math.random() * letters.length)],
+    ).join("");
+    sql(
+      `insert into retention.gift_cards (org_id, program_id, code_hash, code_last4, currency_code, initial_minor, balance_minor, status, delivered_at) ` +
+        `select '${salon.orgId}', p.id, encode(sha256(convert_to('${plain}', 'UTF8')), 'hex'), '${plain.slice(12)}', 'ETB', ${minorAmount}, ${minorAmount}, 'ACTIVE', now() ` +
+        `from catalog.gift_card_programs p where p.org_id = '${salon.orgId}'`,
+    );
+    return plain.match(/.{4}/g)!.join("-");
+  };
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  const walkIn = async (n: number, name: string) => {
+    let start = "";
+    for (let d = n; d < n + 7 && !start; d += 1)
+      start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+    return (await deskBook(salon, start, name)) as { id: string };
+  };
+  const visitA = await walkIn(8, "Selam Bekele");
+  const visitB = await walkIn(9, "Hiwot Alemu");
+  const customerOfA = query(
+    `select customer_id from scheduling.appointments where id = '${visitA.id}'`,
+  )[0]!;
+  sql(
+    `insert into retention.customer_balances (org_id, customer_id, currency_code, balance_minor) values ('${salon.orgId}', '${customerOfA}', 'ETB', 30000)`,
+  );
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 0 },
+    salon.token,
+  );
+  const cardA = makeCard(50000);
+  const cardB = makeCard(50000);
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const url = (language: string, id: string) =>
+    `${WEB}/${language}/business/o/${salon.orgId}/checkout/${id}`;
+
+  // The form filled in: a discount, a tip, a card and the customer's credit.
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(url(language, visitA.id));
+        await page.getByRole("heading", { level: 1 }).waitFor();
+        await page.waitForLoadState("networkidle");
+        await page.getByRole("button", { name: /^(Discount|ቅናሽ)$/ }).click();
+        await page.getByLabel(/How much|ምን ያህል/).fill("10");
+        await page
+          .getByLabel(/Why \(kept|ምክንያት/)
+          .fill(language === "am" ? "ታማኝ ደንበኛ" : "Loyal client");
+        await page.getByRole("button", { name: "10%" }).click();
+        await page.getByLabel(/Gift card code|የስጦታ ካርድ ኮድ/).fill(cardA);
+        await page.getByRole("button", { name: /Add the card|ካርዱን ጨምር/ }).click();
+        await page.getByRole("checkbox").check();
+        await shot(page, `counter-split-form-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+
+  // A sale that was started: a card that cannot be used fails after the tip is kept; the bill then shows what was paid.
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize(DESKTOP);
+  await page.goto(url("en", visitB.id));
+  await page.getByRole("button", { name: "5%", exact: true }).click();
+  await page.getByLabel("Gift card code").fill("AAAA-AAAA-AAAA-AAAA");
+  await page.getByRole("button", { name: "Add the card" }).click();
+  await page.getByRole("button", { name: "Complete the visit" }).click();
+  await page.getByRole("alert").waitFor();
+  await shot(page, "counter-split-failed-en-light-desktop");
+  await page.reload();
+  await page.getByLabel("Gift card code").fill(cardB);
+  await page.getByRole("button", { name: "Add the card" }).click();
+  await page.getByLabel("Cash received (birr)").fill("100");
+  await page.getByRole("button", { name: "Complete the visit" }).click();
+  await page.getByRole("alert").waitFor(); // the card paid; the cash was not enough
+  await page.reload();
+  await shot(page, "counter-split-started-en-light-desktop");
+
+  // Finished: the receipt lists how it was paid.
+  for (const [language, visit, scheme] of [
+    ["en", visitA, "light"],
+    ["am", visitB, "light"],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize(DESKTOP);
+    await page.goto(url(language, visit.id));
+    await page.getByRole("heading", { level: 1 }).waitFor();
+    if (visit === visitA) {
+      await page.getByRole("button", { name: /^(Discount|ቅናሽ)$/ }).click();
+      await page.getByLabel(/How much|ምን ያህል/).fill("10");
+      await page.getByLabel(/Why \(kept|ምክንያት/).fill("Loyal client");
+      await page.getByLabel(/Gift card code/).fill(cardA);
+      await page.getByRole("button", { name: /Add the card/ }).click();
+      await page.getByRole("checkbox").check();
+    }
+    await page.getByLabel(/Cash received|የተቀበሉት/).fill(visit === visitA ? "1000" : "1500");
+    await page
+      .getByRole("button", { name: /Complete the visit|ቀጠሮውን አጠናቅ|Take Br|ብር/ })
+      .last()
+      .click();
+    await page.getByRole("status").first().waitFor();
+    await shot(page, `counter-split-done-${language}-${scheme}-desktop`);
+    await page.setViewportSize(PHONE);
+    await shot(page, `counter-split-done-${language}-${scheme}-phone`);
+  }
+  await context.close();
+});
+
+// --- Stage 4.3: receipts ---------------------------------------------------------------------------------------------------
+
+test("receipts · the front desk's page, the customer's link and the printed page", async ({
+  browser,
+}) => {
+  test.setTimeout(900_000);
+  const { salon, booked } = await seedPaidBooking("Abeba Beauty");
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/cash-drawer/open`,
+    { locationId: salon.locationId, openingFloatMinor: 0 },
+    salon.token,
+  );
+  const staff = (await api(
+    "GET",
+    `/v1/orgs/${salon.orgId}/appointments/${booked.id}/checkout`,
+    undefined,
+    salon.token,
+  )) as {
+    team: { staffId: string }[];
+  };
+  // A visit with a deposit paid online, a tip and cash; and a walk-in with a discount.
+  const done = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/appointments/${booked.id}/checkout`,
+    { tips: [{ staffId: staff.team[0]!.staffId, amountMinor: 18000 }], cashTenderedMinor: 162000 },
+    salon.token,
+  )) as { orderId: string };
+  const day = (n: number) =>
+    new Date(Date.now() + (3 + n * 24) * 3600_000).toISOString().slice(0, 10);
+  let start = "";
+  for (let d = 8; d < 15 && !start; d += 1)
+    start = await firstFreeStart(salon, day(d), day(d)).catch(() => "");
+  const walkIn = (await deskBook(salon, start, "Selam Bekele")) as { id: string };
+  const discounted = (await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/appointments/${walkIn.id}/checkout`,
+    { discount: { kind: "PERCENT", value: 10, reason: "Loyal client" }, cashTenderedMinor: 162000 },
+    salon.token,
+  )) as { orderId: string };
+  await api(
+    "POST",
+    `/v1/orgs/${salon.orgId}/orders/${done.orderId}/receipt/send`,
+    undefined,
+    salon.token,
+  );
+  const link = await receiptLinkFor(booked.phone);
+
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: DESKTOP,
+    timezoneId: "Africa/Addis_Ababa",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60_000);
+  await page.waitForTimeout(31_000);
+  await webSignIn(page, `${WEB}/en/business/sign-in`, salon.phone, `0${salon.phone.slice(4)}`);
+  const article = async (p: Page) => {
+    await p.getByRole("article").waitFor();
+    await p.waitForLoadState("networkidle");
+  };
+  for (const language of LANGUAGES) {
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const [viewport, size] of [
+        ["desktop", DESKTOP],
+        ["phone", PHONE],
+      ] as const) {
+        await page.setViewportSize(size);
+        await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/receipts/${done.orderId}`);
+        await article(page);
+        await shot(page, `receipt-console-${language}-${scheme}-${viewport}`);
+        await page.goto(link.replace(/\/(am|en)\/receipt\//, `/${language}/receipt/`));
+        await article(page);
+        await shot(page, `receipt-public-${language}-${scheme}-${viewport}`);
+      }
+    }
+  }
+  // The fees owed on what was paid at the venue (plan 4.4), on the earnings page.
+  for (const [language, scheme, viewport, size] of [
+    ["en", "light", "desktop", DESKTOP],
+    ["am", "light", "desktop", DESKTOP],
+    ["en", "dark", "phone", PHONE],
+    ["am", "dark", "phone", PHONE],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize(size);
+    await page.goto(`${WEB}/${language}/business/o/${salon.orgId}/earnings`);
+    await page.getByRole("heading", { level: 1 }).waitFor();
+    await page.waitForLoadState("networkidle");
+    await shot(page, `venuefees-earnings-${language}-${scheme}-${viewport}`);
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize(DESKTOP);
+  await page.goto(`${WEB}/en/business/o/${salon.orgId}/receipts/${discounted.orderId}`);
+  await article(page);
+  await shot(page, "receipt-discount-en-light-desktop");
+  await page.getByRole("button", { name: "Send the receipt to the customer" }).click();
+  await page.getByText(/no phone number or email/).waitFor(); // a walk-in without either
+  await shot(page, "receipt-nocontact-en-light-desktop");
+  await page.goto(`${WEB}/en/receipt/${"x".repeat(43)}`);
+  await page.getByRole("status").waitFor();
+  await shot(page, "receipt-invalid-en-light-phone");
+  // The printed page: no menus, the light theme.
+  await page.emulateMedia({ colorScheme: "dark", media: "print" });
+  await page.goto(`${WEB}/en/business/o/${salon.orgId}/receipts/${done.orderId}`);
+  await article(page);
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeprint"))); // what the print dialog does
+  await shot(page, "receipt-print-en-desktop");
+  await context.close();
 });

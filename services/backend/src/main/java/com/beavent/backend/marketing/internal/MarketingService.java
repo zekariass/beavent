@@ -14,7 +14,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -98,13 +97,13 @@ class MarketingService implements Marketing {
     // --- audiences --------------------------------------------------------------------------------------------
 
     /** One person a campaign can reach. */
-    private record Person(UUID userId, UUID customerId, String phone, String firstName, String language, boolean suppressed) {}
+    private record Person(
+            UUID userId, UUID customerId, String phone, String firstName, String language, boolean suppressed) {}
 
     private List<Person> people(UUID orgId, Audience audience, Integer days, Instant now) {
         List<Record> rows;
         if (audience == Audience.FOLLOWERS) {
-            rows = system.resultQuery(
-                            """
+            rows = system.resultQuery("""
                             SELECT f.user_id, NULL::uuid AS customer_id, u.phone_e164 AS phone, p.first_name,
                                    u.preferred_language AS language, NULL::timestamptz AS last_visit,
                                    EXISTS (SELECT 1 FROM comms.suppressions s
@@ -115,13 +114,9 @@ class MarketingService implements Marketing {
                                               AND u.phone_verified_at IS NOT NULL AND u.phone_e164 IS NOT NULL
                               LEFT JOIN iam.user_profiles p ON p.user_id = u.id
                              WHERE f.org_id = ? AND f.notify
-                            """,
-                            orgId,
-                            orgId)
-                    .fetch();
+                            """, orgId, orgId).fetch();
         } else {
-            rows = system.resultQuery(
-                            """
+            rows = system.resultQuery("""
                             SELECT c.user_id, c.id AS customer_id, c.phone_e164 AS phone, c.first_name,
                                    c.preferred_language AS language,
                                    (SELECT max(a.ends_at) FROM scheduling.appointments a
@@ -134,12 +129,10 @@ class MarketingService implements Marketing {
                                AND coalesce((SELECT k.granted FROM crm.customer_consents k
                                               WHERE k.org_id = c.org_id AND k.customer_id = c.id AND k.purpose = 'MARKETING_SMS'
                                               ORDER BY k.captured_at DESC, k.id DESC LIMIT 1), false)
-                            """,
-                            orgId,
-                            orgId)
-                    .fetch();
+                            """, orgId, orgId).fetch();
         }
-        int window = days != null ? days : audience == Audience.LAPSED_CLIENTS ? DEFAULT_LAPSED_DAYS : DEFAULT_PAST_DAYS;
+        int window =
+                days != null ? days : audience == Audience.LAPSED_CLIENTS ? DEFAULT_LAPSED_DAYS : DEFAULT_PAST_DAYS;
         Instant since = now.minus(Duration.ofDays(window));
         Set<String> seen = new HashSet<>();
         List<Person> out = new ArrayList<>();
@@ -175,17 +168,14 @@ class MarketingService implements Marketing {
             """;
 
     private Stats stats(UUID campaignId) {
-        Record r = system.resultQuery(
-                        """
+        Record r = system.resultQuery("""
                         SELECT count(*) AS n,
                                count(*) FILTER (WHERE status IN ('SENT','DELIVERED')) AS sent,
                                count(*) FILTER (WHERE status = 'FAILED') AS failed,
                                count(*) FILTER (WHERE status IN ('SUPPRESSED_NO_CONSENT','SUPPRESSED_OPTED_OUT')) AS suppressed,
                                count(*) FILTER (WHERE clicked_at IS NOT NULL) AS clicks
                           FROM marketing.campaign_recipients WHERE campaign_id = ?
-                        """,
-                        campaignId)
-                .fetchSingle();
+                        """, campaignId).fetchSingle();
         return new Stats(
                 r.get("n", Integer.class),
                 r.get("sent", Integer.class),
@@ -213,7 +203,8 @@ class MarketingService implements Marketing {
     @Override
     public List<Campaign> campaigns(UUID orgId) {
         List<Campaign> out = new ArrayList<>();
-        for (Record r : system.resultQuery(CAMPAIGN + " WHERE org_id = ? ORDER BY created_at DESC, id DESC LIMIT 100", orgId)
+        for (Record r : system.resultQuery(
+                        CAMPAIGN + " WHERE org_id = ? ORDER BY created_at DESC, id DESC LIMIT 100", orgId)
                 .fetch()) {
             out.add(campaign(r));
         }
@@ -228,7 +219,8 @@ class MarketingService implements Marketing {
     }
 
     private Campaign require(UUID orgId, UUID campaignId) {
-        return campaign(orgId, campaignId).orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "There is no such campaign."));
+        return campaign(orgId, campaignId)
+                .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "There is no such campaign."));
     }
 
     private Map<String, String> checked(Draft draft) {
@@ -240,7 +232,8 @@ class MarketingService implements Marketing {
             String text = draft.texts() == null ? null : draft.texts().get(lang);
             if (text != null && !text.isBlank()) {
                 if (text.strip().codePointCount(0, text.strip().length()) > MAX_TEXT) {
-                    throw new ApiException(ProblemCode.VALIDATION_FAILED, "Keep each text under " + MAX_TEXT + " characters.");
+                    throw new ApiException(
+                            ProblemCode.VALIDATION_FAILED, "Keep each text under " + MAX_TEXT + " characters.");
                 }
                 texts.put(lang, text.strip());
             }
@@ -259,7 +252,10 @@ class MarketingService implements Marketing {
 
     private void checkPlace(UUID orgId, UUID locationId) {
         if (locationId != null
-                && !system.resultQuery("SELECT EXISTS (SELECT 1 FROM tenant.locations WHERE org_id = ? AND id = ?)", orgId, locationId)
+                && !system.resultQuery(
+                                "SELECT EXISTS (SELECT 1 FROM tenant.locations WHERE org_id = ? AND id = ?)",
+                                orgId,
+                                locationId)
                         .fetchOne(0, Boolean.class)) {
             throw new ApiException(ProblemCode.REFERENCE_NOT_FOUND, "That place is not one of the business's.");
         }
@@ -323,19 +319,14 @@ class MarketingService implements Marketing {
 
     /** The place the link opens: the campaign's, else the business's first active one. */
     private Record place(UUID orgId, UUID locationId) {
-        return system.resultQuery(
-                        """
+        return system.resultQuery("""
                         SELECT o.slug::text AS business, o.display_name, l.slug::text AS location
                           FROM tenant.organizations o
                           LEFT JOIN tenant.locations l ON l.org_id = o.id AND l.status = 'ACTIVE'
                                AND (?::uuid IS NULL OR l.id = ?::uuid)
                          WHERE o.id = ?
                          ORDER BY l.created_at LIMIT 1
-                        """,
-                        locationId,
-                        locationId,
-                        orgId)
-                .fetchOne();
+                        """, locationId, locationId, orgId).fetchOne();
     }
 
     private String venueUrl(Record place) {
@@ -350,7 +341,11 @@ class MarketingService implements Marketing {
         for (String lang : List.of("en", "am")) {
             if (c.texts().get(lang) == null) continue;
             String text = Messages.compose(
-                    c.texts().get(lang), "Meron", lang, webUrl + "/l/" + Messages.SAMPLE_TOKEN, webUrl + "/u/" + Messages.SAMPLE_TOKEN);
+                    c.texts().get(lang),
+                    "Meron",
+                    lang,
+                    webUrl + "/l/" + Messages.SAMPLE_TOKEN,
+                    webUrl + "/u/" + Messages.SAMPLE_TOKEN);
             out.add(new Preview(lang, text, text.codePointCount(0, text.length()), Messages.segments(text)));
         }
         return out;
@@ -367,12 +362,14 @@ class MarketingService implements Marketing {
                         userId)
                 .fetchOne();
         if (me == null || me.get("phone_e164") == null) {
-            throw new ApiException(ProblemCode.CONSTRAINT_VIOLATION, "Add and confirm your phone number to get a test message.");
+            throw new ApiException(
+                    ProblemCode.CONSTRAINT_VIOLATION, "Add and confirm your phone number to get a test message.");
         }
         String lang = "am".equals(me.get("preferred_language", String.class)) ? "am" : "en";
         String text = Messages.pick(c.texts(), lang);
         String url = venueUrl(place(orgId, c.locationId()));
-        String body = "[Test] " + Messages.compose(text, me.get("first_name", String.class), lang, url, webUrl + "/u/test");
+        String body =
+                "[Test] " + Messages.compose(text, me.get("first_name", String.class), lang, url, webUrl + "/u/test");
         sms.send(me.get("phone_e164", String.class), SmsGateway.Channel.SMS, body);
         return new Preview(lang, body, body.codePointCount(0, body.length()), Messages.segments(body));
     }
@@ -406,7 +403,8 @@ class MarketingService implements Marketing {
                         ProblemCode.CONSTRAINT_VIOLATION,
                         "At most " + MAX_CAMPAIGNS_PER_DAY + " campaigns can be started a day.");
             }
-            AudienceCount count = audience(orgId, Audience.valueOf(row.get("audience", String.class)), row.get("days", Integer.class));
+            AudienceCount count = audience(
+                    orgId, Audience.valueOf(row.get("audience", String.class)), row.get("days", Integer.class));
             if (count.reachable() == 0) {
                 throw new ApiException(ProblemCode.CONSTRAINT_VIOLATION, "There is nobody to send this to yet.");
             }
@@ -434,7 +432,9 @@ class MarketingService implements Marketing {
     public Campaign cancel(UUID orgId, UUID campaignId, UUID userId) {
         transactions.executeWithoutResult(s -> {
             String status = system.resultQuery(
-                            "SELECT status FROM marketing.campaigns WHERE org_id = ? AND id = ? FOR UPDATE", orgId, campaignId)
+                            "SELECT status FROM marketing.campaigns WHERE org_id = ? AND id = ? FOR UPDATE",
+                            orgId,
+                            campaignId)
                     .fetchOne(0, String.class);
             if (status == null) {
                 throw new ApiException(ProblemCode.NOT_FOUND, "There is no such campaign.");
@@ -452,7 +452,15 @@ class MarketingService implements Marketing {
                             + " WHERE campaign_id = ? AND status = 'QUEUED'",
                     campaignId);
             audit.record(new Audit.Entry(
-                    Audit.Actor.USER, userId, orgId, "campaign.cancelled", "marketing.campaign", campaignId.toString(), Map.of("status", status), null, null));
+                    Audit.Actor.USER,
+                    userId,
+                    orgId,
+                    "campaign.cancelled",
+                    "marketing.campaign",
+                    campaignId.toString(),
+                    Map.of("status", status),
+                    null,
+                    null));
         });
         return require(orgId, campaignId);
     }
@@ -487,9 +495,11 @@ class MarketingService implements Marketing {
         Record place = place(orgId, c.get("location_id", UUID.class));
         String orgLanguage = system.resultQuery("SELECT default_language FROM tenant.organizations WHERE id = ?", orgId)
                 .fetchOne(0, String.class);
-        system.execute("UPDATE marketing.campaigns SET status = 'SENDING', updated_at = now() WHERE id = ?", campaignId);
+        system.execute(
+                "UPDATE marketing.campaigns SET status = 'SENDING', updated_at = now() WHERE id = ?", campaignId);
 
-        List<Person> all = people(orgId, Audience.valueOf(c.get("audience", String.class)), c.get("days", Integer.class), now);
+        List<Person> all =
+                people(orgId, Audience.valueOf(c.get("audience", String.class)), c.get("days", Integer.class), now);
         int queued = 0;
         int suppressed = 0;
         for (Person person : all) {
@@ -544,7 +554,10 @@ class MarketingService implements Marketing {
                     json.writeValueAsString(data),
                     "campaign:" + campaignId + ":" + recipient,
                     now.toString());
-            system.execute("UPDATE marketing.campaign_recipients SET notification_id = ? WHERE id = ?", notification, recipient);
+            system.execute(
+                    "UPDATE marketing.campaign_recipients SET notification_id = ? WHERE id = ?",
+                    notification,
+                    recipient);
             queued++;
         }
         system.execute(
@@ -579,7 +592,8 @@ class MarketingService implements Marketing {
     @Override
     public List<TrackingLink> links(UUID orgId) {
         List<TrackingLink> out = new ArrayList<>();
-        for (Record r : system.resultQuery(LINK + " WHERE t.org_id = ? ORDER BY t.created_at DESC, t.id DESC LIMIT 200", orgId)
+        for (Record r : system.resultQuery(
+                        LINK + " WHERE t.org_id = ? ORDER BY t.created_at DESC, t.id DESC LIMIT 200", orgId)
                 .fetch()) {
             out.add(link(r));
         }
@@ -628,18 +642,16 @@ class MarketingService implements Marketing {
         // A shared link's code is 8 characters ("t" and 7 more); a message's own code is 16.
         if (code.length() == LINK_CODE_LENGTH) {
             Record link = system.resultQuery(
-                            "SELECT id, org_id, name, location_id FROM marketing.tracking_links WHERE code = ?::citext", code)
+                            "SELECT id, org_id, name, location_id FROM marketing.tracking_links WHERE code = ?::citext",
+                            code)
                     .fetchOne();
             if (link == null) {
                 return Optional.empty();
             }
-            system.execute(
-                    """
+            system.execute("""
                     INSERT INTO marketing.tracking_link_daily (org_id, link_id, day, clicks) VALUES (?, ?, current_date, 1)
                     ON CONFLICT (link_id, day) DO UPDATE SET clicks = marketing.tracking_link_daily.clicks + 1
-                    """,
-                    link.get("org_id", UUID.class),
-                    link.get("id", UUID.class));
+                    """, link.get("org_id", UUID.class), link.get("id", UUID.class));
             return Optional.of(target(
                     link.get("org_id", UUID.class),
                     link.get("location_id", UUID.class),
@@ -647,14 +659,11 @@ class MarketingService implements Marketing {
                     "link",
                     link.get("name", String.class)));
         }
-        Record r = system.resultQuery(
-                        """
+        Record r = system.resultQuery("""
                         SELECT r.id, r.org_id, r.campaign_id, c.location_id, c.name
                           FROM marketing.campaign_recipients r JOIN marketing.campaigns c ON c.id = r.campaign_id
                          WHERE r.token = ?
-                        """,
-                        code)
-                .fetchOne();
+                        """, code).fetchOne();
         if (r == null) {
             return Optional.empty();
         }
@@ -692,13 +701,16 @@ class MarketingService implements Marketing {
                 .fetchOne();
         return r == null
                 ? new Consent(false, null, null)
-                : new Consent(r.get("granted", Boolean.class), instant(r, "captured_at"), r.get("source", String.class));
+                : new Consent(
+                        r.get("granted", Boolean.class), instant(r, "captured_at"), r.get("source", String.class));
     }
 
     @Override
     public Consent recordConsent(UUID orgId, UUID customerId, UUID userId, boolean granted, String note) {
         boolean exists = system.resultQuery(
-                        "SELECT EXISTS (SELECT 1 FROM crm.customers WHERE org_id = ? AND id = ? AND status = 'ACTIVE')", orgId, customerId)
+                        "SELECT EXISTS (SELECT 1 FROM crm.customers WHERE org_id = ? AND id = ? AND status = 'ACTIVE')",
+                        orgId,
+                        customerId)
                 .fetchOne(0, Boolean.class);
         if (!exists) {
             throw new ApiException(ProblemCode.NOT_FOUND, "There is no such client.");
@@ -765,13 +777,16 @@ class MarketingService implements Marketing {
                     orgId);
             // Followers stop hearing news and offers; clients' agreement is withdrawn (evidence: the stop link).
             if (user != null) {
-                system.execute("UPDATE discovery.follows SET notify = false WHERE org_id = ? AND user_id = ?", orgId, user);
+                system.execute(
+                        "UPDATE discovery.follows SET notify = false WHERE org_id = ? AND user_id = ?", orgId, user);
             }
             List<UUID> clients = new ArrayList<>();
             if (customer != null) clients.add(customer);
             if (user != null) {
                 clients.addAll(system.resultQuery(
-                                "SELECT id FROM crm.customers WHERE org_id = ? AND user_id = ? AND status = 'ACTIVE'", orgId, user)
+                                "SELECT id FROM crm.customers WHERE org_id = ? AND user_id = ? AND status = 'ACTIVE'",
+                                orgId,
+                                user)
                         .fetch(0, UUID.class));
             }
             for (UUID client : new HashSet<>(clients)) {

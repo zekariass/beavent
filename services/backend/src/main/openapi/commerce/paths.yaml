@@ -1,0 +1,278 @@
+cashDrawer:
+  get:
+    tags: [Counter]
+    operationId: getCashDrawer
+    summary: The location's cash drawer now, and its closed sessions
+    description: Needs `pos.sell` or `pos.cash_drawer`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: locationId
+        in: query
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The open session (null when the drawer is closed) and the last closed ones.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CashDrawerState
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+cashDrawerOpen:
+  post:
+    tags: [Counter]
+    operationId: openCashDrawer
+    summary: Open the drawer with a float
+    description: Needs `pos.cash_drawer`. `CONFLICT` when it is open already.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CashDrawerOpen
+    responses:
+      '201':
+        description: Opened.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CashDrawerSession
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+cashDrawerMovements:
+  post:
+    tags: [Counter]
+    operationId: moveCash
+    summary: Cash put in, taken out for an expense, or taken to the safe
+    description: Needs `pos.cash_drawer`. More cannot be taken out than the drawer should hold.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CashDrawerMovementInput
+    responses:
+      '200':
+        description: The session with its movements.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CashDrawerSession
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+      '422':
+        $ref: ../common/responses.yaml#/Unprocessable
+cashDrawerClose:
+  post:
+    tags: [Counter]
+    operationId: closeCashDrawer
+    summary: Count the drawer and close it
+    description: Needs `pos.cash_drawer`. The answer holds what was expected and the variance.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CashDrawerClose
+    responses:
+      '200':
+        description: Closed.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CashDrawerSession
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+appointmentCheckout:
+  get:
+    tags: [Counter]
+    operationId: getCheckoutBill
+    summary: What a visit comes to at the counter
+    description: |
+      Needs `pos.sell`. The services as booked, what was already paid online, what is due, who a tip can go to and whether
+      the drawer is open.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The bill.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CheckoutBill
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags: [Counter]
+    operationId: checkoutAppointment
+    summary: Check a visit out
+    description: |
+      Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+      as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+      What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+      `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+      cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+      is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: appointmentId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas.yaml#/CheckoutInput
+    responses:
+      '200':
+        description: Checked out.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/CheckoutDone
+      '400':
+        $ref: ../common/responses.yaml#/BadRequest
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+orderReceipt:
+  get:
+    tags: [Counter]
+    operationId: getOrderReceipt
+    summary: A sale's receipt, to show and print
+    description: Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: The receipt.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptView
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+orderReceiptSend:
+  post:
+    tags: [Counter]
+    operationId: sendOrderReceipt
+    summary: Send the customer a link to their receipt
+    description: |
+      Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+      makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+    parameters:
+      - $ref: ../common/parameters.yaml#/OrgId
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          $ref: ../common/schemas.yaml#/Uuid
+    responses:
+      '200':
+        description: Sent.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptSent
+      '401':
+        $ref: ../common/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../common/responses.yaml#/Forbidden
+      '404':
+        $ref: ../common/responses.yaml#/NotFound
+      '409':
+        $ref: ../common/responses.yaml#/Conflict
+publicReceipt:
+  get:
+    tags: [Counter]
+    operationId: getPublicReceipt
+    summary: The receipt a link opens
+    description: No sign-in; the link is the credential. Never indexed.
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+    responses:
+      '200':
+        description: The receipt.
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas.yaml#/ReceiptView
+      '404':
+        $ref: ../common/responses.yaml#/NotFound

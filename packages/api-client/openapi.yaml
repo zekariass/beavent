@@ -56,6 +56,8 @@ tags:
     description: Search over places to book and things to do (public)
   - name: GiftCards
     description: Gift cards a business sells, delivers and honours as a payment method
+  - name: Counter
+    description: Taking payments at the counter - the cash drawer and checking a visit out
   - name: Files
     description: Uploads (pre-signed), processing status, signed download URLs
   - name: Admin
@@ -285,6 +287,293 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentLink'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/cash-drawer:
+    get:
+      tags:
+        - Counter
+      operationId: getCashDrawer
+      summary: The location's cash drawer now, and its closed sessions
+      description: Needs `pos.sell` or `pos.cash_drawer`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The open session (null when the drawer is closed) and the last closed ones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashDrawerState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/cash-drawer/open:
+    post:
+      tags:
+        - Counter
+      operationId: openCashDrawer
+      summary: Open the drawer with a float
+      description: Needs `pos.cash_drawer`. `CONFLICT` when it is open already.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashDrawerOpen'
+      responses:
+        '201':
+          description: Opened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashDrawerSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/movements:
+    post:
+      tags:
+        - Counter
+      operationId: moveCash
+      summary: Cash put in, taken out for an expense, or taken to the safe
+      description: Needs `pos.cash_drawer`. More cannot be taken out than the drawer should hold.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashDrawerMovementInput'
+      responses:
+        '200':
+          description: The session with its movements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashDrawerSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/cash-drawer/{sessionId}/close:
+    post:
+      tags:
+        - Counter
+      operationId: closeCashDrawer
+      summary: Count the drawer and close it
+      description: Needs `pos.cash_drawer`. The answer holds what was expected and the variance.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashDrawerClose'
+      responses:
+        '200':
+          description: Closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashDrawerSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/appointments/{appointmentId}/checkout:
+    get:
+      tags:
+        - Counter
+      operationId: getCheckoutBill
+      summary: What a visit comes to at the counter
+      description: |
+        Needs `pos.sell`. The services as booked, what was already paid online, what is due, who a tip can go to and whether
+        the drawer is open.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The bill.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutBill'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Counter
+      operationId: checkoutAppointment
+      summary: Check a visit out
+      description: |
+        Needs `pos.sell`. Gives a discount (`pos.discount`), adds the tips, pays with gift cards and the customer's balance
+        as far as they go, takes the cash for the rest into the open drawer, completes the visit and issues the receipt.
+        What a gift card or balance paid is committed as it is taken: if the cash then falls short the answer is
+        `VALIDATION_FAILED`, the bill shows what was paid and the sale can be finished. A request that can only fail on the
+        cash is refused before anything is changed. `NOT_FOUND` for a card that cannot be used; `CONFLICT` when the drawer
+        is closed (and cash is needed), the visit is not in a state to be paid, or it was checked out already.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutInput'
+      responses:
+        '200':
+          description: Checked out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutDone'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/orders/{orderId}/receipt:
+    get:
+      tags:
+        - Counter
+      operationId: getOrderReceipt
+      summary: A sale's receipt, to show and print
+      description: Needs `pos.sell`. `NOT_FOUND` for an order with no receipt (it was not checked out).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/orders/{orderId}/receipt/send:
+    post:
+      tags:
+        - Counter
+      operationId: sendOrderReceipt
+      summary: Send the customer a link to their receipt
+      description: |
+        Needs `pos.sell`. By text message, or email when the customer has no phone number, in their language. Sending again
+        makes a new link and ends the old one. `CONFLICT` when the customer has neither.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptSent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/public/receipts/{token}:
+    get:
+      tags:
+        - Counter
+      operationId: getPublicReceipt
+      summary: The receipt a link opens
+      description: No sign-in; the link is the credential. Never indexed.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: The receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptView'
         '404':
           $ref: '#/components/responses/NotFound'
   /v1/orgs/{orgId}/gift-cards/program:
@@ -7142,6 +7431,188 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/admin/reconciliation/accounts:
+    get:
+      tags:
+        - Admin
+      operationId: listReconciliationAccounts
+      summary: The provider accounts a statement can be uploaded for
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationAccountList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reconciliation/statements:
+    get:
+      tags:
+        - Admin
+      operationId: listProviderStatements
+      summary: Imported statements, latest period first
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Admin
+      operationId: importProviderStatement
+      summary: Import a provider statement and match it (audited)
+      description: |
+        Needs `admin.reconciliation`. Each line is matched to our payments, refunds and payouts by reference and amount; the
+        provider's fees are posted to the ledger; money nothing explains is held in suspense. `CONFLICT` when the days
+        overlap a statement imported before; `VALIDATION_FAILED` names the line of a file that cannot be read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementUpload'
+      responses:
+        '201':
+          description: Imported and matched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statement-2'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/reconciliation/exceptions:
+    get:
+      tags:
+        - Admin
+      operationId: listReconciliationExceptions
+      summary: What finance still has to explain
+      description: Needs `admin.reconciliation`. Oldest first, at most 200.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationExceptionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/reconciliation/resolutions:
+    post:
+      tags:
+        - Admin
+      operationId: resolveReconciliationException
+      summary: Say why an exception is fine (audited)
+      description: Needs `admin.reconciliation`. The note is kept with who wrote it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionResolution'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/payment-provider:
+    get:
+      tags:
+        - Admin
+      operationId: getPaymentProviderCertification
+      summary: The active provider's status and what stands between it and going live
+      description: Needs `admin.reconciliation`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/payment-provider/go-live:
+    post:
+      tags:
+        - Admin
+      operationId: goLivePaymentProvider
+      summary: Make the active provider live once every check passes (step-up, audited)
+      description: Needs `admin.reconciliation` and a fresh code. `CONFLICT` while a check fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoLive'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/payment-provider/suspension:
+    post:
+      tags:
+        - Admin
+      operationId: suspendPaymentProvider
+      summary: Stop taking new online payments through the active provider (step-up, audited)
+      description: Needs `admin.reconciliation` and a fresh code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderSuspension'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCertification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/admin/audit-log:
     get:
       tags:
@@ -7695,6 +8166,519 @@ components:
           format: int64
         currency:
           type: string
+    CashDrawerMovement:
+      type: object
+      required:
+        - id
+        - kind
+        - amountMinor
+        - at
+        - byUserId
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum:
+            - SALE
+            - REFUND
+            - PAY_IN
+            - PAY_OUT
+            - DROP
+            - CORRECTION
+        amountMinor:
+          type: integer
+          format: int64
+          description: Signed; plus into the drawer.
+        note:
+          type:
+            - string
+            - 'null'
+        at:
+          $ref: '#/components/schemas/Instant'
+        byUserId:
+          $ref: '#/components/schemas/Uuid'
+    CashDrawerSession:
+      type: object
+      required:
+        - id
+        - locationId
+        - drawerName
+        - currency
+        - status
+        - openedAt
+        - openedBy
+        - openingFloatMinor
+        - salesMinor
+        - payInMinor
+        - payOutMinor
+        - expectedMinor
+        - movements
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        drawerName:
+          type: string
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - CLOSED
+            - RECONCILED
+        openedAt:
+          $ref: '#/components/schemas/Instant'
+        openedBy:
+          $ref: '#/components/schemas/Uuid'
+        openingFloatMinor:
+          type: integer
+          format: int64
+        salesMinor:
+          type: integer
+          format: int64
+        payInMinor:
+          type: integer
+          format: int64
+        payOutMinor:
+          type: integer
+          format: int64
+          description: Taken out for expenses and to the safe, as a positive amount.
+        expectedMinor:
+          type: integer
+          format: int64
+          description: What should be in the drawer; once closed, what was expected when it closed.
+        countedMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        varianceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+          description: Counted less expected; negative when cash is missing.
+        closedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        movements:
+          type: array
+          description: Newest first; empty in the history listing.
+          items:
+            $ref: '#/components/schemas/CashDrawerMovement'
+    CashDrawerState:
+      type: object
+      required:
+        - history
+      properties:
+        session:
+          oneOf:
+            - $ref: '#/components/schemas/CashDrawerSession'
+            - type: 'null'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashDrawerSession'
+    CashDrawerOpen:
+      type: object
+      required:
+        - locationId
+        - openingFloatMinor
+      properties:
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        openingFloatMinor:
+          type: integer
+          format: int64
+          minimum: 0
+    CashDrawerMovementInput:
+      type: object
+      required:
+        - kind
+        - amountMinor
+      properties:
+        kind:
+          type: string
+          enum:
+            - PAY_IN
+            - PAY_OUT
+            - DROP
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        note:
+          type: string
+          maxLength: 200
+    CashDrawerClose:
+      type: object
+      required:
+        - countedMinor
+      properties:
+        countedMinor:
+          type: integer
+          format: int64
+          minimum: 0
+    CheckoutTender:
+      type: object
+      required:
+        - method
+        - amountMinor
+      properties:
+        method:
+          type: string
+          enum:
+            - GIFT_CARD
+            - STORE_CREDIT
+            - CASH
+        amountMinor:
+          type: integer
+          format: int64
+    CheckoutBill:
+      type: object
+      required:
+        - appointmentId
+        - locationId
+        - reference
+        - status
+        - currency
+        - lines
+        - totalMinor
+        - paidMinor
+        - dueMinor
+        - team
+        - drawerOpen
+        - canCheckout
+        - balanceMinor
+        - canDiscount
+        - tenders
+      properties:
+        appointmentId:
+          $ref: '#/components/schemas/Uuid'
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        orderId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: The visit's order, once it has one (the receipt is the order's).
+        reference:
+          type: string
+        status:
+          type: string
+        customerName:
+          type:
+            - string
+            - 'null'
+        currency:
+          type: string
+        lines:
+          type: array
+          items:
+            type: object
+            required:
+              - description
+              - totalMinor
+            properties:
+              description:
+                type: string
+              totalMinor:
+                type: integer
+                format: int64
+        totalMinor:
+          type: integer
+          format: int64
+        paidMinor:
+          type: integer
+          format: int64
+          description: Already paid online (a deposit).
+        dueMinor:
+          type: integer
+          format: int64
+          description: Still to pay at the counter, before any tip.
+        team:
+          type: array
+          description: Who worked on the visit; a tip can go to each.
+          items:
+            type: object
+            required:
+              - staffId
+              - name
+            properties:
+              staffId:
+                $ref: '#/components/schemas/Uuid'
+              name:
+                type: string
+        drawerOpen:
+          type: boolean
+        canCheckout:
+          type: boolean
+        receiptNumber:
+          type:
+            - string
+            - 'null'
+        balanceMinor:
+          type: integer
+          format: int64
+          description: What the customer has in their balance with the business.
+        canDiscount:
+          type: boolean
+          description: A discount can be given (the visit has no order yet and the caller holds `pos.discount`).
+        tenders:
+          type: array
+          description: Paid at the counter so far (a sale that was started and not finished).
+          items:
+            $ref: '#/components/schemas/CheckoutTender'
+    CheckoutInput:
+      type: object
+      properties:
+        tips:
+          type: array
+          items:
+            type: object
+            required:
+              - staffId
+              - amountMinor
+            properties:
+              staffId:
+                $ref: '#/components/schemas/Uuid'
+              amountMinor:
+                type: integer
+                format: int64
+                minimum: 0
+        discount:
+          type: object
+          description: |
+            Needs `pos.discount`; only on a visit that has no order yet. Shared between the services in proportion to their price.
+          required:
+            - kind
+            - value
+            - reason
+          properties:
+            kind:
+              type: string
+              enum:
+                - AMOUNT
+                - PERCENT
+            value:
+              type: integer
+              format: int64
+              minimum: 1
+              description: Minor units for AMOUNT; 1 to 100 for PERCENT.
+            reason:
+              type: string
+              minLength: 3
+              maxLength: 200
+        giftCards:
+          type: array
+          description: Codes, in the order to use them; each pays as much as is due.
+          items:
+            type: string
+            maxLength: 40
+        useBalance:
+          type: boolean
+          description: Use the customer's balance with the business (after any gift cards).
+        cashTenderedMinor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The cash handed over for what the cards and balance did not pay. Omit for exactly what is due.
+    CheckoutDone:
+      type: object
+      required:
+        - orderId
+        - orderNumber
+        - receiptNumber
+        - currency
+        - totalMinor
+        - paidOnlineMinor
+        - tipMinor
+        - cashMinor
+        - tenderedMinor
+        - changeMinor
+        - discountMinor
+        - tenders
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        orderNumber:
+          type: string
+        receiptNumber:
+          type: string
+        currency:
+          type: string
+        totalMinor:
+          type: integer
+          format: int64
+        paidOnlineMinor:
+          type: integer
+          format: int64
+        tipMinor:
+          type: integer
+          format: int64
+        cashMinor:
+          type: integer
+          format: int64
+          description: What stays in the drawer.
+        tenderedMinor:
+          type: integer
+          format: int64
+        changeMinor:
+          type: integer
+          format: int64
+        discountMinor:
+          type: integer
+          format: int64
+        tenders:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckoutTender'
+    ReceiptView:
+      type: object
+      required:
+        - number
+        - issuedAt
+        - orderNumber
+        - currency
+        - timezone
+        - business
+        - pricesIncludeTax
+        - lines
+        - subtotalMinor
+        - discountMinor
+        - taxMinor
+        - totalMinor
+        - taxes
+        - tenders
+      properties:
+        number:
+          type: string
+        issuedAt:
+          $ref: '#/components/schemas/Instant'
+        orderNumber:
+          type: string
+        currency:
+          type: string
+        timezone:
+          type: string
+        business:
+          type: string
+          description: The legal entity's registered name.
+        tin:
+          type:
+            - string
+            - 'null'
+        location:
+          type:
+            - string
+            - 'null'
+        landmark:
+          type:
+            - string
+            - 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+        customer:
+          type:
+            - string
+            - 'null'
+        pricesIncludeTax:
+          type: boolean
+        lines:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - description
+              - quantity
+              - unitMinor
+              - discountMinor
+              - totalMinor
+            properties:
+              type:
+                type: string
+              description:
+                type: string
+              quantity:
+                type: integer
+              unitMinor:
+                type: integer
+                format: int64
+              discountMinor:
+                type: integer
+                format: int64
+              totalMinor:
+                type: integer
+                format: int64
+        subtotalMinor:
+          type: integer
+          format: int64
+        discountMinor:
+          type: integer
+          format: int64
+        taxMinor:
+          type: integer
+          format: int64
+        totalMinor:
+          type: integer
+          format: int64
+        taxes:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - rate
+              - taxableMinor
+              - taxMinor
+            properties:
+              code:
+                type: string
+              rate:
+                type: number
+              taxableMinor:
+                type: integer
+                format: int64
+              taxMinor:
+                type: integer
+                format: int64
+        tenders:
+          type: array
+          items:
+            type: object
+            required:
+              - method
+              - name
+              - amountMinor
+            properties:
+              method:
+                type: string
+              name:
+                type: string
+              amountMinor:
+                type: integer
+                format: int64
+              at:
+                oneOf:
+                  - $ref: '#/components/schemas/Instant'
+                  - type: 'null'
+    ReceiptSent:
+      type: object
+      required:
+        - via
+      properties:
+        via:
+          type: string
+          enum:
+            - SMS
+            - EMAIL
     GiftCardProgram:
       type: object
       required:
@@ -8292,6 +9276,7 @@ components:
         - paidOutMinor
         - schedule
         - minPayoutMinor
+        - feesOwedMinor
         - payouts
       properties:
         currency:
@@ -8328,6 +9313,12 @@ components:
         minPayoutMinor:
           type: integer
           format: int64
+        feesOwedMinor:
+          type: integer
+          format: int64
+          description: |
+            The platform's fees on sales paid at the venue (cash, gift cards, credit) that have not been taken yet; they are
+            taken from the next payout.
         payouts:
           type: array
           items:
@@ -14718,6 +15709,266 @@ components:
           maxLength: 120
         note:
           type: string
+          maxLength: 500
+    ReconciliationAccount:
+      type: object
+      required:
+        - id
+        - provider
+        - name
+        - environment
+        - currency
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        provider:
+          type: string
+        name:
+          type: string
+        environment:
+          type: string
+          enum:
+            - SANDBOX
+            - LIVE
+        currency:
+          type: string
+    ReconciliationAccountList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationAccount'
+    Statement-2:
+      type: object
+      required:
+        - id
+        - providerAccountId
+        - provider
+        - from
+        - to
+        - currency
+        - status
+        - lines
+        - matched
+        - exceptions
+        - importedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        providerAccountId:
+          $ref: '#/components/schemas/Uuid'
+        provider:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - IMPORTED
+            - RECONCILING
+            - RECONCILED
+            - EXCEPTIONS
+        lines:
+          type: integer
+        matched:
+          type: integer
+        exceptions:
+          type: integer
+          description: Lines not matched, plus payments we confirmed that the statement does not show.
+        closingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        ledgerBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        differenceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        importedAt:
+          $ref: '#/components/schemas/Instant'
+    StatementList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Statement-2'
+    StatementUpload:
+      type: object
+      required:
+        - providerAccountId
+        - from
+        - to
+        - csv
+      properties:
+        providerAccountId:
+          $ref: '#/components/schemas/Uuid'
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        openingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        closingBalanceMinor:
+          type:
+            - integer
+            - 'null'
+          format: int64
+          description: What the provider says the account holds at the end of the last day; compared with the ledger.
+        csv:
+          type: string
+          maxLength: 2000000
+          description: |
+            A header row naming `reference`, `type`, `amount` and `date` (and optionally `fee`), then one line per statement
+            line. `type` is COLLECTION, REFUND, PAYOUT, FEE, SETTLEMENT, REVERSAL, CHARGEBACK or ADJUSTMENT; `amount` and
+            `fee` are in major units; the reference is our payment's id or the provider's own reference for it.
+    ReconciliationException:
+      type: object
+      required:
+        - kind
+        - statementId
+        - lineType
+        - amountMinor
+        - currency
+        - occurredAt
+      properties:
+        kind:
+          type: string
+          enum:
+            - AMOUNT_MISMATCH
+            - MISSING_INTERNALLY
+            - UNMATCHED
+            - MISSING_ON_STATEMENT
+            - BALANCE_DIFFERENCE
+        statementId:
+          $ref: '#/components/schemas/Uuid'
+        lineId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        attemptId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        reference:
+          type:
+            - string
+            - 'null'
+        lineType:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        occurredAt:
+          $ref: '#/components/schemas/Instant'
+        note:
+          type:
+            - string
+            - 'null'
+    ReconciliationExceptionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationException'
+    ExceptionResolution:
+      type: object
+      required:
+        - statementId
+        - note
+      properties:
+        statementId:
+          $ref: '#/components/schemas/Uuid'
+        lineId:
+          $ref: '#/components/schemas/Uuid'
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 500
+      description: Name the statement line, or the payment the statement lacks, or neither (a difference in the balance).
+    ProviderCertification:
+      type: object
+      required:
+        - provider
+        - status
+        - checks
+        - ready
+      properties:
+        provider:
+          type: string
+        status:
+          type: string
+          enum:
+            - SANDBOX
+            - LIVE
+            - SUSPENDED
+        verifiedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        checks:
+          type: array
+          items:
+            type: object
+            required:
+              - code
+              - passed
+              - detail
+            properties:
+              code:
+                type: string
+              passed:
+                type: boolean
+              detail:
+                type: string
+        ready:
+          type: boolean
+    GoLive:
+      type: object
+      required:
+        - evidence
+      properties:
+        evidence:
+          type: string
+          minLength: 10
+          maxLength: 1000
+    ProviderSuspension:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
           maxLength: 500
     AuditEntryPage:
       type: object
