@@ -571,7 +571,7 @@ export type AudienceCount = Schemas["AudienceCount"];
 export type MessagePreview = Schemas["MessagePreview"];
 
 /** The audiences a campaign can address, in the order they are offered. */
-export const AUDIENCES: MarketingAudience[] = [
+export const MARKETING_AUDIENCES: MarketingAudience[] = [
   "FOLLOWERS",
   "CLIENTS",
   "PAST_CLIENTS",

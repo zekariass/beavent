@@ -22,8 +22,8 @@ class BackendApplicationTests {
                 "select count(*) from flyway_schema_history where success and version is not null", Integer.class);
         assertThat(applied)
                 .isEqualTo(
-                        50); // db/migration: V1_00 .. V1_99 baseline + V2_01 .. V2_10 + V3_01 .. V3_08 + V4_01 .. V4_02
-        // + V8_01 .. V8_06
+                        51); // db/migration: V1_00 .. V1_99 baseline + V2_01 .. V2_10 + V3_01 .. V3_08 + V4_01 .. V4_02
+        // + V8_01 .. V8_07
 
         Integer tables = owner.queryForObject("""
                 select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace

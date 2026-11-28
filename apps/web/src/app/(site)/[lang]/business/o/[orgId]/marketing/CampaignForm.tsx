@@ -2,7 +2,12 @@
 
 import { useActionState, useEffect, useState } from "react";
 import type { Language } from "@beavent/i18n";
-import { AUDIENCES, smsLength, smsSegments, type MarketingAudience } from "@beavent/venue";
+import {
+  MARKETING_AUDIENCES,
+  smsLength,
+  smsSegments,
+  type MarketingAudience,
+} from "@beavent/venue";
 import { buttonClass, Field, FormMessage, inputClass } from "@/components/business/ui";
 import { translator } from "@/lib/i18n";
 import { audienceCount, saveCampaign, type MarketingState } from "./actions";
@@ -86,7 +91,7 @@ export function CampaignForm({
           onChange={(e) => setAudience(e.target.value as MarketingAudience)}
           className={inputClass}
         >
-          {AUDIENCES.map((a) => (
+          {MARKETING_AUDIENCES.map((a) => (
             <option key={a} value={a}>
               {t(`portal.marketing.audience.${a}`)}
             </option>
