@@ -2650,6 +2650,272 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orgs/{orgId}/marketing/audience": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many people a campaign to this audience would reach
+         * @description Needs `marketing.manage`. People who asked to stop are counted apart.
+         */
+        get: operations["getMarketingAudience"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The business's campaigns, newest first
+         * @description Needs `marketing.manage`.
+         */
+        get: operations["listCampaigns"];
+        put?: never;
+        /**
+         * Start a campaign as a draft
+         * @description Needs `marketing.manage`. Nothing is sent until the campaign is scheduled.
+         */
+        post: operations["createCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns/{campaignId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A campaign with what became of its messages
+         * @description Needs `marketing.manage`.
+         */
+        get: operations["getCampaign"];
+        /**
+         * Change a draft
+         * @description Needs `marketing.manage`. A campaign that was started cannot be changed (`CONFLICT`).
+         */
+        put: operations["updateCampaign"];
+        post?: never;
+        /**
+         * Delete a draft
+         * @description Needs `marketing.manage`. Only a draft (or a cancelled campaign nobody was queued for) can be deleted.
+         */
+        delete: operations["deleteCampaign"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns/{campaignId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How the message reads in each language, with the link and the stop line
+         * @description Needs `marketing.manage`.
+         */
+        get: operations["previewCampaign"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns/{campaignId}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the message to your own confirmed phone
+         * @description Needs `marketing.manage`. Ten test messages a day per person (`RATE_LIMITED` after).
+         */
+        post: operations["testCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns/{campaignId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the campaign now or at a time
+         * @description Needs `marketing.manage`. Messages go between 08:00 and 20:00 in the place's time, by text message, and never to
+         *     someone who asked to stop. At most 3 campaigns a day (`CONSTRAINT_VIOLATION`), and not to an empty audience.
+         */
+        post: operations["scheduleCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/campaigns/{campaignId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a campaign; messages not yet sent are not sent
+         * @description Needs `marketing.manage`.
+         */
+        post: operations["cancelCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Counted links the business shares
+         * @description Needs `marketing.manage`.
+         */
+        get: operations["listTrackingLinks"];
+        put?: never;
+        /**
+         * Make a short counted link to a place
+         * @description Needs `marketing.manage`.
+         */
+        post: operations["createTrackingLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/marketing/links/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a link
+         * @description Needs `marketing.manage`.
+         */
+        delete: operations["deleteTrackingLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orgs/{orgId}/customers/{customerId}/marketing-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the client agreed to hear from the business by text message
+         * @description Needs `marketing.manage`.
+         */
+        get: operations["getMarketingConsent"];
+        /**
+         * Record that the client agrees (or no longer agrees) to hear from the business
+         * @description Needs `marketing.manage`. The business attests that the client agreed (for example on a form); the note is kept
+         *     as evidence and the change is audited. A client who stops from a message's stop link is recorded the same way.
+         */
+        put: operations["recordMarketingConsent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/links/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count a click on a link from a message or a shared link, and say where it leads
+         * @description Public. The web platform turns the answer into a redirect.
+         */
+        get: operations["followLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/marketing/stop/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which business a stop link is from
+         * @description Public. Does not stop anything, so a link preview cannot.
+         */
+        get: operations["getStopPage"];
+        put?: never;
+        /**
+         * Stop hearing from the business by text message
+         * @description Public. Withdraws the person's agreement, turns off news and offers for a follower, and holds every queued message.
+         */
+        post: operations["stopMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/notification-settings": {
         parameters: {
             query?: never;
@@ -6214,6 +6480,114 @@ export interface components {
             summary: components["schemas"]["ReviewSummary"];
             items: components["schemas"]["Review"][];
             nextCursor?: string;
+        };
+        /**
+         * @description `FOLLOWERS`: people who follow the business and keep "news and offers" on. `CLIENTS`: clients with a phone number
+         *     and a recorded agreement to hear from the business. `PAST_CLIENTS`: those clients who came within `days` (default
+         *     365). `LAPSED_CLIENTS`: those whose last visit was longer than `days` ago (default 90).
+         * @enum {string}
+         */
+        Audience: "FOLLOWERS" | "CLIENTS" | "PAST_CLIENTS" | "LAPSED_CLIENTS";
+        AudienceCount: {
+            audience: components["schemas"]["Audience"];
+            /** @description People a campaign would reach. */
+            reachable: number;
+            /** @description People left out because they asked to stop. */
+            suppressed: number;
+        };
+        /** @description The message per language; a person gets their language's text, or the other one when it is empty. `{name}` is replaced by the person's given name. */
+        CampaignTexts: {
+            am?: string;
+            en?: string;
+        };
+        CampaignStats: {
+            recipients: number;
+            sent: number;
+            failed: number;
+            /** @description Not sent because the person stopped (or the campaign was cancelled) first. */
+            suppressed: number;
+            /** @description People who opened the link in the message. */
+            clicks: number;
+        };
+        Campaign: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            audience: components["schemas"]["Audience"];
+            days?: number;
+            locationId?: components["schemas"]["Uuid"];
+            texts: components["schemas"]["CampaignTexts"];
+            /** @enum {string} */
+            status: "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "CANCELLED" | "FAILED";
+            scheduledAt?: components["schemas"]["Instant"];
+            sentAt?: components["schemas"]["Instant"];
+            stats: components["schemas"]["CampaignStats"];
+            createdAt: components["schemas"]["Instant"];
+        };
+        CampaignList: {
+            items: components["schemas"]["Campaign"][];
+        };
+        CampaignInput: {
+            name: string;
+            audience: components["schemas"]["Audience"];
+            days?: number;
+            /** @description The place the link in the message opens; the first active place when absent. */
+            locationId?: components["schemas"]["Uuid"];
+            texts: components["schemas"]["CampaignTexts"];
+        };
+        /** @description A message as a person will read it, with the link and the stop line. */
+        MessagePreview: {
+            /** @enum {string} */
+            language: "am" | "en";
+            text: string;
+            characters: number;
+            /** @description How many text messages it takes (160 characters in one for Latin text, 70 once Amharic is in it). */
+            segments: number;
+        };
+        MessagePreviewList: {
+            items: components["schemas"]["MessagePreview"][];
+        };
+        ScheduleInput: {
+            /** @description When to send; now when absent. Messages go between 08:00 and 20:00 in the place's time. */
+            at?: components["schemas"]["Instant"];
+        };
+        TrackingLink: {
+            id: components["schemas"]["Uuid"];
+            code: string;
+            /** @description The short link to share. */
+            url: string;
+            name: string;
+            locationId?: components["schemas"]["Uuid"];
+            clicks: number;
+            clicksLast7Days: number;
+            createdAt: components["schemas"]["Instant"];
+        };
+        TrackingLinkList: {
+            items: components["schemas"]["TrackingLink"][];
+        };
+        TrackingLinkInput: {
+            name: string;
+            locationId?: components["schemas"]["Uuid"];
+        };
+        /** @description Whether the client agreed to hear from the business by text message. */
+        MarketingConsent: {
+            granted: boolean;
+            at?: components["schemas"]["Instant"];
+            source?: string;
+        };
+        MarketingConsentInput: {
+            granted: boolean;
+            /** @description How the client agreed (kept as evidence). */
+            note?: string;
+        };
+        /** @description Where a counted link leads, as a path on the web platform (without the language) and the campaign parameters to add. */
+        LinkTarget: {
+            path: string;
+            params: {
+                [key: string]: string;
+            };
+        };
+        StopPage: {
+            business: string;
         };
         /**
          * @description What a person chose about reminders and review requests. Confirmations, changes, payments and security messages are
@@ -12280,6 +12654,490 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ReviewPage"];
                 };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getMarketingAudience: {
+        parameters: {
+            query: {
+                audience: components["schemas"]["Audience"];
+                days?: number;
+            };
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudienceCount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listCampaigns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignInput"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Campaign"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Campaign"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Campaign"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deleteCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    previewCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePreviewList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    testCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePreview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    scheduleCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Campaign"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    cancelCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                campaignId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Campaign"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listTrackingLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackingLinkList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createTrackingLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackingLinkInput"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackingLink"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    deleteTrackingLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                linkId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMarketingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingConsent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    recordMarketingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: components["parameters"]["OrgId"];
+                customerId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketingConsentInput"];
+            };
+        };
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingConsent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    followLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkTarget"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getStopPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopPage"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    stopMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stopped. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];

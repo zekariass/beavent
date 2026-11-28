@@ -526,4 +526,52 @@ class NotificationsApiTests extends SchedulingTestSupport {
                 .isEqualTo(fayToken);
         assertThat(visit).isNotBlank();
     }
+
+    // --- the business hears about bookings --------------------------------------------------------------------
+
+    @Test
+    void theBusinessHearsAboutBookingsCustomersMakeAndCancelButNotItsOwnDesk() throws Exception {
+        Shop shop = shop();
+        Person owner = shop.salon().owner();
+        Person reception = newMember(shop.salon(), "RECEPTIONIST");
+        Person cashier = newMember(shop.salon(), "CASHIER");
+        Person ana = newPerson();
+
+        // The front desk books a walk-in: not news to the business.
+        Call walkIn = call(
+                post(shop.salon().path("/appointments")),
+                Map.of(
+                        "locationId", shop.salon().location1().toString(),
+                        "start", at(day(), "09:00").toInstant().toString(),
+                        "items", List.of(Map.of("variantId", shop.variant(), "staffId", shop.abebe())),
+                        "customer", Map.of("name", "Selam", "phone", newPhone()),
+                        "source", "WALK_IN",
+                        "notifyCustomer", false),
+                reception.token());
+        assertThat(walkIn.status()).as(String.valueOf(walkIn.body())).isEqualTo(201);
+
+        // A customer books online: the owner and the receptionist hear; the cashier (no right to bookings) does not.
+        Call booked = book(shop, "12:00", ana);
+        String reference = booked.text("reference");
+        waitFor("the owner to hear", () -> received(owner, "new booking " + reference));
+        waitFor("the receptionist to hear", () -> received(reception, "new booking " + reference));
+        String message = sms.messagesTo(owner.phone()).stream()
+                .filter(m -> m.contains("new booking " + reference))
+                .findFirst()
+                .orElseThrow();
+        assertThat(message)
+                .contains("Haircut")
+                .contains("with Abebe")
+                .contains("/en/business/o/" + shop.salon().id() + "/calendar");
+        assertThat(received(owner, walkIn.text("reference")))
+                .as("not the walk-in")
+                .isFalse();
+        assertThat(received(cashier, "new booking")).isFalse();
+
+        // The customer cancels: the business hears that too.
+        assertThat(call(post("/v1/me/appointments/" + booked.text("id") + "/cancel"), Map.of(), ana.token())
+                        .status())
+                .isEqualTo(200);
+        waitFor("the owner to hear of the cancellation", () -> received(owner, "cancelled booking " + reference));
+    }
 }

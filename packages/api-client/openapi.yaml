@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Marketing
+    description: SMS campaigns, counted links, and stopping from a message
   - name: Notifications
     description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
@@ -5741,6 +5743,509 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReviewPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/marketing/audience:
+    get:
+      tags:
+        - Marketing
+      operationId: getMarketingAudience
+      summary: How many people a campaign to this audience would reach
+      description: Needs `marketing.manage`. People who asked to stop are counted apart.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: audience
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Audience'
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1095
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceCount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/orgs/{orgId}/marketing/campaigns:
+    get:
+      tags:
+        - Marketing
+      operationId: listCampaigns
+      summary: The business's campaigns, newest first
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Marketing
+      operationId: createCampaign
+      summary: Start a campaign as a draft
+      description: Needs `marketing.manage`. Nothing is sent until the campaign is scheduled.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}:
+    get:
+      tags:
+        - Marketing
+      operationId: getCampaign
+      summary: A campaign with what became of its messages
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Marketing
+      operationId: updateCampaign
+      summary: Change a draft
+      description: Needs `marketing.manage`. A campaign that was started cannot be changed (`CONFLICT`).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+        - Marketing
+      operationId: deleteCampaign
+      summary: Delete a draft
+      description: Needs `marketing.manage`. Only a draft (or a cancelled campaign nobody was queued for) can be deleted.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/preview:
+    get:
+      tags:
+        - Marketing
+      operationId: previewCampaign
+      summary: How the message reads in each language, with the link and the stop line
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePreviewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/test:
+    post:
+      tags:
+        - Marketing
+      operationId: testCampaign
+      summary: Send the message to your own confirmed phone
+      description: Needs `marketing.manage`. Ten test messages a day per person (`RATE_LIMITED` after).
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/schedule:
+    post:
+      tags:
+        - Marketing
+      operationId: scheduleCampaign
+      summary: Send the campaign now or at a time
+      description: |
+        Needs `marketing.manage`. Messages go between 08:00 and 20:00 in the place's time, by text message, and never to
+        someone who asked to stop. At most 3 campaigns a day (`CONSTRAINT_VIOLATION`), and not to an empty audience.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/cancel:
+    post:
+      tags:
+        - Marketing
+      operationId: cancelCampaign
+      summary: Cancel a campaign; messages not yet sent are not sent
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/orgs/{orgId}/marketing/links:
+    get:
+      tags:
+        - Marketing
+      operationId: listTrackingLinks
+      summary: Counted links the business shares
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingLinkList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Marketing
+      operationId: createTrackingLink
+      summary: Make a short counted link to a place
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingLinkInput'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /v1/orgs/{orgId}/marketing/links/{linkId}:
+    delete:
+      tags:
+        - Marketing
+      operationId: deleteTrackingLink
+      summary: Delete a link
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: linkId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/orgs/{orgId}/customers/{customerId}/marketing-consent:
+    get:
+      tags:
+        - Marketing
+      operationId: getMarketingConsent
+      summary: Whether the client agreed to hear from the business by text message
+      description: Needs `marketing.manage`.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketingConsent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags:
+        - Marketing
+      operationId: recordMarketingConsent
+      summary: Record that the client agrees (or no longer agrees) to hear from the business
+      description: |
+        Needs `marketing.manage`. The business attests that the client agreed (for example on a form); the note is kept
+        as evidence and the change is audited. A client who stops from a message's stop link is recorded the same way.
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketingConsentInput'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketingConsent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/public/links/{code}:
+    get:
+      tags:
+        - Marketing
+      operationId: followLink
+      summary: Count a click on a link from a message or a shared link, and say where it leads
+      description: Public. The web platform turns the answer into a redirect.
+      security: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkTarget'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/public/marketing/stop/{token}:
+    get:
+      tags:
+        - Marketing
+      operationId: getStopPage
+      summary: Which business a stop link is from
+      description: Public. Does not stop anything, so a link preview cannot.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags:
+        - Marketing
+      operationId: stopMessages
+      summary: Stop hearing from the business by text message
+      description: Public. Withdraws the person's agreement, turns off news and offers for a follower, and holds every queued message.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Stopped.
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -13825,6 +14330,259 @@ components:
           items:
             $ref: '#/components/schemas/Review'
         nextCursor:
+          type: string
+    Audience:
+      type: string
+      enum:
+        - FOLLOWERS
+        - CLIENTS
+        - PAST_CLIENTS
+        - LAPSED_CLIENTS
+      description: |
+        `FOLLOWERS`: people who follow the business and keep "news and offers" on. `CLIENTS`: clients with a phone number
+        and a recorded agreement to hear from the business. `PAST_CLIENTS`: those clients who came within `days` (default
+        365). `LAPSED_CLIENTS`: those whose last visit was longer than `days` ago (default 90).
+    AudienceCount:
+      type: object
+      required:
+        - audience
+        - reachable
+        - suppressed
+      properties:
+        audience:
+          $ref: '#/components/schemas/Audience'
+        reachable:
+          type: integer
+          description: People a campaign would reach.
+        suppressed:
+          type: integer
+          description: People left out because they asked to stop.
+    CampaignTexts:
+      type: object
+      description: The message per language; a person gets their language's text, or the other one when it is empty. `{name}` is replaced by the person's given name.
+      properties:
+        am:
+          type: string
+          maxLength: 960
+        en:
+          type: string
+          maxLength: 960
+    CampaignStats:
+      type: object
+      required:
+        - recipients
+        - sent
+        - failed
+        - suppressed
+        - clicks
+      properties:
+        recipients:
+          type: integer
+        sent:
+          type: integer
+        failed:
+          type: integer
+        suppressed:
+          type: integer
+          description: Not sent because the person stopped (or the campaign was cancelled) first.
+        clicks:
+          type: integer
+          description: People who opened the link in the message.
+    Campaign:
+      type: object
+      required:
+        - id
+        - name
+        - audience
+        - texts
+        - status
+        - stats
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        audience:
+          $ref: '#/components/schemas/Audience'
+        days:
+          type: integer
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        texts:
+          $ref: '#/components/schemas/CampaignTexts'
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - SCHEDULED
+            - SENDING
+            - SENT
+            - CANCELLED
+            - FAILED
+        scheduledAt:
+          $ref: '#/components/schemas/Instant'
+        sentAt:
+          $ref: '#/components/schemas/Instant'
+        stats:
+          $ref: '#/components/schemas/CampaignStats'
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    CampaignList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campaign'
+    CampaignInput:
+      type: object
+      required:
+        - name
+        - audience
+        - texts
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        audience:
+          $ref: '#/components/schemas/Audience'
+        days:
+          type: integer
+          minimum: 1
+          maximum: 1095
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+          description: The place the link in the message opens; the first active place when absent.
+        texts:
+          $ref: '#/components/schemas/CampaignTexts'
+    MessagePreview:
+      type: object
+      description: A message as a person will read it, with the link and the stop line.
+      required:
+        - language
+        - text
+        - characters
+        - segments
+      properties:
+        language:
+          type: string
+          enum:
+            - am
+            - en
+        text:
+          type: string
+        characters:
+          type: integer
+        segments:
+          type: integer
+          description: How many text messages it takes (160 characters in one for Latin text, 70 once Amharic is in it).
+    MessagePreviewList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagePreview'
+    ScheduleInput:
+      type: object
+      properties:
+        at:
+          $ref: '#/components/schemas/Instant'
+          description: When to send; now when absent. Messages go between 08:00 and 20:00 in the place's time.
+    TrackingLink:
+      type: object
+      required:
+        - id
+        - code
+        - url
+        - name
+        - clicks
+        - clicksLast7Days
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        code:
+          type: string
+        url:
+          type: string
+          description: The short link to share.
+        name:
+          type: string
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+        clicks:
+          type: integer
+        clicksLast7Days:
+          type: integer
+        createdAt:
+          $ref: '#/components/schemas/Instant'
+    TrackingLinkList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackingLink'
+    TrackingLinkInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        locationId:
+          $ref: '#/components/schemas/Uuid'
+    MarketingConsent:
+      type: object
+      description: Whether the client agreed to hear from the business by text message.
+      required:
+        - granted
+      properties:
+        granted:
+          type: boolean
+        at:
+          $ref: '#/components/schemas/Instant'
+        source:
+          type: string
+    MarketingConsentInput:
+      type: object
+      required:
+        - granted
+      properties:
+        granted:
+          type: boolean
+        note:
+          type: string
+          maxLength: 300
+          description: How the client agreed (kept as evidence).
+    LinkTarget:
+      type: object
+      description: Where a counted link leads, as a path on the web platform (without the language) and the campaign parameters to add.
+      required:
+        - path
+        - params
+      properties:
+        path:
+          type: string
+        params:
+          type: object
+          additionalProperties:
+            type: string
+    StopPage:
+      type: object
+      required:
+        - business
+      properties:
+        business:
           type: string
     NotificationSettings:
       type: object

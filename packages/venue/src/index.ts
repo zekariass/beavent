@@ -560,3 +560,31 @@ export function quietHoursText(
     secondary: t("notifications.quiet.range", { from: a.secondary, to: b.secondary }),
   };
 }
+
+// --- text message campaigns (plan 8.5) ----------------------------------------------------------------------------
+
+export type Campaign = Schemas["Campaign"];
+export type CampaignStats = Schemas["CampaignStats"];
+export type TrackingLink = Schemas["TrackingLink"];
+export type MarketingAudience = Schemas["Audience"];
+export type AudienceCount = Schemas["AudienceCount"];
+export type MessagePreview = Schemas["MessagePreview"];
+
+/** The audiences a campaign can address, in the order they are offered. */
+export const MARKETING_AUDIENCES: MarketingAudience[] = [
+  "FOLLOWERS",
+  "CLIENTS",
+  "PAST_CLIENTS",
+  "LAPSED_CLIENTS",
+];
+
+/** The characters of a text that count against an SMS: the same count the server makes. */
+export const smsLength = (text: string): number => [...text].length;
+
+/** How many text messages a text takes: 160 characters in one for plain Latin text (153 each when longer), 70 (67) once any other script is in it. */
+export function smsSegments(text: string): number {
+  const n = smsLength(text);
+  if (n === 0) return 0;
+  const plain = [...text].every((c) => c.charCodeAt(0) < 128);
+  return plain ? (n <= 160 ? 1 : Math.ceil(n / 153)) : n <= 70 ? 1 : Math.ceil(n / 67);
+}

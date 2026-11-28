@@ -1,0 +1,203 @@
+Audience:
+  type: string
+  enum: [FOLLOWERS, CLIENTS, PAST_CLIENTS, LAPSED_CLIENTS]
+  description: |
+    `FOLLOWERS`: people who follow the business and keep "news and offers" on. `CLIENTS`: clients with a phone number
+    and a recorded agreement to hear from the business. `PAST_CLIENTS`: those clients who came within `days` (default
+    365). `LAPSED_CLIENTS`: those whose last visit was longer than `days` ago (default 90).
+AudienceCount:
+  type: object
+  required: [audience, reachable, suppressed]
+  properties:
+    audience:
+      $ref: '#/Audience'
+    reachable:
+      type: integer
+      description: People a campaign would reach.
+    suppressed:
+      type: integer
+      description: People left out because they asked to stop.
+CampaignTexts:
+  type: object
+  description: The message per language; a person gets their language's text, or the other one when it is empty. `{name}` is replaced by the person's given name.
+  properties:
+    am:
+      type: string
+      maxLength: 960
+    en:
+      type: string
+      maxLength: 960
+CampaignInput:
+  type: object
+  required: [name, audience, texts]
+  properties:
+    name:
+      type: string
+      maxLength: 80
+    audience:
+      $ref: '#/Audience'
+    days:
+      type: integer
+      minimum: 1
+      maximum: 1095
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+      description: The place the link in the message opens; the first active place when absent.
+    texts:
+      $ref: '#/CampaignTexts'
+CampaignStats:
+  type: object
+  required: [recipients, sent, failed, suppressed, clicks]
+  properties:
+    recipients:
+      type: integer
+    sent:
+      type: integer
+    failed:
+      type: integer
+    suppressed:
+      type: integer
+      description: Not sent because the person stopped (or the campaign was cancelled) first.
+    clicks:
+      type: integer
+      description: People who opened the link in the message.
+Campaign:
+  type: object
+  required: [id, name, audience, texts, status, stats, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    name:
+      type: string
+    audience:
+      $ref: '#/Audience'
+    days:
+      type: integer
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    texts:
+      $ref: '#/CampaignTexts'
+    status:
+      type: string
+      enum: [DRAFT, SCHEDULED, SENDING, SENT, CANCELLED, FAILED]
+    scheduledAt:
+      $ref: ../common/schemas.yaml#/Instant
+    sentAt:
+      $ref: ../common/schemas.yaml#/Instant
+    stats:
+      $ref: '#/CampaignStats'
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+CampaignList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Campaign'
+MessagePreview:
+  type: object
+  description: A message as a person will read it, with the link and the stop line.
+  required: [language, text, characters, segments]
+  properties:
+    language:
+      type: string
+      enum: [am, en]
+    text:
+      type: string
+    characters:
+      type: integer
+    segments:
+      type: integer
+      description: How many text messages it takes (160 characters in one for Latin text, 70 once Amharic is in it).
+MessagePreviewList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MessagePreview'
+ScheduleInput:
+  type: object
+  properties:
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+      description: When to send; now when absent. Messages go between 08:00 and 20:00 in the place's time.
+TrackingLinkInput:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 80
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+TrackingLink:
+  type: object
+  required: [id, code, url, name, clicks, clicksLast7Days, createdAt]
+  properties:
+    id:
+      $ref: ../common/schemas.yaml#/Uuid
+    code:
+      type: string
+    url:
+      type: string
+      description: The short link to share.
+    name:
+      type: string
+    locationId:
+      $ref: ../common/schemas.yaml#/Uuid
+    clicks:
+      type: integer
+    clicksLast7Days:
+      type: integer
+    createdAt:
+      $ref: ../common/schemas.yaml#/Instant
+TrackingLinkList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/TrackingLink'
+LinkTarget:
+  type: object
+  description: Where a counted link leads, as a path on the web platform (without the language) and the campaign parameters to add.
+  required: [path, params]
+  properties:
+    path:
+      type: string
+    params:
+      type: object
+      additionalProperties:
+        type: string
+MarketingConsent:
+  type: object
+  description: Whether the client agreed to hear from the business by text message.
+  required: [granted]
+  properties:
+    granted:
+      type: boolean
+    at:
+      $ref: ../common/schemas.yaml#/Instant
+    source:
+      type: string
+MarketingConsentInput:
+  type: object
+  required: [granted]
+  properties:
+    granted:
+      type: boolean
+    note:
+      type: string
+      maxLength: 300
+      description: How the client agreed (kept as evidence).
+StopPage:
+  type: object
+  required: [business]
+  properties:
+    business:
+      type: string

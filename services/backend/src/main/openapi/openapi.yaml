@@ -22,6 +22,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Marketing
+    description: SMS campaigns, counted links, and stopping from a message
   - name: Notifications
     description: What the signed-in person chose about reminders and quiet hours
   - name: Auth
@@ -352,6 +354,30 @@ paths:
     $ref: ./discovery/paths.yaml#/brand
   /v1/public/businesses/{businessSlug}/reviews:
     $ref: ./discovery/paths.yaml#/brandReviews
+  /v1/orgs/{orgId}/marketing/audience:
+    $ref: ./marketing/paths.yaml#/marketingAudience
+  /v1/orgs/{orgId}/marketing/campaigns:
+    $ref: ./marketing/paths.yaml#/marketingCampaigns
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}:
+    $ref: ./marketing/paths.yaml#/marketingCampaign
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/preview:
+    $ref: ./marketing/paths.yaml#/marketingCampaignPreview
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/test:
+    $ref: ./marketing/paths.yaml#/marketingCampaignTest
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/schedule:
+    $ref: ./marketing/paths.yaml#/marketingCampaignSchedule
+  /v1/orgs/{orgId}/marketing/campaigns/{campaignId}/cancel:
+    $ref: ./marketing/paths.yaml#/marketingCampaignCancel
+  /v1/orgs/{orgId}/marketing/links:
+    $ref: ./marketing/paths.yaml#/marketingLinks
+  /v1/orgs/{orgId}/marketing/links/{linkId}:
+    $ref: ./marketing/paths.yaml#/marketingLink
+  /v1/orgs/{orgId}/customers/{customerId}/marketing-consent:
+    $ref: ./marketing/paths.yaml#/marketingConsent
+  /v1/public/links/{code}:
+    $ref: ./marketing/paths.yaml#/publicLink
+  /v1/public/marketing/stop/{token}:
+    $ref: ./marketing/paths.yaml#/publicStop
   /v1/me/notification-settings:
     $ref: ./comms/paths.yaml#/notificationSettings
   /v1/me/reviews:

@@ -49,6 +49,25 @@ export async function giftCardCodeFor(destination: string): Promise<string> {
   throw new Error(`no gift card code for ${destination} in ${API_LOG}`);
 }
 
+/**
+ * The `/u/<token>` stop link in the newest text message the `log` provider wrote for this phone number that contains
+ * `fragment` (plan 8.5), waiting for it to arrive. The API must run with the marketing worker every few seconds and
+ * without the 20:00 to 08:00 hold: `BEAVENT_MARKETING_WORKER_INTERVAL_MS=2000 BEAVENT_MARKETING_QUIET_FROM=03:00
+ * BEAVENT_MARKETING_QUIET_TO=03:01`.
+ */
+export async function campaignTokenFor(destination: string, fragment: string): Promise<string> {
+  const pattern = new RegExp(
+    `to ${destination.replace(/[+.]/g, "\\$&")}\\] [^\\n]*${fragment}[^\\n]*?/u/([a-z0-9]{16})`,
+    "g",
+  );
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const found = [...readFileSync(API_LOG, "utf8").matchAll(pattern)];
+    if (found.length > 0) return found.at(-1)![1]!;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`no campaign message for ${destination} in ${API_LOG}`);
+}
+
 /** The link of the newest receipt text the `log` SMS provider wrote for this phone number (plan 4.3). */
 export async function receiptLinkFor(destination: string): Promise<string> {
   const pattern = new RegExp(

@@ -32,6 +32,12 @@ final class Texts {
         if (code.equals(Notifier.GIFT_CARD_RECEIVED)) {
             return giftCardReceived(lang, data);
         }
+        if (code.equals(Notifier.MARKETING_CAMPAIGN)) {
+            return new Message(String.valueOf(data.get("business")), String.valueOf(data.get("text")));
+        }
+        if (code.startsWith("BOOKING_")) {
+            return forBusiness(code, lang, data);
+        }
         if (code.equals(Notifier.RECEIPT_SENT)) {
             return receiptSent(lang, data);
         }
@@ -142,6 +148,61 @@ final class Texts {
         };
         String subject = am ? business + " · ቀጠሮ " + ref : business + " · booking " + ref;
         return new Message(subject, text);
+    }
+
+    /** What the business hears about a booking a customer made, asked for or cancelled (plan 8.4). */
+    private static Message forBusiness(String code, String lang, Map<String, Object> data) {
+        boolean am = lang.equals("am");
+        String business = String.valueOf(data.get("business"));
+        String ref = String.valueOf(data.get("reference"));
+        String customer = String.valueOf(data.get("customer"));
+        ZonedDateTime start = Instant.parse(String.valueOf(data.get("startsAt")))
+                .atZone(ZoneId.of(String.valueOf(data.get("timezone"))));
+        String when = date(start, lang) + (am ? "፣ " : ", ") + time(start.toLocalTime(), lang);
+        String services = data.get("services") instanceof java.util.List<?> list
+                ? list.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "))
+                : "";
+        String with = data.get("staff") instanceof java.util.List<?> staff && !staff.isEmpty()
+                ? (am ? " (" : " with ")
+                        + staff.stream()
+                                .map(String::valueOf)
+                                .distinct()
+                                .collect(java.util.stream.Collectors.joining(", "))
+                        + (am ? ")" : "")
+                : "";
+        String link = data.get("web") + "/" + lang + "/business/o/" + data.get("orgId") + "/calendar";
+        return switch (code) {
+            case Notifier.BOOKING_NEW ->
+                am
+                        ? new Message(
+                                business + " · አዲስ ቀጠሮ " + ref,
+                                business + "፦ አዲስ ቀጠሮ " + ref + " ከ" + customer + "፦ " + services + "፣ " + when + with
+                                        + "። " + link)
+                        : new Message(
+                                business + " · new booking " + ref,
+                                business + ": new booking " + ref + " from " + customer + ": " + services + " on "
+                                        + when + with + ". " + link);
+            case Notifier.BOOKING_REQUEST ->
+                am
+                        ? new Message(
+                                business + " · የቀጠሮ ጥያቄ " + ref,
+                                business + "፦ የቀጠሮ ጥያቄ " + ref + " ከ" + customer + "፦ " + services + "፣ " + when + with
+                                        + "። ይቀበሉ ወይም አይቀበሉ፦ " + link)
+                        : new Message(
+                                business + " · booking request " + ref,
+                                business + ": booking request " + ref + " from " + customer + ": " + services + " on "
+                                        + when + with + ". Accept or decline: " + link);
+            case Notifier.BOOKING_CANCELLED ->
+                am
+                        ? new Message(
+                                business + " · ቀጠሮ ተሰርዟል " + ref,
+                                business + "፦ " + customer + " ቀጠሮ " + ref + " (" + services + "፣ " + when + ") ሰርዘዋል።")
+                        : new Message(
+                                business + " · booking cancelled " + ref,
+                                business + ": " + customer + " cancelled booking " + ref + " (" + services + ", " + when
+                                        + ").");
+            default -> throw new IllegalArgumentException("No text for " + code);
+        };
     }
 
     /** Messages about reviews and about being on the marketplace (plan 8.3 and 8.1), to the business or the author. */
